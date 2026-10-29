@@ -234,6 +234,13 @@ function buildRunExecutionBasis(value) {
       standardDigest: digest(shelf.standardDigest, 'standardDigest') },
     productionMaterialManifest: manifest, relatedDispositionScope
   };
+  if(value.collectionTargetRef!==undefined){
+    basis.collectionTargetRef=require('../../../contracts/collection-target-reference').buildCollectionTargetReference(value.collectionTargetRef);
+    if(spec.targetKind==='user_custom'&&(basis.collectionTargetRef.targetKind!=='user_custom'||
+        basis.collectionTargetRef.intentId!==spec.customTargetRef?.intentId||basis.collectionTargetRef.intentDigest!==spec.customTargetRef?.intentDigest||
+        basis.collectionTargetRef.targetRevision!==spec.customTargetRef?.targetRevision))
+      fail('P9_RUN_TARGET_REFERENCE','Run target does not match its immutable custom Spec.');
+  }else if(spec.targetKind==='user_custom')fail('P9_RUN_TARGET_REFERENCE','A custom Spec requires its exact collection target revision.');
   if (value.episodeMetadataMappingRef !== undefined) {
     if (subject.contentProfile !== 'series') fail('P9_RUN_BASIS_MAPPING_PROFILE', 'Only a Series Run may bind Episode metadata mapping.');
     basis.episodeMetadataMappingRef = require('../../../contracts/episode-metadata-mapping-reference')

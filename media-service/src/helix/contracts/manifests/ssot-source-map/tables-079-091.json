@@ -12,7 +12,7 @@
       "constraintsContract": "Subject没有Run时允许无row并以logical revision 0/空set验证；该logical 0不建立sentinel row，实际row的`head_revision`为正整数并从1开始；每次Run admission/replacement、全部Lifecycle transition及Discard都对expected head CAS并加1，因为active scope set同时绑定member Run的state revision/digest；`active_scope_set_digest=SHA-256(JCS({schema:\"libra.active-run-scopes@1\",subjectId,items:[{libraRunId,runScopeDigest,stateRevision,stateDigest}]按libraRunId UTF-8 bytes排序}))`，只收录具有最终提交资格的`active|suspended|frozen` Run；不能按时间戳或扫描Supporting Work猜current scope",
       "source": {
         "section": "8.5.11",
-        "line": 9582,
+        "line": 9590,
         "lineDigest": "3e11f13a4455c3103a5b17435dcd35de2d7f7e89a4b275bb039ee46100a54aed"
       }
     },
@@ -23,7 +23,7 @@
       "constraintsContract": "`run_material_manifest_id`与Manifest回指Run的复合建立使用`DEFERRABLE INITIALLY DEFERRED` FK并在事务commit前完整验证，禁止nullable后补。`execution_basis_schema_ref=LibraRunExecutionBasisRecord@1`且typed JSON≤`1 MiB`，保存除大Manifest成员外的完整冻结Basis及Manifest ref；与Manifest relation展开后必须重算同一execution basis digest。`UNIQUE(subject_id,admission_revision)`及`UNIQUE(subject_id,acceptance_spec_id,run_scope_digest,admission_revision)`；current aggregate row使用`rowMutability=cas_lifecycle`：每次state/priority/freshness/recovery变化必须同时追加`libra_run_revisions`，Deliverable Promotion只允许expected `package_revision_head` CAS加1且不得改state；`package_revision_head`固定为`INTEGER NOT NULL DEFAULT 0 CHECK(package_revision_head >= 0)`，Run Admission初值0，每次Promotion以expected数值CAS后加1，禁止物化为TEXT或从时间戳推导。Admission固定`recovery_attempt_ordinal=0`且其余recovery/freshness列为NULL；首次`suspended`写固定Policy、start、attempt 0、首个next due与Assessment pair；`suspended`要求attempt `0..4`且next due非NULL，每次unresolved恢复点CAS递增attempt并更新next due；第5次仍unresolved原子进入`frozen`、attempt=5且next due=NULL；`active`不得有next due，resume后保留latest Assessment及历史Policy/start/attempt供审计但下一次suspend按新Evidence重置恢复episode；`frozen`不得被Lifecycle或Run Creator自动恢复。`terminal_at_ms`仅`completed|superseded|discarded|administratively_retired`非NULL，其他状态为NULL；same-spec/scope semantic replay返回原Run，新的合法replacement使用新admission revision；`INDEX(state,recovery_next_due_at_ms,priority_class,created_at_ms)`",
       "source": {
         "section": "8.5.11",
-        "line": 9583,
+        "line": 9591,
         "lineDigest": "0e7f955da44304c86ab83f288323586c0e52a6eb10501634f006d899563eab48"
       }
     },
@@ -34,7 +34,7 @@
       "constraintsContract": "`PK(libra_run_id,state_revision)`；revision从1连续且append-only；`expected_admission_head_revision`固定为`INTEGER NOT NULL CHECK(expected_admission_head_revision >= 0)`，只有initial Admission的首条Run revision允许0并逐字节保存absent pre-CAS snapshot；replacement及全部后续Lifecycle/Discard revision必须为正整数。`transition_evidence_json`保存与schema/id/digest逐字节匹配的完整typed Evidence，JCS bytes≤`1 MiB`；Admission Evidence可使用bounded Admission Decision snapshot，freshness variants必须是`LibraRunFreshnessAssessment@1`，直接active→frozen必须是`LibraRunTerminalDeliveryEvidence@1`，`defect_admitted`必须是当前frozen revision对应且由用户确认的`AuthorizedDefectManifest@1`，reprioritized必须是`LibraRunPriorityIntent@1`，completed必须是`ArcaProductAcceptedMessage@1`，不得仅保存opaque ref。`freshness_confirmed`保持active，`recovery_reassessed`保持suspended并使attempt严格加1；其他closed transition按8.6.21执行。`committed_admission_head_revision`固定为`INTEGER NOT NULL CHECK(committed_admission_head_revision >= 1)`；Admission/replacement两个Run revision都绑定同一Admission Decision，Lifecycle/Discard绑定各自Decision；expected/committed head及recovery snapshot永久保存pre/post CAS，不能从later current head或state revision数量反推；`revision_digest=SHA-256(JCS(完整business value excluding revisionDigest))`；current Run的state/priority/recovery字段由最高state revision重建，独立`package_revision_head`由immutable Package revisions（无Package时为数值0）重建；不从Foundation Result恢复",
       "source": {
         "section": "8.5.11",
-        "line": 9584,
+        "line": 9592,
         "lineDigest": "b537d77680239c61830e3d28baebe0f78ef47309f7d141ca18485ec74abf18eb"
       }
     },
@@ -45,7 +45,7 @@
       "constraintsContract": "`UNIQUE(libra_run_id)`及`UNIQUE(actor_id,idempotency_key)`；immutable；只允许用户主动放弃当前`active|frozen` Run或按已拒绝Handoff B收尾时建立；没有Workspace Reference时scope ID为NULL且member set为正式empty digest；非空时从同事务Cleanup Scope/member rows重建Draft；`decisionDigest`按8.6.21完整typed value唯一计算",
       "source": {
         "section": "8.5.11",
-        "line": 9585,
+        "line": 9593,
         "lineDigest": "41a22f68f7701d4d1b08168b116446639346a59d826fab80451af4302e85a8cd"
       }
     },
@@ -56,7 +56,7 @@
       "constraintsContract": "`UNIQUE(discard_decision_id)`；与Run terminal/admission head、原始Input Control release及非空Cleanup Scope同事务；没有Workspace Reference时`cleanup_scope_id=NULL`且member set为empty-set digest，不能为满足FK虚构Workspace/Scope；完整结果只从这些Owner/Control rows重建",
       "source": {
         "section": "8.5.11",
-        "line": 9586,
+        "line": 9594,
         "lineDigest": "7567441613085f10a544144a5eb9c41f3890c0b2fc9da755b0c00232166f161f"
       }
     },
@@ -67,7 +67,7 @@
       "constraintsContract": "immutable；由Run Admission从current Libra Binding/Episode relation建立并成为`LibraRunExecutionBasis@1`组成部分；不是上游Candidate Manifest alias；single的episode scope为空",
       "source": {
         "section": "8.5.11",
-        "line": 9587,
+        "line": 9595,
         "lineDigest": "570d92af54d689230e1670848376bbefcc5922b95c0e1412a83c8da0e9df20ac"
       }
     },
@@ -78,7 +78,7 @@
       "constraintsContract": "`PK(run_material_manifest_id,ordinal)`及`UNIQUE(run_material_manifest_id,material_key)`；ordinal从0连续，按materialKey UTF-8 bytes排序；Run Input只允许Libra Material Binding与domain location，完整Physical Identity/size/Location/Binding/Candidate Delivery provenance/Control snapshot可独立重建；Related值只可从该exact historical Delivery读取并校验set digest；`output_requirement_digest`必须按8.6.21从本Run immutable Acceptance Spec、manifest role、materialKey/role及本member Episode relation重算，禁止caller传入opaque digest；immutable",
       "source": {
         "section": "8.5.11",
-        "line": 9588,
+        "line": 9596,
         "lineDigest": "e04e1ecb865303f6225d924d48ffc1b38b5ce0f15ecea8109a2b2f12150b5bc7"
       }
     },
@@ -89,7 +89,7 @@
       "constraintsContract": "`PK(run_material_manifest_id,member_ordinal,episode_key)`并复合FK到member；只允许season primary payload；每个Material允许0..32个Episode，按episodeKey排序，完整set进入member/manifest/run scope digest；immutable",
       "source": {
         "section": "8.5.11",
-        "line": 9589,
+        "line": 9597,
         "lineDigest": "70a7596d484cbc90855d176c25088814649fd7c6537b2703638159b9308e4019"
       }
     },
@@ -100,7 +100,7 @@
       "constraintsContract": "Platform root snapshot/space evidence/scope/admission列在创建后immutable，typed JSON≤`16 KiB`且必须完整重建`WorkspaceSpaceAdmissionEvidence@1`；root/snapshot/handle与同事务Platform read participant及`fx_workspace_registry.root_handle_ref`逐字节一致。只有`admitted`且`committed_at_ms<=expires_at_ms`的Evidence可建立Workspace，required/available bytes等于typed Evidence；current aggregate row使用`rowMutability=cas_lifecycle`；`FOREIGN KEY(workspace_id,current_revision) REFERENCES libra_workspace_revisions(workspace_id,workspace_revision) DEFERRABLE INITIALLY DEFERRED`，禁止物化为immediate FK、nullable后补或sentinel revision。首次Admission在同一事务先插入`current_revision=1`的aggregate，再插入revision 1，commit前复合FK与state/digest必须全部成立；只有Cleanup全部完成才写reclaimed/completed time；同一Run恰好至多一个Workspace stream，历史Admission Decision只从该row、Run revision与Registry重建，不依赖后来Platform root current row或resolved path",
       "source": {
         "section": "8.5.11",
-        "line": 9590,
+        "line": 9598,
         "lineDigest": "673d118034020983a368f24cff761c7bd790000af110d4602d1082be17159d4f"
       }
     },
@@ -111,7 +111,7 @@
       "constraintsContract": "Libra-owned immutable Analysis输入快照；basis schema固定UsAdultAnalysisBasis，数据库JSON上限`64 KiB`，typed Basis仍≤32 KiB，basisDigest及analysisId由完整value重算；同Run至多一份首次参考库快照，库更新不重写此Basis或自动重试其他暂存影片；不是People Store或跨域当前head",
       "source": {
         "section": "8.5.11",
-        "line": 9591,
+        "line": 9599,
         "lineDigest": "2c5ec10a34cd3941bda56709366522239205abb15a817a815cd881277dc731df"
       }
     },
@@ -122,7 +122,7 @@
       "constraintsContract": "`PK(analysis_id,page_ordinal)`；immutable完整PeopleReferenceLibraryPage副本，数据库JSON上限`1 MiB`/页，typed Page仍≤512 KiB；ordinal从0连续、库digest相同、Person ID全局UTF-8升序且唯一、terminal页才完成；payload digest覆盖整个Page（包括其pageDigest）；page set digest和person/page count回指Basis；不建立People FK或共享Store",
       "source": {
         "section": "8.5.11",
-        "line": 9592,
+        "line": 9600,
         "lineDigest": "f6c167b60ea8628d200b66117710ef2ff3334d38d19752b1109c6d76c2001487"
       }
     },
@@ -133,7 +133,7 @@
       "constraintsContract": "immutable用户Intent；`UNIQUE(subject_id,choice_revision)`、`UNIQUE(actor_id,idempotency_key)`；Person为People opaque ref不建FK；record_schema固定UsAdultActorChoiceRecord，JSON上限`256 KiB`；同Subject合法replacement读取原用户意图，不以影片命名或空演员关系替代；不自动修改其他影片",
       "source": {
         "section": "8.5.11",
-        "line": 9593,
+        "line": 9601,
         "lineDigest": "eb33ddd018847dbd35708bbbe1570b5efe60287d17a669098749b77c213e1727"
       }
     },
@@ -144,7 +144,7 @@
       "constraintsContract": "每Subject当前用户演员选择head；revision从1连续、expectedChoiceRevision CAS；head与immutable intent同事务，来源Run必须是当前未交付Run；不承担Arca演员刷新",
       "source": {
         "section": "8.5.11",
-        "line": 9594,
+        "line": 9602,
         "lineDigest": "a9176f48233085dcb67e3a5d5de5cddebeeac6673df963c0d2fec2d0b89219c1"
       }
     }

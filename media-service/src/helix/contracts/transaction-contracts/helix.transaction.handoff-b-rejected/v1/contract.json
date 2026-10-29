@@ -39,6 +39,7 @@
       "fx_outbox"
     ],
     "readTables": [
+      "arca_offer_withdrawal_receipts",
       "arca_acceptance_attempts",
       "arca_acceptance_decisions",
       "arca_handoff_b_receipts",
@@ -74,7 +75,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 8859,
+      "line": 8867,
       "lineDigest": "5bd38eab2cd7a5372e6ff8d3c4ce676d770f75c1313553eb54688be29cf266af"
     }
   }

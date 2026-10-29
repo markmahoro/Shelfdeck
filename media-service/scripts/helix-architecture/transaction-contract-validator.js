@@ -26,8 +26,8 @@ function validateTransactionContracts(options) {
   const owners = new Set(ownerRegistry && ownerRegistry.owners.map((owner) => owner.id));
   const tableIds = new Set(fs.readdirSync(path.join(contractsRoot, 'table-contracts')));
   const manifest = readJson(path.join(contractsRoot, 'manifests', 'transaction-inventory.json'), findings);
-  if (!manifest || manifest.status !== 'active' || manifest.targetCount !== 62 || manifest.entryFiles.length !== 1) findings.push(finding(
-    'INVALID_TRANSACTION_INVENTORY_MANIFEST', 'Canonical transaction inventory must be active with 62 entries.'
+  if (!manifest || manifest.status !== 'active' || manifest.targetCount !== 65 || manifest.entryFiles.length !== 1) findings.push(finding(
+    'INVALID_TRANSACTION_INVENTORY_MANIFEST', 'Canonical transaction inventory must be active with 65 entries.'
   ));
   const shard = manifest && readJson(path.join(contractsRoot, 'manifests', manifest.entryFiles[0]), findings);
   const entries = shard && shard.entries || [];
@@ -100,7 +100,9 @@ function validateTransactionContracts(options) {
          (entry.id === 'helix.transaction.aftercare-inventory-commit' && variant.variantId === 'arca_us_adult_actor_inventory@1' &&
           selector.commandContract === 'arca.us_adult.inventory.commit@1') ||
          (entry.id === 'helix.transaction.people-reference-artifact-reclamation' && variant.variantId === 'people_reference_artifact_claim@1' &&
-          selector.commandContract === 'people.reference_artifact.claim@1'));
+          selector.commandContract === 'people.reference_artifact.claim@1') ||
+         (entry.id === 'helix.transaction.libra-custom-target-commit' && variant.variantId === 'confirmation' &&
+          selector.commandContract === 'libra.custom-target.confirm@1'));
       const factSelector = selector.selectorKind === 'domain_fact_handle_exact' && selector.factType &&
         selector.factSchemaRef && selector.resultSchemaRef;
       const selectorKey = commandSelector ? selector.commandContract : [selector.factType, selector.factSchemaRef, selector.resultSchemaRef].join('|');

@@ -14,10 +14,10 @@ const generated=path.resolve(__dirname,'../../../src/helix/foundation/persistenc
 const schemaDdl=fs.readFileSync(path.join(generated,'clean-schema.sql'),'utf8');
 const schemaManifest=JSON.parse(fs.readFileSync(path.join(generated,'clean-schema.manifest.json'),'utf8'));
 const D=(value)=>canonicalDigest({fixture:value});
-function fixture(run) {
+function fixture(run,{seedRun=true}={}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-us-analysis-basis-'));
   const databasePath = path.join(root, 'shelfdeck.db');
-  const now = 1700000000000;
+  let now = 1700000000000;
   const kernel = openSqliteKernel({ Database, databasePath, schemaDdl, schemaManifest, now: () => now });
   let deferred=false;
   const cleanup=()=>{kernel.close();fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50});};
@@ -50,13 +50,16 @@ function fixture(run) {
       memberSetDigest, manifestDigest } };
     const seed = new Database(databasePath);
     seed.pragma('foreign_keys = OFF');
+    if(seedRun){
     seed.prepare('INSERT INTO libra_runs (libra_run_id,run_material_manifest_id,execution_basis_record_json,execution_basis_digest,state,state_revision,state_digest,package_revision_head,recovery_attempt_ordinal) VALUES (?,?,?,?,?,?,?,0,0)').run(libraRunId,'manifest-1',JSON.stringify(executionBasisRecord),executionBasisDigest,'active',1,stateDigest);
     seed.prepare('INSERT INTO libra_run_revisions (libra_run_id,state_revision,state,execution_basis_digest,expected_admission_head_revision,revision_digest) VALUES (?,?,?,?,?,?)').run(libraRunId,1,'active',executionBasisDigest,0,D('run-revision'));
     seed.prepare('INSERT INTO libra_run_material_manifests (run_material_manifest_id,libra_run_id,manifest_role,manifest_revision,member_count,member_set_digest,manifest_digest) VALUES (?,?,?,?,?,?,?)').run('manifest-1',libraRunId,'run_input',1,1,memberSetDigest,manifestDigest);
     seed.prepare('INSERT INTO libra_run_material_members (run_material_manifest_id,ordinal,material_key,role,size_bytes,member_digest) VALUES (?,?,?,?,?,?)').run('manifest-1',0,'material-1','primary_payload',100,D('member'));
+    }
     seed.prepare('INSERT INTO platform_workspace_roots (root_id,owner_scope,root_kind,endpoint_id,mount_scope_id,mount_scope_revision,resolved_root,config_revision,capability_digest,state,root_handle_ref,snapshot_digest,updated_at_ms) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)').run(rootId,'libra','production-workspace','endpoint-1','mount-1',1,'C:\\internal-only',1,capabilityDigest,'active',rootHandleRef,snapshot.snapshotDigest,now);
     seed.close();
-    const result=run({ databasePath, kernel, unitOfWork:createSqliteUnitOfWork({kernel}), decision, id });
+    const result=run({ databasePath, kernel, unitOfWork:createSqliteUnitOfWork({kernel}), decision, id,
+      advanceClock(value){assert.ok(Number.isSafeInteger(value)&&value>=now);now=value;} });
     if(result&&typeof result.then==='function'){deferred=true;return Promise.resolve(result).finally(cleanup);}
     return result;
   } finally {

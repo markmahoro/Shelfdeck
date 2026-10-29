@@ -30,6 +30,7 @@ function createPersonReferenceQuery(store) {
   requireMethod(store, 'listPersonReferenceProjections',
     'P6_PEOPLE_REFERENCE_QUERY_STORE_REQUIRED');
   return Object.freeze({
+    resolveUsAdultName: input => store.resolveUsAdultName(input),
     readUsAdultPersonSnapshot:input=>store.readUsAdultPersonSnapshot(input),
     readUsAdultReferencePage:input=>store.readUsAdultReferencePage(input),
     getPersonReferenceProjection(input) {

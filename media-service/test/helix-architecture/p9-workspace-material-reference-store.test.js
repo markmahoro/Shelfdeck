@@ -10,7 +10,7 @@ const {openSqliteKernel}=require('../../src/helix/foundation/persistence/sqlite-
 const {createSqliteUnitOfWork}=require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
 const {buildArtifactManifestVerification}=require('../../src/helix/domains/libra/model/product-fact-contracts');
 const {buildAuthorizedDefectManifest,buildDefectAdmissionCandidate}=require('../../src/helix/domains/libra/model/defect-admission-contracts');
-const {mediaVerificationSnapshot}=require('../../src/helix/domains/libra/application/product-staging-service');
+const {createProductStagingService,mediaVerificationSnapshot}=require('../../src/helix/domains/libra/application/product-staging-service');
 const {buildReferenceDecision,referenceSetDigest,workspaceStateDigest}=require('../../src/helix/domains/libra/model/workspace-material-reference-contracts');
 const {createWorkspaceMaterialReferenceStore}=require('../../src/helix/domains/libra/persistence/workspace-material-reference-store');
 const generated=path.resolve(__dirname,'../../src/helix/foundation/persistence/generated');
@@ -152,6 +152,63 @@ test('attaches, replays, and promotes one immutable Workspace Reference without 
     expectedReference:{state:'present',revision:1,digest:first.result.referenceSnapshot.referenceDigest},workspaceMaterialHandle:input.handle,episodeClaims:[],episodeScopeDigest:first.result.referenceSnapshot.episodeScopeDigest,productVerificationRef:verification(input.handle)}),second=store.commit({decision:promote,commitMarker:'promote-marker',resultId:'promote-result'});
   assert.equal(second.result.referenceSnapshot.state,'product_staging');assert.equal(second.result.referenceSnapshot.referenceRevision,2);assert.equal(second.result.workspaceRevision,3);
   const db=new Database(input.databasePath,{readonly:true});assert.equal(db.prepare('SELECT COUNT(*) n FROM libra_workspace_material_refs').get().n,2);assert.equal(db.prepare('SELECT current_revision FROM libra_workspaces').get().current_revision,3);assert.equal(db.prepare('SELECT state FROM fx_workspace_materials').get().state,'active');db.close();
+}));
+
+test('a stale Owner fence cannot attach a Workspace Reference or write its receipt',()=>fixture((input)=>{
+  const store=createWorkspaceMaterialReferenceStore({schemaManifest,unitOfWork:input.unitOfWork}),
+    fence=input.unitOfWork.captureReadFence(),db=new Database(input.databasePath);
+  db.prepare("INSERT INTO libra_subjects(subject_id) VALUES('changed-owner')").run();db.close();
+  assert.throws(()=>store.commit({decision:attachDecision(input),commitMarker:'fenced-attach',resultId:'fenced-result',readFence:fence}),
+    {code:'P3_UOW_READ_FENCE_CHANGED'});
+  const check=new Database(input.databasePath,{readonly:true});
+  assert.equal(check.prepare('SELECT COUNT(*) n FROM libra_workspace_material_refs').get().n,0);
+  assert.equal(check.prepare('SELECT current_revision FROM libra_workspaces').get().current_revision,1);
+  assert.equal(check.prepare('SELECT COUNT(*) n FROM fx_commit_markers').get().n,0);check.close();
+}));
+
+test('a committed exact Reference replays after its Owner fence becomes stale',()=>fixture((input)=>{
+  const store=createWorkspaceMaterialReferenceStore({schemaManifest,unitOfWork:input.unitOfWork}),
+    fence=input.unitOfWork.captureReadFence(),request={decision:attachDecision(input),commitMarker:'fenced-attach',resultId:'fenced-result',readFence:fence},
+    first=store.commit(request),replay=store.commit(request);
+  assert.equal(first.replayed,false);assert.equal(replay.replayed,true);assert.deepEqual(replay.result,first.result);
+  const db=new Database(input.databasePath);db.prepare("UPDATE libra_workspace_material_refs SET reference_digest=?").run(D('corrupt'));db.close();
+  assert.throws(()=>store.commit(request),{code:'P9_REFERENCE_OWNER_CORRUPT'});
+}));
+
+test('a concurrent exact Reference commit replays instead of losing the Owner fence race',()=>fixture((input)=>{
+  const original=createWorkspaceMaterialReferenceStore({schemaManifest,unitOfWork:input.unitOfWork}),
+    request={decision:attachDecision(input),commitMarker:'fenced-attach',resultId:'fenced-result',readFence:input.unitOfWork.captureReadFence()};
+  let interleaved=false;
+  const unitOfWork={execute(participants,settings){
+    if(!interleaved&&participants.some(item=>item.participantId==='workspace_reference_finish')){
+      interleaved=true;original.commit({...request,readFence:null});
+    }
+    return input.unitOfWork.execute(participants,settings);
+  }};
+  const result=createWorkspaceMaterialReferenceStore({schemaManifest,unitOfWork}).commit(request);
+  assert.equal(result.replayed,true);assert.equal(result.result.workspaceRevision,2);
+  const db=new Database(input.databasePath,{readonly:true});
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM libra_workspace_material_refs').get().n,1);
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM fx_commit_markers').get().n,1);db.close();
+}));
+
+for(const outcome of ['pending','changed','ready'])test('Product Staging '+outcome+' checks Owner before its actual Reference write',()=>fixture((input)=>{
+  const scopeDigest=D('run-basis'),calls=[],snapshot={run:{libraRunId:'run-1',executionBasisDigest:scopeDigest},episodeClaims:[]},
+    workspace={workspaceId:input.handle.workspaceId,libraRunId:'run-1',currentRevision:1,stateDigest:input.state.stateDigest,references:[]},
+    guard={check(scope){calls.push(scope);if(outcome==='pending')return {kind:'pending',reasonCode:'prior_execution_draining'};
+      const readFence=input.unitOfWork.captureReadFence();
+      if(outcome==='changed'){const db=new Database(input.databasePath);db.prepare("INSERT INTO libra_subjects(subject_id) VALUES('changed-during-guard')").run();db.close();}
+      return {kind:'ready',readFence};}},
+    service=createProductStagingService({schemaManifest,unitOfWork:input.unitOfWork,runExecutionGuard:guard,
+      movieProductionReader:{readWorkspace:()=>workspace},workResultReader:{},workspaceProductPort:{}});
+  if(outcome==='pending')assert.throws(()=>service.ensureWorking(snapshot,input.handle.workspaceId,input.handle),
+    {code:'LIBRA_RUN_EXECUTION_DEFERRED',reasonCode:'prior_execution_draining'});
+  else if(outcome==='changed')assert.throws(()=>service.ensureWorking(snapshot,input.handle.workspaceId,input.handle),
+    {code:'LIBRA_RUN_EXECUTION_DEFERRED',reasonCode:'owner_view_changed'});
+  else service.ensureWorking(snapshot,input.handle.workspaceId,input.handle);
+  assert.deepEqual(calls,[{ownerDomain:'libra',processType:'libra_run',processId:'run-1',executionBasisDigest:scopeDigest}]);
+  const db=new Database(input.databasePath,{readonly:true});
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM libra_workspace_material_refs').get().n,outcome==='ready'?1:0);db.close();
 }));
 
 test('rolls Reference, Workspace revision, CAS, Result, and marker back on a crash',()=>fixture((input)=>{

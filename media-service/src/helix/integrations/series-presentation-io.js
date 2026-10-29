@@ -21,6 +21,34 @@ function assertParents(root,target){
   }
 }
 
+function sameAliasSnapshot(left,right){
+  return left.isFile()&&right.isFile()&&!left.isSymbolicLink()&&!right.isSymbolicLink()&&
+    left.dev>0n&&left.ino>0n&&right.dev>0n&&right.ino>0n&&
+    ['dev','ino','size','mtimeNs','ctimeNs'].every(key=>left[key]===right[key]);
+}
+
+function publishedAliasProof(root,location,temporary,expected,snapshot){
+  assertParents(root,location);assertParents(root,temporary);
+  const finalStat=fs.lstatSync(location,{bigint:true}),temporaryStat=fs.lstatSync(temporary,{bigint:true});
+  if(!sameAliasSnapshot(finalStat,temporaryStat)||!sameAliasSnapshot(finalStat,snapshot.stat)||
+      snapshot.bytes.length!==expected.sizeBytes||sha(snapshot.bytes)!==expected.byteDigest)return null;
+  // A matching inode on the same device identifies the already verified file,
+  // even when an SMB producer alias cannot be opened independently.
+  const proof={finalStat,temporaryStat,evidence:{kind:'verified_published_hardlink',byteDigest:expected.byteDigest,
+    device:String(finalStat.dev),inode:String(finalStat.ino),sizeBytes:String(finalStat.size),
+    modifiedNs:String(finalStat.mtimeNs),changedNs:String(finalStat.ctimeNs)}};
+  assertPublishedAliasCurrent(root,location,temporary,proof);
+  return proof;
+}
+
+function assertPublishedAliasCurrent(root,location,temporary,proof){
+  assertParents(root,location);assertParents(root,temporary);
+  const finalStat=fs.lstatSync(location,{bigint:true}),temporaryStat=fs.lstatSync(temporary,{bigint:true});
+  if(!sameAliasSnapshot(finalStat,proof.finalStat)||!sameAliasSnapshot(temporaryStat,proof.temporaryStat)||
+      !sameAliasSnapshot(finalStat,temporaryStat))
+    fail('ARCA_SERIES_TEMP_CONFLICT','Published Series alias changed after its exact physical proof.');
+}
+
 const scopeNodeNames=new Set(['season','season_number','seasonnumber','episode','episode_number','episodenumber']);
 
 function nfoIdentity(bytes){
@@ -116,15 +144,20 @@ function createSeriesPresentationIo({rootSnapshot,afterPhysicalEffect}){
     const digest=sha(bytes),temporary=location+'.shelfdeck-'+digest+'.partial';assertParents(root,temporary);
     let targetStat;try{targetStat=fs.lstatSync(location);}catch(error){if(error.code!=='ENOENT')throw error;}
     if(targetStat){
-      if(!targetStat.isFile()||targetStat.isSymbolicLink()||targetStat.size!==bytes.length||
-          !readBoundedFileSnapshotSync(location,bytes.length,{requireStableSnapshot:true}).bytes.equals(bytes))
+      if(!targetStat.isFile()||targetStat.isSymbolicLink()||targetStat.size!==bytes.length)
+        fail('ARCA_SERIES_TARGET_CONFLICT','Series publication refuses to replace different existing bytes.');
+      const published=readBoundedFileSnapshotSync(location,bytes.length,{requireStableSnapshot:true});
+      if(!published.bytes.equals(bytes))
         fail('ARCA_SERIES_TARGET_CONFLICT','Series publication refuses to replace different existing bytes.');
       let temporaryStat;try{temporaryStat=fs.lstatSync(temporary);}catch(error){if(error.code!=='ENOENT')throw error;}
       if(temporaryStat){
-        if(!temporaryStat.isFile()||temporaryStat.isSymbolicLink()||temporaryStat.size!==bytes.length||
-            !readBoundedFileSnapshotSync(temporary,bytes.length,{requireStableSnapshot:true}).bytes.equals(bytes))
+        const alias=publishedAliasProof(root,location,temporary,{sizeBytes:bytes.length,byteDigest:digest},published);
+        if(!alias&&(!temporaryStat.isFile()||temporaryStat.isSymbolicLink()||temporaryStat.size!==bytes.length||
+            !readBoundedFileSnapshotSync(temporary,bytes.length,{requireStableSnapshot:true}).bytes.equals(bytes)))
           fail('ARCA_SERIES_TEMP_CONFLICT','Published Series temporary differs from its complete frozen recipe.');
-        continuation(execution);assertParents(root,temporary);fs.unlinkSync(temporary);
+        continuation(execution);assertParents(root,temporary);
+        if(alias)assertPublishedAliasCurrent(root,location,temporary,alias);
+        fs.unlinkSync(temporary);
       }
       return;
     }
@@ -239,11 +272,18 @@ function createSeriesPresentationIo({rootSnapshot,afterPhysicalEffect}){
       const root=formal?scope.shelfRoot:workspaceRoot,location=formal?path.join(scope.rootLocation,fileName(expected.artifactKind)):workspaceLocation(scope,expected.artifactKind).location,
         temporary=location+'.shelfdeck-'+expected.byteDigest+'.partial';
       assertParents(root,location);assertParents(root,temporary);
+      let publishedSnapshot=null;
       for(const [target,isTemporary] of [[location,false],[temporary,true]]){
         let stat;try{stat=fs.lstatSync(target);}catch(error){if(error.code==='ENOENT'){observations.push({artifactKind:expected.artifactKind,temporary:isTemporary,present:false});continue;}throw error;}
         if(!stat.isFile()||stat.isSymbolicLink()||stat.size>expected.sizeBytes||(!isTemporary&&stat.size!==expected.sizeBytes)){conflict=true;continue;}
+        if(isTemporary&&publishedSnapshot){
+          const alias=publishedAliasProof(root,location,temporary,expected,publishedSnapshot);
+          if(alias){observations.push({artifactKind:expected.artifactKind,temporary:true,present:true,complete:true,
+            byteDigest:expected.byteDigest,inode:alias.evidence.inode,aliasProof:alias.evidence});continue;}
+        }
         const value=readBoundedFileSnapshotSync(target,Math.max(1,expected.sizeBytes),{requireStableSnapshot:true}),complete=value.bytes.length===expected.sizeBytes,digest=sha(value.bytes);
         if(complete&&digest!==expected.byteDigest)conflict=true;
+        if(!isTemporary&&complete&&digest===expected.byteDigest)publishedSnapshot=value;
         if(!complete&&isTemporary)shortTemporary=true;
         const registered=!formal&&registry?.members.find(handle=>handle.relativePath===workspaceLocation(scope,expected.artifactKind).relativePath);
         if(!isTemporary&&registered&&(registered.digestHex!==digest||registered.physicalIdentity.inode!==String(value.stat.ino)||registered.physicalIdentity.contentFingerprint!==value.contentFingerprint))conflict=true;

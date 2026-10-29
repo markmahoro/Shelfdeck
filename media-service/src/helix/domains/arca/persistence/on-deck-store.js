@@ -1,5 +1,6 @@
 'use strict';
 const {createSeriesPresentationStore}=require('./series-presentation-store');
+const {createCollectionTargetStore}=require('./collection-target-store');
 const {assertRequiredUsAdultActor}=require('../../../contracts/us-adult-actor-package');
 const { readControlProjections } = require('../persistence/read-control-projections');
 const {inventoryMappingFact,FACT_SCHEMA}=require('../../../contracts/related-primary-mappings');
@@ -892,6 +893,8 @@ function createOnDeckStore(options) {
     const previous=readSeasonInventory(request.shelf.shelfId,packageValue);
     const inventoryRevision=previous?Number(previous.entry.current_inventory_revision)+1:1;
     const deckFactRevision=previous?Number(previous.entry.current_deck_fact_revision)+1:1;
+    const customTargetParticipants=packageValue?.productionProvenance?.acceptanceRequirementSnapshot?.customAcceptanceHandoff
+      ?createCollectionTargetStore(options).onDeckParticipants({request,shelfEntryId,inventoryRevision}):[];
     const stagedMembers = [...request.staged.members].sort((left, right) =>
       Buffer.compare(Buffer.from(left.sourceMaterialKey),
         Buffer.from(right.sourceMaterialKey)) ||
@@ -1063,6 +1066,7 @@ function createOnDeckStore(options) {
       controlScopeDigest: authorizedControlScopeDigest,
       relatedDispositionCompletionDigest:
         request.relatedDispositionCompletionDigest,
+      ...(customTargetParticipants.length?{customAcceptanceBasisDigest:request.acceptedDecision.customAcceptanceBasis.basisDigest}:{}),
     };
     const commitDigest = canonicalDigest(commitBasis);
     const markerId = stable('arca.on-deck-commit-marker@1', {
@@ -1521,6 +1525,7 @@ function createOnDeckStore(options) {
       options.unitOfWork.execute([
         replay, verify, ...retainedControlChecks,
         ...[createSeriesPresentationStore(options).commitControlParticipant(request)].filter(Boolean), control, domain,
+        ...customTargetParticipants,
         ...[createSeriesPresentationStore(options).commitReferenceParticipant(request,shelfEntryId)].filter(Boolean), foundationWrite,
       ]);
       return Object.freeze({ replayed: false, result, commitDigest });

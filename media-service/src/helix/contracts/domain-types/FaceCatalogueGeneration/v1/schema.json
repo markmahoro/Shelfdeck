@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/FaceCatalogueGeneration/v1",
+  "title": "FaceCatalogueGeneration@1",
+  "x-helix-ssotRefs": [
+    "8.6.18"
+  ],
+  "x-helix-role": "bounded-contract",
+  "x-helix-maxCanonicalBytes": 8192,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/domain-types/FaceCatalogueGeneration/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "generationId": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "datasetId": {
+      "const": "stash-sense2-data"
+    },
+    "datasetVersion": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "manifestDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "featureSpaceDigest": {
+      "const": "45f1cfff0e388cd154767733ab78495eae1cf6395a70fbe847a3c4a719b733dc"
+    },
+    "dimension": {
+      "const": 512
+    },
+    "members": {
+      "type": "array",
+      "minItems": 7,
+      "maxItems": 7,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "enum": [
+              "aliases.json",
+              "face_embeddings.usearch",
+              "face_yaw.json",
+              "faces.json",
+              "performer_links.json",
+              "performers.db",
+              "performers.json"
+            ]
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4294967296
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "name",
+          "bytes",
+          "sha256"
+        ]
+      }
+    },
+    "generationDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "generationId",
+    "datasetId",
+    "datasetVersion",
+    "manifestDigest",
+    "featureSpaceDigest",
+    "dimension",
+    "members",
+    "generationDigest"
+  ]
+}

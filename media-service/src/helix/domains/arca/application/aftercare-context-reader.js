@@ -6,6 +6,7 @@ const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { acceptedProductRequirements } = require('../model/accepted-product-requirements');
 const { validManifest } = require('../model/authorized-defect-manifest');
 const { effectiveRequirements } = require('../model/care-objective');
+const {assertCollectionCareTarget}=require('../model/collection-care-target');
 const {inventoryContentProfile}=require('../model/product-content-profile');
 const { excludeCompletedSettlementBindings } = require('../model/completed-settlement-bindings');
 const { createAftercareStore } = require('../persistence/aftercare-store');
@@ -20,6 +21,19 @@ function usesRatingDecision(standardValue,structureKind,identity){const contentP
 function defectManifest(facts){const row=(facts||[]).find((item)=>item.fact_kind==='authorized_defect_manifest');if(!row)return null;try{return JSON.parse(row.fact_json);}catch{return null;}}
 function createAftercareContextReader(options){const store=options.aftercareStore||createAftercareStore(options);
   const requirementCache=new Map();
+  function targetFence(){if(!options.collectionTargetPort)return null;
+    if(typeof options.unitOfWork?.captureReadFence!=='function'||typeof options.unitOfWork?.assertReadFence!=='function'||
+        typeof options.collectionTargetPort.readMany!=='function')throw Object.assign(new Error('Collection target reader requires a fenced Owner projection.'),
+          {code:'ARCA_COLLECTION_TARGET_READER_UNAVAILABLE'});
+    return options.unitOfWork.captureReadFence();}
+  function collectionTargets(ids,readFence){
+    if(!options.collectionTargetPort)return new Map(ids.map(id=>[id,null]));
+    const values=options.collectionTargetPort.readMany(ids,{readFence});
+    if(!(values instanceof Map)||values.size!==ids.length||ids.some(id=>!values.has(id)))
+      throw Object.assign(new Error('Collection target projection is incomplete.'),{code:'ARCA_COLLECTION_TARGET_READER_UNAVAILABLE'});
+    for(const id of ids){const value=values.get(id);if(value!==null)assertCollectionCareTarget(value,id);}
+    options.unitOfWork.assertReadFence(readFence);return values;
+  }
   function originalRequirements(items) {
     const requested=new Map();
     for(const item of items) {
@@ -58,10 +72,11 @@ function createAftercareContextReader(options){const store=options.aftercareStor
     return Object.freeze({...body,targetDigest:canonicalDigest(body)});
   }
   function careBasis(shelfEntryId,inventoryRevision,standardRevision,placementRevision,canonicalIdentityDigest,sourcePackageId,factDigests,decisionFactDigests){const decisionFactSetDigest=canonicalDigest({schema:'arca.aftercare-decision-facts@1',shelfEntryId,facts:[...decisionFactDigests].sort()}),acceptedProductFactSetDigest=canonicalDigest({schema:'arca.aftercare-accepted-product-facts@1',shelfEntryId,facts:[...factDigests].sort()});return sealed('helix://contracts/domain-types/CareBasis/v1',shelfEntryId+':care-basis',1,{shelfEntryId,inventoryRevision,standardRevision,placementRevision,canonicalIdentityDigest,sourcePackageId,acceptedProductFactSetDigest,decisionFactSetDigest,assessments:Object.freeze([])});}
-  function read(shelfEntryId){const stored=store.currentContext(shelfEntryId);if(!stored||stored.entry.status!=='active')return null;
+  function read(shelfEntryId){const readFence=targetFence(),stored=store.currentContext(shelfEntryId);if(!stored||stored.entry.status!=='active')return null;
+    const collectionTarget=collectionTargets([shelfEntryId],readFence).get(shelfEntryId);
     const settled=excludeCompletedSettlementBindings(stored,options.workResultReader),verified=readJavAftercareVerifiedSource(settled,options.workResultReader),
       raw=verified?Object.freeze({...settled,javMetadataVerifiedSource:verified}):settled;
-    const ratingRelevant=usesRatingDecision(raw.standard.value,raw.entry.structure_kind,raw.identity),perceptionRating=ratingRelevant&&typeof options.readPerceptionRating==='function'?options.readPerceptionRating(shelfEntryId):null,decisionDigests=ratingRelevant?[...raw.facts.filter((x)=>x.fact_kind==='decision_fact').map((x)=>x.fact_digest),...(perceptionRating?.state==='ready'&&perceptionRating.resolutionDigest?[perceptionRating.resolutionDigest]:[])]:[],basis=careBasis(shelfEntryId,raw.entry.current_inventory_revision,raw.shelf.current_standard_revision,raw.shelf.current_placement_revision,raw.identity.identity_digest,raw.inventory.source_package_id,raw.facts.filter((x)=>x.fact_kind!=='decision_fact').map(acceptedFactDigest),decisionDigests);
+    const ratingRelevant=usesRatingDecision(raw.standard.value,raw.entry.structure_kind,raw.identity),perceptionRating=ratingRelevant&&typeof options.readPerceptionRating==='function'?options.readPerceptionRating(shelfEntryId):null,decisionDigests=[...(ratingRelevant?[...raw.facts.filter((x)=>x.fact_kind==='decision_fact').map((x)=>x.fact_digest),...(perceptionRating?.state==='ready'&&perceptionRating.resolutionDigest?[perceptionRating.resolutionDigest]:[])]:[]),...(collectionTarget?[collectionTarget.projectionDigest]:[])],basis=careBasis(shelfEntryId,raw.entry.current_inventory_revision,raw.shelf.current_standard_revision,raw.shelf.current_placement_revision,raw.identity.identity_digest,raw.inventory.source_package_id,raw.facts.filter((x)=>x.fact_kind!=='decision_fact').map(acceptedFactDigest),decisionDigests);
     const currentLocations=new Set(raw.materials.map((item)=>item.location));
     const bindings=[...raw.materials.map((item)=>Object.freeze({objectId:shelfEntryId+':binding:'+item.ordinal,revision:Number(item.binding_revision),schemaRef:'helix://arca/types/MaterialBindingSnapshot/v1',digest:canonicalDigest({materialKey:item.material_key,endpointId:item.endpoint_id,location:item.location,sizeBytes:Number(item.size_bytes),digestHex:item.digest_hex}),objectKind:'arca-material-binding'})),...(raw.oldBindings||[]).filter((item)=>!currentLocations.has(item.location)).map((item)=>Object.freeze({objectId:shelfEntryId+':old-binding:'+item.material_key,revision:Number(item.binding_revision),schemaRef:'helix://arca/types/MaterialBindingSnapshot/v1',digest:canonicalDigest({materialKey:item.material_key,role:item.role,endpointId:item.endpoint_id,location:item.location,evidenceDigest:item.evidence_digest}),objectKind:'arca-material-binding'}))];
     const knownBindings=sealed('helix://contracts/domain-types/KnownBindings/v1',shelfEntryId+':known-bindings',raw.entry.current_inventory_revision,{shelfEntryId,bindings:Object.freeze(bindings),bindingSetDigest:canonicalDigest(bindings)});
@@ -69,18 +84,20 @@ function createAftercareContextReader(options){const store=options.aftercareStor
     const metadataRefs=sealed('helix://contracts/domain-types/InventoryMetadataArtifactRefs/v1',shelfEntryId+':presentation-input',raw.entry.current_inventory_revision,{shelfEntryId,inventoryRevision:raw.entry.current_inventory_revision,metadataFactRefs:Object.freeze(raw.facts.filter((x)=>x.fact_kind==='product_metadata').map((x)=>x.fact_digest)),artifactHandles:Object.freeze([])});
     const standard=sealed('helix://contracts/domain-types/Standard/v1',raw.shelf.shelf_id+':standard',raw.shelf.current_standard_revision,{standardId:raw.shelf.shelf_id,standardRevision:raw.shelf.current_standard_revision,standardDigest:raw.standard.standard_digest});
     const placement=sealed('helix://contracts/domain-types/Placement/v1',shelfEntryId+':placement',raw.shelf.current_placement_revision,{shelfEntryId,placementRevision:raw.shelf.current_placement_revision,targetEndpointId:raw.shelf.target_endpoint_id,placementDigest:raw.placement.policy_digest});
-    return Object.freeze({shelfEntryId,originalRequirements:originalRequirements([{shelfEntryId,acceptedPackageReference:raw.acceptedPackageReference,authorizedDefectManifest:defectManifest(raw.facts)}]).get(shelfEntryId),defectAuthorization:store.defectStore.current(shelfEntryId),raw:Object.freeze({...raw,perceptionRating}),basis,knownBindings,inventoryRevision,metadataRefs,standard,placement,authorizedDefectManifest:defectManifest(raw.facts)});}
+    const result=Object.freeze({shelfEntryId,originalRequirements:originalRequirements([{shelfEntryId,acceptedPackageReference:raw.acceptedPackageReference,authorizedDefectManifest:defectManifest(raw.facts)}]).get(shelfEntryId),defectAuthorization:store.defectStore.current(shelfEntryId),raw:Object.freeze({...raw,perceptionRating,collectionTarget}),basis,knownBindings,inventoryRevision,metadataRefs,standard,placement,authorizedDefectManifest:defectManifest(raw.facts)});
+    if(collectionTarget)assertCollectionCareTarget(collectionTarget,shelfEntryId,{shelfId:raw.shelf.shelf_id,inventoryRevision:raw.entry.current_inventory_revision});
+    if(readFence)options.unitOfWork.assertReadFence(readFence);return result;}
   function healthProjectionInputs(shelfEntryIds){
-    const items=store.healthProjectionInputs(shelfEntryIds,{includeAssessments:false}),originals=originalRequirements(items),
+    const readFence=targetFence(),items=store.healthProjectionInputs(shelfEntryIds,{includeAssessments:false}),targets=collectionTargets(items.map(item=>item.shelfEntryId),readFence),originals=originalRequirements(items),
       authorizations=store.defectStore.currentMany(shelfEntryIds),
       ratingTargets=items.filter(item=>usesRatingDecision(item.standardValue,item.structureKind,item.canonicalIdentity)).map(normalizedRatingTarget),
       ratings=ratingTargets.length&&typeof options.readPerceptionRatings==='function'?options.readPerceptionRatings(ratingTargets):new Map();
     const contexts=items.map(item=>{
-      const relevant=usesRatingDecision(item.standardValue,item.structureKind,item.canonicalIdentity),rating=ratings.get(item.shelfEntryId),
-        digests=relevant?[...item.decisionFactDigests,...(rating?.state==='ready'&&rating.resolutionDigest?[rating.resolutionDigest]:[])]:[];
+      const relevant=usesRatingDecision(item.standardValue,item.structureKind,item.canonicalIdentity),rating=ratings.get(item.shelfEntryId),target=targets.get(item.shelfEntryId),
+        digests=[...(relevant?[...item.decisionFactDigests,...(rating?.state==='ready'&&rating.resolutionDigest?[rating.resolutionDigest]:[])]:[]),...(target?[target.projectionDigest]:[])];
       return {shelfEntryId:item.shelfEntryId,structureKind:item.structureKind,seriesIdentityHint:item.structureKind==='season'?{shelfId:item.shelfId,providerKey:item.canonicalIdentity.provider_key}:null,originalRequirements:originals.get(item.shelfEntryId),materialRoles:item.materialRoles,
         defectAuthorization:authorizations.get(item.shelfEntryId)||null,
-        effectiveRequirements:effectiveRequirements({raw:{identity:item.canonicalIdentity,entry:{structure_kind:item.structureKind},standard:{value:item.standardValue},facts:item.decisionFacts||[],perceptionRating:rating}}),
+        effectiveRequirements:effectiveRequirements({shelfEntryId:item.shelfEntryId,raw:{identity:item.canonicalIdentity,entry:{structure_kind:item.structureKind,current_inventory_revision:item.inventoryRevision},shelf:{shelf_id:item.shelfId},standard:{value:item.standardValue},facts:item.decisionFacts||[],perceptionRating:rating,collectionTarget:target}}),
         incidentResourceHints:item.incidentResourceHints,authorizedDefectManifest:item.authorizedDefectManifest,
         basis:careBasis(item.shelfEntryId,item.inventoryRevision,item.standardRevision,item.placementRevision,item.canonicalIdentityDigest,item.sourcePackageId,item.factDigests,digests),history:item.history};
     });
@@ -88,7 +105,8 @@ function createAftercareContextReader(options){const store=options.aftercareStor
       shelfEntryId:context.shelfEntryId,careBasisDigest:context.basis.digest,
       inventoryRevision:context.basis.inventoryRevision,standardRevision:context.basis.standardRevision,
       placementRevision:context.basis.placementRevision,canonicalIdentityRevision:Number(items[index].canonicalIdentity.revision)})));
-    return contexts.map(context=>Object.freeze({...context,history:Object.freeze({...context.history,...histories.get(context.shelfEntryId)})}));
+    const result=contexts.map(context=>Object.freeze({...context,history:Object.freeze({...context.history,...histories.get(context.shelfEntryId)})}));
+    if(readFence)options.unitOfWork.assertReadFence(readFence);return result;
   }
   return Object.freeze({store,read,
     sourceTargetBinding:(shelfEntryId,material)=>store.sourceTargetBinding(shelfEntryId,material),

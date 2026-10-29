@@ -25,7 +25,18 @@ const REQUIRED_COLUMN_DEFAULTS = Object.freeze({
   'libra_runs.package_revision_head': '0'
 });
 const REQUIRED_COLUMNS = new Set([
-  'libra_run_revisions.expected_admission_head_revision'
+  'libra_run_revisions.expected_admission_head_revision',
+  ...['preview_id','subject_id','libra_run_id','actor_id','idempotency_key','request_digest','record_schema_ref','record_json','record_digest','created_at_ms']
+    .map(column => 'libra_custom_target_previews.' + column),
+  ...['intent_id','preview_id','subject_id','libra_run_id','product_scope_digest','target_revision','actor_id','idempotency_key','request_digest','record_schema_ref','record_json','record_digest','created_at_ms']
+    .map(column => 'libra_custom_target_intents.' + column),
+  ...['subject_id','product_scope_digest','current_revision','intent_id','record_digest'].map(column => 'libra_custom_target_heads.' + column),
+  ...['intent_id','shelf_entry_id','target_revision','target_kind','intent_schema_ref','intent_json','intent_digest','created_at_ms']
+    .map(column => 'arca_collection_target_intents.' + column),
+  ...['shelf_entry_id','current_revision','intent_id','intent_digest','updated_at_ms']
+    .map(column => 'arca_collection_target_heads.' + column),
+  ...['offer_id','on_deck_package_id','package_revision','package_digest','receipt_id','receipt_schema_ref','receipt_json','receipt_digest','closed_at_ms']
+    .map(column => 'arca_offer_withdrawal_receipts.' + column)
 ]);
 
 // These are implementation-only projection guards. Their writers and startup
@@ -115,6 +126,27 @@ const FOREIGN_KEY_OVERRIDES = Object.freeze({
 });
 
 const TABLE_CHECKS = Object.freeze({
+  arca_offer_withdrawal_receipts: [
+    `"receipt_schema_ref" = 'arca.offer-withdrawal-receipt@1'`,
+    ...[['schemaRef','receipt_schema_ref'],['receiptId','receipt_id'],['receiptDigest','receipt_digest'],['closedAtMs','closed_at_ms'],
+      ['offer.offerId','offer_id'],['offer.onDeckPackageId','on_deck_package_id'],['offer.packageRevision','package_revision'],['offer.packageDigest','package_digest']]
+      .map(([jsonKey,column])=>'COALESCE(json_extract("receipt_json", \'$.'+jsonKey+'\') = "'+column+'", 0)')
+  ],
+  libra_custom_target_previews: [
+    `"record_schema_ref" = 'libra.custom-target-preview@1'`,
+    `"preview_id" = "record_digest"`,
+    ...[['schemaRef','record_schema_ref'],['previewDigest','record_digest'],['basis.subjectId','subject_id'],
+      ['basis.libraRunId','libra_run_id'],['actorId','actor_id'],['createdAtMs','created_at_ms']]
+      .map(([field,column]) => 'COALESCE(json_extract("record_json", \'$.' + field + '\') = "' + column + '", 0)'),
+  ],
+  libra_custom_target_intents: [
+    `"record_schema_ref" = 'libra.custom-target-intent@1'`,
+    ...[['schemaRef','record_schema_ref'],['intentId','intent_id'],['previewDigest','preview_id'],
+      ['intentDigest','record_digest'],['subjectId','subject_id'],['libraRunId','libra_run_id'],
+      ['basis.productScopeDigest','product_scope_digest'],['revision','target_revision'],['actorId','actor_id'],
+      ['idempotencyKey','idempotency_key'],['requestDigest','request_digest'],['confirmedAtMs','created_at_ms']]
+      .map(([field,column]) => 'COALESCE(json_extract("record_json", \'$.' + field + '\') = "' + column + '", 0)'),
+  ],
   libra_runs: [
     `("episode_metadata_mapping_intent_id" IS NULL AND json_type("execution_basis_record_json", '$.episodeMetadataMappingRef') IS NULL) OR
      ("episode_metadata_mapping_intent_id" IS NOT NULL AND COALESCE(json_extract("execution_basis_record_json", '$.episodeMetadataMappingRef.intentId') = "episode_metadata_mapping_intent_id", 0))`,

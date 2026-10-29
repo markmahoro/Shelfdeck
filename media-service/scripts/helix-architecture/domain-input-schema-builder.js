@@ -2,6 +2,7 @@
 
 const { boundSeriesNfoProvenance } = require('./series-nfo-provenance-schema');
 const { javPartSetSchema } = require('../../src/helix/contracts/jav-part-set');
+const { customAcceptanceHandoffSchema } = require('../../src/helix/contracts/custom-acceptance-handoff');
 
 const crypto = require('crypto');
 const { selectedCandidateSelectedValueSchema } = require('./result-type-schema-builder');
@@ -178,6 +179,7 @@ const boundedContracts = {
   ClusterParameters: '',
   EncodeIntent: '',
   FaceModelRef: '',
+  FaceCatalogueGeneration: '',
   BoundedFingerprintProfile: 'profileRef,revision,algorithm,maxSampleBytes,profileDigest',
   IdentityRequirement: '',
   MandatoryRequirement: '',
@@ -280,6 +282,7 @@ const dtoContracts = {
   PeopleProfileUpdateDecision: '',
   UsAdultPersonSnapshot:'',
   UsAdultAnalysisBasis:'',
+  UsAdultCatalogueAnalysisBasis:'',
   UsAdultActorChoiceRecord:'',
   UsAdultActorChoiceDecision:'',
   UsAdultActorChoiceReceipt:'',
@@ -341,6 +344,8 @@ function idField(name) {
 }
 
 function buildSchema(name, role, fields) {
+  if(name==='FaceCatalogueGeneration')return require('../../src/helix/contracts/face-catalogue-generation').schema();
+  if(name==='UsAdultCatalogueAnalysisBasis')return require('../../src/helix/domains/libra/model/us-adult-catalogue-analysis-basis').schema();
   if(name==='SeriesRootRelocationReference')return exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},revision:{const:1},digest:digest(),relocationId:id(),scopeId:id(),planDigest:digest()});
   if(['SeriesPresentationScope','SeriesPresentationManifest','SeriesPresentationReclamationBasis'].includes(name)){
     const value=require('../../src/helix/contracts/series-presentation-schemas')[name==='SeriesPresentationScope'?'scopeSchema':name==='SeriesPresentationManifest'?'manifestSchema':'reclamationSchema']();
@@ -1078,6 +1083,7 @@ function metadataFetchIntentSchema() {
       object({ ...common,contentProfile:enumText('movie','series'), episodeScope, sourceKind: { const: 'related_nfo' }, relatedReferenceId: id(), relatedReferenceDigest: digest(), expectedChecksum: digest() },
         [...Object.keys(common), 'relatedReferenceId', 'relatedReferenceDigest', 'expectedChecksum']),
       object({ ...common,contentProfile:enumText('movie','series'), episodeScope,
+        episodePlotPolicyRef:{const:require('../../src/helix/contracts/episode-plot-source').POLICY},
         episodeMapping: require('../../src/helix/contracts/episode-metadata-query').episodeMetadataQuerySchema(),
         sourceKind: { const: 'provider' }, providerKind: {const:'tmdb'},
         resolvedProviderIdentity: domainRef('ResolvedProviderIdentity'), integrationId: id(), configRevision: positiveInteger() },
@@ -1904,7 +1910,7 @@ function shelfAcceptancePrimaryReadSetSchema() {
 
 function acceptanceRequirementSnapshotSchema() {
   return {
-    ...exactDomainSchema('AcceptanceRequirementSnapshot', {
+    ...optionalProperty(exactDomainSchema('AcceptanceRequirementSnapshot', {
       schemaRef: { const: domainTypeId('AcceptanceRequirementSnapshot') },
       schemaVersion: { const: 1 },
       acceptanceSpecId: id(),
@@ -1915,8 +1921,9 @@ function acceptanceRequirementSnapshotSchema() {
       shelfStandardRevision: positiveInteger(),
       shelfStandardDigest: digest(),
       requirements: acceptanceRequirementSetSchema(),
+      customAcceptanceHandoff: customAcceptanceHandoffSchema(),
       snapshotDigest: digest(),
-    }),
+    }), 'customAcceptanceHandoff'),
     'x-helix-maxCanonicalBytes': 64 * 1024,
   };
 }

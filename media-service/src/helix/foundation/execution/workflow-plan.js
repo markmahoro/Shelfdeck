@@ -313,7 +313,7 @@ function definitions(schemaManifest) {
       find: { kind: 'select-one', tableId: 'fx_work_attempts', columns: ['attempt_id', 'work_id', 'basis_digest', 'state'], keyColumns: ['attempt_id'] }
     } }),
     works: createRepositoryDefinition({ repositoryId: 'plan_works', owner: 'execution-foundation', schemaManifest, statements: {
-      find: { kind: 'select-one', tableId: 'fx_supporting_works', columns: ['work_id', 'owner_domain', 'priority_class'], keyColumns: ['work_id'] }
+      find: { kind: 'select-one', tableId: 'fx_supporting_works', columns: ['work_id', 'owner_domain', 'basis_digest', 'priority_class'], keyColumns: ['work_id'] }
     } }),
     plans: createRepositoryDefinition({ repositoryId: 'plans', owner: 'execution-foundation', schemaManifest, statements: {
       find_attempt: { kind: 'select-one', tableId: 'fx_workflow_plans', columns: ['plan_id', 'graph_digest', 'state'], keyColumns: ['attempt_id'] },
@@ -347,7 +347,7 @@ function createWorkflowPlanPublisher(options) {
   const repositories = definitions(options.schemaManifest);
   const contractEvidence = createPlanContractEvidenceStore(options);
   return Object.freeze({
-    publish(rawPlan) {
+    publish(rawPlan, {readFence=null}={}) {
       const validated = validateWorkflowPlan(rawPlan, options);
       const plan = validated.plan;
       const captured = capturePlanContracts(plan, options);
@@ -362,6 +362,8 @@ function createWorkflowPlanPublisher(options) {
             );
             const work = context.repository('plan_works').invoke('find', { work_id: attempt.work_id });
             if (!work || work.owner_domain !== plan.ownerDomain) fail('P4_PLAN_OWNER_MISMATCH', 'Plan Owner must match Supporting Work Owner.');
+            if (work.basis_digest !== attempt.basis_digest) fail('P4_PLAN_WORK_BASIS_MISMATCH',
+              'Plan Work and Attempt must retain the same immutable Basis.');
             const existing = context.repository('plans').invoke('find_attempt', { attempt_id: plan.workAttemptId });
             if (existing) {
               if (existing.plan_id === plan.planId && existing.graph_digest === validated.graphDigest && existing.state === plan.resolution) {
@@ -406,7 +408,7 @@ function createWorkflowPlanPublisher(options) {
             }
             return Object.freeze({ replayed: false, planId: plan.planId, graphDigest: validated.graphDigest, resolution: plan.resolution });
           }
-        }]);
+        }],{readFence});
         return results.workflow_plan_publish;
       } catch (error) {
         if (error instanceof PlanReplay) return error.result;

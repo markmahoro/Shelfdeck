@@ -18,6 +18,7 @@ const {
 } = require('../model/material-episode-claims');
 const { deriveAcceptedResponsibility } = require('../model/acceptance-responsibility');
 const { finalGapDecision } = require('../model/acceptance-gap-decision');
+const {verifyArcaCustomAcceptanceTarget,assertArcaCustomAcceptanceBasis}=require('../model/custom-acceptance-target');
 
 const RECEIPT_SCHEMA = 'helix://contracts/types/CustodyAndTransferReceipt/v1';
 const MESSAGE_SCHEMA = 'helix://contracts/types/ArcaProductAcceptedMessage/v1';
@@ -64,6 +65,7 @@ function arcaDefinition(schemaManifest) {
     owner: 'arca',
     schemaManifest,
     statements: {
+      find_withdrawal:{kind:'select-one',tableId:'arca_offer_withdrawal_receipts',columns:['offer_id'],keyColumns:['offer_id']},
       find_attempt: {
         kind: 'select-one',
         tableId: 'arca_acceptance_attempts',
@@ -490,6 +492,8 @@ function createHandoffBAcceptanceStore(options) {
       repositories: [arca],
       execute(context) {
         const repo = context.repository(arca.repositoryId);
+        if(repo.invoke('find_withdrawal',{offer_id:assessment.offerId}))
+          fail('ARCA_OFFER_WITHDRAWN','This Offer has permanently lost its acceptance eligibility.');
         const existing = repo.invoke('find_attempt', {
           acceptance_attempt_id: assessment.acceptanceAttemptId,
         });
@@ -590,6 +594,22 @@ function createHandoffBAcceptanceStore(options) {
 
   function accept(request) {
     const assessment = exactAttempt(request.assessment);
+    const handoff=request.package?.productionProvenance?.acceptanceRequirementSnapshot?.customAcceptanceHandoff;
+    let customAcceptanceBasis;
+    if(handoff){
+      const accepted=readAccepted({acceptanceAttemptId:assessment.acceptanceAttemptId,offerMessage:request.offerMessage,
+        libraRunId:request.libraRunId,onDeckRunId:request.onDeckRunId,finalInventoryDecision:request.finalInventoryDecision});
+      if(accepted){
+        assertArcaCustomAcceptanceBasis({packageValue:request.package,shelf:request.shelf,basis:accepted.decision.customAcceptanceBasis});
+        return accepted;
+      }
+      if(!request.readFence||request.customTargetConfirmation?.readFence!==request.readFence)
+        fail('ARCA_CUSTOM_TARGET_FENCE_INVALID','Custom Acceptance requires confirmation under the exact transaction read fence.');
+      customAcceptanceBasis=verifyArcaCustomAcceptanceTarget({packageValue:request.package,shelf:request.shelf,
+        confirmation:request.customTargetConfirmation});
+    }else if(request.customTargetConfirmation){
+      fail('ARCA_CUSTOM_TARGET_INVALID','Custom Acceptance evidence has no matching Handoff reference.');
+    }
     const gapDecision=request.gapDecision;
     let recomputedGapDecision;
     try {
@@ -737,6 +757,7 @@ function createHandoffBAcceptanceStore(options) {
       authorizedGapComparison: gapDecision.authorizedGapComparison,
       arcaBindingSetDigest,
       controlScopeDigest,
+      ...(customAcceptanceBasis?{customAcceptanceBasis}:{}),
     };
     const decision = Object.freeze({
       ...decisionBase,
@@ -858,6 +879,11 @@ function createHandoffBAcceptanceStore(options) {
       owner: 'arca',
       repositories: [arca],
       execute(context) {
+        if(!request.readFence||typeof options.unitOfWork.assertReadFence!=='function')
+          fail('P14_HANDOFF_B_READ_FENCE_REQUIRED','New Handoff B acceptance requires a fresh public delivery read fence.');
+        options.unitOfWork.assertReadFence(request.readFence);
+        if(context.repository(arca.repositoryId).invoke('find_withdrawal',{offer_id:assessment.offerId}))
+          fail('ARCA_OFFER_WITHDRAWN','This Offer has permanently lost its acceptance eligibility.');
         const repo = context.repository(arca.repositoryId);
         const attempt = repo.invoke('find_attempt', {
           acceptance_attempt_id: assessment.acceptanceAttemptId,
@@ -1273,7 +1299,9 @@ function createHandoffBAcceptanceStore(options) {
       const base={...receiptBase,committedAtMs:Number(stored.committed_at_ms)};receipt=Object.freeze({...base,receiptDigest:stored.receipt_digest});
       if(receipt.receiptDigest!==canonicalDigest(without(receipt,'receiptDigest')))fail('P14_HANDOFF_B_REJECTION_REPLAY_CORRUPT','Rejected Receipt digest is corrupt.');
       throw new Replay(Object.freeze({replayed:true,decision,receipt,rejectedMessage:rejectedMessage(request.offerMessage,decision,receipt)}));}};
-    const terminal={participantId:'arca_handoff_b_rejection_terminal',owner:'arca',repositories:[arca],execute(context){const repo=context.repository(arca.repositoryId),
+    const terminal={participantId:'arca_handoff_b_rejection_terminal',owner:'arca',repositories:[arca],execute(context){const repo=context.repository(arca.repositoryId);
+      if(repo.invoke('find_withdrawal',{offer_id:assessment.offerId}))fail('ARCA_OFFER_WITHDRAWN','This Offer has permanently lost its acceptance eligibility.');
+      const
       attempt=repo.invoke('find_attempt',{acceptance_attempt_id:assessment.acceptanceAttemptId}),checks=repo.invoke('list_checks',{acceptance_attempt_id:assessment.acceptanceAttemptId})
         .sort((a,b)=>Buffer.compare(Buffer.from(a.check_kind),Buffer.from(b.check_kind))),shelf=repo.invoke('find_shelf',{shelf_id:assessment.shelfId});
       if(!attempt||attempt.state!=='active'||attempt.finished_at_ms!==null||checks.length!==assessment.checks.length||

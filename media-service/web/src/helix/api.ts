@@ -419,7 +419,7 @@ export type CollectionEntry = {
   createdAtMs: number;
   terminalAtMs: number | null;
 };
-export type DefectAdmissionCandidate={candidateRevision:number;libraRunId:string;frozenRunStateRevision:number;frozenRunStateDigest:string;terminalEvidenceDigest:string;defects:Array<{defectCode:'actor_unavailable'|'metadata_fields_unavailable'|'artifacts_unavailable'|'external_source_exhausted'|'media_requirements_unmet'|'size_cap_exceeded';metadataFieldCodes?:string[];artifactKindCodes?:string[];sourceFailureCode:string;waivedRequirementCodes:string[]}>;waivedRequirementCodes:string[];candidateDigest:string;sizeForecast?:{maxSizeBytes:number;predictedBytes:number;overshootBytes:number;videoBitrateFloorBps:number;targetVideoBitrateBps:number;rasterClass:string}|null};
+export type DefectAdmissionCandidate={candidateRevision:number;libraRunId:string;frozenRunStateRevision:number;frozenRunStateDigest:string;terminalEvidenceDigest:string;defects:Array<{defectCode:'actor_unavailable'|'metadata_fields_unavailable'|'artifacts_unavailable'|'external_source_exhausted'|'media_requirements_unmet'|'size_cap_exceeded';metadataFieldCodes?:string[];artifactKindCodes?:string[];sourceFailureCode:string;waivedRequirementCodes:string[]}>;waivedRequirementCodes:string[];candidateDigest:string;sizeForecast?:{maxSizeBytes:number;predictedBytes:number;overshootBytes:number;measured?:boolean;actualSizeBytes?:number;withinLimit?:boolean;videoBitrateFloorBps?:number;targetVideoBitrateBps?:number;rasterClass?:string}|null};
 export type DefectAdmissionPreview=(DefectAdmissionCandidate&{eligibility:'eligible'})|{eligibility:'ineligible'|'evidence_pending';message:string;ineligibleReasons:string[];missingEvidence:string[]};
 export type HealthState = 'never_assessed'|'healthy'|'unhealthy'|'observing'|'repairing'|'attention_required';
 export type HealthSummary = { shelfEntryId?:string; state:HealthState; careBasisDigest?:string; basisCurrent?:boolean;
@@ -541,18 +541,6 @@ export type SetupReadinessProjection = {
 
 export type PersonLibrary = 'normal' | 'jav' | 'us_adult';
 export type PersonImageSelection = { kind:'upload'; bytesBase64:string } | { kind:'search'; selectionToken:string };
-export type RecommendationClaim = {
-  claimId:string;state:'preparing_person'|'confirming_source'|'completed'|'conflict'|'person_failed';revision:number;
-  personId:string|null;failureCode:string|null;sourceConfirmed:boolean;source:{subjectId:string;libraRunId:string;title:string};
-};
-export type RecommendationPublication = {windowKey:number;revision:number;snapshotDigest:string};
-export type UsAdultRecommendation = {recommendationId:string;coverageCount:number;qualityScore:number;
-  source:{subjectId:string;libraRunId:string;title:string};imageUrl:string;claim:RecommendationClaim|null};
-export type UsAdultRecommendations = {publication:RecommendationPublication|null;items:UsAdultRecommendation[]};
-export type RecommendationClaimRequest = {idempotencyKey:string;expectedPublicationRevision:number;expectedSnapshotDigest:string;target:
-  {kind:'existing';personId:string;expectedPersonRevision:number;expectedReferenceRevision:number}|
-  {kind:'create';canonicalName:string;aliases:string[];image:PersonImageSelection|{kind:'recommendation'}}};
-export type RecommendationClaimAccepted = RecommendationClaim & {claimRef:string;replayed:boolean};
 export type PersonImageSearch = { sources:Array<{
   source:'stashbox'; state:'available'|'empty'|'unconfigured'|'failed'; error?:{code:string;message:string};
   items:Array<{source:'stashbox';sourceObjectId:string;canonicalName:string;aliases:string[];
@@ -723,11 +711,6 @@ export const helixAdminApi = {
       method:'POST', body:JSON.stringify(body),
     });
   },
-  readUsAdultRecommendations(){return request<UsAdultRecommendations>('/v1/admin/people/recommendations');},
-  claimUsAdultRecommendation(id:string,body:RecommendationClaimRequest){
-    return request<RecommendationClaimAccepted>(`/v1/admin/people/recommendations/${encodeURIComponent(id)}/actions/claim`,{method:'POST',body:JSON.stringify(body)});
-  },
-  readRecommendationClaim(id:string){return request<RecommendationClaim>(`/v1/admin/people/recommendation-claims/${encodeURIComponent(id)}`);},
   searchPersonImages(name:string){return request<PersonImageSearch>(`/v1/admin/people/image-search?${new URLSearchParams({name})}`);},
   personImagePreviewUrl(selectionToken:string){return `/v1/admin/people/image-search/preview?${new URLSearchParams({selectionToken})}`;},
   getPersonImageOperation(operationRef:string){return request<PersonImageOperation>(`/v1/admin/people/operations/${encodeURIComponent(operationRef)}`);},
@@ -958,7 +941,7 @@ export const helixAdminApi = {
   previewDefectAdmission(subject:FormationSubject){if(!subject.currentRun)throw new Error('当前媒体没有可操作的整理任务。');return request<DefectAdmissionPreview>(`/v1/admin/formation/runs/${encodeURIComponent(subject.currentRun.libraRunId)}/defect-admission-candidate`);},
   readRunOutcome(libraRunId:string){return request<{outcome:LibraRunOutcome|null}>(`/v1/admin/formation/runs/${encodeURIComponent(libraRunId)}/outcome`);},
   reprocessRun(outcome:LibraRunOutcome,idempotencyKey:string){return request<{intentId:string;replayed:boolean}>(`/v1/admin/formation/runs/${encodeURIComponent(outcome.libraRunId)}/actions/reprocess`,{method:'POST',body:JSON.stringify({expectedOutcomeDigest:outcome.outcomeDigest,idempotencyKey})});},
-  admitWithDefects(subject:FormationSubject,candidate:DefectAdmissionCandidate){if(!subject.currentRun)throw new Error('当前媒体没有可操作的整理任务。');const run=subject.currentRun;return request<{resultKind:string;libraRunId:string;replayed:boolean}>(`/v1/admin/formation/runs/${encodeURIComponent(run.libraRunId)}/actions/admit-with-defects`,{method:'POST',body:JSON.stringify({expectedRunStateRevision:run.stateRevision,expectedRunStateDigest:run.stateDigest,expectedDefectCandidateDigest:candidate.candidateDigest,acknowledged:true,idempotencyKey:`admit-with-defects:${run.libraRunId}:${run.stateRevision}:${newOpaqueId()}`})});},
+  admitWithDefects(subject:FormationSubject,candidate:DefectAdmissionCandidate,idempotencyKey?:string){if(!subject.currentRun)throw new Error('当前媒体没有可操作的整理任务。');const run=subject.currentRun;return request<{resultKind:string;libraRunId:string;replayed:boolean}>(`/v1/admin/formation/runs/${encodeURIComponent(run.libraRunId)}/actions/admit-with-defects`,{method:'POST',body:JSON.stringify({expectedRunStateRevision:run.stateRevision,expectedRunStateDigest:run.stateDigest,expectedDefectCandidateDigest:candidate.candidateDigest,acknowledged:true,idempotencyKey:idempotencyKey||`admit-with-defects:${run.libraRunId}:${run.stateRevision}:${newOpaqueId()}`})});},
   previewProductIdentity(subject:FormationSubject,providerId:string) {
     if(!subject.currentRun)throw new Error('当前整理已变化，请刷新。');
     return request<ProductIdentityPreview>(`/v1/admin/formation/runs/${encodeURIComponent(subject.currentRun.libraRunId)}/product-identity-preview?${subject.contentProfile === 'series' ? 'tmdbSeriesId' : 'tmdbMovieId'}=${encodeURIComponent(providerId)}`);

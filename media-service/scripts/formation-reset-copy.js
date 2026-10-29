@@ -6,6 +6,8 @@ const crypto = require('node:crypto');
 const { canonicalDigest, canonicalJson } = require('../src/helix/contracts/canonical-json');
 const { initializeResetTarget } = require('./formation-reset-schema');
 const { digestResetSnapshot } = require('./formation-reset-snapshot-digest');
+const { createSqliteUnitOfWork } = require('../src/helix/foundation/persistence/sqlite-unit-of-work');
+const { createFreshResetCustomTargetRetention } = require('../src/helix/domains/libra/public');
 const IDENTIFIER = /^[a-z][a-z0-9_]*$/;
 function fail(code, details) { throw Object.assign(new Error(code), { code, details }); }
 function quote(value) {
@@ -24,13 +26,25 @@ function decodeKey(value) {
 // Owner exports are explicit seeds plus child edges. FK traversal only follows
 // a selected child's dependencies; selecting a Subject never selects all Runs.
 // This module is offline Operator infrastructure, not a cross-domain Store.
-function retainIntoSnapshot(source, target, policy, schemaTransition) {
+function retainIntoSnapshot(source, target, policy, schemaTransition, schemaManifest) {
   if (!source.readonly || !source.inTransaction) fail('RESET_COPY_SNAPSHOT_REQUIRED');
   const tableRows = source.prepare("SELECT name,sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all();
   const names = tableRows.map(t => t.name);
   const additions = schemaTransition?.addedTables || [];
   if (canonicalJson([...Object.keys(policy.tables)].sort()) !== canonicalJson([...names, ...additions].sort()) ||
       additions.some(name => !['clear','dependent'].includes(policy.tables[name]?.disposition))) fail('RESET_COPY_POLICY_INCOMPLETE');
+  const customTables=['libra_custom_target_intents','libra_custom_target_previews'];
+  const needsCustomClosure=customTables.some(name=>Object.hasOwn(policy.tables,name));
+  if(needsCustomClosure&&(!schemaManifest||!policy.customTargetClosure||canonicalJson(policy.customTargetClosure)!==canonicalJson({
+    schemaRef:'libra.fresh-reset-custom-target-closure@1',owner:'libra'})||
+    customTables.some(name=>policy.tables[name]?.owner!=='libra'||policy.tables[name]?.disposition!=='dependent')||
+    policy.tables.libra_custom_target_heads?.owner!=='libra'||policy.tables.libra_custom_target_heads?.disposition!=='clear'))
+    fail('RESET_COPY_OWNER_DESCRIPTION_INVALID');
+  if(!needsCustomClosure&&policy.customTargetClosure)fail('RESET_COPY_OWNER_DESCRIPTION_INVALID');
+  const customRetention=needsCustomClosure?createFreshResetCustomTargetRetention({schemaManifest,
+    unitOfWork:createSqliteUnitOfWork({kernel:{runPrimitive(operation){
+      return operation(Object.freeze({commitTimeMs:0,prepare:statement=>source.prepare(statement)}));
+    }}})}):null;
   const tables = new Map();
   for (const name of [...names,...additions]) {
     const rule = policy.tables[name];
@@ -157,6 +171,19 @@ function retainIntoSnapshot(source, target, policy, schemaTransition) {
     cursor = pending.row_number;
     const table = tables.get(pending.table_name);
     const row = table.find.get(...decodeKey(pending.key_json));
+    // The Owner resolves opaque JSON references only for facts already chosen
+    // by the collection closure, inside this same frozen source snapshot.
+    if(customRetention&&table.name==='libra_acceptance_specs'){
+      const closure=customRetention.describeSpec(row.acceptance_spec_id);
+      if(closure)for(const [name,id] of [['libra_custom_target_intents',closure.intentId],
+        ['libra_custom_target_previews',closure.previewId],['libra_acceptance_specs',closure.baseAcceptanceSpecId]]){
+        const dependency=tables.get(name),selected=dependency.original.get(id);
+        if(!selected)fail('RESET_COPY_OWNER_REFERENCE_MISSING',{parent:table.name,child:name});
+        add(name,selected);
+      }
+    }
+    if(customRetention&&table.name==='libra_runs')customRetention.validateRun(row.libra_run_id);
+    if(customRetention&&table.name==='libra_product_packages')customRetention.validatePackage(row.on_deck_package_id);
     for (const fk of table.foreign) {
       if (fk.columns.some(c => row[c.from] === null)) continue;
       const parent = tables.get(fk.target);
@@ -228,7 +255,7 @@ function createRetainedDatabase({ Database, sourcePath, targetPath, policy, targ
     target.pragma('foreign_keys=ON'); target.pragma('synchronous=FULL'); target.pragma('temp_store=FILE');
     target.exec('BEGIN IMMEDIATE'); target.pragma('defer_foreign_keys=ON');
     if (!targetSchema) for (const item of schema) target.exec(item.sql);
-    const plan = retainIntoSnapshot(source, target, policy, schemaTransition);
+    const plan = retainIntoSnapshot(source, target, policy, schemaTransition, targetSchema?.schemaManifest);
     // The full source commitment is computed in the very same SQLite snapshot
     // as retention, including discarded inputs and unrelated historical rows.
     const sourceSnapshot = digestResetSnapshot(source);

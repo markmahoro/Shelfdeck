@@ -186,7 +186,6 @@ test('formal server dependency graph reaches only the clean Helix root', () => {
         relative === 'src/clean-workspace-root-admin.js' ||
         relative === 'src/clean-western-analysis-port.js' ||
         relative === 'src/clean-us-adult-inventory-analysis-port.js' ||
-        relative === 'src/clean-us-adult-recommendation-image-port.js' ||
         relative === 'src/clean-us-adult-frame-extractor.js' ||
         relative === 'src/clean-people-image-port.js' ||
         relative === 'src/clean-people-artifact-reclamation-port.js' ||
@@ -366,7 +365,7 @@ test('clean host serves public health and Admin UI, then requires API key or Htt
     secretRoot,
   });
   try {
-    assert.equal(host.routeCount, 168);
+    assert.equal(host.routeCount, 164);
     const health = await host.inject({ method: 'GET', url: '/v1/health' });
     assert.equal(health.statusCode, 200);
     assert.deepEqual(Object.keys(health.json()).sort(), ['generation', 'normalSupplyAllowed', 'status']);
@@ -398,6 +397,10 @@ test('clean host serves public health and Admin UI, then requires API key or Htt
     assert.match(cookie, /shelfdeck_admin_session=/);
     assert.match(cookie, /HttpOnly/);
     assert.match(cookie, /SameSite=Strict/);
+
+    const missingPerson = await host.inject({ method: 'GET', url: '/v1/admin/people/missing-person', headers: { cookie } });
+    assert.equal(missingPerson.statusCode, 404);
+    assert.equal(missingPerson.json().error.code, 'PEOPLE_PERSON_NOT_FOUND');
 
     const security = await host.inject({
       method: 'GET',

@@ -1,26 +1,23 @@
 import {useEffect,useRef,useState} from 'react';
-import {AdminApiError,helixAdminApi,type FormationSubject,type PeopleProjection,type UsAdultActorSelection,type UsAdultActorChoice,
-  type UsAdultRecommendation,type RecommendationPublication,type RecommendationClaimRequest,type RecommendationClaimAccepted} from './api';
+import {AdminApiError,helixAdminApi,type FormationSubject,type PeopleProjection,type UsAdultActorSelection,type UsAdultActorChoice} from './api';
 import {Button} from './chrome';
 import {newOpaqueId} from './id';
 import {useModalFocus} from './useModalFocus';
 import {actorImageKey,actorSnapshotKey} from './usAdultImage';
 type Person=PeopleProjection['items'][number];
-type Props={onClose:()=>void;onSelected:()=>void;onRefresh:()=>void;onUnauthorized?:()=>void}&(
-  {item:FormationSubject;recommendation?:never;onClaimStarted?:never}|
-  {item?:never;recommendation:{item:UsAdultRecommendation;publication:RecommendationPublication};onClaimStarted:(value:RecommendationClaimAccepted)=>void});
-export default function UsAdultActorDialog({item,recommendation,onClaimStarted,onClose,onSelected,onRefresh,onUnauthorized}:Props){
-  const runId=item?.currentRun!.libraRunId;
+type Props={item:FormationSubject;onClose:()=>void;onSelected:()=>void;onRefresh:()=>void;onUnauthorized?:()=>void};
+export default function UsAdultActorDialog({item,onClose,onSelected,onRefresh,onUnauthorized}:Props){
+  const runId=item.currentRun!.libraRunId;
   const [selection,setSelection]=useState<UsAdultActorSelection|null>(null),[people,setPeople]=useState<Person[]>([]),[chosen,setChosen]=useState<Person|null>(null),
     [search,setSearch]=useState(''),[term,setTerm]=useState(''),[cursor,setCursor]=useState<string|null>(null),[loading,setLoading]=useState(true),
     [saving,setSaving]=useState(false),[stale,setStale]=useState(false),[error,setError]=useState(''),
     [visibleImages,setVisibleImages]=useState<Set<string>>(new Set()),[failedImages,setFailedImages]=useState<Set<string>>(new Set());
-  const generation=useRef(0),command=useRef<UsAdultActorChoice|null>(null),claimCommand=useRef<RecommendationClaimRequest|null>(null),content=useModalFocus(true,onClose,saving),
-    canChoose=recommendation?true:selection?.canChoose,locked=Boolean(command.current||claimCommand.current);
+  const generation=useRef(0),command=useRef<UsAdultActorChoice|null>(null),content=useModalFocus(true,onClose,saving),
+    canChoose=selection?.canChoose,locked=Boolean(command.current);
   const unauthorized=(cause:unknown)=>{if(cause instanceof AdminApiError&&cause.status===401){onUnauthorized?.();return true;}return false;};
   useEffect(()=>{
     const current=++generation.current;
-    void Promise.all([runId?helixAdminApi.readUsAdultActorSelection(runId):Promise.resolve(null),helixAdminApi.listPeople({libraryKind:'us_adult',limit:24})]).then(([state,page])=>{
+    void Promise.all([helixAdminApi.readUsAdultActorSelection(runId),helixAdminApi.listPeople({libraryKind:'us_adult',limit:24})]).then(([state,page])=>{
       if(current!==generation.current)return;
       setSelection(state);setPeople(page.items);setCursor(page.nextCursor);
     }).catch(cause=>{if(current===generation.current&&!unauthorized(cause))setError('演员资料读取失败，请关闭后重试。');})
@@ -44,12 +41,7 @@ export default function UsAdultActorDialog({item,recommendation,onClaimStarted,o
     if(!chosen?.currentReferenceRevision)return;
     setSaving(true);setError('');
     try{
-      if(recommendation){
-        claimCommand.current??={idempotencyKey:newOpaqueId('us-recommendation-'),expectedPublicationRevision:recommendation.publication.revision,
-          expectedSnapshotDigest:recommendation.publication.snapshotDigest,target:{kind:'existing',personId:chosen.personId,
-            expectedPersonRevision:chosen.currentRevision,expectedReferenceRevision:chosen.currentReferenceRevision}};
-        const accepted=await helixAdminApi.claimUsAdultRecommendation(recommendation.item.recommendationId,claimCommand.current);onClaimStarted?.(accepted);
-      }else if(runId&&selection){
+      if(selection){
         command.current??={idempotencyKey:'choose-us-actor:'+runId+':'+newOpaqueId(),expectedRunStateRevision:selection.expectedRunStateRevision,
           expectedChoiceRevision:selection.expectedChoiceRevision,personId:chosen.personId,expectedPersonRevision:chosen.currentRevision,
           expectedReferenceRevision:chosen.currentReferenceRevision};
@@ -65,10 +57,9 @@ export default function UsAdultActorDialog({item,recommendation,onClaimStarted,o
   }
   return <div className="dialog-scrim" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget&&!saving)onClose();}}>
     <div className="dialog dialog-wide us-actor-dialog" ref={content} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="us-actor-title" aria-busy={saving}>
-      <div className="dialog-head"><h2 id="us-actor-title">{recommendation?'认领为已有演员':'选择影片演员'}</h2></div>
+      <div className="dialog-head"><h2 id="us-actor-title">选择影片演员</h2></div>
       <div className="dialog-body stack">
-        <p>{recommendation?recommendation.item.source.title:item?.displayIdentity}</p>
-        {recommendation&&<p>本次只确认这部来源影片，其余暂存影片保持原状。</p>}
+        <p>{item.displayIdentity}</p>
         {selection?.selectedActor&&<p>当前演员：<strong>{selection.selectedActor.canonicalName}</strong>{selection.selectionOrigin==='automatic_match'?' · 系统匹配':''}</p>}
         {selection&&!selection.canChoose&&<p role="status">影片当前无法修改演员，请刷新工作区查看最新状态。</p>}
         <form onSubmit={event=>{event.preventDefault();void find();}} className="identity-picker-input">
@@ -84,7 +75,7 @@ export default function UsAdultActorDialog({item,recommendation,onClaimStarted,o
               onError={()=>{setVisibleImages(previous=>new Set([...previous].filter(id=>id!==actorImageKey(person))));setFailedImages(previous=>new Set([...previous,actorImageKey(person)]));setChosen(previous=>previous&&actorSnapshotKey(previous)===actorSnapshotKey(person)&&!locked?null:previous);}}/>
             {failedImages.has(actorImageKey(person))&&<small>图片无法读取</small>}
             <span><input type="radio" name="us-film-actor" value={person.personId} checked={Boolean(chosen&&actorSnapshotKey(chosen)===actorSnapshotKey(person))} disabled={saving||stale||locked||!person.currentReferenceRevision||!visibleImages.has(actorImageKey(person))}
-              onChange={()=>{setChosen(person);command.current=null;claimCommand.current=null;setError('');}}/><strong>{person.canonicalName}</strong></span>
+              onChange={()=>{setChosen(person);command.current=null;setError('');}}/><strong>{person.canonicalName}</strong></span>
           </label>)}
         </div>
         {loading&&<p role="status">正在读取演员库…</p>}
@@ -92,7 +83,7 @@ export default function UsAdultActorDialog({item,recommendation,onClaimStarted,o
         {chosen&&<p role="status">已选择：{chosen.canonicalName}</p>}
       </div>
       <div className="dialog-actions"><Button type="button" disabled={saving} onClick={onClose}>取消</Button>
-        <Button type="button" variant="primary" disabled={loading||saving||stale||!locked&&(!canChoose||!chosen||!visibleImages.has(actorImageKey(chosen)))} onClick={()=>void confirm()}>{saving?'正在确认…':recommendation?'确认认领':'确认演员'}</Button></div>
+        <Button type="button" variant="primary" disabled={loading||saving||stale||!locked&&(!canChoose||!chosen||!visibleImages.has(actorImageKey(chosen)))} onClick={()=>void confirm()}>{saving?'正在确认…':'确认演员'}</Button></div>
     </div>
   </div>;
 }

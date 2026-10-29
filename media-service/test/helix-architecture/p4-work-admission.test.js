@@ -60,6 +60,59 @@ test('Admission atomically creates Supporting Work and typed Receipt with stable
   });
 });
 
+for(const competing of ['same','conflict','unrelated'])test('a fenced Work admission resolves a concurrent '+competing+' commit precisely',()=>{
+  fixture(({admission,unitOfWork,databasePath})=>{
+    let injected=false;
+    const interleaved={...unitOfWork,execute(participants,options){
+      if(!injected&&participants.some(item=>item.participantId==='work_admission')){
+        injected=true;
+        if(competing==='same')assert.equal(admission.submit(definition()).kind,'admitted');
+        else if(competing==='conflict')assert.equal(admission.submit(definition({workId:'competing-work',executionBasisDigest:'b'.repeat(64)})).kind,'admitted');
+        else {const db=new Database(databasePath);try{db.prepare("INSERT INTO libra_subjects(subject_id,status,content_profile,structure_kind,intake_revision) VALUES('other','active','movie','single',1)").run();}finally{db.close();}}
+      }
+      return unitOfWork.execute(participants,options);
+    }},contender=createWorkAdmission({schemaManifest,unitOfWork:interleaved,
+      eligibilityProvider:{check:request=>({eligible:true,basisDigest:request.executionBasisDigest})},
+      limits:{globalOpenWorks:10,ownerOpenWorks:5,openEvents:20}}),fence=unitOfWork.captureReadFence();
+    if(competing==='same')assert.deepEqual(contender.submit(definition(),{readFence:fence}),
+      {kind:'admitted',workId:'work-1',state:'admitted',replayed:true});
+    else assert.throws(()=>contender.submit(definition(),{readFence:fence}),
+      {code:competing==='conflict'?'P4_WORK_ADMISSION_IDEMPOTENCY_CONFLICT':'P3_UOW_READ_FENCE_CHANGED'});
+    assert.equal(rows(databasePath,'fx_supporting_works').length,competing==='unrelated'?0:1);
+    assert.equal(rows(databasePath,'fx_command_receipts').length,competing==='unrelated'?0:1);
+  });
+});
+
+test('an exact concurrent commit wins before a stale eligibility rejection',()=>{
+  fixture(({admission,unitOfWork,databasePath})=>{
+    const contender=createWorkAdmission({schemaManifest,unitOfWork,eligibilityProvider:{check(request){
+      assert.equal(admission.submit(definition()).kind,'admitted');return {eligible:false,basisDigest:request.executionBasisDigest};}},
+      limits:{globalOpenWorks:10,ownerOpenWorks:5,openEvents:20}});
+    assert.deepEqual(contender.submit(definition(),{readFence:unitOfWork.captureReadFence()}),
+      {kind:'admitted',workId:'work-1',state:'admitted',replayed:true});
+    assert.equal(rows(databasePath,'fx_supporting_works').length,1);assert.equal(rows(databasePath,'fx_command_receipts').length,1);
+  });
+});
+
+for(const corruption of ['result','target','target_type','scope','schema'])test('fenced replay rejects a corrupt '+corruption+' receipt',()=>{
+  fixture(({admission,unitOfWork,databasePath})=>{
+    const fence=unitOfWork.captureReadFence();admission.submit(definition(),{readFence:fence});
+    const db=new Database(databasePath);try{
+      if(corruption==='result'){
+        const value={kind:'admitted',workId:'other-work',state:'admitted',replayed:false},
+          hash=require('../../src/helix/contracts/canonical-json').canonicalDigest(value);
+        db.prepare('UPDATE fx_command_receipts SET result_ref_json=?,result_digest=?').run(JSON.stringify(value),hash);
+      }
+      if(corruption==='target')db.prepare("UPDATE fx_command_receipts SET target_id='other-work'").run();
+      if(corruption==='target_type')db.prepare("UPDATE fx_command_receipts SET target_type='other_type'").run();
+      if(corruption==='scope')db.prepare("UPDATE fx_command_receipts SET caller_scope='libra:other'").run();
+      if(corruption==='schema')db.prepare("UPDATE fx_command_receipts SET result_schema_ref='fixture.other@1'").run();
+    }finally{db.close();}
+    assert.throws(()=>admission.submit(definition(),{readFence:fence}),{code:'P4_WORK_ADMISSION_RECEIPT_CORRUPT'});
+    assert.equal(rows(databasePath,'fx_supporting_works').length,1);
+  });
+});
+
 test('Work Result Reader returns the exact verified Admission Definition', () => {
   fixture(({ admission, unitOfWork, databasePath }) => {
     const admitted = definition();
@@ -261,3 +314,16 @@ test('Work insert failure rolls back Receipt and never creates Business Process 
     }
   });
 });
+
+test('Work Admission can atomically reject an obsolete Owner read fence without creating Work or a receipt',()=>fixture(({admission,unitOfWork,databasePath})=>{
+  const stale=unitOfWork.captureReadFence(),db=new Database(databasePath);
+  db.prepare("INSERT INTO libra_subjects(subject_id) VALUES('changed-after-read')").run();db.close();
+  assert.throws(()=>admission.submit(definition(),{readFence:stale}),{code:'P3_UOW_READ_FENCE_CHANGED'});
+  assert.deepEqual(rows(databasePath,'fx_supporting_works'),[]);
+  assert.deepEqual(rows(databasePath,'fx_command_receipts'),[]);
+  const fresh=unitOfWork.captureReadFence();
+  assert.equal(admission.submit(definition(),{readFence:fresh}).kind,'admitted');
+  assert.equal(admission.submit(definition(),{readFence:fresh}).replayed,true);
+  assert.equal(rows(databasePath,'fx_supporting_works').length,1);
+  assert.equal(rows(databasePath,'fx_command_receipts').length,1);
+}));

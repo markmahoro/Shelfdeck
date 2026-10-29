@@ -220,6 +220,8 @@ resolver、Signal驱动后效和Admin页面业务模型。
 
 ## 11. Verification matrix by change type
 
+2026-10-28用户明确：项目唯一交付、部署与发布验收平台为Linux Docker。不安排Windows运行兼容、Windows/Electron发行包或Windows发布门禁；开发主机不决定产品平台，本机逻辑验证不能替代Linux容器的真实运行/媒体/文件恢复验证。既有其他平台记录只保留为历史事实，不成为后续迭代义务。以下矩阵按Linux Docker及其Admin Web应用。
+
 | Change type | Minimum verification |
 | --- | --- |
 | Pure model/policy | unit、boundary value、determinism、versioned input |

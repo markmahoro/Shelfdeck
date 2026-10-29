@@ -148,6 +148,7 @@ function createEventRuntime(options) {
       !options.timeoutController || typeof options.timeoutController.execute !== 'function' ||
       !options.circuitBreaker || typeof options.circuitBreaker.allows !== 'function' ||
       (options.incidentObserver && typeof options.incidentObserver.prepareExecution !== 'function') ||
+      (options.dispatchGuard && typeof options.dispatchGuard.check !== 'function') ||
       !options.whenEvaluator || typeof options.whenEvaluator.evaluate !== 'function' ||
       requiredFunctions.some((name) => typeof options[name] !== 'function')) fail(
     'P4_EVENT_RUNTIME_DEPENDENCIES_REQUIRED', 'Event Runtime requires exact persistence, scheduler, Governor, Registry, Dispatcher, typed providers, IDs, and clock.'
@@ -319,7 +320,7 @@ function createEventRuntime(options) {
     return value;
   }
 
-  function recordFenceRejected(snapshot, entry, attemptId, startedAtMs, fence) {
+  function recordFenceRejected(snapshot, entry, attemptId, startedAtMs, fence, readFence=null) {
     const evidence = fence.evidence || { reasonCode: 'FENCE_REJECTED' };
     options.unitOfWork.execute([{
       participantId: 'event_runtime_fence_rejected', owner: 'execution-foundation', repositories: Object.values(repositories), execute(context) {
@@ -340,11 +341,11 @@ function createEventRuntime(options) {
         });
         advancePlan(context, event.plan_id);
       }
-    }]);
+    }],{readFence});
     return Object.freeze({ kind: 'fence_rejected', eventId: snapshot.event.event_id, eventAttemptId: attemptId });
   }
 
-  function recordInputPreparationOutcome(snapshot, error) {
+  function recordInputPreparationOutcome(snapshot, error, readFence=null) {
     const unavailable = isExecutionInputUnavailable(error);
     const nowMs = clock();
     const retryAtMs = unavailable && Number.isSafeInteger(error.retryAtMs) &&
@@ -397,7 +398,7 @@ function createEventRuntime(options) {
         });
         if (!unavailable) advancePlan(context, event.plan_id);
       },
-    }]);
+    }],{readFence});
     if(!unavailable&&typeof options.governor.abandon==='function')options.governor.abandon(snapshot.event.event_id);
     return Object.freeze({
       kind: unavailable ? 'input_waiting' : isExecutionInputSuperseded(error) ? 'input_superseded' : 'input_failed',
@@ -413,7 +414,7 @@ function createEventRuntime(options) {
     });
   }
 
-  function promoteExternalWaitToReady(snapshot) {
+  function promoteExternalWaitToReady(snapshot, readFence=null) {
     if (snapshot.event.state !== 'waiting_for_external') return;
     options.unitOfWork.execute([{
       participantId: 'event_runtime_external_wait_ready',
@@ -440,10 +441,10 @@ function createEventRuntime(options) {
           });
         }
       },
-    }]);
+    }],{readFence});
   }
 
-  function beginAttempt(snapshot, entry, attemptId, startedAtMs, inputs, fence) {
+  function beginAttempt(snapshot, entry, attemptId, startedAtMs, inputs, fence, readFence=null) {
     options.unitOfWork.execute([{
       participantId: 'event_runtime_begin', owner: 'execution-foundation', repositories: Object.values(repositories), execute(context) {
         const event = context.repository('runtime_events').invoke('find', { event_id: snapshot.event.event_id });
@@ -464,7 +465,7 @@ function createEventRuntime(options) {
           event_id: event.event_id, state: 'executing', ready_at_ms: event.ready_at_ms, retry_at_ms: null, result_id: null
         });
       }
-    }]);
+    }],{readFence});
   }
 
   function complete(snapshot, attemptId, outcome, policyDecision = null) {
@@ -592,7 +593,7 @@ function createEventRuntime(options) {
   }
 
   async function recover(request) {
-    const allowed = new Set(['safe_retry', 'safe_retry_before_intent', 'continue_forward', 'already_committed', 'already_failed', 'terminal_failure']);
+    const allowed = new Set(['safe_retry', 'safe_retry_before_intent', 'continue_forward', 'observe_again', 'already_committed', 'already_failed', 'terminal_failure']);
     if (!request || typeof request !== 'object' || Array.isArray(request) ||
         typeof request.eventId !== 'string' || !allowed.has(request.decision)) fail(
       'P4_EVENT_RECOVERY_REQUEST_INVALID', 'Event recovery requires one classified recoverable action.'
@@ -608,6 +609,28 @@ function createEventRuntime(options) {
     if(request.decision==='already_committed'){
       const prebound=readPreboundCommittedOutcome(request.eventId,request.effectId,attempt,entry);
       if(prebound){await options.effectJournal.settle(Object.freeze({effectId:request.effectId,receipt:prebound.outcome.effectReceipt,scope:prebound.scope}));return completeCommittedEffect(snapshot,attempt.event_attempt_id,prebound.outcome);}
+    }
+    if(request.decision==='observe_again') {
+      const effect=options.effectJournal.read(request.effectId),expectedIntent=valueDigest({eventId:request.eventId,capabilityRef:snapshot.event.capability_ref,
+        contractVersion:snapshot.event.contract_version,inputSnapshotDigest:attempt.input_snapshot_digest,fenceSnapshotDigest:attempt.fence_snapshot_digest});
+      if(!/^[a-f0-9]{64}$/.test(request.evidenceDigest||'')||!effect||effect.event_attempt_id!==attempt.event_attempt_id||
+          effect.effect_class!==entry.manifest.effectClass||effect.intent_digest!==expectedIntent||
+          !['workspace_write','material_commit'].includes(effect.effect_class)||
+          !['intended','effect_observed','reconcile_required'].includes(effect.state))
+        fail('P4_EVENT_RECOVERY_EFFECT_DRIFT','Observation-only recovery requires the exact active file Effect and immutable evidence.');
+      const budget=options.effectJournal.beginRecoveryExecution(effect.effect_id),startedAtMs=Number(budget?.verified_at_ms);
+      if(budget?.effect_id!==effect.effect_id||budget.event_attempt_id!==attempt.event_attempt_id||budget.effect_class!==effect.effect_class||
+          budget.verified_at_ms===null||budget.verified_at_ms===undefined||!Number.isSafeInteger(startedAtMs)||startedAtMs<0)
+        fail('P4_EVENT_RECOVERY_BUDGET_DRIFT','Observation-only recovery cannot change or renew its original durable budget.');
+      const timing=options.attemptPolicy.prepare({capabilityRef:snapshot.event.capability_ref,effectClass:effect.effect_class,
+        retryPolicyRef:policyBinding.retryPolicyRef,timeoutPolicyRef:policyBinding.timeoutPolicyRef,startedAtMs});
+      if(options.now()<timing.deadlineAtMs)return Object.freeze({kind:'recovery_deferred',eventId:request.eventId,effectId:effect.effect_id});
+      const outcome=Object.freeze({kind:'failed',failureClass:'integration',code:'P4_EVENT_RECOVERY_OBSERVATION_UNAVAILABLE',
+        message:'File reality could not be observed within the original recovery budget.',retryDirective:'never',
+        evidence:Object.freeze({effectId:effect.effect_id,recoveryEvidenceDigest:request.evidenceDigest,
+          realityStatus:'unobservable',dispatchStarted:false,recoveryStartedAtMs:startedAtMs,deadlineAtMs:timing.deadlineAtMs})});
+      options.effectJournal.abandonUncommitted(effect.effect_id);
+      return complete(snapshot,attempt.event_attempt_id,outcome,Object.freeze({decision:'terminal_failure'}));
     }
     if(request.decision==='terminal_failure') {
       const effect=options.effectJournal.read(request.effectId),expectedIntent=valueDigest({eventId:request.eventId,capabilityRef:snapshot.event.capability_ref,
@@ -911,6 +934,59 @@ function createEventRuntime(options) {
       let resourceRequestedAtMs = null; let resourceOutcome = 'executor_error';
       try {
         const snapshot = readSnapshot(eventId);
+        function checkOwner(){
+          if(!options.dispatchGuard)return {kind:'not_applicable',readFence:null};
+          let decision;
+          try{decision=options.dispatchGuard.check(Object.freeze({ownerDomain:snapshot.work.owner_domain,processType:snapshot.work.process_type,
+            processId:snapshot.work.process_id,workKind:snapshot.work.work_kind,executionBasisDigest:snapshot.work.basis_digest,
+            workId:snapshot.work.work_id,eventId}));}
+          catch(error){if(error?.code==='P3_UOW_READ_FENCE_CHANGED')return {kind:'pending',reasonCode:'owner_view_changed'};throw error;}
+          if(!decision||typeof decision!=='object'||Array.isArray(decision)||!['ready','pending','not_applicable'].includes(decision.kind))
+            fail('P4_EVENT_OWNER_GUARD_INVALID','Owner dispatch guard returned an invalid decision.');
+          const keys=Object.keys(decision).sort().join(',');
+          if(decision.kind==='pending'){
+            if(keys!=='kind,reasonCode'||typeof decision.reasonCode!=='string'||!/^[-a-zA-Z0-9_.]{1,128}$/.test(decision.reasonCode))
+              fail('P4_EVENT_OWNER_GUARD_INVALID','Owner dispatch deferral requires a bounded reason.');
+            return decision;
+          }
+          if(decision.kind==='ready'){
+            if(keys!=='kind,readFence'||!decision.readFence||typeof decision.readFence!=='object'||
+                !/^[a-f0-9]{64}$/.test(snapshot.work.basis_digest||''))
+              fail('P4_EVENT_OWNER_GUARD_INVALID','Ready Owner dispatch requires an opaque read fence.');
+            let current;
+            try{current=options.unitOfWork.execute([{participantId:'event_owner_scope_read',owner:'execution-foundation',
+              repositories:[repositories.works,repositories.workAttempts,repositories.plans],execute(context){return {
+                work:context.repository('runtime_works').invoke('find',{work_id:snapshot.work.work_id}),
+                attempt:context.repository('runtime_work_attempts').invoke('find',{attempt_id:snapshot.workAttempt.attempt_id}),
+                plan:context.repository('runtime_plans').invoke('find',{plan_id:snapshot.plan.plan_id})};}}],
+              {readFence:decision.readFence}).event_owner_scope_read;}
+            catch(error){if(error?.code==='P3_UOW_READ_FENCE_CHANGED')return {kind:'pending',reasonCode:'owner_view_changed'};throw error;}
+            if(!current.work||['owner_domain','process_type','process_id','work_kind','basis_digest'].some(key=>current.work[key]!==snapshot.work[key])||
+                !['ready','running'].includes(current.work.state)||!current.attempt||current.attempt.work_id!==snapshot.work.work_id||
+                !['ready','running'].includes(current.attempt.state)||current.attempt.basis_digest!==snapshot.work.basis_digest||
+                !current.plan||current.plan.attempt_id!==current.attempt.attempt_id||current.plan.state!=='planned'||
+                current.plan.basis_digest!==snapshot.work.basis_digest)
+              fail('P4_EVENT_OWNER_SCOPE_CHANGED','The Event Work scope changed before Owner qualification.');
+            return decision;
+          }
+          if(keys!=='kind')fail('P4_EVENT_OWNER_GUARD_INVALID','Unscoped Owner dispatch must be explicit.');
+          return {kind:'not_applicable',readFence:null};
+        }
+        function ownerWait(reasonCode){
+          options.scheduler.noteDispatchOutcome?.(request.schedulerLease,Object.freeze({kind:'owner_wait'}));
+          options.scheduler.release(request.schedulerLease);schedulerReleased=true;
+          return Object.freeze({kind:'owner_deferred',eventId,reasonCode});
+        }
+        function guardedOwnerWrite(write){
+          const decision=checkOwner();
+          if(decision.kind==='pending')return {deferred:true,result:ownerWait(decision.reasonCode)};
+          try{return {deferred:false,result:write(decision.readFence)};}
+          catch(error){
+            if(decision.readFence&&error?.code==='P3_UOW_READ_FENCE_CHANGED')
+              return {deferred:true,result:ownerWait('owner_view_changed')};
+            throw error;
+          }
+        }
         const entry = options.registry.resolve(snapshot.event.capability_ref, snapshot.event.owner_domain);
         const policyBinding = options.attemptPolicy.bindingFor(snapshot.event.capability_ref, snapshot.node.effect_class);
         if (snapshot.node.effect_class !== entry.manifest.effectClass || !policyBinding) fail(
@@ -929,14 +1005,18 @@ function createEventRuntime(options) {
           options.scheduler.release(request.schedulerLease); schedulerReleased = true;
           return preparationWait;
         }
+        const initialOwner=checkOwner();
+        if(initialOwner.kind==='pending')return ownerWait(initialOwner.reasonCode);
         let preparationScope = Object.freeze({});
         let inputs;
         try {
           inputs = options.executionInputProvider.prepare(Object.freeze({ snapshot, preparationScope }));
         } catch (error) {
+          const recorded=guardedOwnerWrite(readFence=>recordInputPreparationOutcome(snapshot,error,readFence));
+          if(recorded.deferred)return recorded.result;
           options.scheduler.release(request.schedulerLease);
           schedulerReleased = true;
-          return recordInputPreparationOutcome(snapshot, error);
+          return recorded.result;
         }
         if (((entry.manifest.approvalRequirementRef || null) !== null) !== (inputs.approvalHandle !== undefined) ||
             ((entry.manifest.authorizationRequirementRef || null) !== null) !== (inputs.authorizationHandle !== undefined)) fail(
@@ -964,8 +1044,11 @@ function createEventRuntime(options) {
         const attemptId = assertId(options.nextEventAttemptId(), 'event-attempt');
         const firstFence = options.fenceValidator.validate(Object.freeze({ phase: 'dispatch', snapshot, inputs }));
         if (!firstFence || firstFence.valid !== true) {
+          const recorded=guardedOwnerWrite(readFence=>recordFenceRejected(snapshot,entry,attemptId,startedAtMs,
+            firstFence||{actualDigest:valueDigest({missing:true})},readFence));
+          if(recorded.deferred)return recorded.result;
           options.scheduler.release(request.schedulerLease); schedulerReleased = true;
-          return recordFenceRejected(snapshot, entry, attemptId, startedAtMs, firstFence || { actualDigest: valueDigest({ missing: true }) });
+          return recorded.result;
         }
         demand = options.resourceDemandResolver.resolve(Object.freeze({ snapshot, inputs, preparationScope }));
         preparationScope = null;
@@ -976,7 +1059,10 @@ function createEventRuntime(options) {
           if(!decision?.allowed){options.scheduler.noteDispatchOutcome?.(request.schedulerLease,Object.freeze({kind:'circuit_wait'}));
             options.scheduler.release(request.schedulerLease);schedulerReleased=true;return Object.freeze({kind:'circuit_deferred',eventId,
             circuitKey:decision?.circuitKey||null,reason:decision?.reason||'incident_circuit_open'});}}
-        promoteExternalWaitToReady(snapshot);
+        if(snapshot.event.state==='waiting_for_external'){
+          const promoted=guardedOwnerWrite(readFence=>promoteExternalWaitToReady(snapshot,readFence));
+          if(promoted.deferred)return promoted.result;
+        }
         resourceRequestedAtMs = clock();
         const acquired = options.governor.acquire(demand);
         if (acquired.kind !== 'permitted') {
@@ -985,22 +1071,29 @@ function createEventRuntime(options) {
           return acquired;
         }
         permit = acquired.permit;
-        options.scheduler.noteDispatchOutcome?.(request.schedulerLease, Object.freeze({ kind:'started' }));
         const commitFence = options.fenceValidator.validate(Object.freeze({ phase: 'protected_effect', snapshot, inputs }));
         if (!commitFence || commitFence.valid !== true) {
+          const recorded=guardedOwnerWrite(readFence=>recordFenceRejected(snapshot,entry,attemptId,startedAtMs,
+            commitFence||{actualDigest:valueDigest({missing:true})},readFence));
+          if(recorded.deferred)return recorded.result;
           options.scheduler.release(request.schedulerLease); schedulerReleased = true;
-          return recordFenceRejected(snapshot, entry, attemptId, startedAtMs, commitFence || { actualDigest: valueDigest({ missing: true }) });
+          return recorded.result;
         }
         if (firstFence.digest !== commitFence.digest) {
-          options.scheduler.release(request.schedulerLease); schedulerReleased = true;
-          const rejected = recordFenceRejected(snapshot, entry, attemptId, startedAtMs, {
+          const recorded=guardedOwnerWrite(readFence=>recordFenceRejected(snapshot, entry, attemptId, startedAtMs, {
             actualDigest: commitFence.digest,
             evidence: { reasonCode: 'FENCE_CHANGED_BEFORE_EFFECT', expectedDigest: firstFence.digest, actualDigest: commitFence.digest }
-          });
+          },readFence));
+          if(recorded.deferred)return recorded.result;
+          options.scheduler.release(request.schedulerLease); schedulerReleased = true;
           persistedAttemptId = attemptId; resourceOutcome = 'fence_rejected';
-          return rejected;
+          return recorded.result;
         }
-        beginAttempt(snapshot, entry, attemptId, startedAtMs, inputs, commitFence);
+        const begun=guardedOwnerWrite(readFence=>{
+          options.scheduler.noteDispatchOutcome?.(request.schedulerLease,Object.freeze({kind:'started'}));
+          return beginAttempt(snapshot,entry,attemptId,startedAtMs,inputs,commitFence,readFence);
+        });
+        if(begun.deferred)return begun.result;
         persistedAttemptId = attemptId;
         let effect = null;
         if (requiresJournal) {

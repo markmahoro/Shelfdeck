@@ -1,0 +1,328 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/UsAdultCatalogueAnalysisBasis/v1",
+  "title": "UsAdultCatalogueAnalysisBasis@1",
+  "x-helix-ssotRefs": [
+    "8.6.18"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "x-helix-maxCanonicalBytes": 32768,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/domain-types/UsAdultCatalogueAnalysisBasis/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "analysisId": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "contentProfile": {
+      "const": "western_adult"
+    },
+    "libraRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "subjectId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "expectedRunStateRevision": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "runExecutionBasisDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "resolvedIdentityDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "workspaceId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "sourceHandle": {
+      "$ref": "helix://contracts/types/PhysicalMaterialReadHandle/v1"
+    },
+    "sourceProbeRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "workId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "attemptId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "planId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "eventId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "resultId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "capabilityRef": {
+          "const": "shared.material.media.probe@1"
+        },
+        "resultSchemaRef": {
+          "const": "helix://contracts/capabilities/shared.material.media.probe/v1/result"
+        },
+        "resultDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "inputBindingDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "workId",
+        "attemptId",
+        "planId",
+        "eventId",
+        "resultId",
+        "capabilityRef",
+        "resultSchemaRef",
+        "resultDigest",
+        "inputBindingDigest"
+      ]
+    },
+    "durationMs": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "faceModelRef": {
+      "$ref": "helix://contracts/domain-types/FaceModelRef/v1"
+    },
+    "catalogueGeneration": {
+      "$ref": "helix://contracts/domain-types/FaceCatalogueGeneration/v1"
+    },
+    "catalogueSearchPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema": {
+          "const": "shared.face-catalogue-search-policy@1"
+        },
+        "queryCount": {
+          "const": 100
+        },
+        "maximumResults": {
+          "const": 5
+        },
+        "maximumDistance": {
+          "const": 0.6
+        },
+        "poseAdjustment": {
+          "const": "sense2_side_yaw@1"
+        },
+        "linkCollapse": {
+          "const": "sense2_explicit_uid_links_no_endpoint@1"
+        },
+        "policyDigest": {
+          "const": "37443c9e40507792762070c1b4cc77e26af4b9078fc5990396335de589ca9854"
+        }
+      },
+      "required": [
+        "schema",
+        "queryCount",
+        "maximumResults",
+        "maximumDistance",
+        "poseAdjustment",
+        "linkCollapse",
+        "policyDigest"
+      ]
+    },
+    "samplingPlan": {
+      "$ref": "helix://contracts/domain-types/SamplingPlan/v1"
+    },
+    "clusterParameters": {
+      "$ref": "helix://contracts/domain-types/ClusterParameters/v1"
+    },
+    "representativeImagePolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema": {
+          "const": "shared.buffalo-representative-policy@1"
+        },
+        "contextMarginRatio": {
+          "const": 0.25
+        },
+        "minimumFaceSize": {
+          "const": 40
+        },
+        "maximumOtherFaceCentres": {
+          "const": 0
+        },
+        "encoding": {
+          "const": "png"
+        },
+        "maximumOutputBytes": {
+          "const": 10485760
+        },
+        "policyDigest": {
+          "const": "22c721f558c4e69b882e159e6e4654913bf1262144dbeea12f432c13566c7705"
+        }
+      },
+      "required": [
+        "schema",
+        "contextMarginRatio",
+        "minimumFaceSize",
+        "maximumOtherFaceCentres",
+        "encoding",
+        "maximumOutputBytes",
+        "policyDigest"
+      ]
+    },
+    "selectionPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema": {
+          "const": "libra.us-adult-catalogue-assessment-policy@1"
+        },
+        "maximumDistance": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1
+        },
+        "minimumDistanceMargin": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1
+        },
+        "minimumRepresentativeStrata": {
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 3
+        },
+        "minimumCoverageStrata": {
+          "type": "integer",
+          "minimum": 3,
+          "maximum": 20
+        },
+        "policyDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "schema",
+        "maximumDistance",
+        "minimumDistanceMargin",
+        "minimumRepresentativeStrata",
+        "minimumCoverageStrata",
+        "policyDigest"
+      ]
+    },
+    "resourceBudget": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cpuSlots": {
+          "const": 1
+        },
+        "memoryBytes": {
+          "type": "integer",
+          "minimum": 536870912,
+          "maximum": 8589934592
+        },
+        "maximumFrames": {
+          "const": 40
+        },
+        "maximumFacesPerFrame": {
+          "const": 32
+        },
+        "maximumFrameBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10485760
+        },
+        "maximumWorkspaceBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483648
+        },
+        "frameDeadlineMs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 30000
+        },
+        "imageDeadlineMs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 60000
+        },
+        "analysisDeadlineMs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3600000
+        }
+      },
+      "required": [
+        "cpuSlots",
+        "memoryBytes",
+        "maximumFrames",
+        "maximumFacesPerFrame",
+        "maximumFrameBytes",
+        "maximumWorkspaceBytes",
+        "frameDeadlineMs",
+        "imageDeadlineMs",
+        "analysisDeadlineMs"
+      ]
+    },
+    "basisDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "analysisId",
+    "contentProfile",
+    "libraRunId",
+    "subjectId",
+    "expectedRunStateRevision",
+    "runExecutionBasisDigest",
+    "resolvedIdentityDigest",
+    "workspaceId",
+    "sourceHandle",
+    "sourceProbeRef",
+    "durationMs",
+    "faceModelRef",
+    "catalogueGeneration",
+    "catalogueSearchPolicy",
+    "samplingPlan",
+    "clusterParameters",
+    "representativeImagePolicy",
+    "selectionPolicy",
+    "resourceBudget",
+    "basisDigest"
+  ]
+}

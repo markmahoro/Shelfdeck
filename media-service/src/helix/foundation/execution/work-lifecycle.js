@@ -60,6 +60,18 @@ function materializeWork(row) {
   return Object.freeze({ ...row, definition });
 }
 
+function assertExpectedScope(work, expectedScope) {
+  if (!expectedScope || typeof expectedScope !== 'object' || Array.isArray(expectedScope) ||
+      Object.keys(expectedScope).sort().join(',') !== 'executionBasisDigest,ownerDomain,processId,processType,workKind' ||
+      Object.values(expectedScope).some(value => typeof value !== 'string' || !value) ||
+      !/^[a-f0-9]{64}$/.test(expectedScope.executionBasisDigest))
+    fail('P4_WORK_OWNER_SCOPE_INVALID', 'Guarded Work requires an exact Owner scope.');
+  if (!work || work.owner_domain !== expectedScope.ownerDomain || work.process_type !== expectedScope.processType ||
+      work.process_id !== expectedScope.processId || work.work_kind !== expectedScope.workKind ||
+      work.basis_digest !== expectedScope.executionBasisDigest)
+    fail('P4_WORK_OWNER_SCOPE_CHANGED', 'Guarded Owner scope differs from the current Work.');
+}
+
 function definitions(schemaManifest) {
   return Object.freeze({
     works: createRepositoryDefinition({ repositoryId: 'work_lifecycle_works', owner: 'execution-foundation', schemaManifest, statements: {
@@ -97,7 +109,7 @@ function definitions(schemaManifest) {
       ], keyColumns: ['attempt_id'], compareColumns: [{ column: 'state', parameter: 'expected_state' }] }
     } }),
     plans: createRepositoryDefinition({ repositoryId: 'work_lifecycle_plans', owner: 'execution-foundation', schemaManifest, statements: {
-      find: { kind: 'select-one', tableId: 'fx_workflow_plans', columns: ['plan_id', 'attempt_id', 'state'], keyColumns: ['attempt_id'] }
+      find: { kind: 'select-one', tableId: 'fx_workflow_plans', columns: ['plan_id', 'attempt_id', 'basis_digest', 'state'], keyColumns: ['attempt_id'] }
     } }),
     events: createRepositoryDefinition({ repositoryId: 'work_lifecycle_events', owner: 'execution-foundation', schemaManifest, statements: {
       list_work: { kind: 'select-all', tableId: 'fx_workflow_events', columns: [
@@ -130,19 +142,20 @@ function createWorkLifecycle(options) {
     fail('P4_WORK_LIFECYCLE_DEPENDENCIES_REQUIRED', 'Work lifecycle requires scoped persistence and a Work Attempt identity source.');
   }
   const repositories = definitions(options.schemaManifest);
-  const execute = (participantId, body) => options.unitOfWork.execute([{
+  const execute = (participantId, body, {readFence=null}={}) => options.unitOfWork.execute([{
     participantId,
     owner: 'execution-foundation',
     repositories: Object.values(repositories),
     execute: body,
-  }])[participantId];
+  }],{readFence})[participantId];
 
-  function ensurePlanningAttempt(workId) {
+  function ensurePlanningAttempt(workId, {readFence=null,expectedScope=null}={}) {
     return execute('work_lifecycle_ensure_attempt', (context) => {
       const works = context.repository('work_lifecycle_works');
       const attempts = context.repository('work_lifecycle_attempts');
       const storedWork = works.invoke('find', { work_id: workId });
       const work = storedWork ? materializeWork(storedWork) : null;
+      if(expectedScope!==null)assertExpectedScope(work,expectedScope);
       if (!work || !['admitted', 'ready'].includes(work.state)) {
         fail('P4_WORK_NOT_PLANNABLE', 'Scheduler lease no longer identifies an admitted or ready Work.', { workId });
       }
@@ -171,10 +184,10 @@ function createWorkLifecycle(options) {
         attempt_id: attemptId, work_id: workId, ordinal, basis_digest: work.basis_digest, state: 'ready',
         started_at_ms: null, finished_at_ms: null, failure_code: null,
       }), replayed: false });
-    });
+    },{readFence});
   }
 
-  function startPlanned(workId, attemptId, diagnosticClassification = null) {
+  function startPlanned(workId, attemptId, diagnosticClassification = null, {readFence=null}={}) {
     return execute('work_lifecycle_start_planned', (context) => {
       const works = context.repository('work_lifecycle_works');
       const attempts = context.repository('work_lifecycle_attempts');
@@ -184,6 +197,8 @@ function createWorkLifecycle(options) {
       if (!work || !attempt || attempt.work_id !== workId || !plan) {
         fail('P4_WORK_PLAN_FACT_MISSING', 'Work start requires its exact Attempt and immutable Plan.');
       }
+      if(work.basis_digest!==attempt.basis_digest||plan.basis_digest!==attempt.basis_digest)
+        fail('P4_WORK_PLAN_BASIS_MISMATCH','Work, Attempt, and Plan must retain the same immutable Basis.');
       if (work.state === 'running' && attempt.state === 'running') {
         return Object.freeze({ workId, attemptId, state: 'running', resolution: plan.state, replayed: true });
       }
@@ -210,7 +225,7 @@ function createWorkLifecycle(options) {
       }).changes !== 1) fail('P4_WORK_START_CAS', 'Work start fence changed.');
       return Object.freeze({ workId, attemptId, state: workState, attemptState,
         attemptFailureCode: failureCode, resolution: plan.state, replayed: false });
-    });
+    },{readFence});
   }
 
   function aggregate(workId, expectedAttemptId = null) {
@@ -279,7 +294,7 @@ function createWorkLifecycle(options) {
     });
   }
 
-  function settleWork(request) {
+  function settleWork(request, {readFence=null,expectedScope=null}={}) {
     if (!request || typeof request.workId !== 'string' || !request.workId ||
         (request.workAttemptId!==undefined&&(typeof request.workAttemptId !== 'string' || !request.workAttemptId)) ||
         !['succeeded', 'failed', 'cancelled', 'blocked', 'replan'].includes(request.disposition)) {
@@ -290,6 +305,7 @@ function createWorkLifecycle(options) {
       const attempts = context.repository('work_lifecycle_attempts');
       const work = works.invoke('find', { work_id: request.workId });
       if (!work) fail('P4_WORK_FACT_MISSING', 'Supporting Work does not exist.', { workId: request.workId });
+      if(expectedScope!==null)assertExpectedScope(materializeWork(work),expectedScope);
       const latestAttempt=attempts.invoke('list',{work_id:request.workId})
         .sort((left,right)=>Number(right.ordinal)-Number(left.ordinal))[0]||null;
       if(request.workAttemptId!==undefined&&(!latestAttempt||latestAttempt.attempt_id!==request.workAttemptId)){
@@ -320,7 +336,7 @@ function createWorkLifecycle(options) {
         work_id: request.workId, state: desired, updated_at_ms: context.commitTimeMs, expected_state: 'running',
       }).changes !== 1) fail('P4_WORK_DISPOSITION_CAS', 'Work disposition fence changed.');
       return Object.freeze({ workId: request.workId, state: desired, replayed: false });
-    });
+    },{readFence});
   }
 
   function aggregateEvent(eventId) {

@@ -1,11 +1,13 @@
 'use strict';
 const {resolveInventoryVerification}=require('../persistence/inventory-verification-store');
 const {resolveAcceptanceResult}=require('../persistence/acceptance-check-evidence-store');
+const {createOfferWithdrawalStore}=require('../persistence/offer-withdrawal-store');
 
 const {settlementHandles,isSettlementAuthorityUnavailable}=require('../model/input-settlement-scope');
 const {requiresInputSettlement}=require('../model/offload-settlement');
-const {boundedSettlementContext}=require('./on-deck-context-reader');
-const { canonicalDigest } = require('../../../contracts/canonical-json');
+const {boundedSettlementContext,messageFromRefs}=require('./on-deck-context-reader');
+const {offerIdentity}=require('../model/offer-withdrawal');
+const { canonicalDigest,canonicalJson } = require('../../../contracts/canonical-json');
 const { createWorkAdmission } = require('../../../foundation/execution/work-admission');
 const { createAcceptanceRecoveryStore } = require('../persistence/acceptance-recovery-store');
 const { createArcaFormationRetirementStore } = require('../persistence/formation-retirement-store');
@@ -74,6 +76,7 @@ function exactOffer(message) {
 }
 
 function createOnDeckProcessCoordinator(options) {
+  const withdrawals=createOfferWithdrawalStore(options);
   const recovery = createAcceptanceRecoveryStore(options);
   const retirement = createArcaFormationRetirementStore(options);
   const retired = scope => Object.freeze({ kind:'administratively_retired', ...scope });
@@ -83,6 +86,8 @@ function createOnDeckProcessCoordinator(options) {
   function assertOfferCurrent(offerId) {
     if (isOfferRetired(offerId)) throw Object.assign(new Error('This Offer was administratively retired.'),
       { code:'ARCA_FORMATION_RETIRED', statusCode:409 });
+    if(withdrawIfSuperseded(offerId))throw Object.assign(new Error('This Offer has permanently lost its acceptance eligibility.'),
+      {code:'ARCA_OFFER_WITHDRAWN',statusCode:409});
   }
   const executionContractRevision = options.acceptanceExecutionContractRevision || 'arca.acceptance.executor@2';
   function recoveryTriggerDigest() {
@@ -180,8 +185,32 @@ function createOnDeckProcessCoordinator(options) {
     }
     return Object.freeze({ workId:ref.objectId, executionBasisDigest:ref.digest });
   }
+  function completeWithdrawal(receipt) {
+    if(typeof options.cancelProcessWorks!=='function')throw new TypeError('Offer withdrawal requires the Foundation process cancellation port.');
+    const cancellation=options.cancelProcessWorks({ownerDomain:'arca',processType:'arca_acceptance',processId:receipt.offer.offerId,
+      reasonCode:'ARCA_OFFER_TARGET_SUPERSEDED'});
+    return Object.freeze({kind:'offer_withdrawn',processId:receipt.offer.offerId,withdrawalReceipt:receipt,cancellation,
+      admissionParticipant:withdrawals.admissionParticipant(receipt)});
+  }
+  function withdrawIfSuperseded(offerId,dependencyRefs=null) {
+    const existing=withdrawals.read(offerId);
+    if(existing){
+      if(dependencyRefs&&canonicalJson(offerIdentity(messageFromRefs(dependencyRefs)))!==canonicalJson(existing.offer))
+        throw Object.assign(new Error('The delayed Offer does not match its immutable withdrawal receipt.'),{code:'ARCA_OFFER_WITHDRAWAL_OFFER_CONFLICT'});
+      return completeWithdrawal(existing);
+    }
+    if(options.contextReader.onDeck.findRunByOffer(offerId))return null;
+    const current=recovery.read(offerId),refs=dependencyRefs||current?.activeWorkId&&refsFromWorkDefinition(current.activeWorkId);
+    if(!refs)return null;
+    const readFence=options.unitOfWork.captureReadFence(),delivery=options.contextReader.readOfferDelivery(refs);
+    if(delivery.offer.offerId!==offerId)throw new Error('Offer withdrawal dependency identity changed.');
+    if(delivery.deliveryFence?.eligibility!=='ineligible'||delivery.deliveryFence.reasonCode!=='target_not_current')return null;
+    const closed=withdrawals.close({offer:delivery.offer,deliveryFence:delivery.deliveryFence,readFence});
+    return completeWithdrawal(closed.receipt.resultRef);
+  }
   function recordTerminalFailure(request) {
     if (isOfferRetired(request.processId)) return retired({ processId:request.processId });
+    const withdrawn=withdrawIfSuperseded(request.processId);if(withdrawn)return withdrawn;
     const status = options.workResultReader.status(request.workId);
     const errorCode = request.errorCode || status?.latestAttempt?.failure_code || 'ARCA_ACCEPTANCE_EXECUTOR_FAILED';
     const incident=request.incidentRef||options.executorIncidentProjection?.projectionForWork({ownerDomain:'arca',processType:'arca_acceptance',
@@ -195,6 +224,7 @@ function createOnDeckProcessCoordinator(options) {
     let refs = dependencyRefs;
     const recoveryCase = recovery.read(processId);
     if (isOfferRetired(processId,recoveryCase)) return retired({ processId });
+    const withdrawn=withdrawIfSuperseded(processId,dependencyRefs);if(withdrawn)return withdrawn;
     let assessment = refs ? assessmentWork(processId, refs, recoveryCase?.recoveryGeneration || 1,
       recoveryCase?.recoveryTriggerDigest || recoveryTriggerDigest()) : null;
     if (!assessment) {
@@ -358,8 +388,9 @@ function createOnDeckProcessCoordinator(options) {
   }
   function recoverAttentionCase(offerId) {
     const item = recovery.read(offerId), triggerDigest = recoveryTriggerDigest();
-    if (!item || item.recoveryState !== 'attention_required' ||
-        item.automaticRecoveryUsed || item.failedTriggerDigest === triggerDigest) return null;
+    if (!item || item.recoveryState !== 'attention_required') return null;
+    const withdrawn=withdrawIfSuperseded(offerId);if(withdrawn)return withdrawn;
+    if(item.automaticRecoveryUsed || item.failedTriggerDigest === triggerDigest) return null;
     const refs = refsFromWorkDefinition(item.activeWorkId);
     const nextWork = assessmentWork(item.offerId, refs, item.recoveryGeneration + 1, triggerDigest);
     const next = recovery.startGeneration(item.offerId, { mode:'automatic', workId:nextWork.workId, recoveryTriggerDigest:triggerDigest });
@@ -374,6 +405,7 @@ function createOnDeckProcessCoordinator(options) {
         if(!closed)throw Object.assign(new Error('Retired Offer has no durable administrative receipt.'),{code:'ARCA_RETIREMENT_RECEIPT_CORRUPT'});
         return closed;
       }
+      const withdrawn=withdrawIfSuperseded(offer.offerId,refs);if(withdrawn)return withdrawn;
       const triggerDigest = recoveryTriggerDigest();
       const provisional = assessmentWork(offer.offerId, refs, 1, triggerDigest);
       const recoveryCase = recovery.admit({ offerId:offer.offerId, onDeckPackageId:offer.onDeckPackageId,

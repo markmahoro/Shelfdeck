@@ -60,6 +60,7 @@ function createEffectReconcilerRegistry(options) {
       async reconcile(context) {
         const reality = exactKeys(await observers.workspace_write.observe(context),
           ['status', 'evidenceDigest', 'cleanupDeclared'], 'P4_WORKSPACE_RECOVERY_EVIDENCE_INVALID');
+        if (reality.status === 'unobservable') return decision('observe_again', 'reobserve_effect', reality.evidenceDigest);
         if (reality.status === 'matching') return decision(
           context.effect && context.effect.state === 'committed' ? 'already_committed' : 'continue_forward',
           'reuse_existing', reality.evidenceDigest
@@ -111,6 +112,7 @@ function createEffectReconcilerRegistry(options) {
       async reconcile(context) {
         const reality = exactKeys(await observers.material_commit.observe(context),
           ['status', 'rollbackDeclared', 'evidenceDigest'], 'P4_MATERIAL_RECOVERY_EVIDENCE_INVALID');
+        if (reality.status === 'unobservable') return decision('observe_again', 'reobserve_effect', reality.evidenceDigest);
         if (reality.status === 'committed') return decision('already_committed', 'reuse_material_receipt', reality.evidenceDigest);
         if (reality.status === 'forward_required') return decision('continue_forward', 'finish_material_commit', reality.evidenceDigest);
         if (reality.status === 'rollback_required' && reality.rollbackDeclared === true) return decision(

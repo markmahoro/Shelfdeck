@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.libra-custom-acceptance-spec-publish/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.libra-custom-acceptance-spec-publish",
+    "displayName": "Libra Custom Acceptance Spec Publish",
+    "ownerScope": "libra",
+    "commitClass": "domain_fact_commit",
+    "atomicFactSet": "exact current已确认Custom Target Intent/Preview + 原始标准完整Spec + 当前跨Owner公开投影的opaque read fence + Run/Scope/identity/material与目标head验证 + 新custom Spec与Subject Decision Head CAS + Command Receipt/marker/Audit；幂等重放返回同一Spec，不能重新分配revision。只写Libra Spec/decision head及Foundation技术回执，不建立Run、不旁读Arca/Perception表、不改原Spec或旧失败；`hasOutbox=false`",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "libra",
+        "access": "write",
+        "tables": [
+          "libra_acceptance_specs",
+          "libra_subject_decision_heads"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_command_receipts",
+          "fx_commit_markers",
+          "fx_audit_records"
+        ]
+      }
+    ],
+    "writeTables": [
+      "libra_acceptance_specs",
+      "libra_subject_decision_heads",
+      "fx_command_receipts",
+      "fx_commit_markers",
+      "fx_audit_records"
+    ],
+    "readTables": [
+      "libra_custom_target_previews",
+      "libra_custom_target_intents",
+      "libra_custom_target_heads",
+      "libra_subjects",
+      "libra_runs",
+      "libra_run_material_manifests",
+      "libra_product_fact_revisions"
+    ],
+    "variants": [],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [
+      "proc_",
+      "arca_",
+      "perception_",
+      "people_"
+    ],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": true,
+      "outboxRequired": false
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "libra-custom-spec",
+        "faultInjectionPoints": "Exact confirmed Intent and original standard validation; custom Spec insert, decision head CAS, receipt, marker and audit before COMMIT",
+        "requiredInvariant": "One immutable custom Spec, head and technical receipt are all present or absent; replay preserves revision; no foreign Owner repositories or Run admission",
+        "source": {
+          "section": "8.9.7",
+          "line": 8853
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 8854,
+      "lineDigest": "7630c7f88f2b1e0c5fdf5fa805dfb3f25a27b85f4b915e06d1411665e8287b3c"
+    }
+  }
+}

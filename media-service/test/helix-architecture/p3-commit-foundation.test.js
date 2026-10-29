@@ -27,11 +27,10 @@ function fixture(run) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-commit-foundation-'));
   const databasePath = path.join(root, 'shelfdeck.db');
   const kernel = openSqliteKernel({ Database, databasePath, schemaDdl, schemaManifest, now: () => 1700000000300 });
-  const coordinator = createCommandCommitCoordinator({
-    schemaManifest, unitOfWork: createSqliteUnitOfWork({ kernel })
-  });
+  const unitOfWork = createSqliteUnitOfWork({ kernel });
+  const coordinator = createCommandCommitCoordinator({ schemaManifest, unitOfWork });
   try {
-    return run({ coordinator, databasePath, kernel });
+    return run({ coordinator, databasePath, kernel, unitOfWork });
   } finally {
     kernel.close();
     fs.rmSync(root, { recursive: true, force: true });
@@ -91,6 +90,50 @@ function counts(databasePath) {
     database.close();
   }
 }
+
+test('command read fence accepts a current opaque view and replays before checking its now stale token', () =>
+  fixture(({ coordinator, databasePath, unitOfWork }) => {
+    const readFence = unitOfWork.captureReadFence(), input = { ...request(), readFence };
+    const first = coordinator.execute(input);
+    assert.equal(first.replayed, false);
+    const replay = coordinator.execute(input);
+    assert.equal(replay.replayed, true);
+    assert.deepEqual(replay.receipt, first.receipt);
+    assert.throws(() => coordinator.execute({ ...input, command: { ...input.command, requestDigest: digest('changed') } }),
+      { code: 'P3_COMMAND_IDEMPOTENCY_CONFLICT' });
+    assert.deepEqual(counts(databasePath), { subjects: 1, receipts: 1, markers: 1, audits: 1 });
+  }));
+
+test('same-connection writes invalidate command projections before validators and Domain writes', () =>
+  fixture(({ coordinator, databasePath, unitOfWork }) => {
+    const readFence = unitOfWork.captureReadFence();
+    coordinator.execute(request({ subjectId: 'other-subject', commandReceiptId: 'other-receipt', idempotencyKey: 'other-key' }));
+    let invoked = false;
+    const input = request({ domainParticipant: { participantId: 'libra_domain', owner: 'libra', repositories: [subjects],
+      execute() { invoked = true; } } });
+    assert.throws(() => coordinator.execute({ ...input, readFence }), { code: 'P3_UOW_READ_FENCE_CHANGED' });
+    assert.equal(invoked, false);
+    assert.deepEqual(counts(databasePath), { subjects: 1, receipts: 1, markers: 1, audits: 1 });
+  }));
+
+test('an external SQLite commit invalidates command projections without admitting its Owner into the transaction', () =>
+  fixture(({ coordinator, databasePath, unitOfWork }) => {
+    const readFence = unitOfWork.captureReadFence(), external = new Database(databasePath);
+    try {
+      external.prepare('INSERT INTO fx_audit_records(audit_id,owner_domain,actor_type,actor_id,action,scope_type,scope_id,work_id,event_id,evidence_digest,occurred_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+        .run('external-audit', 'arca', 'admin', 'actor-2', 'fixture.projection.changed', 'shelf', 'shelf-1', null, null, digest('external'), 1700000000000);
+    } finally { external.close(); }
+    assert.throws(() => coordinator.execute({ ...request(), readFence }), { code: 'P3_UOW_READ_FENCE_CHANGED' });
+    assert.deepEqual(counts(databasePath), { subjects: 0, receipts: 0, markers: 0, audits: 1 });
+  }));
+
+test('forged and foreign Unit of Work tokens cannot authorize command writes', () =>
+  fixture(({ coordinator, databasePath, kernel }) => {
+    for (const readFence of [{}, 'token', createSqliteUnitOfWork({ kernel }).captureReadFence()]) {
+      assert.throws(() => coordinator.execute({ ...request(), readFence }), { code: 'P3_UOW_READ_FENCE_CHANGED' });
+    }
+    assert.deepEqual(counts(databasePath), { subjects: 0, receipts: 0, markers: 0, audits: 0 });
+  }));
 
 test('read-only command validators run before Owner writes and after receipt replay',()=>fixture(({coordinator,databasePath})=>{
   const reads=createRepositoryDefinition({repositoryId:'validation_reads',owner:'execution-foundation',schemaManifest,statements:{

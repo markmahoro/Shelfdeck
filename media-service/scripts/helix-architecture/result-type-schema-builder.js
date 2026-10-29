@@ -887,8 +887,11 @@ function buildResultTypeSchema(name, [base, fieldList]) {
   }
   if(name==='ArtifactAcquisitionResult') {
     result.properties.javCoverDerivation=require('../../src/helix/contracts/jav-cover-derivation').javCoverDerivationSchema();
+    result.properties.seasonPosterSourceProof=require('../../src/helix/contracts/series-season-poster-source').posterSourceProofSchema();
     result.allOf=[{if:{required:['javCoverDerivation']},then:{required:['artifactHandle'],properties:{resultKind:{const:'acquired'},
       artifactHandle:ref('ArtifactHandle')}}}];
+    result.allOf.push({if:{required:['seasonPosterSourceProof']},then:{required:['artifactHandle'],not:{required:['javCoverDerivation']},properties:{
+      resultKind:{const:'acquired'},artifactHandle:{allOf:[ref('ArtifactHandle'),{properties:{artifactKind:{const:'poster'}}}]}}}});
     result['x-helix-maxCanonicalBytes']=64*1024;
   }
   if (name === 'BdmvAssessmentEvidence') result['x-helix-maxCanonicalBytes'] = 64 * 1024;
@@ -1137,8 +1140,11 @@ function metadataObservationSchema() {
   schema.properties.sourceAuthorizedAtMs=nonNegativeInteger();
   schema.properties.seriesQualifiedLocalSource=require('../../src/helix/contracts/series-local-source').qualifiedSchema();
   schema.properties.seriesPresentationSource=require('../../src/helix/contracts/series-presentation-basis').sourceSchema();
+  schema.properties.episodePlotSourceProof=require('../../src/helix/contracts/episode-plot-source').episodePlotSourceSchema();
   schema.allOf=[{if:{properties:{contentProfile:{const:'jav'}},required:['contentProfile']},then:{required:['javSelectedSource','sourceIntegrationHandle','sourceAuthorizedAtMs']},
     else:{not:{anyOf:[{required:['javSelectedSource']},{required:['sourceIntegrationHandle']},{required:['sourceAuthorizedAtMs']}]}}}];
+  schema.allOf.push({if:{required:['episodePlotSourceProof']},then:{required:['episodeScope'],
+    properties:{contentProfile:{const:'series'},sourceKind:{const:'provider'}}}});
   return schema;
 }
 

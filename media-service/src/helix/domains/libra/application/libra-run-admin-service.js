@@ -1,7 +1,7 @@
 'use strict';
 const { requirementGapValueDigest } = require('../../../contracts/requirement-gap-values');
 
-const { canonicalDigest } = require('../../../contracts/canonical-json');
+const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
 const { buildRunLifecycleDecision } = require('../model/run-lifecycle-contracts');
 const { buildRunDiscardCommand } = require('../model/run-discard-contracts');
@@ -16,10 +16,14 @@ const { createDefectAuthorizationStore } = require('../persistence/defect-author
 const { createRunOutcomeStore } = require('../persistence/run-outcome-store');
 const { createWorkResultReader } = require('../../../foundation/execution/work-result-reader');
 const {metadataResultItems,observedFieldKeys,observedMediaCastRoles}=require('../planning/product-metadata-work');
+const {createMovieProductionReader}=require('../persistence/movie-production-reader');
+const {buildProductConformanceFactSnapshot}=require('../model/product-conformance');
+const {hasRequiredUsAdultActor}=require('../../../contracts/us-adult-actor-package');
 const {WAIVABLE_MEDIA_CODES}=require('../model/defect-admission-contracts');
 const {createStrategyAvailabilityStore}=require('../persistence/strategy-availability-store');
 const {createTaskCancellationStore}=require('../persistence/task-cancellation-store');
 const {createSubjectAbandonStore}=require('../persistence/subject-abandon-store');
+const {guardedRunWrite}=require('./run-execution-write-guard');
 
 class LibraRunAdminError extends Error {
   constructor(code, message, details = {}) {
@@ -98,6 +102,30 @@ function createLibraRunAdminService(options) {
       if([...statuses.values()].some(item=>item.onDeckRunId||item.reasonCode==='ARCA_ONDECK_RESPONSIBILITY_INCOMPLETE'))return true;
     }
     return false;
+  }
+
+  function terminalResponsibility(libraRunId) {
+    const reader=options.currentRunTargetReader,readHandoff=options.readHandoffResponsibility;
+    if(!reader&&!readHandoff)return null;
+    if(typeof reader?.read!=='function'||typeof readHandoff!=='function')
+      throw new TypeError('Run terminal closure requires both target and Handoff responsibility projections.');
+    try{
+      const readFence=options.unitOfWork.captureReadFence(),target=reader.read(libraRunId,{readFence,allowFrozen:true});
+      if(target.kind!=='target_current')return {resultKind:'closure_pending',libraRunId,reasonCode:'target_not_current'};
+      const request={subjectId:target.subjectId,libraRunId,productScopeDigest:target.productScopeDigest},
+        responsibility=readHandoff(Object.freeze(request),{readFence});
+      if(!responsibility||responsibility.kind==='unavailable')
+        return {resultKind:'closure_pending',libraRunId,reasonCode:'handoff_responsibility_pending'};
+      if(responsibility.kind!=='ready'||responsibility.subjectId!==request.subjectId||responsibility.libraRunId!==libraRunId||
+          responsibility.productScopeDigest!==request.productScopeDigest||!['no_offer','not_accepted','accepted'].includes(responsibility.handoffState))
+        throw new Error('Run Handoff responsibility projection does not match its exact scope.');
+      if(responsibility.handoffState==='accepted')
+        return {resultKind:'invalid_state',libraRunId,reasonCode:'handoff_b_already_accepted'};
+      return {readFence};
+    }catch(error){
+      if(error?.code==='P3_UOW_READ_FENCE_CHANGED')return {resultKind:'closure_pending',libraRunId,reasonCode:'owner_view_changed'};
+      throw error;
+    }
   }
 
   function validateExclusion(subjectId,libraRunId,body){
@@ -207,6 +235,37 @@ function createLibraRunAdminService(options) {
     });
   }
 
+  function westernAdultMissingFields(libraRunId,snapshot) {
+    const reader=options.movieProductionReader||createMovieProductionReader(options),
+      values=['resolved_identity','product_metadata','media_cast'].map(kind=>reader.readFact(libraRunId,kind,1));
+    if(values.some(value=>!value))fail('P9_DEFECT_ADMISSION_EVIDENCE_PENDING','The current Product Facts are not complete.');
+    const [identity,metadata,cast]=values.map(buildProductConformanceFactSnapshot),resolved=identity.factValue,
+      product=metadata.factValue,mediaCast=cast.factValue,ref=product.mediaCastFactRef,
+      anchors=resolved.providerIdentities,expectedKind=snapshot.spec.requirements?.identity?.identityKind;
+    if(snapshot.spec.subjectId!==snapshot.run.subject_id||snapshot.spec.acceptanceSpecId!==snapshot.run.acceptance_spec_id||
+        snapshot.spec.structureKind!=='single'||resolved.subjectId!==snapshot.run.subject_id||resolved.contentProfile!=='western_adult'||resolved.structureKind!=='single'||
+        resolved.identityKind!=='internal_identity'||expectedKind!=='internal_identity'||!Array.isArray(anchors)||anchors.length!==1||
+        anchors[0].provider!=='internal'||anchors[0].namespace!=='internal_identity'||
+        typeof anchors[0].providerKey!=='string'||!anchors[0].providerKey.trim()||
+        product.subjectId!==snapshot.run.subject_id||product.resolvedIdentityDigest!==resolved.identityDigest||
+        product.sourceBasisKind!=='western_analysis'||mediaCast.subjectId!==snapshot.run.subject_id||
+        !ref||ref.productFactId!==cast.productFactId||ref.factRevision!==cast.factRevision||ref.factDigest!==cast.factDigest||
+        !hasRequiredUsAdultActor({resolvedIdentitySnapshot:identity,mediaCastSnapshot:{mediaCastFactId:cast.productFactId,
+          mediaCastFactRevision:cast.factRevision,factDigest:cast.factDigest,factValue:mediaCast,relations:mediaCast.relations,
+          relationsDigest:mediaCast.relationsDigest},productFactManifest:{items:[cast]}}))
+      fail('P9_DEFECT_ADMISSION_NONWAIVABLE','The exact Product Identity, Metadata or Actor Fact is not eligible.');
+    const entries=product.descriptiveFacts?.entries;
+    if(!Array.isArray(entries))fail('P9_DEFECT_ADMISSION_EVIDENCE_PENDING','Product Metadata fields are incomplete.');
+    const fields=new Map(entries.map(item=>[item.key,item.value])),present=value=>value!==null&&value!==undefined&&
+      (typeof value!=='string'||value.length>0);
+    return (snapshot.spec.requirements.metadata.requiredFieldCodes||[]).filter(code=>{
+      if(code==='internal_identity')return false;
+      if(code==='actor')return !mediaCast.relations.length;
+      if(['tmdb_movie_id','tmdb_series_id','jav_code','season_number','episode_number','episode_title','episode_plot'].includes(code))return true;
+      return !present(fields.get(code));
+    });
+  }
+
   function defectCandidate(libraRunId, snapshot = current(libraRunId)) {
     if (snapshot.run.state !== 'frozen') {
       fail('LIBRA_DEFECT_ADMISSION_STATE', 'Only a frozen Libra Run can accept defects.');
@@ -234,8 +293,8 @@ function createLibraRunAdminService(options) {
     }
     const metadata=metadataResultItems({workResultReader},libraRunId);
     const fields=observedFieldKeys(metadata),roles=observedMediaCastRoles(metadata);
-    const missingMetadataFields=(snapshot.spec?.requirements?.metadata?.requiredFieldCodes || [])
-      .filter(code=>code==='actor'?!roles.has('actor'):!fields.has(code));
+    const missingMetadataFields=snapshot.spec?.contentProfile==='western_adult'?westernAdultMissingFields(libraRunId,snapshot):
+      (snapshot.spec?.requirements?.metadata?.requiredFieldCodes || []).filter(code=>code==='actor'?!roles.has('actor'):!fields.has(code));
     // The Work's owner-defined production objective locates the affected product
     // dimension. Capability names and failure classifications are provenance,
     // never authorization to waive a requirement.
@@ -305,6 +364,18 @@ function createLibraRunAdminService(options) {
     }
     if(verification.libraRunId!==libraRunId)
       fail('P9_DEFECT_ADMISSION_INELIGIBLE','Product verification belongs to another Run.');
+    if(snapshot.spec.contentProfile==='western_adult'&&input.sizeCapVerification){
+      const decode=verification.decodeSummary,space=verification.spaceSummary,expectedPoints=[5,50,95],
+        expectedLimit=snapshot.spec.requirements?.space?.maxSizeBytes;
+      if(!decode||canonicalJson(decode.samplePointsPercent)!==canonicalJson(expectedPoints)||
+          !Array.isArray(decode.passedSamplePointsPercent)||!/^[a-f0-9]{64}$/.test(decode.decodeDigest||'')||
+          !space||!Number.isSafeInteger(space.actualSizeBytes)||!Number.isSafeInteger(space.maxSizeBytes)||space.maxSizeBytes<1)
+        fail('P9_DEFECT_ADMISSION_EVIDENCE_PENDING','Complete playback and measured size evidence is required.');
+      if(canonicalJson(decode.passedSamplePointsPercent)!==canonicalJson(expectedPoints))
+        fail('P9_DEFECT_ADMISSION_NONWAIVABLE','The produced media did not pass every playback sample.');
+      if(space.unit!=='product'||space.maxSizeBytes!==expectedLimit||space.withinLimit!==false||space.actualSizeBytes<=space.maxSizeBytes)
+        fail('P9_DEFECT_ADMISSION_INELIGIBLE','Measured size evidence does not match the frozen Product requirement.');
+    }
     if((verification.reasonCodes || []).some(code=>!WAIVABLE_MEDIA_CODES.has(code)))
       fail('P9_DEFECT_ADMISSION_NONWAIVABLE','Product evidence contains a non-waivable safety or identity failure.', {
         productEvidence: {libraRunId,runStateRevision:Number(snapshot.run.state_revision),
@@ -378,16 +449,20 @@ function createLibraRunAdminService(options) {
     waitUnavailableStrategy(libraRunId,strategyKind,reasonCode) {
       const snapshot=current(libraRunId);
       if(snapshot.run.state!=='active')return {kind:'not_active',libraRunId};
-      const conditions=options.readFailureRecoveryConditions?.([strategyKind])||[];
-      const evidence=strategyAvailability.observe({libraRunId,strategyKind,reasonCode,
-        conditionDigest:canonicalDigest(conditions),now:options.now?.()??Date.now()},snapshot.run);
+      const run={libraRunId,executionBasisDigest:snapshot.run.execution_basis_digest};
+      const evidence=guardedRunWrite(options.runExecutionGuard,run,readFence=>{
+        const conditions=options.readFailureRecoveryConditions?.([strategyKind])||[];
+        return strategyAvailability.observe({libraRunId,strategyKind,reasonCode,
+          conditionDigest:canonicalDigest(conditions),now:options.now?.()??Date.now()},snapshot.run,{readFence});
+      });
       if(!evidence||evidence.status==='waiting')return {kind:'waiting_external_integration',libraRunId,reasonCode};
       const decision=buildRunLifecycleDecision({libraRunId,expectedStateRevision:Number(snapshot.run.state_revision),
         expectedStateDigest:snapshot.run.state_digest,transitionKind:'freeze',
         transitionEvidence:evidence,expectedAdmissionHeadRevision:Number(snapshot.head.head_revision),
         expectedActiveScopeSetDigest:snapshot.head.active_scope_set_digest});
-      lifecycle.transition({decision,commitMarker:canonicalDigest({schema:'libra.strategy-availability-marker@1',decisionDigest:decision.decisionDigest}),
-        resultId:canonicalDigest({schema:'libra.strategy-availability-result@1',decisionDigest:decision.decisionDigest})});
+      guardedRunWrite(options.runExecutionGuard,run,readFence=>lifecycle.transition({decision,readFence,
+        commitMarker:canonicalDigest({schema:'libra.strategy-availability-marker@1',decisionDigest:decision.decisionDigest}),
+        resultId:canonicalDigest({schema:'libra.strategy-availability-result@1',decisionDigest:decision.decisionDigest})}));
       options.libraRunExecutionProjection.invalidate(libraRunId);options.wake?.();
       return {kind:evidence.status==='unavailable'?'frozen':'waiting_external_integration',libraRunId,reasonCode};
     },
@@ -410,8 +485,9 @@ function createLibraRunAdminService(options) {
     },
     reconcileFrozen(libraRunId) {
       const authorization = defectAuthorizations.current();
+      const initialSnapshot=current(libraRunId);
       let candidate;
-      try { candidate = defectCandidate(libraRunId); }
+      try { candidate = defectCandidate(libraRunId,initialSnapshot); }
       catch (error) {
         if(error.code==='P9_DEFECT_ADMISSION_EVIDENCE_PENDING')return Object.freeze({kind:'evidence_pending',libraRunId});
         if (['P9_DEFECT_ADMISSION_INELIGIBLE','P9_DEFECT_ADMISSION_NONWAIVABLE'].includes(error.code)) {
@@ -440,7 +516,8 @@ function createLibraRunAdminService(options) {
         }
         throw error;
       }
-      if (authorization?.state !== 'enabled') return Object.freeze({kind:'awaiting_defect_decision',libraRunId});
+      if (authorization?.state !== 'enabled'||initialSnapshot.spec?.contentProfile!=='movie')
+        return Object.freeze({kind:'awaiting_defect_decision',libraRunId});
       const result = service.admitWithDefects(libraRunId, {
         expectedRunStateRevision: candidate.frozenRunStateRevision,
         expectedRunStateDigest: candidate.frozenRunStateDigest,
@@ -531,7 +608,7 @@ function createLibraRunAdminService(options) {
       }
       const readFence=options.unitOfWork.captureReadFence();
       if(acceptedByArca(libraRunId))return {resultKind:'invalid_state',libraRunId,reasonCode:'handoff_b_already_accepted'};
-      const inspected = discardStore.inspect(command);
+      let inspected = discardStore.inspect(command);
       if(inspected.kind==='ready') {
         if(terminalReason==='user_cancelled'&&!acceptedCancellation) {
           validateExclusion(subjectId,libraRunId,body);
@@ -544,8 +621,22 @@ function createLibraRunAdminService(options) {
       }
       let result;
       try {
+        let commitFence=null;
+        if(inspected.kind==='ready'){
+          const gate=terminalResponsibility(libraRunId);
+          if(gate?.resultKind){
+            if(acceptedCancellation&&gate.reasonCode==='handoff_b_already_accepted'){
+              cancellations.handoffAccepted(subjectId);options.onTaskCancellationChanged?.(subjectId);
+            }
+            return gate;
+          }
+          commitFence=gate?.readFence||null;
+          // Work cancellation may itself write. Reinspect only after acquiring
+          // the final target/Handoff fence that protects the Control release.
+          if(commitFence)inspected=discardStore.inspect(command);
+        }
         result = inspected.kind === 'ready'
-          ? discardStore.commit(inspected,terminalReason,productEvidence) : inspected;
+          ? discardStore.commit(inspected,terminalReason,productEvidence,{readFence:commitFence}) : inspected;
       } catch (error) {
         if(acceptedCancellation&&error.code==='P9_DISCARD_HANDOFF_ACCEPTED'){
           cancellations.handoffAccepted(subjectId);options.onTaskCancellationChanged?.(subjectId);
@@ -553,6 +644,8 @@ function createLibraRunAdminService(options) {
         }
         if (['P9_DISCARD_EXECUTION_PENDING','P9_DISCARD_EFFECT_PENDING'].includes(error.code))
           return Object.freeze({resultKind:'closure_pending',libraRunId,reasonCode:error.code});
+        if(error.code==='P3_UOW_READ_FENCE_CHANGED')
+          return Object.freeze({resultKind:'closure_pending',libraRunId,reasonCode:'owner_view_changed'});
         throw error;
       }
       if (result.resultKind === 'discarded') {
@@ -626,10 +719,15 @@ function createLibraRunAdminService(options) {
       if (snapshot.run.state !== 'frozen') {
         fail('LIBRA_DEFECT_ADMISSION_STATE', 'Only a frozen Libra Run can accept defects.');
       }
+      if(standingAuthorization&&snapshot.spec?.contentProfile!=='movie')
+        fail('LIBRA_DEFECT_AUTHORIZATION_SCOPE','Standing defect authorization applies only to Movie.');
       if (Number(snapshot.run.state_revision) !== body.expectedRunStateRevision ||
           snapshot.run.state_digest !== body.expectedRunStateDigest) {
         fail('LIBRA_DEFECT_ADMISSION_STALE', 'Libra Run changed before defect admission.');
       }
+      const target=options.currentRunTargetReader?.read(libraRunId,{allowFrozen:true});
+      if(target&&target.kind!=='target_current')
+        fail('LIBRA_COLLECTION_TARGET_NOT_CURRENT','The Run target changed before defect admission.');
       const candidate = defectCandidate(libraRunId, snapshot);
       if (candidate.candidateDigest !== body.expectedDefectCandidateDigest) {
         fail('LIBRA_DEFECT_ADMISSION_CANDIDATE_STALE',
@@ -646,7 +744,7 @@ function createLibraRunAdminService(options) {
         transitionKind:'defect_admit', transitionEvidence:manifest,
         expectedAdmissionHeadRevision:Number(snapshot.head.head_revision),
         expectedActiveScopeSetDigest:snapshot.head.active_scope_set_digest });
-      const committed = lifecycle.transition({ decision,
+      const committed = lifecycle.transition({ decision,...(target?{readFence:target.readFence}:{}),
         commitMarker:canonicalDigest({ schema:'libra.defect-admission-marker@1',
           defectDecisionId:manifest.defectDecisionId, decisionDigest:decision.decisionDigest }),
         resultId:canonicalDigest({ schema:'libra.defect-admission-result-id@1',

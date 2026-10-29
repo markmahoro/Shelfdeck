@@ -696,13 +696,17 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
   });
   ports[C.presentation]=Object.freeze({validateInputs(c){requireNamed(c,['careBasis','inventoryMetadataArtifactRefs','standard']);},async execute(execution){const c=context(execution),at=now(),custody=resultFor(execution,C.custody);
     if(custodyBlocksDependentAssessment(custody))return outcome(C.presentation,assessment('presentation',c,[],at,'not_assessable',execution.workId,custody.incidentKey),at);
-    const sharedHead=c.raw.entry.structure_kind==='season'?options.series?.headForEntry(c.shelfEntryId):null,posters=existingMaterials(c.raw.materials,isPosterMaterial),findings=nfoInventoryFindings(c);
+    const sharedHead=c.raw.entry.structure_kind==='season'?options.series?.headForEntry(c.shelfEntryId):null,posterRows=c.raw.materials.filter(isPosterMaterial),
+      posters=existingMaterials(posterRows,isPosterMaterial),findings=nfoInventoryFindings(c);
     if(options.series){const shared=await options.series.assessEntry(c);if(shared&&shared.state!=='healthy')
       findings.push(finding('presentation',shared.reasonCode,'warning',shared.state==='degraded'&&!shared.requiresIntent?'auto_repair':'attention_required',shared.scopeId));}
     let hasValidPoster=false;for(const poster of posters){if(await validImage(poster.location)){hasValidPoster=true;break;}}
-    if(posters.length===0)findings.push(finding('presentation','poster_missing','warning',
+    const posterRequired=c.raw.collectionTarget?.targetKind!=='user_custom'||
+      effectiveRequirements(c).metadata.requiredArtifactKinds.includes('poster')||
+      effectiveRequirements(c).inventory.requiredMaterializedArtifactKinds.includes('poster');
+    if(posters.length===0&&(posterRequired||posterRows.length))findings.push(finding('presentation','poster_missing','warning',
       c.raw.identity.provider&&c.raw.identity.provider_key&&providerHandle(c)?'auto_repair':'attention_required',c.shelfEntryId));
-    else if(!hasValidPoster)findings.push(finding('presentation','poster_corrupt','warning',
+    else if(posters.length>0&&!hasValidPoster)findings.push(finding('presentation','poster_corrupt','warning',
       c.raw.identity.provider&&c.raw.identity.provider_key&&providerHandle(c)?'auto_repair':'attention_required',c.shelfEntryId));
     if(c.raw.identity.provider==='jav'&&effectiveRequirements(c)?.metadata?.requiredArtifactKinds?.includes('fanart')) {
       const fanarts=existingMaterials(c.raw.materials,item=>isAftercareArtifactMaterial(item,'fanart'));let valid=false;

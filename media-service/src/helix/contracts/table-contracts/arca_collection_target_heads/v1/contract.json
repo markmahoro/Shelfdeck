@@ -1,0 +1,151 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_collection_target_heads/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_collection_target_heads",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "shelf_entry_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "current_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "intent_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "intent_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "updated_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "shelf_entry_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "shelf_entry_id",
+      "intent_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "current_revision"
+      ],
+      "currentPointerColumns": [
+        "current_revision"
+      ],
+      "pointerTargets": [
+        {
+          "sourceColumns": [
+            "intent_id",
+            "shelf_entry_id",
+            "current_revision",
+            "intent_digest"
+          ],
+          "targetTable": "arca_collection_target_intents",
+          "targetColumns": [
+            "intent_id",
+            "shelf_entry_id",
+            "target_revision",
+            "intent_digest"
+          ],
+          "consistencyColumns": [],
+          "deletePolicy": "RESTRICT",
+          "deferrable": false
+        }
+      ],
+      "pointerRules": [
+        "current指针与Intent的Entry/revision/digest复合FK必须一致"
+      ]
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "current指针与Intent的Entry/revision/digest复合FK必须一致",
+      "自定义首次Head与Entry/Inventory/Deck Fact同事务建立，后续以expected revision/intent/digest CAS推进",
+      "历史普通标准收藏无Head仅在精确Accepted证据证明非自定义时可解析为标准目标"
+    ],
+    "rawContract": {
+      "columns": "`shelf_entry_id PK FK, current_revision INTEGER, intent_id FK, intent_digest, updated_at_ms`",
+      "constraints": "current指针与Intent的Entry/revision/digest复合FK必须一致；自定义首次Head与Entry/Inventory/Deck Fact同事务建立，后续以expected revision/intent/digest CAS推进；历史普通标准收藏无Head仅在精确Accepted证据证明非自定义时可解析为标准目标"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 9667,
+      "lineDigest": "e22788096228fc036f68492a41654886705bc85f6854b7f9b9d658771052044d"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "intent_id"
+        ],
+        "targetTable": "arca_collection_target_intents",
+        "targetColumns": [
+          "intent_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "shelf_entry_id"
+        ],
+        "targetTable": "arca_shelf_entries",
+        "targetColumns": [
+          "shelf_entry_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

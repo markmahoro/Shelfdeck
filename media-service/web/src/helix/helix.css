@@ -190,14 +190,6 @@ button, input, select, textarea { font: inherit; }
 .people-card dt { color: var(--muted); font-size: 11px; font-weight: 700; }
 .people-card dd { margin: 3px 0 0; font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
 .people-library-note { color: var(--muted); font-size: 13px; }
-.people-recommendations { margin: 24px 0; }
-.people-recommendation-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
-.people-recommendation-photo { position: relative; aspect-ratio: 1; background: #e9ede7; }
-.people-recommendation-photo img { display: block; width: 100%; height: 100%; object-fit: contain; }
-.people-recommendation-photo p { position: absolute; inset: auto 12px 12px; margin: 0; padding: 10px; background: var(--paper); color: var(--muted); font-size: 12px; }
-.people-recommendation-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
-.people-recommendation-progress { margin: 16px 0; padding: 16px; border-left: 3px solid var(--accent); background: #e9f0eb; }
-.people-recommendation-progress p { margin: 6px 0; overflow-wrap: anywhere; }
 .people-filter, .people-image-tools { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; margin-top: 20px; }
 .people-filter input { width: min(320px, 70vw); }
 .people-registration fieldset { min-width: 0; padding: 0; margin: 0; border: 0; }

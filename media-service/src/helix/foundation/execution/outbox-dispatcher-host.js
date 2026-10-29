@@ -5,7 +5,7 @@ const { createRepositoryDefinition } = require('../persistence/owner-repository'
 const { createInboxCoordinator } = require('../persistence/outbox-inbox');
 
 function repository(schemaManifest){return createRepositoryDefinition({repositoryId:'outbox_dispatcher',owner:'execution-foundation',schemaManifest,statements:{
-  list_due:{kind:'select-in',tableId:'fx_outbox_deliveries',columns:['message_id','consumer_domain','state','attempt_count','next_attempt_at_ms','acked_at_ms'],keyColumn:'state',maxItems:2,safeIntegers:true},
+  list_due:{kind:'select-in',tableId:'fx_outbox_deliveries',columns:['message_id','consumer_domain','state','attempt_count','next_attempt_at_ms','acked_at_ms'],keyColumn:'state',maxItems:3,safeIntegers:true},
   find_message:{kind:'select-one',tableId:'fx_outbox',columns:['message_id','producer_domain','message_kind','aggregate_type','aggregate_id','aggregate_revision','dedup_key',
     'payload_schema_ref','payload_json','payload_digest','state','available_at_ms','created_at_ms'],keyColumns:['message_id'],safeIntegers:true}
 }});}
@@ -24,12 +24,23 @@ function createOutboxDispatcherHost(options){const repo=repository(options.schem
     statements:{find_material:{kind:'select-one',tableId:'proc_field_materials',columns:['field_id','material_key'],keyColumns:['field_id','material_key']}}});
   let state='created',timer=null,running=null;
   function due(recoverRetryIntents=false){return options.unitOfWork.execute([{participantId:'outbox_dispatcher_due',owner:'execution-foundation',repositories:[repo],execute(context){
-    const r=context.repository(repo.repositoryId);return r.invoke('list_due',{values:['pending','failed']}).filter((item)=>recoverRetryIntents||Number(item.next_attempt_at_ms)<=now())
+    const r=context.repository(repo.repositoryId);return r.invoke('list_due',{values:['pending','failed','delivered']}).filter((item)=>recoverRetryIntents||Number(item.next_attempt_at_ms)<=now())
       .map((delivery)=>Object.freeze({delivery,message:r.invoke('find_message',{message_id:delivery.message_id})}))
       .filter((item)=>!recoverRetryIntents||(item.message.message_kind==='procurement_retry_intent_available'&&item.delivery.consumer_domain==='procurement'))
+      .filter((item)=>item.delivery.state!=='delivered'||item.message.message_kind==='libra.product-offer.available@1'&&item.delivery.consumer_domain==='arca')
       .filter((item)=>!deferredDeliveryKeys.has(item.message.message_kind+'->'+item.delivery.consumer_domain)).slice(0,100);}}]).outbox_dispatcher_due;}
   function envelope(item,payload){return Object.freeze({messageId:item.message.message_id,dedupKey:item.message.dedup_key,producerDomain:item.message.producer_domain,
     consumerDomain:item.delivery.consumer_domain,payloadSchemaRef:item.message.payload_schema_ref,payloadDigest:item.message.payload_digest,payload});}
+  function consumeArcaOffer(item,admitted,resultDigest){
+    const message={messageId:item.message.message_id,dedupKey:item.message.dedup_key,consumerDomain:'arca'},
+      consumed=inbox.readConsumption(message);
+    if(consumed){
+      // Recovery generations and later Owner closure do not rewrite the first
+      // durable admission result for this message.
+      options.unitOfWork.execute([admitted.admissionParticipant]);return;
+    }
+    inbox.consume({message,resultDigest,domainParticipant:admitted.admissionParticipant});
+  }
   async function deliver(item){let payload;try{payload=JSON.parse(item.message.payload_json);}catch{throw new Error('Outbox payload JSON is corrupt.');}
     if(canonicalDigest(payload)!==item.message.payload_digest)throw new Error('Outbox payload digest is corrupt.');
     if(['people.candidate.opened','people.merge-candidate.opened'].includes(item.message.message_kind)&&item.delivery.consumer_domain==='people'){
@@ -116,19 +127,23 @@ function createOutboxDispatcherHost(options){const repo=repository(options.schem
     }
     if(item.message.message_kind==='libra.product-offer.available@1'&&item.delivery.consumer_domain==='arca'){
       const admitted=options.arcaCoordinator.admitOffer(payload);
+      if(admitted.kind==='offer_withdrawn'){
+        const receipt=admitted.withdrawalReceipt,resultDigest=canonicalDigest({schema:'arca.withdrawn-offer-consumption@1',
+          offerId:admitted.processId,receiptId:receipt.receiptId,receiptDigest:receipt.receiptDigest});
+        consumeArcaOffer(item,admitted,resultDigest);
+        inbox.acknowledge({messageId:item.message.message_id,consumerDomain:'arca'});return;
+      }
       if(admitted.kind==='administratively_retired'){
         const resultDigest=canonicalDigest({schema:'arca.retired-offer-consumption@1',offerId:admitted.processId,
           retirementReceiptId:admitted.retirementReceipt.receiptId,retirementReceiptDigest:admitted.retirementReceipt.receiptDigest});
-        inbox.consume({message:{messageId:item.message.message_id,dedupKey:item.message.dedup_key,consumerDomain:'arca'},
-          resultDigest,domainParticipant:admitted.admissionParticipant});
+        consumeArcaOffer(item,admitted,resultDigest);
         inbox.acknowledge({messageId:item.message.message_id,consumerDomain:'arca'});return;
       }
       const resultDigest=canonicalDigest({
         schema:'arca.handoff-b-offer-admission@1',offerId:admitted.processId,workId:admitted.work.workId,
         basisDigest:admitted.work.executionBasisDigest,recoveryGeneration:admitted.recovery.recoveryGeneration});
-      inbox.consume({message:{messageId:item.message.message_id,dedupKey:item.message.dedup_key,consumerDomain:'arca'},
-        resultDigest,domainParticipant:admitted.admissionParticipant});
-      inbox.recordDeliveryAttempt({messageId:item.message.message_id,consumerDomain:'arca',delivered:true,nextAttemptAtMs:now()});
+      consumeArcaOffer(item,admitted,resultDigest);
+      inbox.recordDeliveryAttempt({messageId:item.message.message_id,consumerDomain:'arca',delivered:true,nextAttemptAtMs:now()+1000});
       options.executionRuntimeHost.wake();return;
     }
     if(item.message.message_kind==='arca.product.accepted@1'&&item.delivery.consumer_domain==='libra'){

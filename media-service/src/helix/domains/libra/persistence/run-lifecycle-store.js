@@ -1864,7 +1864,8 @@ function createRunLifecycleStore(options) {
     transition(request) {
       const decision = buildRunLifecycleDecision(request?.decision),
         marker = request?.commitMarker,
-        resultId = request?.resultId;
+        resultId = request?.resultId,
+        readFence = request?.readFence ?? null;
       if (
         typeof marker !== "string" ||
         !marker ||
@@ -1928,6 +1929,12 @@ function createRunLifecycleStore(options) {
           const repo = context.repository(libra.repositoryId);
           run = repo.invoke("find_run", { libra_run_id: decision.libraRunId });
           if (!run) fail("P9_RUN_LIFECYCLE_RUN", "Run is absent.");
+          if(decision.transitionKind==='defect_admit'&&decision.transitionEvidence.standingAuthorization){
+            const spec=repo.invoke('find_spec',{acceptance_spec_id:run.acceptance_spec_id}),
+              subject=repo.invoke('find_subject',{subject_id:run.subject_id});
+            if(!spec||!subject||spec.subject_id!==run.subject_id||spec.content_profile!=='movie'||subject.content_profile!=='movie')
+              fail('LIBRA_DEFECT_AUTHORIZATION_SCOPE','Standing defect authorization applies only to Movie.');
+          }
           if(decision.transitionEvidence.availabilityId) {
             const evidence=decision.transitionEvidence;
             const observation=repo.invoke('strategy_observation',{libra_run_id:run.libra_run_id,strategy_kind:evidence.strategyKind,
@@ -2326,10 +2333,18 @@ function createRunLifecycleStore(options) {
           && decision.transitionEvidence.standingAuthorization;
         const guards = authorization
           ? [createDefectAuthorizationStore(options).guardParticipant(authorization)] : [];
-        options.unitOfWork.execute([preflight, ...guards, read, authority, apply, finish]);
+        if (readFence !== null) options.unitOfWork.execute([preflight]);
+        options.unitOfWork.execute([preflight, ...guards, read, authority, apply, finish], { readFence });
       } catch (error) {
         if (error instanceof Replay)
           return Object.freeze({ result: error.result, replayed: true });
+        if (readFence !== null && error?.code === 'P3_UOW_READ_FENCE_CHANGED') {
+          try { options.unitOfWork.execute([preflight]); }
+          catch (replay) {
+            if (replay instanceof Replay) return Object.freeze({ result: replay.result, replayed: true });
+            throw replay;
+          }
+        }
         throw error;
       }
       return Object.freeze({ result, replayed });

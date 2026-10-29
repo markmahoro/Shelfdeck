@@ -24,7 +24,7 @@ function fixture(run, schedulerOptions = {}) {
   const unitOfWork = createSqliteUnitOfWork({ kernel });
   const seed = createRepositoryDefinition({ repositoryId: 'scheduler_seed', owner: 'execution-foundation', schemaManifest, statements: {
     work: { kind: 'insert', tableId: 'fx_supporting_works', columns: [
-      'work_id', 'owner_domain', 'process_type', 'process_id', 'work_kind', 'priority_class', 'state', 'idempotency_key', 'created_at_ms'
+      'work_id', 'owner_domain', 'process_type', 'process_id', 'work_kind', 'basis_digest', 'priority_class', 'state', 'idempotency_key', 'created_at_ms'
     ] },
     attempt: { kind: 'insert', tableId: 'fx_work_attempts', columns: ['attempt_id', 'work_id', 'state'] },
     plan: { kind: 'insert', tableId: 'fx_workflow_plans', columns: ['plan_id', 'attempt_id', 'state'] },
@@ -49,7 +49,7 @@ function fixture(run, schedulerOptions = {}) {
 function addWork(repository, projections, id, options = {}) {
   const priorityClass = options.priorityClass || 'normal_foreground';
   repository.invoke('work', { work_id: 'work-' + id, owner_domain: 'libra', process_type: 'libra_run', process_id: 'process-' + id,
-    work_kind:'fixture_work',priority_class: priorityClass, state: options.state || 'admitted', idempotency_key: 'key-' + id, created_at_ms: options.createdAtMs ?? 120000 });
+    work_kind:'fixture_work',basis_digest:'a'.repeat(64),priority_class: priorityClass, state: options.state || 'admitted', idempotency_key: 'key-' + id, created_at_ms: options.createdAtMs ?? 120000 });
   projections.set('process-' + id, Object.freeze({ priorityClass, localPriority: options.localPriority || 0,
     priorityRevision: options.priorityRevision || 1,supplyRole:'expansion' }));
 }
@@ -90,6 +90,7 @@ for (const targetType of ['work', 'event']) test('target admission filters ' + t
     const first = scheduler.acquire({ targetType });
     assert.equal(first.lease.targetId, targetType + '-maintenance');
     assert.equal(first.executionScope.processId, 'process-maintenance');
+    assert.equal(first.executionScope.executionBasisDigest, 'a'.repeat(64));
     scheduler.release(first.lease);
     maintenanceOnly = false;
     const resumed = scheduler.acquire({ targetType });
@@ -109,6 +110,40 @@ test('Scheduler selects only admitted Work by strict class, local aging, and FIF
     const selected = scheduler.acquire({ targetType: 'work' });
     assert.equal(selected.lease.targetId, 'work-normal-aged');
     assert.equal(selected.aging, 2);
+  });
+});
+
+test('an Owner-deferred Work yields the scheduling round to another Work',()=>{
+  fixture(({scheduler,seedRows,projections})=>{
+    seedRows(repository=>{addWork(repository,projections,'owner-blocked',{createdAtMs:100000,localPriority:10});
+      addWork(repository,projections,'healthy-peer',{createdAtMs:130000});});
+    const first=scheduler.acquire({targetType:'work'});assert.equal(first.lease.targetId,'work-owner-blocked');
+    scheduler.noteDispatchOutcome(first.lease,{kind:'owner_wait'});scheduler.release(first.lease);
+    const peer=scheduler.acquire({targetType:'work'});assert.equal(peer.lease.targetId,'work-healthy-peer');scheduler.release(peer.lease);
+  });
+});
+
+test('an exhausted Owner-deferred Work round ends before retrying it',()=>{
+  fixture(({scheduler,seedRows,projections})=>{
+    seedRows(repository=>addWork(repository,projections,'owner-wait'));
+    const first=scheduler.acquire({targetType:'work'}).lease;scheduler.noteDispatchOutcome(first,{kind:'owner_wait'});scheduler.release(first);
+    assert.deepEqual(scheduler.acquire({targetType:'work'}),{kind:'idle',reasonCode:'OWNER_WAIT_ROUND_EXHAUSTED'});
+    const next=scheduler.acquire({targetType:'work'}).lease;assert.equal(next.targetId,'work-owner-wait');scheduler.release(next);
+  });
+});
+
+test('Owner waits for Work and Event with the same ID remain independent',()=>{
+  fixture(({scheduler,seedRows,projections})=>{
+    seedRows(repository=>{addEventGraph(repository,projections,'shared');
+      repository.invoke('work',{work_id:'event-shared',owner_domain:'libra',process_type:'libra_run',process_id:'process-collision',
+        work_kind:'fixture_work',basis_digest:'a'.repeat(64),priority_class:'normal_foreground',state:'admitted',idempotency_key:'collision',created_at_ms:100000});
+      projections.set('process-collision',Object.freeze({priorityClass:'normal_foreground',localPriority:0,priorityRevision:1,supplyRole:'expansion'}));});
+    const work=scheduler.acquire({targetType:'work'}).lease;assert.equal(work.targetId,'event-shared');
+    scheduler.noteDispatchOutcome(work,{kind:'owner_wait'});scheduler.release(work);
+    const event=scheduler.acquire({targetType:'event'}).lease;assert.equal(event.targetId,'event-shared');
+    scheduler.noteDispatchOutcome(event,{kind:'owner_wait'});scheduler.release(event);
+    assert.deepEqual(scheduler.acquire({targetType:'work'}),{kind:'idle',reasonCode:'OWNER_WAIT_ROUND_EXHAUSTED'});
+    assert.deepEqual(scheduler.acquire({targetType:'event'}),{kind:'idle',reasonCode:'OWNER_WAIT_ROUND_EXHAUSTED'});
   });
 });
 
@@ -204,6 +239,30 @@ test('a circuit-blocked queue head yields the scheduling round to a healthy peer
     const peer = scheduler.acquire({ targetType:'event' });
     assert.equal(peer.lease.targetId, 'event-healthy-peer');
     scheduler.release(peer.lease);
+  });
+});
+
+test('an Owner-deferred Event yields the scheduling round to another eligible Event',()=>{
+  fixture(({scheduler,seedRows,projections})=>{
+    seedRows(repository=>{
+      addEventGraph(repository,projections,'owner-blocked',{localPriority:100,readyAtMs:100000});
+      addEventGraph(repository,projections,'healthy-peer',{localPriority:0,readyAtMs:130000});
+    });
+    const blocked=scheduler.acquire({targetType:'event'});assert.equal(blocked.lease.targetId,'event-owner-blocked');
+    assert.equal(scheduler.noteDispatchOutcome(blocked.lease,{kind:'owner_wait'}).recorded,false);
+    scheduler.release(blocked.lease);
+    const peer=scheduler.acquire({targetType:'event'});assert.equal(peer.lease.targetId,'event-healthy-peer');
+    scheduler.release(peer.lease);
+  });
+});
+
+test('an exhausted Owner wait round reports its own reason and retries on the next round',()=>{
+  fixture(({scheduler,seedRows,projections})=>{
+    seedRows(repository=>addEventGraph(repository,projections,'owner-wait',{readyAtMs:100000}));
+    const lease=scheduler.acquire({targetType:'event'}).lease;
+    scheduler.noteDispatchOutcome(lease,{kind:'owner_wait'});scheduler.release(lease);
+    assert.deepEqual(scheduler.acquire({targetType:'event'}),{kind:'idle',reasonCode:'OWNER_WAIT_ROUND_EXHAUSTED'});
+    assert.equal(scheduler.acquire({targetType:'event'}).lease.targetId,'event-owner-wait');
   });
 });
 

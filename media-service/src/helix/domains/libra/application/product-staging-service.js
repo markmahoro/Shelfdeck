@@ -1,6 +1,7 @@
 'use strict';
 
 const { readSeriesMediaSelections } = require('../planning/series-production-candidates');
+const { guardedRunWrite } = require('./run-execution-write-guard');
 
 const { canonicalDigest, canonicalJson } =
   require('../../../contracts/canonical-json');
@@ -83,16 +84,16 @@ function createProductStagingService(options) {
   }
   const store = createWorkspaceMaterialReferenceStore(options);
 
-  function commit(decision) {
+  function commit(decision, run) {
     const key = {
       operation: decision.operation,
       decisionDigest: decision.decisionDigest,
     };
-    return store.commit({
-      decision,
+    return guardedRunWrite(options.runExecutionGuard,run,readFence=>store.commit({
+      decision, readFence,
       commitMarker: stable('libra-product-staging-marker-', key),
       resultId: stable('libra-product-staging-result-', key),
-    });
+    }));
   }
 
   function ensureWorking(snapshot, workspaceId, handle, claims = Object.freeze([])) {
@@ -120,7 +121,7 @@ function createProductStagingService(options) {
       episodeScopeDigest: episodeScopeDigest(claims),
       productVerificationRef: null,
     });
-    commit(attach);
+    commit(attach,snapshot.run);
     return options.movieProductionReader.readWorkspace(workspaceId);
   }
 
@@ -145,7 +146,7 @@ function createProductStagingService(options) {
         episodeScopeDigest: episodeScopeDigest(claims),
         productVerificationRef: null,
       });
-      commit(attach);
+      commit(attach,snapshot.run);
       workspace = options.movieProductionReader.readWorkspace(workspaceId);
       reference = workspace.references.find((item) =>
         item.materialHandleId === handle.handleId);
@@ -167,7 +168,7 @@ function createProductStagingService(options) {
         episodeScopeDigest: episodeScopeDigest(claims),
         productVerificationRef: verification,
       });
-      commit(promote);
+      commit(promote,snapshot.run);
       workspace = options.movieProductionReader.readWorkspace(workspaceId);
       reference = workspace.references.find((item) =>
         item.materialHandleId === handle.handleId);

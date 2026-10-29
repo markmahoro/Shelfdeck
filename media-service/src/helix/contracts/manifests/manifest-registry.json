@@ -31,15 +31,15 @@
       "manifestId": "helix.inventory.tables",
       "kind": "table-inventory",
       "relativePath": "table-inventory.json",
-      "targetCount": 239
+      "targetCount": 245
     },
     {
       "manifestId": "helix.inventory.routes",
       "kind": "route-inventory",
       "relativePath": "route-inventory.json",
-      "targetCount": 168,
+      "targetCount": 164,
       "targetSegments": {
-        "admin": 167,
+        "admin": 163,
         "publicHealth": 1
       }
     },
@@ -47,7 +47,7 @@
       "manifestId": "helix.inventory.canonical-transactions",
       "kind": "transaction-inventory",
       "relativePath": "transaction-inventory.json",
-      "targetCount": 62
+      "targetCount": 65
     },
     {
       "manifestId": "helix.inventory.ui-surfaces",

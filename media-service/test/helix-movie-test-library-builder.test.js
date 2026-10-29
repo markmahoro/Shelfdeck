@@ -31,6 +31,19 @@ test('movie test-library builder rejects remote and broad output roots', () => {
   assert.throws(() => assertInside(root, path.join(root, '..', 'outside')), /escapes or aliases/);
 });
 
+for (const [name, root] of [['mapped backslash', 'Z:\\Film'], ['mapped slash', 'z:/Film'],
+  ['mapped drive-relative', 'Z:Film'], ['mapped drive root', 'Z:'], ['UNC backslash', '\\\\nas\\share\\Film'],
+  ['UNC slash', '//nas/share/Film'], ['extended UNC', '\\\\?\\UNC\\nas\\share\\Film'], ['extended drive', '\\\\?\\Z:\\Film']]) {
+  test('movie test-library rejects ' + name + ' syntax before host-specific resolution', () => {
+    assert.throws(() => normalizedRoot(root), /Remote\/NAS paths are forbidden/);
+  });
+}
+
+test('movie test-library continues to resolve an ordinary local output root', () => {
+  const local = path.join(os.tmpdir(), 'shelfdeck-builder-local-root');
+  assert.equal(normalizedRoot(local), path.resolve(local));
+});
+
 test('scenario matrix covers Procurement structure and Libra production decisions', () => {
   const all = [...SCENARIOS, ...REAL_SOURCE_SCENARIOS, ...E2E_SCENARIOS];
   assert.deepEqual(all.map((item) => item.id), ['M01', 'M02', 'M03', 'M04', 'M05', 'M06', 'M07', 'M08', 'M09', 'M10', 'M11', 'M12',

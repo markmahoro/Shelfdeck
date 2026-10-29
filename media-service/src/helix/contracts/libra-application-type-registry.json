@@ -323,7 +323,7 @@
       "relativePath": "application-types/LibraRunExecutionBasis/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "e3393d11fc4b1e88eba607fe6b089f7c653dbc00545885a7a590f030ba7f30c1"
+        "value": "164fc96ca284eb33f2c32a065a3787ca95e3d2a8b45576747f677f0397314706"
       },
       "ssotRefs": [
         "8.6.21"
@@ -338,7 +338,7 @@
       "relativePath": "application-types/LibraRunExecutionBasisRecord/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "3481b09893b125a804f7de3a491adc60f04ebf0a7371dc4278e1a7ab9d8eab35"
+        "value": "25548eca5c36bfc3d87cabd8d1604bc75e4d4796d38a7d2b4c6d30c71e60f9c0"
       },
       "ssotRefs": [
         "8.6.21"
@@ -604,7 +604,7 @@
       "relativePath": "application-types/ProductDeliveryReadResult/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "ca7992ffad488b506b639c19996bb9c5dffa8c22497c93f593e5b58b43dbc8bb"
+        "value": "41f75e51211d43c1115431185e240724eb514eb01a45bf077438858789901b52"
       },
       "ssotRefs": [
         "8.2.2",

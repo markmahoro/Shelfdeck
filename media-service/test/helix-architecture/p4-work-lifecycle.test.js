@@ -49,13 +49,15 @@ async function fixture(run) {
   database.close();
   let ids = 0;
   const lifecycle = createWorkLifecycle({ schemaManifest, unitOfWork, nextWorkAttemptId: () => 'attempt-' + (++ids) });
-  const restart = () => {
+  const restartPersistence = () => {
     kernel.close();
     kernel = openSqliteKernel({ Database, databasePath, schemaDdl, schemaManifest, now: () => 1700000000001 });
-    return createWorkLifecycle({ schemaManifest, unitOfWork: createSqliteUnitOfWork({ kernel }),
-      nextWorkAttemptId: () => 'attempt-' + (++ids) });
+    const nextUnitOfWork=createSqliteUnitOfWork({kernel});
+    return {unitOfWork:nextUnitOfWork,lifecycle:createWorkLifecycle({ schemaManifest, unitOfWork:nextUnitOfWork,
+      nextWorkAttemptId: () => 'attempt-' + (++ids) })};
   };
-  try { return await run({ lifecycle, databasePath, restart }); }
+  const restart=()=>restartPersistence().lifecycle;
+  try { return await run({ lifecycle, unitOfWork, databasePath, restart, restartPersistence }); }
   finally { kernel.close(); fs.rmSync(root, { recursive: true, force: true }); }
 }
 
@@ -80,6 +82,75 @@ function seedPlannedAttempt(lifecycle, databasePath, suffix, eventState = 'succe
   lifecycle.startPlanned('work-1', attempt.attempt_id);
   return attempt;
 }
+
+test('a guarded Work scope is checked in the Attempt transaction before any write',()=>fixture(({lifecycle,unitOfWork,databasePath})=>{
+  const scope={ownerDomain:'procurement',processType:'procurement_run',processId:'run-1',workKind:'evidence_assessment',executionBasisDigest:'a'.repeat(64)};
+  assert.throws(()=>lifecycle.ensurePlanningAttempt('work-1',{readFence:unitOfWork.captureReadFence(),
+    expectedScope:{...scope,processId:'other-run'}}),{code:'P4_WORK_OWNER_SCOPE_CHANGED'});
+  assert.throws(()=>lifecycle.ensurePlanningAttempt('work-1',{readFence:unitOfWork.captureReadFence(),
+    expectedScope:{...scope,executionBasisDigest:'b'.repeat(64)}}),{code:'P4_WORK_OWNER_SCOPE_CHANGED'});
+  assert.equal(read(databasePath,'SELECT state FROM fx_supporting_works WHERE work_id=?','work-1').state,'admitted');
+  assert.equal(read(databasePath,'SELECT count(*) n FROM fx_work_attempts WHERE work_id=?','work-1').n,0);
+  assert.equal(lifecycle.ensurePlanningAttempt('work-1',{readFence:unitOfWork.captureReadFence(),expectedScope:scope}).attempt.state,'ready');
+}));
+
+for(const changed of ['work','plan'])test('Work start rejects a '+changed+' Basis different from its Attempt',()=>fixture(({lifecycle,unitOfWork,databasePath})=>{
+  const {attempt}=lifecycle.ensurePlanningAttempt('work-1'),db=new Database(databasePath);
+  try{
+    db.prepare('INSERT INTO fx_workflow_plans(plan_id,attempt_id,planner_ref,planner_version,catalog_digest,basis_digest,graph_digest,state,created_at_ms) VALUES(?,?,?,?,?,?,?,?,?)')
+      .run('basis-plan',attempt.attempt_id,'planner',1,'c'.repeat(64),changed==='plan'?'b'.repeat(64):'a'.repeat(64),'d'.repeat(64),'planned',2);
+    if(changed==='work')db.prepare('UPDATE fx_supporting_works SET basis_digest=? WHERE work_id=?').run('b'.repeat(64),'work-1');
+  }finally{db.close();}
+  assert.throws(()=>lifecycle.startPlanned('work-1',attempt.attempt_id,null,{readFence:unitOfWork.captureReadFence()}),
+    {code:'P4_WORK_PLAN_BASIS_MISMATCH'});
+  assert.equal(read(databasePath,'SELECT state FROM fx_supporting_works WHERE work_id=?','work-1').state,'ready');
+  assert.equal(read(databasePath,'SELECT state FROM fx_work_attempts WHERE attempt_id=?',attempt.attempt_id).state,'ready');
+}));
+
+for(const race of ['during_planning','before_start'])test('the real Host and SQLite fence defer '+race+' and reopen the same Attempt',()=>fixture(async({lifecycle,unitOfWork,databasePath,restartPersistence})=>{
+  const {createExecutionRuntimeHost}=require('../../src/helix/foundation/execution/execution-runtime-host');
+  const {createWorkflowPlanPublisher,executionCatalogDigest}=require('../../src/helix/foundation/execution/workflow-plan');
+  const registry={snapshot:[],resolve(){throw new Error('No Capability is needed for this zero-node plan.');}},
+    policyRegistry={digest:'c'.repeat(64)},contractValidator={readSchema(){throw new Error('No schema is needed for this zero-node plan.');}},
+    scope={ownerDomain:'procurement',processType:'procurement_run',processId:'run-1',workKind:'evidence_assessment',executionBasisDigest:'a'.repeat(64)},
+    lease={targetType:'work',targetId:'work-1',leaseId:'fixture-lease'};
+  let available=false,guardCalls=0,mutated=false,activeUnitOfWork=unitOfWork,activeLifecycle=lifecycle;const outcomes=[],errors=[];
+  function changeDatabase(){const database=new Database(databasePath);try{
+    database.prepare("INSERT INTO libra_subjects(subject_id,status,content_profile,structure_kind,intake_revision) VALUES('guard-race-subject','active','movie','single',1)").run();
+    mutated=true;
+  }finally{database.close();}}
+  function makeHost(){return createExecutionRuntimeHost({tickIntervalMs:60000,startupRecovery:{async recover(){return {normalSupplyAllowed:true};}},
+    scheduler:{acquire({targetType}){if(targetType==='work'&&available){available=false;return {kind:'leased',lease,executionScope:scope};}
+      return {kind:'idle'};},noteDispatchOutcome(_lease,outcome){outcomes.push(outcome.kind);},release(){}},
+    workDispatchGuard:{check(){guardCalls++;const fence=activeUnitOfWork.captureReadFence();
+      if(race==='before_start'&&guardCalls===3&&!mutated)changeDatabase();return {kind:'ready',readFence:fence};}},
+    plannerRegistry:{resolve(){return {plannerContractRef:'fixture-planner@1',plannerVersion:1,planner:{async plan(request){
+      if(race==='during_planning'&&!mutated)changeDatabase();
+      return {schemaRef:'helix://foundation/types/WorkflowPlanDefinition/v1',schemaVersion:1,planId:'fixture-plan',
+        workAttemptId:request.workAttemptId,ownerDomain:request.ownerDomain,plannerContractRef:'fixture-planner@1',plannerVersion:1,
+        workObjectiveTypeRef:request.workObjectiveTypeRef,workObjectiveVersion:request.workObjectiveVersion,
+        executionBasisDigest:request.executionBasisDigest,capabilityCatalogDigest:executionCatalogDigest(registry,policyRegistry),
+        resolution:'temporarily_unplannable',diagnosticClassification:'FIXTURE_WAIT',nodes:[]};}}};}},
+    planPublisher:createWorkflowPlanPublisher({schemaManifest,unitOfWork:activeUnitOfWork,registry,policyRegistry,contractValidator}),
+    workLifecycle:activeLifecycle,eventRuntime:{async run(){}},domainReconciler:{async reconcile(){}},
+    fallbackReconciler:{async start(){},async stop(){}},onError:error=>errors.push(error),
+  });}
+  let host=makeHost();
+  try{
+    await host.start();await new Promise(resolve=>setImmediate(resolve));available=true;
+    const first=await host.drainOnce();assert.equal(first.work.kind,'work_owner_deferred');assert.equal(first.work.reasonCode,'owner_view_changed');
+    assert.equal(read(databasePath,'SELECT state FROM fx_supporting_works WHERE work_id=?','work-1').state,'ready');
+    assert.equal(read(databasePath,'SELECT count(*) n FROM fx_work_attempts WHERE work_id=?','work-1').n,1);
+    assert.equal(read(databasePath,'SELECT count(*) n FROM fx_workflow_plans').n,race==='before_start'?1:0);
+    await host.stop();const reopened=restartPersistence();activeUnitOfWork=reopened.unitOfWork;activeLifecycle=reopened.lifecycle;
+    host=makeHost();await host.start();await new Promise(resolve=>setImmediate(resolve));
+    available=true;const second=await host.drainOnce();assert.equal(second.work.kind,'work_planned');
+    assert.equal(read(databasePath,'SELECT state FROM fx_supporting_works WHERE work_id=?','work-1').state,'blocked');
+    assert.equal(read(databasePath,'SELECT count(*) n FROM fx_work_attempts WHERE work_id=?','work-1').n,1);
+    assert.equal(read(databasePath,'SELECT count(*) n FROM fx_workflow_plans').n,1);
+    assert.deepEqual(outcomes,['owner_wait','started']);assert.deepEqual(errors,[]);
+  }finally{await host.stop();}
+}));
 
 test('duplicate aggregation proves the terminal Attempt without deciding its Owner disposition', () => fixture(({ lifecycle, databasePath }) => {
   const attempt = seedPlannedAttempt(lifecycle, databasePath, 'duplicate', 'failed');
@@ -184,6 +255,37 @@ test('activation creates one ready Work Attempt and replay never replans under a
   assert.deepEqual(read(databasePath, 'SELECT COUNT(*) count FROM fx_work_attempts WHERE work_id=?', 'work-1'), { count: 1 });
 }));
 
+test('planning and its replay reject a stale Owner read fence without creating another Attempt',()=>fixture(({lifecycle,unitOfWork,databasePath})=>{
+  function changeOwnerView(){const database=new Database(databasePath);try{
+    database.prepare('UPDATE fx_supporting_works SET updated_at_ms=updated_at_ms+1 WHERE work_id=?').run('work-1');
+  }finally{database.close();}}
+  const stale=unitOfWork.captureReadFence();changeOwnerView();
+  assert.throws(()=>lifecycle.ensurePlanningAttempt('work-1',{readFence:stale}),{code:'P3_UOW_READ_FENCE_CHANGED'});
+  assert.equal(read(databasePath,'SELECT count(*) n FROM fx_work_attempts').n,0);
+  assert.equal(read(databasePath,'SELECT state FROM fx_supporting_works').state,'admitted');
+  const fresh=unitOfWork.captureReadFence(),attempt=lifecycle.ensurePlanningAttempt('work-1',{readFence:fresh});
+  assert.equal(attempt.replayed,false);
+  const staleReplay=unitOfWork.captureReadFence();changeOwnerView();
+  assert.throws(()=>lifecycle.ensurePlanningAttempt('work-1',{readFence:staleReplay}),{code:'P3_UOW_READ_FENCE_CHANGED'});
+  assert.equal(read(databasePath,'SELECT count(*) n FROM fx_work_attempts').n,1);
+  assert.equal(read(databasePath,'SELECT state FROM fx_supporting_works').state,'ready');
+}));
+
+test('starting a published Plan rejects a stale Owner read and writes no running state',()=>fixture(({lifecycle,unitOfWork,databasePath})=>{
+  const activation=lifecycle.ensurePlanningAttempt('work-1'),db=new Database(databasePath);
+  try{db.prepare('INSERT INTO fx_workflow_plans(plan_id,attempt_id,basis_digest,state) VALUES(?,?,?,?)')
+    .run('plan',activation.attempt.attempt_id,'a'.repeat(64),'planned');
+    const stale=unitOfWork.captureReadFence();
+    db.prepare('UPDATE fx_supporting_works SET updated_at_ms=updated_at_ms+1 WHERE work_id=?').run('work-1');
+    assert.throws(()=>lifecycle.startPlanned('work-1',activation.attempt.attempt_id,null,{readFence:stale}),
+      {code:'P3_UOW_READ_FENCE_CHANGED'});
+    assert.equal(read(databasePath,'SELECT state FROM fx_supporting_works').state,'ready');
+    assert.equal(read(databasePath,'SELECT state FROM fx_work_attempts').state,'ready');
+    assert.equal(lifecycle.startPlanned('work-1',activation.attempt.attempt_id,null,
+      {readFence:unitOfWork.captureReadFence()}).state,'running');
+  }finally{db.close();}
+}));
+
 test('terminal Event aggregation closes only Work Attempt until Domain Owner settles Work', () => fixture(({ lifecycle, databasePath }) => {
   const activation = lifecycle.ensurePlanningAttempt('work-1');
   const database = new Database(databasePath);
@@ -280,6 +382,29 @@ test('Owner can replan a blocked Work onto a new Attempt without changing identi
   assert.equal(second.attempt.ordinal, 2);
   assert.notEqual(second.attempt.attempt_id, first.attempt.attempt_id);
   assert.equal(second.attempt.basis_digest, first.attempt.basis_digest);
+}));
+
+test('guarded blocked Work replan verifies its exact Owner Basis and read fence in the write transaction',()=>fixture(({lifecycle,unitOfWork,databasePath})=>{
+  const {attempt}=lifecycle.ensurePlanningAttempt('work-1'),scope={ownerDomain:'procurement',processType:'procurement_run',
+    processId:'run-1',workKind:'evidence_assessment',executionBasisDigest:'a'.repeat(64)},db=new Database(databasePath);
+  try{db.prepare(`INSERT INTO fx_workflow_plans(plan_id,attempt_id,planner_ref,planner_version,catalog_digest,basis_digest,graph_digest,state,created_at_ms)
+    VALUES(?,?,?,?,?,?,?,?,?)`).run('blocked-plan',attempt.attempt_id,'planner@1',1,'b'.repeat(64),'a'.repeat(64),'c'.repeat(64),'temporarily_unplannable',2);}
+  finally{db.close();}
+  lifecycle.startPlanned('work-1',attempt.attempt_id,'media_device_strategies_unavailable');
+  const request={workId:'work-1',disposition:'replan'},oldFence=unitOfWork.captureReadFence(),change=new Database(databasePath);
+  try{change.prepare("INSERT INTO libra_subjects(subject_id,status,content_profile,structure_kind,intake_revision) VALUES('replan-race','active','movie','single',1)").run();}
+  finally{change.close();}
+  assert.throws(()=>lifecycle.settleWork(request,{readFence:oldFence,expectedScope:scope}),{code:'P3_UOW_READ_FENCE_CHANGED'});
+  assert.throws(()=>lifecycle.settleWork(request,{readFence:unitOfWork.captureReadFence(),expectedScope:{...scope,processId:'other-run'}}),
+    {code:'P4_WORK_OWNER_SCOPE_CHANGED'});
+  assert.throws(()=>lifecycle.settleWork(request,{readFence:unitOfWork.captureReadFence(),expectedScope:{...scope,executionBasisDigest:'b'.repeat(64)}}),
+    {code:'P4_WORK_OWNER_SCOPE_CHANGED'});
+  assert.equal(read(databasePath,'SELECT state FROM fx_supporting_works WHERE work_id=?','work-1').state,'blocked');
+  assert.equal(read(databasePath,'SELECT state FROM fx_work_attempts WHERE attempt_id=?',attempt.attempt_id).state,'blocked');
+  const fence=unitOfWork.captureReadFence();
+  assert.equal(lifecycle.settleWork(request,{readFence:fence,expectedScope:scope}).state,'ready');
+  assert.equal(read(databasePath,'SELECT state FROM fx_work_attempts WHERE attempt_id=?',attempt.attempt_id).state,'cancelled');
+  assert.throws(()=>lifecycle.settleWork(request,{readFence:fence,expectedScope:scope}),{code:'P3_UOW_READ_FENCE_CHANGED'});
 }));
 
 test('Owner can request a new bounded Attempt without changing Work identity or Basis', () => fixture(({ lifecycle, databasePath }) => {

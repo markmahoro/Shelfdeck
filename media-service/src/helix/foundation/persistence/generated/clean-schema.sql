@@ -213,6 +213,33 @@ CREATE TABLE "arca_canonical_identity_revisions" (
 );
 CREATE INDEX "idx_arca_canonical_identity_revisions_hot_01" ON "arca_canonical_identity_revisions" ("provider", "provider_key", "structure_kind");
 
+CREATE TABLE "arca_collection_target_heads" (
+  "shelf_entry_id" TEXT PRIMARY KEY NOT NULL,
+  "current_revision" INTEGER NOT NULL CHECK ("current_revision" >= 1),
+  "intent_id" TEXT NOT NULL,
+  "intent_digest" TEXT NOT NULL CHECK (length("intent_digest") = 64 AND "intent_digest" NOT GLOB '*[^0-9a-f]*'),
+  "updated_at_ms" INTEGER NOT NULL CHECK ("updated_at_ms" >= 0),
+  FOREIGN KEY ("intent_id") REFERENCES "arca_collection_target_intents" ("intent_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("intent_id", "shelf_entry_id", "current_revision", "intent_digest") REFERENCES "arca_collection_target_intents" ("intent_id", "shelf_entry_id", "target_revision", "intent_digest") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_collection_target_intents" (
+  "intent_id" TEXT PRIMARY KEY NOT NULL,
+  "shelf_entry_id" TEXT NOT NULL,
+  "target_revision" INTEGER NOT NULL CHECK ("target_revision" >= 1),
+  "target_kind" TEXT NOT NULL CHECK ("target_kind" IN ('user_custom', 'standard')),
+  "intent_schema_ref" TEXT NOT NULL,
+  "intent_json" TEXT NOT NULL,
+  "intent_digest" TEXT NOT NULL CHECK (length("intent_digest") = 64 AND "intent_digest" NOT GLOB '*[^0-9a-f]*'),
+  "created_at_ms" INTEGER NOT NULL CHECK ("created_at_ms" >= 0),
+  UNIQUE ("shelf_entry_id", "target_revision"),
+  UNIQUE ("intent_id", "shelf_entry_id", "target_revision", "intent_digest"),
+  CHECK (json_valid("intent_json")),
+  CHECK (length(CAST("intent_json" AS BLOB)) <= 65536),
+  FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
+);
+
 CREATE TABLE "arca_deck_fact_revisions" (
   "shelf_entry_id" TEXT,
   "revision" INTEGER CHECK ("revision" >= 1),
@@ -887,6 +914,30 @@ CREATE TABLE "arca_offdeck_terminal_receipts" (
   UNIQUE ("offdeck_case_id"),
   FOREIGN KEY ("offdeck_case_id") REFERENCES "arca_offdeck_cases" ("offdeck_case_id") ON DELETE RESTRICT,
   FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_offer_withdrawal_receipts" (
+  "offer_id" TEXT PRIMARY KEY NOT NULL,
+  "on_deck_package_id" TEXT NOT NULL,
+  "package_revision" INTEGER NOT NULL CHECK ("package_revision" >= 1),
+  "package_digest" TEXT NOT NULL CHECK (length("package_digest") = 64 AND "package_digest" NOT GLOB '*[^0-9a-f]*'),
+  "receipt_id" TEXT NOT NULL,
+  "receipt_schema_ref" TEXT NOT NULL,
+  "receipt_json" TEXT NOT NULL,
+  "receipt_digest" TEXT NOT NULL CHECK (length("receipt_digest") = 64 AND "receipt_digest" NOT GLOB '*[^0-9a-f]*'),
+  "closed_at_ms" INTEGER NOT NULL CHECK ("closed_at_ms" >= 0),
+  UNIQUE ("receipt_id"),
+  CHECK (json_valid("receipt_json")),
+  CHECK (length(CAST("receipt_json" AS BLOB)) <= 16384),
+  CHECK ("receipt_schema_ref" = 'arca.offer-withdrawal-receipt@1'),
+  CHECK (COALESCE(json_extract("receipt_json", '$.schemaRef') = "receipt_schema_ref", 0)),
+  CHECK (COALESCE(json_extract("receipt_json", '$.receiptId') = "receipt_id", 0)),
+  CHECK (COALESCE(json_extract("receipt_json", '$.receiptDigest') = "receipt_digest", 0)),
+  CHECK (COALESCE(json_extract("receipt_json", '$.closedAtMs') = "closed_at_ms", 0)),
+  CHECK (COALESCE(json_extract("receipt_json", '$.offer.offerId') = "offer_id", 0)),
+  CHECK (COALESCE(json_extract("receipt_json", '$.offer.onDeckPackageId') = "on_deck_package_id", 0)),
+  CHECK (COALESCE(json_extract("receipt_json", '$.offer.packageRevision') = "package_revision", 0)),
+  CHECK (COALESCE(json_extract("receipt_json", '$.offer.packageDigest') = "package_digest", 0))
 );
 
 CREATE TABLE "arca_offload_completions" (
@@ -1846,6 +1897,81 @@ CREATE TABLE "libra_acquisition_candidate_evidence" (
   FOREIGN KEY ("search_event_attempt_id") REFERENCES "fx_event_attempts" ("event_attempt_id") ON DELETE RESTRICT
 );
 CREATE INDEX "idx_libra_acquisition_candidate_evidence_hot_01" ON "libra_acquisition_candidate_evidence" ("libra_run_id", "record_id");
+
+CREATE TABLE "libra_custom_target_heads" (
+  "subject_id" TEXT NOT NULL,
+  "product_scope_digest" TEXT NOT NULL CHECK (length("product_scope_digest") = 64 AND "product_scope_digest" NOT GLOB '*[^0-9a-f]*'),
+  "current_revision" INTEGER NOT NULL CHECK ("current_revision" >= 1),
+  "intent_id" TEXT NOT NULL,
+  "record_digest" TEXT NOT NULL CHECK (length("record_digest") = 64 AND "record_digest" NOT GLOB '*[^0-9a-f]*'),
+  PRIMARY KEY ("subject_id", "product_scope_digest"),
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("intent_id") REFERENCES "libra_custom_target_intents" ("intent_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("intent_id", "subject_id", "product_scope_digest", "current_revision", "record_digest") REFERENCES "libra_custom_target_intents" ("intent_id", "subject_id", "product_scope_digest", "target_revision", "record_digest") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_custom_target_intents" (
+  "intent_id" TEXT PRIMARY KEY NOT NULL,
+  "preview_id" TEXT NOT NULL,
+  "subject_id" TEXT NOT NULL,
+  "libra_run_id" TEXT NOT NULL,
+  "product_scope_digest" TEXT NOT NULL CHECK (length("product_scope_digest") = 64 AND "product_scope_digest" NOT GLOB '*[^0-9a-f]*'),
+  "target_revision" INTEGER NOT NULL CHECK ("target_revision" >= 1),
+  "actor_id" TEXT NOT NULL,
+  "idempotency_key" TEXT NOT NULL,
+  "request_digest" TEXT NOT NULL CHECK (length("request_digest") = 64 AND "request_digest" NOT GLOB '*[^0-9a-f]*'),
+  "record_schema_ref" TEXT NOT NULL,
+  "record_json" TEXT NOT NULL,
+  "record_digest" TEXT NOT NULL CHECK (length("record_digest") = 64 AND "record_digest" NOT GLOB '*[^0-9a-f]*'),
+  "created_at_ms" INTEGER NOT NULL CHECK ("created_at_ms" >= 0),
+  UNIQUE ("actor_id", "idempotency_key"),
+  UNIQUE ("subject_id", "product_scope_digest", "target_revision"),
+  UNIQUE ("intent_id", "subject_id", "product_scope_digest", "target_revision", "record_digest"),
+  CHECK (json_valid("record_json")),
+  CHECK (length(CAST("record_json" AS BLOB)) <= 65536),
+  CHECK ("record_schema_ref" = 'libra.custom-target-intent@1'),
+  CHECK (COALESCE(json_extract("record_json", '$.schemaRef') = "record_schema_ref", 0)),
+  CHECK (COALESCE(json_extract("record_json", '$.intentId') = "intent_id", 0)),
+  CHECK (COALESCE(json_extract("record_json", '$.previewDigest') = "preview_id", 0)),
+  CHECK (COALESCE(json_extract("record_json", '$.intentDigest') = "record_digest", 0)),
+  CHECK (COALESCE(json_extract("record_json", '$.subjectId') = "subject_id", 0)),
+  CHECK (COALESCE(json_extract("record_json", '$.libraRunId') = "libra_run_id", 0)),
+  CHECK (COALESCE(json_extract("record_json", '$.basis.productScopeDigest') = "product_scope_digest", 0)),
+  CHECK (COALESCE(json_extract("record_json", '$.revision') = "target_revision", 0)),
+  CHECK (COALESCE(json_extract("record_json", '$.actorId') = "actor_id", 0)),
+  CHECK (COALESCE(json_extract("record_json", '$.idempotencyKey') = "idempotency_key", 0)),
+  CHECK (COALESCE(json_extract("record_json", '$.requestDigest') = "request_digest", 0)),
+  CHECK (COALESCE(json_extract("record_json", '$.confirmedAtMs') = "created_at_ms", 0)),
+  FOREIGN KEY ("preview_id") REFERENCES "libra_custom_target_previews" ("preview_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_custom_target_previews" (
+  "preview_id" TEXT PRIMARY KEY NOT NULL,
+  "subject_id" TEXT NOT NULL,
+  "libra_run_id" TEXT NOT NULL,
+  "actor_id" TEXT NOT NULL,
+  "idempotency_key" TEXT NOT NULL,
+  "request_digest" TEXT NOT NULL CHECK (length("request_digest") = 64 AND "request_digest" NOT GLOB '*[^0-9a-f]*'),
+  "record_schema_ref" TEXT NOT NULL,
+  "record_json" TEXT NOT NULL,
+  "record_digest" TEXT NOT NULL CHECK (length("record_digest") = 64 AND "record_digest" NOT GLOB '*[^0-9a-f]*'),
+  "created_at_ms" INTEGER NOT NULL CHECK ("created_at_ms" >= 0),
+  UNIQUE ("actor_id", "idempotency_key"),
+  CHECK (json_valid("record_json")),
+  CHECK (length(CAST("record_json" AS BLOB)) <= 65536),
+  CHECK ("record_schema_ref" = 'libra.custom-target-preview@1'),
+  CHECK ("preview_id" = "record_digest"),
+  CHECK (COALESCE(json_extract("record_json", '$.schemaRef') = "record_schema_ref", 0)),
+  CHECK (COALESCE(json_extract("record_json", '$.previewDigest') = "record_digest", 0)),
+  CHECK (COALESCE(json_extract("record_json", '$.basis.subjectId') = "subject_id", 0)),
+  CHECK (COALESCE(json_extract("record_json", '$.basis.libraRunId') = "libra_run_id", 0)),
+  CHECK (COALESCE(json_extract("record_json", '$.actorId') = "actor_id", 0)),
+  CHECK (COALESCE(json_extract("record_json", '$.createdAtMs') = "created_at_ms", 0)),
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT
+);
 
 CREATE TABLE "libra_decision_basis_inputs" (
   "decision_basis_id" TEXT,

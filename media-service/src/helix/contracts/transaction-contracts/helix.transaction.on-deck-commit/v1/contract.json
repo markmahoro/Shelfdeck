@@ -19,6 +19,8 @@
           "arca_series_presentation_commit_links",
           "arca_source_cleanup_checks",
           "arca_shelf_entries",
+          "arca_collection_target_intents",
+          "arca_collection_target_heads",
           "arca_canonical_identity_revisions",
           "arca_inventory_representations",
           "arca_inventory_materials",
@@ -56,6 +58,8 @@
       "arca_series_presentation_commit_links",
       "arca_source_cleanup_checks",
       "arca_shelf_entries",
+      "arca_collection_target_intents",
+      "arca_collection_target_heads",
       "arca_canonical_identity_revisions",
       "arca_inventory_representations",
       "arca_inventory_materials",
@@ -84,6 +88,10 @@
       "arca_series_presentation_reservations",
       "arca_series_presentation_references",
       "arca_final_inventory_decisions",
+      "arca_ondeck_custodies",
+      "arca_acceptance_decisions",
+      "fx_event_result_bindings",
+      "fx_commit_markers",
       "arca_ondeck_runs",
       "arca_series_root_relocations"
     ],
@@ -112,7 +120,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 8865,
+      "line": 8873,
       "lineDigest": "4b5788ea46b2715c43d564a3c74aac03d6fa1551b15b509f2a4cf85af40254b3"
     }
   }

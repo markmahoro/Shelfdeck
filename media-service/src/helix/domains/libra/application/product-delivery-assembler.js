@@ -5,6 +5,7 @@ const { seriesExternalOffloadTargets } = require('../planning/series-external-ca
 const { readSeriesMediaSelections } = require('../planning/series-production-candidates');
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
+const { buildAcceptanceRequirementSnapshot } = require('../model/acceptance-requirement-snapshot');
 const { coversRequirementGaps, resolveProductSelection } =
   require('../model/defect-admission-contracts');
 const {
@@ -584,23 +585,7 @@ function createProductDeliveryAssembler(options) {
   }
 
   function acceptanceRequirementSnapshot(snapshot) {
-    const body = {
-      schemaRef: 'helix://contracts/domain-types/AcceptanceRequirementSnapshot/v1',
-      schemaVersion: 1,
-      acceptanceSpecId: snapshot.spec.acceptanceSpecId,
-      acceptanceSpecRecordDigest: snapshot.spec.recordDigest,
-      targetShelfId: snapshot.spec.targetShelfId,
-      contentProfile: snapshot.spec.contentProfile,
-      structureKind: snapshot.spec.structureKind,
-      shelfStandardRevision: snapshot.spec.shelfStandardRevision,
-      shelfStandardDigest: snapshot.spec.shelfStandardDigest,
-      requirements: snapshot.spec.requirements,
-    };
-    const result = Object.freeze({ ...body, snapshotDigest:canonicalDigest(body) });
-    if (Buffer.byteLength(canonicalJson(result), 'utf8') > 64 * 1024) {
-      throw new Error('Acceptance Requirement Snapshot exceeds its canonical size bound.');
-    }
-    return result;
+    return buildAcceptanceRequirementSnapshot(snapshot.spec);
   }
 
   function context(libraRunId, selectedWorkId) {

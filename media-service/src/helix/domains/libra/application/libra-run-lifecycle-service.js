@@ -23,7 +23,7 @@ function createLibraRunLifecycleService(options) {
   const store = createRunLifecycleStore(options);
   const now = options.now || Date.now;
 
-  function commit(assessmentResult, transitionKind) {
+  function commit(assessmentResult, transitionKind, readFence) {
     const evidence = assessmentResult.assessment;
     const decision = buildRunLifecycleDecision({
       libraRunId: evidence.libraRunId,
@@ -37,7 +37,7 @@ function createLibraRunLifecycleService(options) {
         assessmentResult.admissionHead.activeScopeSetDigest,
     });
     const committed = store.transition({
-      decision,
+      decision, readFence,
       commitMarker: canonicalDigest({
         schema: 'libra.run-freshness-marker@1',
         decisionDigest: decision.decisionDigest,
@@ -58,7 +58,7 @@ function createLibraRunLifecycleService(options) {
     });
   }
 
-  function reconcile(libraRunId) {
+  function reconcile(libraRunId, {readFence = null} = {}) {
     const assessed = store.assess({ libraRunId, assessedAtMs: now() });
     if (assessed.kind !== 'assessment') return assessed;
     const evidence = assessed.assessment;
@@ -71,21 +71,21 @@ function createLibraRunLifecycleService(options) {
       });
     }
     if (evidence.expectedState.state === 'active') {
-      if (evidence.readiness === 'unresolved') return commit(assessed, 'suspend');
+      if (evidence.readiness === 'unresolved') return commit(assessed, 'suspend', readFence);
       if (!assessed.latestFreshnessAssessmentId) {
-        return commit(assessed, 'freshness_confirmed');
+        return commit(assessed, 'freshness_confirmed', readFence);
       }
       return Object.freeze({ kind:'ready', libraRunId, assessment:evidence });
     }
-    if (evidence.readiness === 'ready') return commit(assessed, 'resume');
+    if (evidence.readiness === 'ready') return commit(assessed, 'resume', readFence);
     return commit(
       assessed,
       evidence.recoveryEpisode.attemptOrdinal === 5
-        ? 'freeze' : 'recovery_reassessed',
+        ? 'freeze' : 'recovery_reassessed', readFence,
     );
   }
 
-  function commitTerminalFreeze(libraRunId, blockerKind, built, transitionKind = 'freeze') {
+  function commitTerminalFreeze(libraRunId, blockerKind, built, transitionKind = 'freeze', readFence = null) {
     if (built.kind !== 'terminal_evidence') return built;
     const decision = buildRunLifecycleDecision({
       libraRunId,
@@ -97,7 +97,7 @@ function createLibraRunLifecycleService(options) {
       expectedActiveScopeSetDigest: built.admissionHead.activeScopeSetDigest,
     });
     const committed = store.transition({
-      decision,
+      decision, readFence,
       commitMarker: canonicalDigest({
         schema: 'libra.run-terminal-freeze-marker@1',
         decisionDigest: decision.decisionDigest,
@@ -119,29 +119,29 @@ function createLibraRunLifecycleService(options) {
     });
   }
 
-  function freezeFailedWork(libraRunId, workId, blockerKind) {
+  function freezeFailedWork(libraRunId, workId, blockerKind, {readFence = null} = {}) {
     return commitTerminalFreeze(libraRunId, blockerKind, store.buildTerminalEvidence({
       libraRunId,
       workId,
       blockerKind,
       assessedAtMs: now(),
-    }));
+    }), 'freeze', readFence);
   }
 
-  function freezeTerminalResult(libraRunId, workId, blockerKind, terminalResult) {
+  function freezeTerminalResult(libraRunId, workId, blockerKind, terminalResult, {readFence = null} = {}) {
     return commitTerminalFreeze(libraRunId, blockerKind, store.buildTerminalEvidence({
       libraRunId,
       workId,
       blockerKind,
       assessedAtMs: now(),
       terminalResult,
-    }));
+    }), 'freeze', readFence);
   }
 
-  function enterSecondaryTarget(libraRunId, workId, terminalResult) {
+  function enterSecondaryTarget(libraRunId, workId, terminalResult, {readFence = null} = {}) {
     return commitTerminalFreeze(libraRunId,'product_unachievable',store.buildTerminalEvidence({
       libraRunId,workId,blockerKind:'product_unachievable',assessedAtMs:now(),terminalResult
-    }),'secondary_target');
+    }),'secondary_target',readFence);
   }
   return Object.freeze({ reconcile, freezeFailedWork, freezeTerminalResult, enterSecondaryTarget });
 }

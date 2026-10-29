@@ -41,10 +41,10 @@ function repositories(schemaManifest) {
   return Object.freeze({
     works: createRepositoryDefinition({ repositoryId: 'scheduler_works', owner: 'execution-foundation', schemaManifest, statements: {
       list_by_states: { kind: 'select-in', tableId: 'fx_supporting_works', columns: [
-        'work_id', 'owner_domain', 'process_type', 'process_id', 'work_kind', 'priority_class', 'state', 'created_at_ms'
+        'work_id', 'owner_domain', 'process_type', 'process_id', 'work_kind', 'basis_digest', 'priority_class', 'state', 'created_at_ms'
       ], keyColumn:'state', maxItems:4 },
       list_by_ids: { kind: 'select-in', tableId: 'fx_supporting_works', columns: [
-        'work_id', 'owner_domain', 'process_type', 'process_id', 'work_kind', 'priority_class', 'state', 'created_at_ms'
+        'work_id', 'owner_domain', 'process_type', 'process_id', 'work_kind', 'basis_digest', 'priority_class', 'state', 'created_at_ms'
       ], keyColumn:'work_id', maxItems:500 }
     } }),
     events: createRepositoryDefinition({ repositoryId: 'scheduler_events', owner: 'execution-foundation', schemaManifest, statements: {
@@ -117,6 +117,7 @@ function createWorkScheduler(options) {
   const activeLeases = new Map();
   const minimumBackgroundLeases = new Set();
   const resourceWaitDeferredTargets = new Set();
+  const ownerWaitDeferredTargets = {work:new Set(),event:new Set()};
   let minimumBackgroundNotBeforeMs = 0;
 
   function purgeExpired(nowMs) {
@@ -198,7 +199,8 @@ function createWorkScheduler(options) {
       const targetId = request.targetType === 'work' ? target.work_id : target.event_id;
       const targetKey = request.targetType + ':' + targetId;
       if (activeLeases.has(targetKey)) continue;
-      if (request.targetType === 'event' && resourceWaitDeferredTargets.has(targetId)) continue;
+      if (ownerWaitDeferredTargets[request.targetType].has(targetId)||
+          request.targetType==='event'&&resourceWaitDeferredTargets.has(targetId)) continue;
       const queuedAtMs = request.targetType === 'work' ? target.created_at_ms : target.ready_at_ms;
       if (!Number.isSafeInteger(queuedAtMs) || queuedAtMs < 0 || queuedAtMs > nowMs) fail(
         'P4_SCHEDULER_QUEUE_TIME_INVALID', 'Eligible target requires a valid non-future queue timestamp.', { targetId }
@@ -232,14 +234,17 @@ function createWorkScheduler(options) {
       if (minimumBackground) { selected = minimumBackground; minimumBackgroundSelected = true; }
     }
     if (!selected) {
-      if (request.targetType === 'event' && resourceWaitDeferredTargets.size > 0) {
-        // A resource- or circuit-blocked Event gets one scheduling chance per round. Clear
-        // the process-local round only after every other eligible Event has had
+      const ownerDeferred=ownerWaitDeferredTargets[request.targetType],resourceDeferred=request.targetType==='event'&&resourceWaitDeferredTargets.size>0;
+      if (resourceDeferred||ownerDeferred.size>0) {
+        // A resource-, circuit- or Owner-blocked target gets one scheduling chance per round. Clear
+        // the process-local round only after every other eligible target has had
         // a chance, then let the Host's bounded fallback poll begin the next
         // round. Wall-clock cooldowns cannot provide this guarantee when one
         // production scheduling scan itself takes longer than the cooldown.
-        resourceWaitDeferredTargets.clear();
-        return Object.freeze({ kind:'idle', reasonCode:'RESOURCE_WAIT_ROUND_EXHAUSTED' });
+        const reasonCode=resourceDeferred?'RESOURCE_WAIT_ROUND_EXHAUSTED':'OWNER_WAIT_ROUND_EXHAUSTED';
+        if(request.targetType==='event')resourceWaitDeferredTargets.clear();
+        ownerDeferred.clear();
+        return Object.freeze({ kind:'idle', reasonCode });
       }
       return Object.freeze({ kind: 'idle', reasonCode: 'NO_ELIGIBLE_TARGET' });
     }
@@ -263,7 +268,7 @@ function createWorkScheduler(options) {
     }
     return Object.freeze({ kind: 'leased', lease,
       executionScope: Object.freeze({ownerDomain:selected.work.owner_domain,processType:selected.work.process_type,
-        processId:selected.work.process_id,workKind:selected.work.work_kind}),
+        processId:selected.work.process_id,workKind:selected.work.work_kind,executionBasisDigest:selected.work.basis_digest}),
       lane: minimumBackgroundSelected ? 'minimum_background' : supply.lane, priorityClass: selected.projection.priorityClass,
       localPriority: selected.projection.localPriority, aging: selected.aging });
   }
@@ -272,13 +277,16 @@ function createWorkScheduler(options) {
     const current = assertCurrent(lease);
     if (!outcome || typeof outcome !== 'object' || Array.isArray(outcome) ||
         JSON.stringify(Object.keys(outcome)) !== JSON.stringify(['kind']) ||
-        !['started', 'resource_wait', 'circuit_wait'].includes(outcome.kind)) {
-      fail('P4_SCHEDULER_DISPATCH_OUTCOME_INVALID', 'Dispatch outcome must be an exact started, resource_wait, or circuit_wait value.');
+        !['started', 'resource_wait', 'circuit_wait', 'owner_wait'].includes(outcome.kind)) {
+      fail('P4_SCHEDULER_DISPATCH_OUTCOME_INVALID', 'Dispatch outcome must be an exact started or typed wait value.');
     }
-    if (outcome.kind !== 'started') {
-      resourceWaitDeferredTargets.add(current.targetId);
+    if (outcome.kind === 'owner_wait') {
+      ownerWaitDeferredTargets[current.targetType].add(current.targetId);
+    } else if (outcome.kind !== 'started') {
+      if(current.targetType==='event')resourceWaitDeferredTargets.add(current.targetId);
     } else {
-      resourceWaitDeferredTargets.delete(current.targetId);
+      if(current.targetType==='event')resourceWaitDeferredTargets.delete(current.targetId);
+      ownerWaitDeferredTargets[current.targetType].delete(current.targetId);
     }
     if (!minimumBackgroundLeases.has(current.leaseId)) return Object.freeze({ recorded:false });
     minimumBackgroundNotBeforeMs = options.now() + (outcome.kind === 'started' ? AGING_INTERVAL_MS : MINIMUM_BACKGROUND_RETRY_MS);

@@ -941,3 +941,76 @@ test('administrative retirement closes a genuinely published but unobserved Offe
     assert.equal(arca.readRetirementProof([{offerId:query.offerId,packageId:query.onDeckPackageId,packageDigest:query.expectedPackageDigest}])[0].disposition,'administratively_retired');
     assert.equal(arca.retiredAdmission({offerId:query.offerId,onDeckPackageId:query.onDeckPackageId,packageDigest:query.expectedPackageDigest}).kind,'administratively_retired');
   }));
+
+// Seed a complete immutable target relation for commit-fence isolation. The
+// confirmation Store separately tests the original requirement/Run/Head proof.
+function seedCommittedCustomTarget(value){
+  const db=new Database(value.databasePath);try{
+    const run=db.prepare('SELECT * FROM libra_runs').get(),spec=db.prepare('SELECT * FROM libra_acceptance_specs').get(),
+      requirements=require('../../src/helix/domains/arca/model/rule-template-contracts').BETA_RECOMMENDED_RULES.profileRuleSets
+        .find(row=>row.contentProfile==='movie').decisionBranches.find(row=>row.rating===5).requirements,
+      basis={subjectId:run.subject_id,libraRunId:run.libra_run_id,runState:run.state,runStateRevision:run.state_revision,
+        runStateDigest:run.state_digest,runPackageRevisionHead:run.package_revision_head,runExecutionBasisDigest:run.execution_basis_digest,runAcceptanceSpecId:spec.acceptance_spec_id,
+        runSpecRecordDigest:spec.record_digest,runSpecDigest:spec.spec_digest,baseAcceptanceSpecId:spec.acceptance_spec_id,
+        baseSpecRecordDigest:spec.record_digest,baseSpecDigest:spec.spec_digest,decisionHeadDigest:D('head'),decisionHeadAcceptanceSpecId:spec.acceptance_spec_id,
+        shelfId:spec.shelf_id,shelfStandardDigest:spec.shelf_standard_digest,shelfStandardRevision:spec.shelf_standard_revision,
+        productScopeDigest:spec.product_scope_digest,materialSetDigest:D('members'),identityDigest:D('identity'),gapEvidenceSetDigest:D('gaps'),customTargetRevision:0,
+        handoffState:db.prepare('SELECT count(*) n FROM libra_product_packages').get().n?'not_accepted':'no_offer',contentProfile:'movie',structureKind:'single'},
+      {buildCustomTargetPreview,confirmCustomTarget}=require('../../src/helix/domains/libra/model/custom-target-records'),
+      preview=buildCustomTargetPreview({basis,requirements,actorId:'admin',createdAtMs:NOW,
+        proposals:[{change:require('../../src/helix/contracts/custom-acceptance-requirements').describeCustomRequirement(requirements,
+          {requirementCode:'minimum_raster_unmet',targetId:'minimumRasterClass'}),evidenceRefs:[{resultId:'source-result',resultDigest:D('source-result')}]}]}),
+      intent=confirmCustomTarget({preview,expectedPreviewDigest:preview.previewDigest,currentBasis:basis,
+        selectedChangeDigests:preview.proposals.map(row=>row.changeDigest),actorId:'admin',idempotencyKey:'confirmed-target',acknowledged:true,confirmedAtMs:NOW+1});
+    db.prepare('INSERT INTO libra_custom_target_previews(preview_id,subject_id,libra_run_id,actor_id,idempotency_key,request_digest,record_schema_ref,record_json,record_digest,created_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?)')
+      .run(preview.previewDigest,run.subject_id,run.libra_run_id,'admin','target-preview',D('preview-request'),preview.schemaRef,canonicalJson(preview),preview.previewDigest,NOW);
+    db.prepare('INSERT INTO libra_custom_target_intents(intent_id,preview_id,subject_id,libra_run_id,product_scope_digest,target_revision,actor_id,idempotency_key,request_digest,record_schema_ref,record_json,record_digest,created_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)')
+      .run(intent.intentId,preview.previewDigest,run.subject_id,run.libra_run_id,spec.product_scope_digest,1,'admin',intent.idempotencyKey,intent.requestDigest,intent.schemaRef,canonicalJson(intent),intent.intentDigest,NOW+1);
+    db.prepare('INSERT INTO libra_custom_target_heads(subject_id,product_scope_digest,current_revision,intent_id,record_digest) VALUES(?,?,?,?,?)')
+      .run(run.subject_id,spec.product_scope_digest,1,intent.intentId,intent.intentDigest);
+    assert.deepEqual(db.pragma('foreign_key_check'),[]);return intent;
+  }finally{db.close();}
+}
+
+test('a confirmed custom target blocks old Run promotion before Package, Control or Outbox writes',()=>withDatabase(value=>{
+  seedCommittedCustomTarget(value);const db=new Database(value.databasePath),before=db.prepare('SELECT * FROM fx_material_controls').all();
+  const tables=['libra_product_packages','fx_outbox','fx_commit_markers'],snapshots=tables.map(table=>db.prepare('SELECT * FROM '+table+' ORDER BY rowid').all());
+  try{
+    assert.throws(()=>createDeliverablePromotionStore({schemaManifest,unitOfWork:value.unitOfWork}).publish(request(value)),{code:'P9_PROMOTION_TARGET_SUPERSEDED'});
+    for(let index=0;index<tables.length;index++)assert.deepEqual(db.prepare('SELECT * FROM '+tables[index]+' ORDER BY rowid').all(),snapshots[index]);
+    assert.deepEqual(db.prepare('SELECT * FROM fx_material_controls').all(),before);
+  }finally{db.close();}
+}));
+
+test('a current custom target cannot publish a lower requirement snapshot without its exact Handoff reference',()=>withDatabase(value=>{
+  const intent=seedCommittedCustomTarget(value),db=new Database(value.databasePath);
+  try{
+    const run=db.prepare('SELECT * FROM libra_runs').get(),row=db.prepare('SELECT * FROM libra_acceptance_specs').get(),
+      spec=JSON.parse(row.spec_json),basis=JSON.parse(run.execution_basis_record_json);
+    spec.targetKind='user_custom';spec.customTargetRef={schemaRef:'libra.custom-target-reference@1',intentId:intent.intentId,
+      intentDigest:intent.intentDigest,targetRevision:intent.revision,previewDigest:intent.previewDigest,targetRequirementsDigest:intent.target.targetRequirementsDigest};
+    basis.collectionTargetRef={schemaRef:'libra.collection-target-reference@1',targetKind:'user_custom',
+      intentId:intent.intentId,intentDigest:intent.intentDigest,targetRevision:intent.revision};
+    db.prepare('UPDATE libra_acceptance_specs SET spec_json=? WHERE acceptance_spec_id=?').run(canonicalJson(spec),row.acceptance_spec_id);
+    db.prepare('UPDATE libra_runs SET execution_basis_record_json=? WHERE libra_run_id=?').run(canonicalJson(basis),run.libra_run_id);
+    const before=db.prepare('SELECT * FROM fx_material_controls').all(),tables=['libra_product_packages','fx_outbox','fx_commit_markers'],
+      snapshots=tables.map(table=>db.prepare('SELECT * FROM '+table+' ORDER BY rowid').all());
+    assert.throws(()=>createDeliverablePromotionStore({schemaManifest,unitOfWork:value.unitOfWork}).publish(request(value)),
+      {code:'P9_PROMOTION_CUSTOM_SNAPSHOT_MISMATCH'});
+    assert.deepEqual(db.prepare('SELECT * FROM fx_material_controls').all(),before);
+    for(let index=0;index<tables.length;index++)assert.deepEqual(db.prepare('SELECT * FROM '+tables[index]+' ORDER BY rowid').all(),snapshots[index]);
+  }finally{db.close();}
+}));
+
+test('confirmed target invalidates an unaccepted Offer while preserving immutable Package history and receipt replay',()=>withDatabase(value=>{
+  const store=createDeliverablePromotionStore({schemaManifest,unitOfWork:value.unitOfWork}),first=store.publish(request(value)),
+    reader=createProductDeliveryReader({schemaManifest,unitOfWork:value.unitOfWork}),query=readRequest(value),
+    before=reader.readPackage(query),current={...query,readPurpose:'acceptance_fence'};
+  assert.equal(reader.readPackage(current).deliveryFence.eligibility,'eligible');
+  seedCommittedCustomTarget(value);const invalidated=reader.readPackage(current);
+  assert.equal(invalidated.deliveryFence.eligibility,'ineligible');assert.equal(invalidated.deliveryFence.reasonCode,'target_not_current');
+  assert.deepEqual(invalidated.onDeckProductPackage,before.onDeckProductPackage);
+  assert.deepEqual(reader.readPackage(query),before);
+  const replay=store.publish(request(value));assert.equal(replay.replayed,true);assert.deepEqual(replay.receipt,first.receipt);
+  assert.equal(reader.readPackage(current).deliveryFence.reasonCode,'target_not_current');
+}));

@@ -2,6 +2,7 @@
 
 const {productDispositionMembers}=require('../model/product-disposition');
 const {packageContentProfile}=require('../model/product-content-profile');
+const {assertArcaCustomAcceptanceBasis}=require('../model/custom-acceptance-target');
 const {executionInputUnavailable}=require('../../../foundation/execution/execution-input-readiness');
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { finalGapDecision } = require('../model/acceptance-gap-decision');
@@ -36,6 +37,7 @@ function acceptanceRequirements(c) { const value=c.packageValue.productionProven
       value.acceptanceSpecRecordDigest!==c.packageValue.acceptanceSpecRef?.recordDigest||value.targetShelfId!==c.packageValue.shelfId||
       value.structureKind!==expectedStructure||value.contentProfile!==packageContentProfile(c.packageValue))
     throw Object.assign(new TypeError('Package Acceptance Requirement Snapshot is invalid.'),{code:'ARCA_ACCEPTANCE_REQUIREMENT_INVALID'});
+  if(value.customAcceptanceHandoff)assertArcaCustomAcceptanceBasis({packageValue:c.packageValue,shelf:c.shelf,basis:c.customAcceptanceBasis});
   return value; }
 function standard(c) { const snapshot=acceptanceRequirements(c),parameters=[
   typed('acceptanceRequirementSnapshotDigest',snapshot.snapshotDigest),

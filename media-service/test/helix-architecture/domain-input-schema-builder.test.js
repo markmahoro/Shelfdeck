@@ -6,10 +6,10 @@ const { buildDomainInputSchemas } = require('../../scripts/helix-architecture/do
 
 const schemas = buildDomainInputSchemas();
 
-test('builds exactly the 150 formal domain input contracts', () => {
-  assert.equal(Object.keys(schemas).length, 150);
-  assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'bounded-contract').length, 26);
-  assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'accepted-business-dto').length, 124);
+test('builds exactly the 152 formal domain input contracts', () => {
+  assert.equal(Object.keys(schemas).length, 152);
+  assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'bounded-contract').length, 27);
+  assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'accepted-business-dto').length, 125);
 });
 
 test('freezes bounded Shelf Acceptance source and Product read authority', () => {
@@ -39,6 +39,10 @@ test('freezes bounded Shelf Acceptance source and Product read authority', () =>
   assert.equal(snapshot.additionalProperties, false);
   assert.deepEqual(Object.keys(snapshot.properties.requirements.properties),
     ['identity', 'structure', 'metadata', 'mandatoryMedia', 'space', 'inventory']);
+  assert.equal(snapshot.required.includes('customAcceptanceHandoff'), false);
+  assert.equal(snapshot.properties.customAcceptanceHandoff.additionalProperties, false);
+  assert.deepEqual(snapshot.properties.customAcceptanceHandoff.required,
+    ['schemaRef','subjectId','productScopeDigest','originalSpec','customSpec','customTargetRef','referenceDigest']);
   assert.equal(snapshot['x-helix-maxCanonicalBytes'], 64 * 1024);
 });
 

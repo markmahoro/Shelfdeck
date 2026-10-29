@@ -195,6 +195,9 @@
             "seasonNumber"
           ]
         },
+        "episodePlotPolicyRef": {
+          "const": "tmdb.episode-plot-language@1"
+        },
         "episodeMapping": {
           "type": "object",
           "additionalProperties": false,

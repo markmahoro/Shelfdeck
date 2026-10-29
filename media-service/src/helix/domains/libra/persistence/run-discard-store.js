@@ -484,7 +484,7 @@ function createRunDiscardStore(options) {
       workspace:snap.owner.workspace,built,controls:snap.controls};
   }
 
-  function commit(ready, reasonCode = 'user_cancelled', productEvidence = null) {
+  function commit(ready, reasonCode = 'user_cancelled', productEvidence = null, {readFence=null}={}) {
     if(ready?.kind!=='ready')fail('P9_DISCARD_COMMIT_INPUT','A fully inspected Discard decision is required.');
     const {command,run,head,manifest,workspace,built}=ready,decision=built.decision;
     const controlChanges=manifest.members.map((member)=>({identity:member.physicalIdentity,action:'release',
@@ -664,7 +664,14 @@ function createRunDiscardStore(options) {
             fail('P9_DISCARD_SUBJECT_CAS','Subject continuity changed during terminal closure.');}
       }});
     }
-    try{options.unitOfWork.execute(participants);return result;}catch(error){if(error instanceof Replay)return inspect(command);throw error;}
+    try{options.unitOfWork.execute(participants,{readFence});return result;}catch(error){
+      if(error instanceof Replay)return inspect(command);
+      if(error?.code==='P3_UOW_READ_FENCE_CHANGED'){
+        const replay=inspect(command);
+        if(replay.resultKind==='discarded')return replay;
+      }
+      throw error;
+    }
   }
 
   function readCommitted(actorId,idempotencyKey) {
@@ -679,4 +686,4 @@ function createRunDiscardStore(options) {
   return Object.freeze({inspect,commit,readCommitted,transactionId:TRANSACTION_ID});
 }
 
-module.exports=Object.freeze({LibraRunDiscardStoreError,createRunDiscardStore});
+module.exports=Object.freeze({LibraRunDiscardStoreError,createRunDiscardStore,reconstructManifest});

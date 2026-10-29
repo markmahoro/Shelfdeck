@@ -1189,6 +1189,81 @@ test('H1.2 provider operations execute through exact P5 ports and revision-fence
   }
 });
 
+test('MoviePilot availability preserves unknown counts and uses actual positive alternate fields', async () => {
+  const value = fixture(), state = { calls: [] }, fetchImpl = providerFetch(state);
+  const host = await createCleanServiceHost({ dataDir: value.dataDir, adminDistDir: value.adminDistDir, secretRoot,
+    integrationFetch: fetchImpl, now: () => 1_900_000_000_000 });
+  try { await configure(host, await session(host, value.initialized.adminApiKey), 'moviepilot', '-seeder-types'); }
+  finally { await host.close(); }
+  const opened = openServices(value, fetchImpl);
+  try {
+    for (const [index, fields, expectedCount] of [
+      [0, { seeders: null, seeders_count: 7 }, 7],
+      [1, { seeders: '', seeders_count: '8' }, 8],
+      [2, { seeders: false, seeders_count: 6 }, 6],
+      [3, { seeders: null }, null],
+      [4, { seeders: '  ' }, null],
+      [5, { seeders: true }, null],
+      [6, { seeders: '0x10' }, null],
+      [7, { seeders: 0, seeders_count: 20 }, 0],
+    ]) {
+      state.moviepilotSearchRows = [{ media_info: { title: 'Movie', year: '2024', tmdb_id: 100 },
+        meta_info: { name: 'Movie', year: '2024' }, torrent_info: { title: 'Movie.2024.2160p.HEVC.TrueHD',
+          enclosure: 'https://tracker.test/seeder-types-' + index, size: 1024, ...fields } }];
+      const result = await opened.services.executeProvider('moviepilot', { operationId: 'libra.external_material.search@1',
+        effectClass: 'pure_observation', idempotencyKey: 'seeder-types-' + index, timeoutMs: 5000,
+        input: { acquisitionQuery: acquisitionQuery(), limit: 25 } });
+      const candidate = result.result.candidates[0];
+      assert.equal(candidate.availabilityEvidence.seederCount, expectedCount, 'case ' + index);
+      assert.equal(candidate.availabilityEvidence.status, expectedCount === null ? 'unknown' : 'known', 'case ' + index);
+      assert.equal(candidate.availability, expectedCount > 0 ? 'available' : 'unavailable', 'case ' + index);
+    }
+    assert.equal(state.moviepilotDownloadAdds || 0, 0);
+  } finally { opened.kernel.close(); }
+});
+
+test('MoviePilot movie identity uses present alternate fields without hiding contradictory evidence', async () => {
+  const value=fixture(),state={calls:[]},fetchImpl=providerFetch(state);
+  const host=await createCleanServiceHost({dataDir:value.dataDir,adminDistDir:value.adminDistDir,secretRoot,
+    integrationFetch:fetchImpl,now:()=>1_900_000_000_000});
+  try{await configure(host,await session(host,value.initialized.adminApiKey),'moviepilot','-identity-fields');}finally{await host.close();}
+  const rows=[
+    {media_info:{title:'Movie',year:'',tmdb_id:''},meta_info:{year:'2024'}},
+    {media_info:{title:'Movie',year:'2024'},meta_info:{year:'2023'}},
+    {media_info:{title:'Movie',year:'2024',tmdb_id:'',tmdbid:100},meta_info:{year:'2024'}},
+    {media_info:{title:'Movie',year:'2024',tmdb_id:100,tmdbid:101},meta_info:{year:'2024'}},
+    {media_info:{title:'Movie',year:'2024',tmdb_id:100,tmdbid:'100'},meta_info:{year:'2024'}},
+    {media_info:{title:'Other',year:'2024'},meta_info:{year:'2024'}},
+    {media_info:{title:'Movie',year:'2023'},meta_info:{year:'2023'}},
+    {media_info:{title:'Movie',year:'2024',tmdb_id:100,type:'电视剧'},meta_info:{year:'2024'}},
+    {media_info:{title:'Movie',year:'2024',tmdb_id:100,type:'电影'},meta_info:{year:'2024',type:'tv'}},
+  ];
+  state.moviepilotSearchRows=rows.map((row,index)=>({...row,torrent_info:{title:'Movie.2024.2160p.HEVC.TrueHD',
+    enclosure:'https://tracker.test/identity-fields-'+index,size:1024,seeders:7}}));
+  const opened=openServices(value,fetchImpl);
+  try{
+    const result=await opened.services.executeProvider('moviepilot',{operationId:'libra.external_material.search@1',
+      effectClass:'pure_observation',idempotencyKey:'movie-identity-field-conflicts',timeoutMs:5000,
+      input:{acquisitionQuery:acquisitionQuery(),limit:25}});
+    assert.deepEqual(result.result.candidates.map(item=>item.availability),
+      ['available','unavailable','available','unavailable','available','unavailable','unavailable','unavailable','unavailable']);
+    assert.deepEqual(result.result.candidates.map(item=>item.identityAnchors.length),[0,0,1,2,1,0,0,0,0]);
+    const selectedCandidate=selectedCandidateFromSearch(result.result),original=state.moviepilotSearchRows[0];
+    for(const [index,change] of [
+      {...original,meta_info:{...original.meta_info,release_year:'2023'}},
+      {...original,media_info:{...original.media_info,tmdb_id:100,tmdbid:101}},
+      {...original,media_info:{...original.media_info,tmdb_id:true}},
+      {...original,media_info:{...original.media_info,tmdb_id:100,type:'tv'}},
+    ].entries()){
+      state.moviepilotSearchRows=[change];
+      await assert.rejects(()=>opened.services.executeProvider('moviepilot',{operationId:'libra.external_material.acquire.request@1',
+        effectClass:'external_request',idempotencyKey:'movie-identity-drift-'+index,timeoutMs:5000,
+        input:{acquisitionQuery:acquisitionQuery(),selectedCandidate}}),{code:'P5_PROVIDER_TRANSPORT_FAILED'});
+    }
+    assert.equal(state.moviepilotDownloadAdds||0,0);
+  }finally{opened.kernel.close();}
+});
+
 test('UAT-250 keeps all one hundred advertised candidates through the response and selection bounds',async()=>{
   const value=fixture(),state={calls:[]},fetchImpl=providerFetch(state);
   const host=await createCleanServiceHost({dataDir:value.dataDir,adminDistDir:value.adminDistDir,secretRoot,
