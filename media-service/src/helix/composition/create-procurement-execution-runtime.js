@@ -473,7 +473,11 @@ function createProcurementExecutionRuntime(options) {
     inspectFieldRoot: options.inspectFieldRoot });
   const workLifecycle = createWorkLifecycle({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
     nextWorkAttemptId: (workId, ordinal) => workId + ':attempt:' + ordinal,
-    onProcessCancelled: (scope) => executorIncidentObserver.reconcileRecoveryReservations(scope) });
+    onProcessCancelled: (scope) => {
+      executorIncidentObserver.reconcileRecoveryReservations(scope);
+      if(scope.ownerDomain==='perception'&&scope.processType==='perception_resolution'&&scope.processId.startsWith('subject:'))
+        options.onFormationSubjectChanged?.(scope.processId.slice('subject:'.length));
+    } });
   libraProcessServices=libraConstruction.createProcessServices({...libraOptions,peopleReferenceQuery,now,workResultReader,contractValidator,onLibraPriorityChanged:resourcePriorityBridge.refresh,
     onTaskCancellationChanged:subjectId=>options.onFormationSubjectChanged?.(subjectId),
     onWorkshopTransferred:(subjectId)=>{
@@ -950,6 +954,10 @@ function createProcurementExecutionRuntime(options) {
   }
   const domainReconciler = { async reconcile(request) {
     if(request.reconcilePhase==='attempt_terminal'){
+      if(request.ownerDomain==='perception'&&request.processType==='perception_resolution'&&
+          request.workAttemptState==='failed'&&request.workAttemptFailureCode==='P4_EXECUTION_INPUT_BASIS_SUPERSEDED'){
+        return {workId:request.workId,disposition:perceptionProcessServices.supersededResolutionDisposition(request.processId,request.workId)};
+      }
       if(request.ownerDomain==='libra'&&request.processType==='libra_intake'&&request.workKind==='acceptance'&&
           request.workAttemptState==='failed'&&request.workAttemptFailureCode==='P8_ACCEPTANCE_CONTINUITY_BASIS_STALE'){
         return {workId:request.workId,disposition:'replan'};
@@ -1098,6 +1106,12 @@ function createProcurementExecutionRuntime(options) {
       return {workId:request.workId,disposition:request.workAttemptState};
     }
     if(request.ownerDomain==='perception'&&request.processType==='perception_resolution'){
+      if(request.workAttemptState==='failed'&&request.workAttemptFailureCode==='P4_EXECUTION_INPUT_BASIS_SUPERSEDED'){
+        perceptionProcessServices.reconcileSupersededResolution(request.processId);
+      }
+      if(['failed','cancelled'].includes(request.workAttemptState)&&request.processId.startsWith('subject:')){
+        options.onFormationSubjectChanged?.(request.processId.slice('subject:'.length));
+      }
       if(request.workAttemptState==='succeeded'){
         perceptionProcessServices.reconcileResolution(request.processId);
         if(request.processId.startsWith('subject:')){

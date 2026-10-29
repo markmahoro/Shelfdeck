@@ -3,6 +3,7 @@
 const { fetch, ProxyAgent } = require('undici');
 const sharp = require('sharp');
 const crypto = require('node:crypto');
+const { failureDiagnostics } = require('../contracts/failure-diagnostics');
 const { canonicalDigest } = require('../contracts/canonical-json');
 const { assertJavQueryAnchor, JAV_SITES_BY_CLASS } = require('../contracts/jav-source-contracts');
 const { document, javDbCandidates, parseJavSourcePage } = require('./jav-source-pages');
@@ -167,7 +168,10 @@ function createJavSourceClient(options) {
     } catch (error) {
       if (error instanceof JavSourceError) { error.details = { ...error.details, stage }; throw error; }
       if (error.code === 'JAV_SOURCE_CHARSET_INVALID') fail(error.code, 'JAV source response charset is invalid.', { retryable: false, siteRef });
-      fail(controller.signal.aborted ? 'JAV_SOURCE_TIMEOUT' : 'JAV_SOURCE_UNAVAILABLE', 'JAV source observation did not complete.', { retryable: true, siteRef, stage });
+      const { networkCode } = failureDiagnostics(error);
+      fail(controller.signal.aborted ? 'JAV_SOURCE_TIMEOUT' : 'JAV_SOURCE_UNAVAILABLE', 'JAV source observation did not complete.', {
+        retryable: true, siteRef, stage, ...(networkCode ? { networkCode } : {}),
+      });
     } finally {
       clearTimeout(timer); value.signal?.removeEventListener('abort', cancel); await dispatcher?.close();
     }

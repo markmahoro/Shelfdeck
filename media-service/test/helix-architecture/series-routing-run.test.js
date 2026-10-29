@@ -293,7 +293,9 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
     translatedEpisodePlot:process.env.HELIX_SERIES_EPISODE_PLOT_TRANSLATION==='1',
     localEpisodeMissing:episodeMapping&&process.env.HELIX_SERIES_MAPPING_FROZEN==='1'}),providerCalls=[],artifactCalls=[],sharedArtifactCalls=[],appendCommitAudits=[],repairCommitAudits=[],offdeckCommitAudits=[];let unitOfWork,runtimeError,db,sharedRetryAttempted=false,sharedMaintenanceUnavailable=false,sharedRetirementFailure=false;
   let unreadableAlias=null,aliasReadAttempts=0,aliasInterruptions=0,unobservableReads=0;
-  const aliasRecoveryJourney=['1','transient'].includes(process.env.HELIX_SERIES_SHARED_UNREADABLE_ALIAS);
+  const manualAliasRetry=process.env.HELIX_SERIES_SHARED_UNREADABLE_ALIAS==='manual';
+  const aliasRecoveryJourney=['1','transient','manual'].includes(process.env.HELIX_SERIES_SHARED_UNREADABLE_ALIAS);
+  let failedAliasWork=null,failedAliasAttempt=null,failedAliasEffect=null,publishedAliasIdentity=null;
   if(aliasRecoveryJourney){
     const originalOpen=fs.openSync;
     t.mock.method(fs,'openSync',function(location,flags,...args){
@@ -351,6 +353,8 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
     if(aliasRecoveryJourney&&!unreadableAlias&&path.basename(value.location)==='tvshow.nfo'&&!value.location.replaceAll('\\','/').includes('/workspaces/aftercare/')){
       unreadableAlias=value.location+'.shelfdeck-'+value.byteDigest+'.partial';
       assert.equal(fs.statSync(unreadableAlias,{bigint:true}).ino,fs.statSync(value.location,{bigint:true}).ino);
+      publishedAliasIdentity=fs.statSync(value.location,{bigint:true});
+      if(manualAliasRetry)throw Object.assign(new Error('Injected terminal publication failure before redundant alias cleanup'),{code:'EPERM'});
       throw Object.assign(new Error('Injected interruption before redundant alias cleanup'),{code:'EIO'});
     }
     if(!process.env.HELIX_SERIES_SHARED_CRASH_ROOT)return;
@@ -741,10 +745,19 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
       const attempts=db.prepare("SELECT e.capability_ref,count(*) n,sum(a.finished_at_ms-a.started_at_ms) totalMs,max(a.finished_at_ms) lastFinishedAtMs FROM fx_event_attempts a JOIN fx_workflow_events e ON e.event_id=a.event_id WHERE a.finished_at_ms IS NOT NULL GROUP BY e.capability_ref").all();
       console.error(JSON.stringify({seriesHostProgress:{elapsedMs:Date.now()-diagnosticStart,events,attempts}}));
     }
-    if((process.env.HELIX_SERIES_SHARED_RETRY==='1'||process.env.HELIX_SERIES_SHARED_SUPPLEMENT==='1'||process.env.HELIX_SERIES_SHARED_WRITE_FAILURE)&&!sharedRetryAttempted&&state.works.some(row=>row.work_kind==='series_presentation'&&row.state==='failed')){
+    if((manualAliasRetry||process.env.HELIX_SERIES_SHARED_RETRY==='1'||process.env.HELIX_SERIES_SHARED_SUPPLEMENT==='1'||process.env.HELIX_SERIES_SHARED_WRITE_FAILURE)&&!sharedRetryAttempted&&state.works.some(row=>row.work_kind==='series_presentation'&&row.state==='failed')){
       const subject=db.prepare('SELECT subject_id FROM libra_runs').get().subject_id,detail=(await request('GET','/v1/admin/formation/'+subject)).json();
       assert.equal(detail.classification,'attention_required');assert.equal(detail.executorIssue.canRetry,true);if(process.env.HELIX_SERIES_SHARED_WRITE_FAILURE)assert.equal(detail.executorIssue.canSupplyImages,process.env.HELIX_SERIES_SHARED_WRITE_FAILURE!=='publish');
       assert.equal(db.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n,0);
+      if(manualAliasRetry){
+        failedAliasWork=db.prepare("SELECT * FROM fx_supporting_works WHERE work_kind='series_presentation' AND state='failed'").get();
+        failedAliasAttempt=db.prepare("SELECT a.* FROM fx_event_attempts a JOIN fx_workflow_events e ON e.event_id=a.event_id WHERE e.work_id=? AND e.capability_ref='arca.series_presentation.files.publish@1'").get(failedAliasWork.work_id);
+        assert.equal(failedAliasAttempt.outcome_kind,'failed');
+        failedAliasEffect=db.prepare('SELECT * FROM fx_effect_journal WHERE event_attempt_id=?').get(failedAliasAttempt.event_attempt_id);
+        assert.equal(failedAliasEffect.state,'failed');
+        assert.ok(sources.every(file=>fs.existsSync(file)),'Publication failure must retain the controlled sources before authorized settlement.');
+        assert.equal(fs.statSync(unreadableAlias,{bigint:true}).ino,publishedAliasIdentity.ino);
+      }
       sharedRetryAttempted=true;const supplementalImages=process.env.HELIX_SERIES_SHARED_WRITE_FAILURE==='workspace-source-loss'?[{artifactKind:'fanart',bytesBase64:(await sharp({create:{width:120,height:80,channels:3,background:'#443322'}}).jpeg().toBuffer()).toString('base64')}]:process.env.HELIX_SERIES_SHARED_SUPPLEMENT==='1'?[{artifactKind:'poster',bytesBase64:poster.toString('base64')},
         {artifactKind:'fanart',bytesBase64:(await sharp({create:{width:120,height:80,channels:3,background:'#443322'}}).jpeg().toBuffer()).toString('base64')}]:null;
       if(process.env.HELIX_SERIES_SHARED_BROWSER==='1')sharedBrowserFlow=await require('../fixtures/series-shared-retry-browser').retry({host,apiKey:initialized.adminApiKey,poster,
@@ -1346,16 +1359,27 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
     assert.equal(control.owner_scope_type,'series_presentation');assert.equal(control.owner_scope_id,sharedScope.scope_id);}
   assert.equal(require('../../src/helix/integrations/series-presentation-io').nfoIdentity(fs.readFileSync(path.join(sharedScope.root_location,'tvshow.nfo'))),'1399');
   if(aliasRecoveryJourney){
-    assert.ok(unreadableAlias);assert.equal(fs.existsSync(unreadableAlias),false);assert.equal(aliasReadAttempts,0);assert.equal(aliasInterruptions,1);
+    assert.ok(unreadableAlias);assert.equal(fs.existsSync(unreadableAlias),false);assert.equal(aliasReadAttempts,0);assert.equal(aliasInterruptions,manualAliasRetry?0:1);
     assert.equal(db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n,1);
-    assert.equal(db.prepare("SELECT count(*) n FROM fx_supporting_works WHERE work_kind='series_presentation' AND state='failed'").get().n,0);
+    assert.equal(db.prepare("SELECT count(*) n FROM fx_supporting_works WHERE work_kind='series_presentation' AND state='failed'").get().n,manualAliasRetry?1:0);
+    assert.equal(fs.statSync(path.join(sharedScope.root_location,'tvshow.nfo'),{bigint:true}).ino,publishedAliasIdentity.ino);
+    if(manualAliasRetry){
+      assert.deepEqual(db.prepare('SELECT * FROM fx_supporting_works WHERE work_id=?').get(failedAliasWork.work_id),failedAliasWork);
+      assert.deepEqual(db.prepare('SELECT * FROM fx_event_attempts WHERE event_attempt_id=?').get(failedAliasAttempt.event_attempt_id),failedAliasAttempt);
+      assert.deepEqual(db.prepare('SELECT * FROM fx_effect_journal WHERE effect_id=?').get(failedAliasEffect.effect_id),failedAliasEffect);
+      assert.equal(db.prepare("SELECT count(*) n FROM fx_command_receipts WHERE command_contract='arca.series-presentation.retry@1'").get().n,1);
+    }
     assert.deepEqual(db.pragma('foreign_key_check'),[]);
     assert.equal(unobservableReads,process.env.HELIX_SERIES_SHARED_UNREADABLE_ALIAS==='transient'?3:0);
-    t.diagnostic(JSON.stringify({unreadableProducerAliasRecovered:true,aliasReadAttempts,unobservableReads,sharedRoles:3,onDeckCommits:1}));
+    t.diagnostic(JSON.stringify({unreadableProducerAliasRecovered:true,manualAliasRetry,failedHistoryPreserved:Boolean(failedAliasWork),aliasReadAttempts,unobservableReads,sharedRoles:3,onDeckCommits:1}));
   }
   assert.equal(sharedArtifactCalls.length,process.env.HELIX_SERIES_SHARED_SUPPLEMENT==='1'||process.env.HELIX_SERIES_LOCAL_SOURCE==='1'?0:process.env.HELIX_SERIES_SHARED_WRITE_FAILURE==='workspace'?8:4,process.env.HELIX_SERIES_LOCAL_SOURCE?JSON.stringify({basis:JSON.parse(db.prepare('SELECT basis_json FROM arca_series_presentation_builds LIMIT 1').get().basis_json),source:db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'series-source-%'").all().map(row=>JSON.parse(row.result_json))}):undefined);
   if(process.env.HELIX_SERIES_LOCAL_SOURCE){for(const file of localShowFiles)assert.deepEqual(fs.readFileSync(file.location),file.bytes);
-    const published=db.prepare('SELECT series_source_refs_json FROM proc_candidate_packages').get();assert.equal(JSON.parse(published.series_source_refs_json).references.length,3);
+    const published=db.prepare('SELECT series_source_refs_json FROM proc_candidate_packages').get(),sourceSet=JSON.parse(published.series_source_refs_json);
+    assert.equal(sourceSet.references.length,3);assert.equal(sourceSet.fieldRoot,access.rootLocation);
+    assert.equal(sourceSet.sourceRoot,path.dirname(source));
+    assert.ok(path.isAbsolute(sourceSet.fieldRoot)&&path.isAbsolute(sourceSet.sourceRoot));
+    assert.ok(sourceSet.references.every(ref=>path.isAbsolute(ref.location)&&path.dirname(ref.location)===sourceSet.sourceRoot));
     const basis=JSON.parse(db.prepare('SELECT basis_json FROM arca_series_presentation_builds ORDER BY created_at_ms LIMIT 1').get().basis_json);assert.equal(Boolean(basis.localSource),process.env.HELIX_SERIES_LOCAL_SOURCE==='1');
     if(basis.localSource){assert.equal(basis.localSource.providerKey,'1399');for(const member of sharedManifest.members){const original=localShowFiles.find(file=>path.basename(file.location)===path.basename(member.location)).bytes,expected=member.artifactKind==='nfo'?original:(await require('../../src/helix/integrations/series-presentation-io').imageBytes(original,member.artifactKind)).bytes;assert.deepEqual(fs.readFileSync(member.location),expected);}}}
   if(sharedRetryCommand){const before=canonicalDigest({builds:db.prepare('SELECT count(*) n FROM arca_series_presentation_builds').get().n,versions:db.prepare('SELECT count(*) n FROM arca_series_presentation_versions').get().n,works:db.prepare("SELECT work_id FROM fx_supporting_works WHERE work_kind='series_presentation' ORDER BY work_id").all(),commits:db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n});

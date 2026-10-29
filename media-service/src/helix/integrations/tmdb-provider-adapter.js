@@ -446,7 +446,9 @@ function validateMetadataResponse(value, profile = 'movie') {
       requireFields(item, ['title'], 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID');
       boundedString(item.title, 1024, 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID');
       boundedString(item.iso_3166_1, 16, 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID', true);
-      boundedString(item.type, 128, 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID', true);
+      // Provider type is descriptive and is not retained in alias Evidence.
+      // Its bytes are already bounded by the complete HTTP response limit.
+      boundedString(item.type, JSON_RESPONSE_MAX_BYTES, 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID', true);
     }
   }
   if (value.translations !== undefined) {

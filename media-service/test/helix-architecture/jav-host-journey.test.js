@@ -7,7 +7,7 @@ const {canonicalDigest}=require('../../src/helix/contracts/canonical-json');
 const {initializeCleanData}=require('../../scripts/helix-operational-safety');
 const {createCleanServiceHost}=require('../../src/clean-service-host');
 const secretRoot='jav-host-fixture-root-0123456789abcdef0123456789';
-async function journey(t,{operations=null,manual=false,manualFilenameStem=null,nfoRepair=false,posterRepair=false,fanartRepair=false,posterRepairFailure=false,posterRepairRecovery=false,correctedPosterRepair=false,parts=false,soloPart=null,incompatible=false,inputCodec='hevc',correctionAdmission=false,correctionWork=false,correctionProcessLoss=false,correctionOverlap=false,correctionAtomicCommit=false,correctionPeople=false,correctionPerception=false,correctionAdmin=false,correctionSourceFailure=false,correctionAssetsFailure=false,correctionCancelApi=false,correctionRecoveryCommand=false,correctionRecoveryContinue=false,correctionTerminalRecovery=false,correctionPublicRecovery=false,correctionPhaseFailure=null,correctionRepeatCancel=false,directoryCleanup=false,sourceCase=null}={}) {
+async function journey(t,{operations=null,manual=false,manualFilenameStem=null,nfoRepair=false,posterRepair=false,fanartRepair=false,posterRepairFailure=false,posterRepairRecovery=false,correctedPosterRepair=false,parts=false,soloPart=null,incompatible=false,inputCodec='hevc',correctionAdmission=false,correctionWork=false,correctionProcessLoss=false,correctionOverlap=false,correctionAtomicCommit=false,correctionPeople=false,correctionPerception=false,correctionAdmin=false,correctionSourceFailure=false,correctionAssetsFailure=false,correctionCancelApi=false,correctionRecoveryCommand=false,correctionRecoveryContinue=false,correctionTerminalRecovery=false,correctionPublicRecovery=false,correctionPhaseFailure=null,correctionRepeatCancel=false,directoryCleanup=false,sourceCase=null,sourceFailureEvidenceOnly=false}={}) {
   const expectedCode=sourceCase?.javCode||'IPX-177',expectedSite=sourceCase?.selectedSite||'javdb';
   const retirementLoss=['retirement','retirement_conflict'].includes(correctionProcessLoss);
   const cleanupLoss=['cleanup_uncommitted','cleanup_committed'].includes(correctionProcessLoss);
@@ -77,6 +77,14 @@ async function journey(t,{operations=null,manual=false,manualFilenameStem=null,n
     pendingEvents:db.prepare("SELECT capability_ref,state FROM fx_workflow_events WHERE state NOT IN ('succeeded','failed','skipped')").all(),
     works:db.prepare('SELECT work_id,work_kind,state FROM fx_supporting_works').all()});
   let deadline=Date.now()+20000;
+  if(sourceFailureEvidenceOnly){
+    const failure=()=>db.prepare("SELECT a.evidence_digest FROM fx_event_attempts a JOIN fx_workflow_events e ON e.event_id=a.event_id WHERE e.capability_ref='libra.product_identity.evidence.observe@1' AND a.failure_code='JAV_SOURCE_UNAVAILABLE' LIMIT 1").get();
+    while(Date.now()<deadline&&!runtimeError&&!failure())await new Promise(resolve=>setTimeout(resolve,100));
+    assert.equal(runtimeError,null,diagnostics());const attempt=failure();assert.ok(attempt?.evidence_digest,diagnostics());
+    const store=require('../../src/helix/integrations/failure-evidence-store').createFailureEvidenceStore(path.join(dataDir,'diagnostics','execution-failures'));
+    assert.deepEqual(store.read(attempt.evidence_digest).diagnostics,{stage:'page',statusCode:503});
+    return;
+  }
   if(incompatible) {
     const second=fs.readFileSync(secondVideoPath);
     while(Date.now()<deadline&&!runtimeError&&!db.prepare("SELECT libra_run_id FROM libra_runs WHERE state='frozen'").get())await new Promise(resolve=>setTimeout(resolve,100));
@@ -208,8 +216,10 @@ async function journey(t,{operations=null,manual=false,manualFilenameStem=null,n
     if(sourceCase.primaryDenied){
       const failed=db.prepare("SELECT w.work_id,a.failure_code FROM fx_supporting_works w JOIN fx_work_attempts a ON a.work_id=w.work_id WHERE w.process_type='libra_run' AND w.work_kind='product_identity' AND w.state='failed'").all();
       assert.equal(failed.length,1);assert.equal(failed[0].failure_code,sourceCase.primaryHttpStatus===503?'JAV_SOURCE_UNAVAILABLE':'JAV_SOURCE_ACCESS_DENIED');
-      if(sourceCase.primaryHttpStatus===503){const attempts=db.prepare("SELECT a.event_attempt_id,a.failure_code FROM fx_event_attempts a JOIN fx_workflow_events e ON e.event_id=a.event_id WHERE e.work_id=?").all(failed[0].work_id);
+      if(sourceCase.primaryHttpStatus===503){const attempts=db.prepare("SELECT a.event_attempt_id,a.failure_code,a.evidence_digest FROM fx_event_attempts a JOIN fx_workflow_events e ON e.event_id=a.event_id WHERE e.work_id=?").all(failed[0].work_id);
         assert.equal(attempts.length,3);assert.ok(attempts.every(attempt=>attempt.failure_code==='JAV_SOURCE_UNAVAILABLE'));
+        const failureStore=require('../../src/helix/integrations/failure-evidence-store').createFailureEvidenceStore(path.join(dataDir,'diagnostics','execution-failures'));
+        for(const attempt of attempts)assert.deepEqual(failureStore.read(attempt.evidence_digest).diagnostics,{stage:'page',statusCode:503});
       }
       const sourceBinding=db.prepare('SELECT input_bindings_json FROM fx_plan_nodes n JOIN fx_workflow_events e ON e.plan_id=n.plan_id AND e.node_id=n.node_id WHERE e.work_id=?').get(failed[0].work_id);
       assert.ok(sourceBinding);assert.equal(JSON.parse(sourceBinding.input_bindings_json).bindings.find(item=>item.portName==='productIdentityEvidenceIntent').parameters.javIntent.sourceOrdinal,0);
@@ -834,6 +844,8 @@ test('JAV public cancellation rejects forged or stale requests and permits a fre
 test('FC2 official access failure advances to one JavMenu source without mixing fields or producing duplicate media',{timeout:120000},t=>journey(t,{sourceCase:{
   javCode:'FC2-718323',filenameStem:'FC2-PPV-718323',sites:['fc2_official','javmenu'],selectedSite:'javmenu',title:'Fixture FC2 fallback film',primaryDenied:true}}));
 test('FC2 temporary unavailability exhausts its bounded retries before choosing one complete JavMenu source',{timeout:120000},t=>journey(t,{sourceCase:{
+  javCode:'FC2-718323',filenameStem:'FC2-PPV-718323',sites:['fc2_official','javmenu'],selectedSite:'javmenu',title:'Fixture FC2 fallback film',primaryDenied:true,primaryHttpStatus:503}}));
+test('JAV Host persists safe page failure diagnostics for the actual source attempt',{timeout:60000},t=>journey(t,{sourceFailureEvidenceOnly:true,sourceCase:{
   javCode:'FC2-718323',filenameStem:'FC2-PPV-718323',sites:['fc2_official','javmenu'],selectedSite:'javmenu',title:'Fixture FC2 fallback film',primaryDenied:true,primaryHttpStatus:503}}));
 for(const sourceCase of [
   {javCode:'FC2-718323',filenameStem:'FC2-PPV-718323',sites:['fc2_official'],selectedSite:'fc2_official',credit:{name:'Fixture Seller',role:'seller'}},

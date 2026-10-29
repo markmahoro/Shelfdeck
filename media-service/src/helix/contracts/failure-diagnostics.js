@@ -25,6 +25,8 @@ function clean(value, limit) {
 }
 function failureDiagnostics(error) {
   const details = error?.details || {}, result = {};
+  const javSource = error?.name === 'JavSourceError' &&
+    typeof error?.code === 'string' && /^JAV_SOURCE_[A-Z0-9_]+$/.test(error.code);
   if (INVOCATION_CAUSE_CODES.has(details.causeCode)) result.causeCode = details.causeCode;
   for (const key of ['reasonCode','field']) {
     const value = clean(details[key], 96);
@@ -48,9 +50,11 @@ function failureDiagnostics(error) {
       result.truncated = result.truncated === true || result.conflictCount > conflicts.length;
     }
   }
-  if (['json_request','image_request'].includes(details.stage)) result.stage = details.stage;
-  if (Number.isInteger(details.statusCode) && details.statusCode >= 100 && details.statusCode <= 599)
-    result.statusCode = details.statusCode;
+  if (['json_request','image_request'].includes(details.stage) ||
+      (javSource && ['page','cover'].includes(details.stage))) result.stage = details.stage;
+  const statusCode = details.statusCode === undefined && javSource ? details.status : details.statusCode;
+  if (Number.isInteger(statusCode) && statusCode >= 100 && statusCode <= 599)
+    result.statusCode = statusCode;
   if (error?.code === 'LIBRA_MEDIA_FFMPEG_TIMEOUT') {
     if (details.stage === 'playback_decode') result.stage = details.stage;
     for (const key of ['elapsedMs','timeoutMs','stallTimeoutMs','stderrBytes']) {
@@ -60,7 +64,7 @@ function failureDiagnostics(error) {
   }
   const code = details.networkCode || error?.cause?.code || error?.code;
   if (NETWORK_CODES.has(code)) result.networkCode = code;
-  if (details.timeout === true) result.timeout = true;
+  if (details.timeout === true || (javSource && error.code === 'JAV_SOURCE_TIMEOUT')) result.timeout = true;
   return Object.freeze(result);
 }
 module.exports = Object.freeze({ failureDiagnostics });

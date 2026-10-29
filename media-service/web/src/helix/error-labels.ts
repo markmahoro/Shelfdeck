@@ -84,6 +84,7 @@ export function processFailureLabel(code: string, message?: string) {
     ARCA_SERIES_TARGET_CONFLICT:'目标位置已有不同的剧集资料',
     ARCA_SERIES_SOURCE_STALE:'剧集资料来源配置已变化',
     P4_OBSERVATION_RESULT_STORAGE_BOUND_EXCEEDED: '返回的信息超出处理上限',
+    P4_EVENT_RECOVERY_OBSERVATION_UNAVAILABLE: '未能在规定时间内核对文件状态',
     RECOVERY_EXECUTION_BUDGET_EXHAUSTED: '恢复处理超过允许时长',
     CLEAN_ARCA_STAGE_TARGET_OCCUPIED: '写入目标已被占用',
     PRODUCT_IDENTITY_EDITION_REQUIRED:'无法从来源确定版本名，请手动指定版本名',

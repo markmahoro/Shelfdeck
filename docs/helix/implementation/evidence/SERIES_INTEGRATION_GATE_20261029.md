@@ -113,3 +113,9 @@ Series线程随后在基线a2bf和bc4隔离环境以同inode/同字节重建复�
 补齐一次性tmpfs与隔离开关后，4774实际镜像Linux Service完整重跑853通过/0失败/28跳过；跳过的真实媒体或专用夹具不作为通过。日志`linux-service-4774a7e90-retry.log` SHA256 `fc582d72882409ac747a43086093095a71d762edb2cf4f239cd6685e3231e0a5`。这不覆盖完整架构、CIFS或UI失败，也不推翻首轮记录。
 
 UI负责人对精确4774报告**FAIL**：受控注入同basis评分Resolution重试耗尽后，Decision为failed，单条/批量评分投影仍为pending，实际镜像Web显示“正在匹配豆瓣评分”。报告`E:/my_project/helix-git-consolidation-20261008/series-ui-review-4774a7e905-20261029/owner-review.json`；该注入不证明真实Host自然到达该终态或生产受影响。Perception修复线程正在补真实Host、评分投影与Decision当前性一致性及性能保护；后继版本须重新接受具体版本UI核验，4774不得发布。电影`db824ddb3`返焦开发版经UI负责人独立复核通过，报告`E:/my_project/helix-git-consolidation-20261008/movie-ui-precheck-db824ddb3-20261029/owner-review.json`，不等于最终镜像验收。
+
+## 2026-10-29 主整合交叉检查点
+
+固定待提交tree `23b114916969c167f5bc186833bf2298515746a0`合并`02599a1cc`与`f253017d2`，冲突中的Series合同均与主线已有对应段落逐字一致，保留原位置并合并双方测试；按合并SSOT重新生成source map和Result inventory。Windows本机包边界、语义、Manifest、P2静态检查及P2定向3项通过；隔离Linux Foundation/演员Observation相关148项、Series共享资料/Perception/失败诊断62项通过。日志为ignored `merge-actor-foundation-linux.log`和`merge-short-regression-linux.log`。
+
+首个合并回归命令意外包括整个Series全Host矩阵；在37项通过后主动停止，仅作为未完成的首轮记录，不记为完整通过。后续定向TMDB 2项通过（其余9项按名称跳过），Series人工重试的真实隔离Host 1项通过（其余29项按名称跳过），复用原失败历史并形成唯一On-deck Commit；日志分别为`merge-tmdb-focused-linux.log`和`merge-series-manual-host-linux.log`。这些不等于完整Host矩阵；最终完整功能、Reset数据闭包及生产门禁没有通过结论。JAV长标题候选的三个真实中断窗口尚未恢复，详见Series线程独立Evidence，不可将该候选作为发布合格。

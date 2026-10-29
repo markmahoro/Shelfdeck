@@ -4,6 +4,10 @@
 
 2026-10-29 用户同意恢复演员、电影、剧集和 UI 负责人既有线程并行；本线程负责整合及 Reset/发布。Series线程确认其切片已进入候选并承接JAV长名，电影与演员正式闭环仍待完成；UI正在对中间版本提前反馈，最终合版须另行复核。下方相反的发布顺序、无Reset授权和CIFS门槛均为历史时点记录。
 
+2026-10-29 主整合已将Series候选`f253017d2`与演员Observation、Reset基线合并到固定待提交tree `23b114916969c167f5bc186833bf2298515746a0`；包边界、语义、Manifest、P2静态检查及P2定向3项通过。合并后的Foundation/演员Observation隔离Linux 148项、Series共享资料/Perception/诊断62项通过；不等于最终版本验收。UI负责人对`2a58c1606`的开发预检通过（US浏览器64项、Series浏览器56项），最终混合版本仍须复核。
+
+JAV长标题候选`619ffc464`的真实Linux Host在Stage写完回执前、Stage提交后Verify前、Placement写完回执前三处中断后均未完成原责任恢复；文件保留且无On-deck Commit不等于成功。Series线程正按既有Arca边界修复并复验，当前阻断上线。演员People/Cast合同已进入独立实现，新增数据结构将要求重新审查最终Reset保留和旧生产结构转换；电影端到端仍在开发。
+
 演员Observation检查点`28a6e4f43`已基于主整合既有暂存状态叠加，保留本整合的`face_catalogue_observation`类型；隔离Linux的真实Event/恢复及Workspace相关52项、四项静态检查通过。视频帧、模型和目录输入仍含fixture，正式Host、People/Cast及入藏闭环未完成。演员线程正在继续，并提出目录选择、系统建档和People Reset依赖的机器合同需求，须按既有Owner边界传播。
 
 Series候选的Perception Planner越界已在`f253017d2`收口，实际判断和错误类型不变；隔离Linux相关45项及静态检查通过。主整合已持有JAV截短SSOT `3e707a033`，系列独立候选尚未合入该合同；JAV正式实现、固定版本Host/冲突/中断证据仍在进行。

@@ -5,14 +5,10 @@ const { normalizeAlias, splitTitleYear, titleAliases, titleAssociationAliases } 
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { createAcquisition, createCursor, createRecord, createRelation, createResolution, createSource } = require('../model/perception-store-contracts');
+const { PerceptionStoreError, RESOLUTION_RESULT_SCHEMA, validateResolutionCommit } = require('../model/perception-resolution-fence');
 
 const RECORD_COMMIT_RESULT_SCHEMA = 'helix://contracts/types/PerceptionRecordCommitResult/v1';
-const RESOLUTION_DRAFT_SCHEMA = 'helix://contracts/types/PerceptionResolutionDraft/v1';
-const RESOLUTION_RESULT_SCHEMA = 'helix://contracts/types/PerceptionResolutionRevision/v1';
 
-class PerceptionStoreError extends Error {
-  constructor(code, message, details = {}) { super(message); this.name = 'PerceptionStoreError'; this.code = code; this.details = details; }
-}
 function fail(code, message, details) { throw new PerceptionStoreError(code, message, details); }
 function exact(value, keys, code) { if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).length !== keys.length || keys.some((key) => !Object.hasOwn(value, key))) fail(code, 'Perception Store input does not match its closed contract.'); }
 function readChunks(repo, statement, values, parameters = {}) {
@@ -90,6 +86,49 @@ function createPerceptionStore(options) {
     Object.freeze({ component: 'PerceptionRecordRepository', repositoryId: records.repositoryId, tableIds: records.tableIds }),
     Object.freeze({ component: 'PerceptionResolutionRepository', repositoryId: resolutions.repositoryId, tableIds: resolutions.tableIds })
   ]) });
+
+  function collectResolutionCandidates(repo,query,ruleSnapshot,batchIndex=null) {
+    const ids=new Set(),pendingLookups=[];
+    const usesLookup=clause=>['title','title_year'].includes(clause.anchorKind)||clause.lookupMode==='normalized_exact';
+    if(ruleSnapshot.candidateRetrievalClauses.some(clause=>usesLookup(clause)&&query.identityEvidence.some(item=>item.anchorKind===clause.anchorKind))){
+      const heads=canonicalJson(repo.invoke('read_record_heads',{}).sort((a,b)=>a.perception_source_id.localeCompare(b.perception_source_id)));
+      if(heads!==candidateHeads){candidateLookups.clear();candidateHeads=heads;}
+    }
+    for(const clause of ruleSnapshot.candidateRetrievalClauses){
+      const evidence=query.identityEvidence.filter((item)=>item.anchorKind===clause.anchorKind);
+      if(evidence.length===0) continue;
+      const lookupKey=usesLookup(clause)?canonicalJson({clause,evidence}):null,cached=lookupKey===null?undefined:candidateLookups.get(lookupKey);
+      if(cached){for(const id of cached)ids.add(id);continue;}
+      const candidates=batchIndex?.candidates(clause,evidence)??(clause.anchorKind==='title'
+        ? [...repo.invoke('find_anchors_by_kind',{anchor_kind:'title'}),...repo.invoke('find_anchors_by_kind',{anchor_kind:'title_year'})]
+        : clause.anchorKind!=='title_year'&&clause.lookupMode==='exact'
+          ? readChunks(repo,'find_anchor_targets',evidence.map(item=>item.anchorValue),{anchor_kind:clause.anchorKind})
+          : repo.invoke('find_anchors_by_kind',{anchor_kind:clause.anchorKind}));
+      const normalizedEvidence=['title','title_year'].includes(clause.anchorKind)?new Set(evidence.map(item=>normalizeAlias(item.anchorValue))):null;
+      const normalizedMatchValues=clause.anchorKind!=='title_year'&&clause.lookupMode==='normalized_exact'&&candidates.length
+        ?new Set(evidence.map(item=>normalizeAnchor(item.anchorValue,clause.normalizationProfileRef))):null;
+      const matches=candidates.filter((anchor)=>{
+        if(clause.anchorKind==='title'&&anchor.anchor_kind==='title_year'){
+          const parsed=splitTitleYear(anchor.anchor_value),title=parsed?parsed.title:String(anchor.anchor_value||'');
+          return titleAssociationAliases(title,{providerDelimited:true}).some(alias=>normalizedEvidence.has(normalizeAlias(alias)));
+        }
+        if(normalizedMatchValues)return normalizedMatchValues.has(normalizeAnchor(anchor.anchor_value,clause.normalizationProfileRef));
+        if(clause.anchorKind!=='title_year')return evidence.some((item)=>anchorValuesMatch(item.anchorValue,anchor.anchor_value,clause.lookupMode,clause.normalizationProfileRef,clause.threshold));
+        const parsed=splitTitleYear(anchor.anchor_value);
+        return Boolean(parsed&&titleAliases(parsed.title,{providerDelimited:true}).some(alias=>normalizedEvidence.has(normalizeAlias(alias+'\0'+parsed.year))));
+      });
+      const clauseIds=[...new Set(matches.map((item)=>item.perception_id))].sort();
+      if(clauseIds.length>clause.maxCandidates) fail('P6_PERCEPTION_CANDIDATE_CLAUSE_OVERFLOW','Candidate retrieval clause exceeded its declared bound.');
+      clauseIds.forEach((id)=>ids.add(id));
+      if(lookupKey!==null)pendingLookups.push([lookupKey,Object.freeze(clauseIds)]);
+    }
+    if(ids.size>ruleSnapshot.maxCandidateRecords) fail('P6_PERCEPTION_CANDIDATE_SET_OVERFLOW','Candidate Record set exceeded the frozen Rule bound.');
+    const values=[...ids].sort().map((id)=>mapRecord(repo,id));
+    const related=ids.size?(batchIndex?.relations(ids)||repo.invoke('list_relations').filter((row)=>ids.has(row.source_perception_id)||ids.has(row.target_perception_id))).map(mapRelationRow):[];
+    if(related.length>1024) fail('P6_PERCEPTION_RELATION_SET_OVERFLOW','Candidate relation set exceeded 1024.');
+    for(const [key,value] of pendingLookups){if(candidateLookups.size>=256)candidateLookups.delete(candidateLookups.keys().next().value);candidateLookups.set(key,value);}
+    return Object.freeze({records:Object.freeze(values),relations:Object.freeze(related)});
+  }
 
   return Object.freeze({ repositoryManifest,
     registerSource(input) {
@@ -246,60 +285,49 @@ function createPerceptionStore(options) {
         return Object.freeze({queryInputDigest:resolution.queryInputDigest,resolution,winner});
       }));
     }); },
-    readResolutionCandidates(query, ruleSnapshot) { return execute([records], (context) => {
-      const repo=context.repository(records.repositoryId); const ids=new Set(),pendingLookups=[];
-      const usesLookup=clause=>['title','title_year'].includes(clause.anchorKind)||clause.lookupMode==='normalized_exact';
-      if(ruleSnapshot.candidateRetrievalClauses.some(clause=>usesLookup(clause)&&query.identityEvidence.some(item=>item.anchorKind===clause.anchorKind))){
-        const heads=canonicalJson(repo.invoke('read_record_heads',{}).sort((a,b)=>a.perception_source_id.localeCompare(b.perception_source_id)));
-        if(heads!==candidateHeads){candidateLookups.clear();candidateHeads=heads;}
-      }
-      for(const clause of ruleSnapshot.candidateRetrievalClauses){
-        const evidence=query.identityEvidence.filter((item)=>item.anchorKind===clause.anchorKind);
-        if(evidence.length===0) continue;
-        const lookupKey=usesLookup(clause)?canonicalJson({clause,evidence}):null,cached=lookupKey===null?undefined:candidateLookups.get(lookupKey);
-        if(cached){for(const id of cached)ids.add(id);continue;}
-        const candidates=clause.anchorKind==='title'
-          ? [...repo.invoke('find_anchors_by_kind',{anchor_kind:'title'}),
-            ...repo.invoke('find_anchors_by_kind',{anchor_kind:'title_year'})]
-          : clause.anchorKind!=='title_year'&&clause.lookupMode==='exact'
-            ? readChunks(repo,'find_anchor_targets',evidence.map(item=>item.anchorValue),{anchor_kind:clause.anchorKind})
-            : repo.invoke('find_anchors_by_kind',{anchor_kind:clause.anchorKind});
-        const normalizedEvidence=['title','title_year'].includes(clause.anchorKind)
-          ?new Set(evidence.map(item=>normalizeAlias(item.anchorValue))):null;
-        // Normalize query evidence once per clause, not once per candidate pair.
-        // This set exists only for this read; selected Records are never cached.
-        const normalizedMatchValues=clause.anchorKind!=='title_year'&&clause.lookupMode==='normalized_exact'&&candidates.length
-          ?new Set(evidence.map(item=>normalizeAnchor(item.anchorValue,clause.normalizationProfileRef))):null;
-        const matches=candidates.filter((anchor)=>{
-          if(clause.anchorKind==='title'&&anchor.anchor_kind==='title_year'){
-            const parsed=splitTitleYear(anchor.anchor_value),title=parsed?parsed.title:String(anchor.anchor_value||'');
-            // Retrieval needs alias values only; selected Records still receive full
-            // digest-bound alias Evidence in the Resolution Input Assembler.
-            return titleAssociationAliases(title,{providerDelimited:true})
-              .some(alias=>normalizedEvidence.has(normalizeAlias(alias)));
+    readResolutionCandidates(query,ruleSnapshot) {return execute([records],context=>collectResolutionCandidates(context.repository(records.repositoryId),query,ruleSnapshot));},
+    readResolutionCandidatesBatch(queries,ruleSnapshot) {
+      if(!Array.isArray(queries)||queries.length>100)fail('P6_PERCEPTION_QUERY_BATCH_BOUND','A Resolution candidate batch permits at most 100 queries.');
+      if(!queries.length)return Object.freeze([]);
+      return execute([records],context=>{
+        const raw=context.repository(records.repositoryId),cache=new Map(),shared=new Set(['read_record_heads','find_anchors_by_kind','list_relations','find_record','find_anchors']);
+        const repo={invoke(name,parameters){if(!shared.has(name))return raw.invoke(name,parameters);
+          const key=canonicalJson({name,parameters:parameters||{}});if(!cache.has(key))cache.set(key,raw.invoke(name,parameters));return cache.get(key);}};
+        const indexes=new Map();let relationIndex;
+        const add=(index,key,row)=>{const values=index.get(key)||[];values.push(row);index.set(key,values);};
+        const batchIndex={candidates(clause,evidence){
+          if(clause.anchorKind!=='title_year'&&clause.lookupMode!=='normalized_exact')return null;
+          const key=canonicalJson({kind:clause.anchorKind,profile:clause.normalizationProfileRef||null});let index=indexes.get(key);
+          if(!index){index=new Map();const anchors=clause.anchorKind==='title'
+            ?[...repo.invoke('find_anchors_by_kind',{anchor_kind:'title'}),...repo.invoke('find_anchors_by_kind',{anchor_kind:'title_year'})]
+            :repo.invoke('find_anchors_by_kind',{anchor_kind:clause.anchorKind});
+            for(const anchor of anchors){
+              if(clause.anchorKind==='title'&&anchor.anchor_kind==='title_year'){
+                const parsed=splitTitleYear(anchor.anchor_value),title=parsed?parsed.title:String(anchor.anchor_value||'');
+                for(const alias of titleAssociationAliases(title,{providerDelimited:true}))add(index,'alias:'+normalizeAlias(alias),anchor);
+              }else if(clause.anchorKind==='title_year'){
+                const parsed=splitTitleYear(anchor.anchor_value);if(parsed)for(const alias of titleAliases(parsed.title,{providerDelimited:true}))add(index,'alias:'+normalizeAlias(alias+'\0'+parsed.year),anchor);
+              }else add(index,'normalized:'+normalizeAnchor(anchor.anchor_value,clause.normalizationProfileRef),anchor);
+            }
+            indexes.set(key,index);
           }
-          if(normalizedMatchValues)return normalizedMatchValues.has(normalizeAnchor(anchor.anchor_value,clause.normalizationProfileRef));
-          if(clause.anchorKind!=='title_year')return evidence.some((item)=>anchorValuesMatch(item.anchorValue,anchor.anchor_value,clause.lookupMode,clause.normalizationProfileRef,clause.threshold));
-          const parsed=splitTitleYear(anchor.anchor_value);
-          return Boolean(parsed&&titleAliases(parsed.title,{providerDelimited:true})
-            .some(alias=>normalizedEvidence.has(normalizeAlias(alias+'\0'+parsed.year))));
-        });
-        const clauseIds=[...new Set(matches.map((item)=>item.perception_id))].sort();
-        if(clauseIds.length>clause.maxCandidates) fail('P6_PERCEPTION_CANDIDATE_CLAUSE_OVERFLOW','Candidate retrieval clause exceeded its declared bound.');
-        clauseIds.forEach((id)=>ids.add(id));
-        if(lookupKey!==null)
-          pendingLookups.push([lookupKey,Object.freeze(clauseIds)]);
-      }
-      if(ids.size>ruleSnapshot.maxCandidateRecords) fail('P6_PERCEPTION_CANDIDATE_SET_OVERFLOW','Candidate Record set exceeded the frozen Rule bound.');
-      const values=[...ids].sort().map((id)=>mapRecord(repo,id));
-      const related=ids.size?repo.invoke('list_relations').filter((row)=>ids.has(row.source_perception_id)||ids.has(row.target_perception_id)).map(mapRelationRow):[];
-      if(related.length>1024) fail('P6_PERCEPTION_RELATION_SET_OVERFLOW','Candidate relation set exceeded 1024.');
-      for(const [key,value] of pendingLookups){
-        if(candidateLookups.size>=256)candidateLookups.delete(candidateLookups.keys().next().value);
-        candidateLookups.set(key,value);
-      }
-      return Object.freeze({ records:Object.freeze(values), relations:Object.freeze(related) });
-    }); },
+          const found=new Set();for(const item of evidence){
+            const keys=clause.anchorKind==='title_year'?['alias:'+normalizeAlias(item.anchorValue)]
+              :['normalized:'+normalizeAnchor(item.anchorValue,clause.normalizationProfileRef),...(clause.anchorKind==='title'?['alias:'+normalizeAlias(item.anchorValue)]:[])];
+            for(const lookup of keys)for(const row of index.get(lookup)||[])found.add(row);
+          }
+          return [...found];
+        },relations(ids){
+          if(!relationIndex){const rows=repo.invoke('list_relations');relationIndex={byId:new Map(),order:new Map()};rows.forEach((row,index)=>{
+            relationIndex.order.set(row,index);add(relationIndex.byId,row.source_perception_id,row);
+            if(row.source_perception_id!==row.target_perception_id)add(relationIndex.byId,row.target_perception_id,row);
+          });}
+          const found=new Set();for(const id of ids)for(const row of relationIndex.byId.get(id)||[])found.add(row);
+          return [...found].sort((left,right)=>relationIndex.order.get(left)-relationIndex.order.get(right));
+        }};
+        return Object.freeze(queries.map(query=>collectResolutionCandidates(repo,query,ruleSnapshot,batchIndex)));
+      });
+    },
     createResolutionCommitParticipant(handle, draft) {
       validateResolutionCommit(handle, draft);
       return Object.freeze({ participantId:'perception_resolution_commit', owner:'perception', repositories:[records, resolutions],
@@ -334,39 +362,6 @@ function createPerceptionStore(options) {
     },
     getResolution(queryContract, queryInputDigest) { return execute([resolutions], (context) => { const repo = context.repository(resolutions.repositoryId); const head = repo.invoke('find_head', { query_contract: queryContract, query_input_digest: queryInputDigest }); return head ? mapResolution(repo.invoke('find_resolution', { resolution_id: head.current_resolution_id })) : undefined; }); }
   });
-}
-
-function validateResolutionCommit(handle, draft) {
-  const requiredKeys = ['schemaRef','schemaVersion','draftId','draftKind','basisDigest','draftDigest','producedAtMs',
-    'queryContract','querySchemaRef','queryInputDigest','factKind','recordSetDigest','ruleRevision','ruleDigest',
-    'resultKind','duplicateRelationDrafts'];
-  const optionalKeys = ['winningPerceptionId','resolvedValue','resolvedProvenance','reasonCode'];
-  const body = draft && Object.fromEntries(Object.entries(draft).filter(([key]) => !['schemaRef','schemaVersion','draftId','draftKind','basisDigest','draftDigest','producedAtMs'].includes(key)));
-  const found = draft?.resultKind === 'found';
-  const foundFields = draft && ['winningPerceptionId','resolvedValue','resolvedProvenance'].every((key) => Object.hasOwn(draft,key));
-  const notFoundFields = draft && Object.hasOwn(draft,'reasonCode');
-  if (!handle || handle.ownerDomain !== 'perception' || handle.aggregateType !== 'perception-resolution' ||
-      handle.factType !== 'PerceptionResolutionDraft' || handle.factSchemaRef !== RESOLUTION_DRAFT_SCHEMA ||
-      handle.resultSchemaRef !== RESOLUTION_RESULT_SCHEMA || !draft || draft.schemaRef !== RESOLUTION_DRAFT_SCHEMA ||
-      draft.schemaVersion !== 1 || draft.draftKind !== 'perception_resolution' ||
-      requiredKeys.some((key) => !Object.hasOwn(draft, key)) || Object.keys(draft).some((key) => !requiredKeys.includes(key) && !optionalKeys.includes(key)) ||
-      draft.draftDigest !== canonicalDigest(body) ||
-      handle.aggregateId !== 'perception-resolution:' + canonicalDigest({
-        queryContract:draft.queryContract, queryInputDigest:draft.queryInputDigest
-      }) || handle.payloadDigest !== canonicalDigest(draft) || !Array.isArray(draft.duplicateRelationDrafts) ||
-      draft.duplicateRelationDrafts.length > 1024 || !Number.isSafeInteger(draft.ruleRevision) || draft.ruleRevision < 1 ||
-      !['rating','watched'].includes(draft.factKind) || !['found','not_found'].includes(draft.resultKind) ||
-      (found ? (!foundFields || notFoundFields) : (foundFields || !notFoundFields || !['no_matching_record','requested_fact_absent','strongest_value_conflict'].includes(draft.reasonCode))) ||
-      (found && (draft.resolvedValue?.factKind !== draft.factKind || draft.resolvedProvenance?.winningPerceptionId !== draft.winningPerceptionId))) {
-    fail('P6_PERCEPTION_RESOLUTION_COMMIT_MISMATCH', 'Resolution Commit Handle does not fence the exact typed Resolution Draft.');
-  }
-  for (const relation of draft.duplicateRelationDrafts) {
-    if (!relation || Object.keys(relation).length !== 4 ||
-        ['sourcePerceptionId','targetPerceptionId','ruleRevision','evidenceDigest'].some((key) => !Object.hasOwn(relation, key)) ||
-        relation.sourcePerceptionId >= relation.targetPerceptionId || relation.ruleRevision !== draft.ruleRevision) {
-      fail('P6_PERCEPTION_DUPLICATE_RELATION_INVALID', 'Duplicate relation pairs must be normalized and use the frozen Resolution rule revision.');
-    }
-  }
 }
 
 function commitResolution(recordRepo, resolutionRepo, result, draft, expectedRevision, now) {
@@ -591,4 +586,4 @@ const resolutionRow=(v,draft,now)=>({resolution_id:v.factId,query_contract:v.que
 const headRow=(v,t)=>({query_contract:v.queryContract,query_input_digest:v.queryInputDigest,current_resolution_id:v.resolutionId,current_revision:v.revision,updated_at_ms:t});
 function mapResolution(r) { if(!r)return undefined; let result; try{result=JSON.parse(r.result_json);}catch{fail('P6_PERCEPTION_STORED_RESOLUTION_INVALID','Stored Resolution is not valid JSON.');} if(r.result_schema_ref!==RESOLUTION_RESULT_SCHEMA||result.schemaRef!==RESOLUTION_RESULT_SCHEMA||canonicalJson(result)!==r.result_json||canonicalDigest(result)!==r.result_digest||result.factId!==r.resolution_id||result.queryContract!==r.query_contract||result.querySchemaRef!==r.query_schema_ref||result.queryInputDigest!==r.query_input_digest||result.factKind!==r.fact_kind||result.revision!==r.revision||result.recordSetDigest!==r.record_set_digest||result.ruleRevision!==r.rule_revision||result.ruleDigest!==r.rule_digest||result.resultKind!==r.result_kind||(result.winningPerceptionId||null)!==r.winning_perception_id||(result.reasonCode||null)!==r.reason_code){fail('P6_PERCEPTION_STORED_RESOLUTION_INVALID','Stored Resolution failed typed JCS or scalar integrity checks.');} return Object.freeze(result); }
 
-module.exports = Object.freeze({ PerceptionStoreError, createPerceptionStore });
+module.exports = Object.freeze({ PerceptionStoreError, createPerceptionStore, validateResolutionCommit });

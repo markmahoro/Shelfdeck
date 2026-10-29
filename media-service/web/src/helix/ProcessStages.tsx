@@ -2,17 +2,53 @@ import { useEffect, useId, useRef, type ReactNode } from 'react';
 import type { FormationSubject } from './api';
 import { processFailureLabel } from './error-labels';
 
+function processDialogControls(dialog:HTMLElement) {
+  const elements=Array.from(dialog.querySelectorAll<HTMLElement>('button,input,select,textarea,a[href],summary,[tabindex]'));
+  return elements.filter(item=>{
+    if(item.tabIndex<0||item.matches(':disabled,input[type="hidden"]')||item.closest('[hidden],[inert]'))return false;
+    for(let current:HTMLElement|null=item;current&&current!==dialog;current=current.parentElement){
+      const style=window.getComputedStyle(current);
+      if(style.display==='none'||style.visibility==='hidden'||style.visibility==='collapse')return false;
+      const parent:HTMLElement|null=current.parentElement;
+      if(parent?.tagName==='DETAILS'&&!parent.hasAttribute('open')&&
+          !(current.tagName==='SUMMARY'&&Array.from(parent.children).find(child=>child.tagName==='SUMMARY')===current))return false;
+      if(current.tagName==='DIALOG'&&!current.hasAttribute('open'))return false;
+    }
+    return true;
+  }).sort((a,b)=>{
+    const left=a.tabIndex>0?a.tabIndex:Number.MAX_SAFE_INTEGER,right=b.tabIndex>0?b.tabIndex:Number.MAX_SAFE_INTEGER;
+    return left-right;
+  });
+}
+
 export function ProcessDialog({title,onClose,children}:{title:string;onClose:()=>void;children:ReactNode}) {
   const titleId=useId(),closeRef=useRef<HTMLButtonElement>(null),dialogRef=useRef<HTMLElement>(null),close=useRef(onClose);
   close.current=onClose;
   useEffect(()=>{
     const trigger=document.activeElement instanceof HTMLElement?document.activeElement:null;
-    const key=(event:KeyboardEvent)=>{if(event.key==='Escape'&&!event.defaultPrevented&&!dialogRef.current?.querySelector('dialog[open]'))close.current();};
-    document.body.classList.add('formation-process-modal-open');document.addEventListener('keydown',key);closeRef.current?.focus();
-    return()=>{document.body.classList.remove('formation-process-modal-open');document.removeEventListener('keydown',key);trigger?.focus();};
+    const dialog=dialogRef.current;if(!dialog)return;
+    let lastFocused:HTMLElement|null=null;
+    const key=(event:KeyboardEvent)=>{
+      if(event.defaultPrevented||dialog.querySelector('dialog[open]'))return;
+      if(event.key==='Escape'){event.preventDefault();close.current();return;}
+      if(event.key!=='Tab')return;
+      const controls=processDialogControls(dialog),first=controls[0],last=controls[controls.length-1],active=document.activeElement;
+      if(!first){event.preventDefault();dialog.focus();}
+      else if(!dialog.contains(active)||active===dialog){event.preventDefault();(event.shiftKey?last:first).focus();}
+      else if(event.shiftKey&&active===first){event.preventDefault();last.focus();}
+      else if(!event.shiftKey&&active===last){event.preventDefault();first.focus();}
+    };
+    const contain=(event:FocusEvent)=>{
+      if(dialog.querySelector('dialog[open]'))return;
+      if(event.target instanceof HTMLElement&&dialog.contains(event.target)){lastFocused=event.target;return;}
+      const controls=processDialogControls(dialog);
+      (lastFocused&&controls.includes(lastFocused)?lastFocused:controls[0]||dialog).focus();
+    };
+    document.body.classList.add('formation-process-modal-open');document.addEventListener('keydown',key);document.addEventListener('focusin',contain);closeRef.current?.focus();
+    return()=>{document.body.classList.remove('formation-process-modal-open');document.removeEventListener('keydown',key);document.removeEventListener('focusin',contain);if(trigger?.isConnected)trigger.focus();};
   },[]);
   return <div className="formation-process-backdrop" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)onClose();}}>
-    <section ref={dialogRef} className="formation-process-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId}>
+    <section ref={dialogRef} tabIndex={-1} className="formation-process-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId}>
       <button ref={closeRef} className="formation-process-dialog-close" type="button" aria-label="关闭媒体整理过程卡片" onClick={onClose}>×</button>
       <h2 id={titleId} className="formation-process-dialog-title">{title}</h2>{children}
     </section>

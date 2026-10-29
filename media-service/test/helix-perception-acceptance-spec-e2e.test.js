@@ -83,6 +83,150 @@ test('Shelf Entry direct rating freezes an Arca public target projection without
   }finally{await host.close();}
 });
 
+test('Resolution supersedes an older public target after Resolve and admits its current basis',async(t)=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-resolution-target-race-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+  const dataDir=path.join(root,'data'),admin=path.join(root,'admin');fs.mkdirSync(admin,{recursive:true});fs.writeFileSync(path.join(admin,'index.html'),'<div id="root"></div>');
+  const initialized=initializeCleanData({dataDir,confirmation:'INITIALIZE_HELIX_CLEAN_V1',secretRoot:SECRET}),targetId='race-shelf-entry';
+  const database=new Database(path.join(dataDir,'shelfdeck.db'),{readonly:true});
+  const resolved=database.prepare("SELECT w.work_id,e.event_id FROM fx_workflow_events e JOIN fx_supporting_works w ON w.work_id=e.work_id WHERE w.process_id=? AND e.capability_ref='perception.dedup.resolve@1' AND e.state='succeeded' ORDER BY e.event_id LIMIT 1");
+  let revision=1,oldWork=null,runtimeError=null;
+  function targetProjection(type,id){
+    if(type!=='shelf_entry'||id!==targetId)return null;
+    if(revision===1){const item=resolved.get('shelf_entry:'+targetId);if(item){oldWork=item.work_id;revision=2;}}
+    const body={targetType:type,targetId:id,targetRevision:revision,title:'Resolution Race',year:2024,providerIdentity:'tmdb_movie:991122',shelfEntrySnapshotDigest:canonicalDigest({targetId,revision})};
+    return Object.freeze({...body,targetDigest:canonicalDigest(body)});
+  }
+  const host=await createCleanServiceHost({dataDir,adminDistDir:admin,secretRoot:SECRET,perceptionTargetProjectionReader:targetProjection,onExecutionRuntimeError(error){runtimeError=error;}});
+  try{
+    const cookie=await session(host,initialized.adminApiKey),response=await host.inject({method:'POST',url:'/v1/admin/perception/records',headers:{cookie},payload:{targetType:'shelf_entry',targetId,expectedRevision:0,rating:4,idempotencyKey:'resolution-race-rating'}});
+    assert.equal(response.statusCode,202,response.body);
+    const rating=await waitRating(host,cookie,'shelf_entry',targetId,value=>value.state==='ready'&&value.rating===4);
+    assert.equal(rating.expectedRevision,1);assert.equal(revision,2);assert.ok(oldWork);assert.ifError(runtimeError);
+    const old=database.prepare('SELECT state FROM fx_supporting_works WHERE work_id=?').get(oldWork);assert.equal(old.state,'failed');
+    const failed=database.prepare("SELECT e.event_id,a.failure_code FROM fx_workflow_events e JOIN fx_event_attempts a ON a.event_id=e.event_id WHERE e.work_id=? AND e.capability_ref='perception.resolution.commit@1'").all(oldWork);
+    assert.equal(failed.length,1);assert.equal(failed[0].failure_code,'P4_EXECUTION_INPUT_BASIS_SUPERSEDED');
+    assert.equal(database.prepare('SELECT count(*) count FROM fx_effect_journal j JOIN fx_event_attempts a ON a.event_attempt_id=j.event_attempt_id WHERE a.event_id=?').get(failed[0].event_id).count,0);
+    assert.equal(database.prepare('SELECT count(*) count FROM fx_event_result_bindings WHERE event_id=?').get(failed[0].event_id).count,0);
+    const works=database.prepare("SELECT state,basis_digest FROM fx_supporting_works WHERE process_id=? AND work_kind='resolution'").all('shelf_entry:'+targetId);
+    assert.ok(works.some(work=>work.state==='succeeded'&&work.basis_digest!==works.find(item=>item.state==='failed').basis_digest));
+    const duplicateEffects=database.prepare("SELECT count(*) count FROM (SELECT m.effect_id,count(*) n FROM fx_commit_markers m JOIN fx_effect_journal j ON j.effect_id=m.effect_id JOIN fx_event_attempts a ON a.event_attempt_id=j.event_attempt_id JOIN fx_workflow_events e ON e.event_id=a.event_id WHERE e.capability_ref='perception.resolution.commit@1' GROUP BY m.effect_id HAVING n<>1)").get();
+    assert.equal(duplicateEffects.count,0);
+  }finally{await host.close();database.close();}
+});
+
+test('current Resolution does not expose a Target changed after Commit projection',async(t)=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-resolution-post-projection-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+  const dataDir=path.join(root,'data'),admin=path.join(root,'admin');fs.mkdirSync(admin,{recursive:true});fs.writeFileSync(path.join(admin,'index.html'),'<div id="root"></div>');
+  const initialized=initializeCleanData({dataDir,confirmation:'INITIALIZE_HELIX_CLEAN_V1',secretRoot:SECRET}),targetId='post-projection-entry';
+  const database=new Database(path.join(dataDir,'shelfdeck.db'),{readonly:true}),errors=[];let revision=1,observed=null;
+  function targetProjection(type,id){if(type!=='shelf_entry'||id!==targetId)return null;
+    const body={targetType:type,targetId:id,targetRevision:revision,title:'Post Projection Race',year:2024,providerIdentity:'tmdb_movie:991125',shelfEntrySnapshotDigest:canonicalDigest({targetId,revision})};
+    return Object.freeze({...body,targetDigest:canonicalDigest(body)});}
+  const host=await createCleanServiceHost({dataDir,adminDistDir:admin,secretRoot:SECRET,perceptionTargetProjectionReader:targetProjection,
+    unitOfWorkDecorator(value){return Object.freeze({...value,execute(participants,...args){
+      if(!observed&&participants.some(item=>item.participantId==='perception_resolution_commit')){
+        revision=2;const result=value.execute(participants,...args),committed=result.perception_resolution_commit;
+        const schemaManifest=require('../src/helix/foundation/persistence/generated/clean-schema.manifest.json');
+        const {createAcquisitionResumeIntent}=require('../src/helix/domains/perception/capabilities/acquisition-resume-intent');
+        const {createPerceptionProcessServices}=require('../src/helix/domains/perception/application/perception-process-services');
+        const options={schemaManifest,unitOfWork:value,targetProjectionReader:targetProjection,workResultReader:{status:()=>null}};
+        const services=createPerceptionProcessServices({...options,acquisitionResumeIntent:createAcquisitionResumeIntent(options)});
+        const snapshot=committed.factKind==='rating'?services.readCurrentRating('shelf_entry',targetId):services.readCurrentWatched('shelf_entry',targetId);
+        const current=services.resolutionContext('shelf_entry',targetId,committed.factKind);
+        observed={committed,snapshot,currentQueryDigest:current.query.queryInputDigest,effectId:result.domain_commit_marker.effectId};
+        return result;
+      }
+      return value.execute(participants,...args);
+    }});},onExecutionRuntimeError:error=>errors.push(error)});
+  try{
+    const cookie=await session(host,initialized.adminApiKey),response=await host.inject({method:'POST',url:'/v1/admin/perception/records',headers:{cookie},payload:{targetType:'shelf_entry',targetId,expectedRevision:0,rating:4,idempotencyKey:'post-projection-rating'}});
+    assert.equal(response.statusCode,202,response.body);
+    const deadline=Date.now()+30_000;let old,successor;
+    while(Date.now()<deadline){if(observed){old=database.prepare('SELECT w.work_id,w.process_id,w.state FROM fx_effect_journal j JOIN fx_event_attempts a ON a.event_attempt_id=j.event_attempt_id JOIN fx_workflow_events e ON e.event_id=a.event_id JOIN fx_supporting_works w ON w.work_id=e.work_id WHERE j.effect_id=?').get(observed.effectId);
+      if(old)successor=database.prepare("SELECT work_id FROM fx_supporting_works WHERE process_id=? AND work_id<>? AND work_kind='resolution' AND state='succeeded' LIMIT 1").get(old.process_id,old.work_id);
+      if(old?.state==='succeeded'&&successor)break;}await pause(25);}
+    assert.ok(observed&&old&&successor);assert.equal(observed.snapshot.state,'pending');
+    assert.notEqual(observed.committed.queryInputDigest,observed.currentQueryDigest);
+    assert.equal(database.prepare('SELECT count(*) count FROM fx_commit_markers WHERE effect_id=?').get(observed.effectId).count,1);
+    assert.deepEqual(errors.map(error=>error.code),[]);
+  }finally{await host.close();database.close();}
+});
+
+for(const phase of ['before_commit','after_commit','before_commit_same_basis'])test('Resolution recovers the exact Effect after an interruption '+phase,async(t)=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-resolution-effect-race-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+  const dataDir=path.join(root,'data'),admin=path.join(root,'admin');fs.mkdirSync(admin,{recursive:true});fs.writeFileSync(path.join(admin,'index.html'),'<div id="root"></div>');
+  const initialized=initializeCleanData({dataDir,confirmation:'INITIALIZE_HELIX_CLEAN_V1',secretRoot:SECRET}),targetId='effect-shelf-entry';
+  const database=new Database(path.join(dataDir,'shelfdeck.db'),{readonly:true});
+  let revision=1,injected=false,effectId=null;const unexpected=[];
+  function targetProjection(type,id){if(type!=='shelf_entry'||id!==targetId)return null;
+    const body={targetType:type,targetId:id,targetRevision:revision,title:'Effect Race',year:2024,providerIdentity:'tmdb_movie:991123',shelfEntrySnapshotDigest:canonicalDigest({targetId,revision})};
+    return Object.freeze({...body,targetDigest:canonicalDigest(body)});}
+  const host=await createCleanServiceHost({dataDir,adminDistDir:admin,secretRoot:SECRET,perceptionTargetProjectionReader:targetProjection,
+    unitOfWorkDecorator(value){return Object.freeze({...value,execute(participants,...args){
+      if(!injected&&participants.some(item=>item.participantId==='perception_resolution_commit')){
+        injected=true;if(phase==='after_commit')value.execute(participants,...args);if(phase!=='before_commit_same_basis')revision=2;
+        throw Object.assign(new Error('Injected Resolution commit interruption.'),{code:'FIXTURE_RESOLUTION_INTERRUPTED'});
+      }
+      return value.execute(participants,...args);
+    }});},
+    onExecutionRuntimeError(error){if(error.code==='FIXTURE_RESOLUTION_INTERRUPTED')effectId=error.details?.effectId||null;else unexpected.push(error);}});
+  try{
+    const cookie=await session(host,initialized.adminApiKey),response=await host.inject({method:'POST',url:'/v1/admin/perception/records',headers:{cookie},payload:{targetType:'shelf_entry',targetId,expectedRevision:0,rating:4,idempotencyKey:'resolution-effect-rating'}});
+    assert.equal(response.statusCode,202,response.body);
+    const deadline=Date.now()+20_000;let exact;
+    while(Date.now()<deadline){
+      if(effectId)exact=database.prepare('SELECT j.effect_id,j.state effect_state,e.event_id,e.state event_state,w.work_id,w.process_id,w.state work_state FROM fx_effect_journal j JOIN fx_event_attempts a ON a.event_attempt_id=j.event_attempt_id JOIN fx_workflow_events e ON e.event_id=a.event_id JOIN fx_supporting_works w ON w.work_id=e.work_id WHERE j.effect_id=?').get(effectId);
+      if(exact&&['failed','committed'].includes(exact.effect_state)&&['failed','succeeded'].includes(exact.event_state))break;
+      await pause(25);
+    }
+    assert.ok(injected&&effectId,'The fixture must interrupt an identified durable Effect.');
+    assert.equal(exact?.effect_state,phase==='before_commit'?'failed':'committed',JSON.stringify({exact,errors:unexpected.map(error=>({code:error.code,message:error.message}))}));
+    assert.equal(exact.event_state,phase==='before_commit'?'failed':'succeeded');
+    assert.equal(database.prepare('SELECT count(*) count FROM fx_commit_markers WHERE effect_id=?').get(effectId).count,phase==='before_commit'?0:1);
+    assert.equal(database.prepare('SELECT count(*) count FROM fx_event_result_bindings WHERE event_id=?').get(exact.event_id).count,phase==='before_commit'?0:1);
+    if(phase==='before_commit')assert.equal(database.prepare('SELECT failure_code FROM fx_event_attempts WHERE event_id=?').get(exact.event_id).failure_code,'P4_EXECUTION_INPUT_BASIS_SUPERSEDED');
+    if(phase!=='before_commit_same_basis'){
+      const successorDeadline=Date.now()+20_000;let successor;
+      while(Date.now()<successorDeadline){successor=database.prepare("SELECT work_id,state FROM fx_supporting_works WHERE process_id=? AND work_id<>? AND work_kind='resolution' AND state='succeeded' LIMIT 1").get(exact.process_id,exact.work_id);if(successor)break;await pause(25);}
+      assert.ok(successor,'The current Resolution basis must produce a successor Work.');
+    }else assert.equal(database.prepare('SELECT count(*) count FROM fx_event_attempts WHERE event_id=?').get(exact.event_id).count,1);
+    assert.deepEqual(unexpected.map(error=>error.code),[]);
+  }finally{await host.close();database.close();}
+});
+
+for(const phase of ['before_commit','after_commit'])test('Resolution restart settles the original Effect '+phase,{timeout:75_000},async(t)=>{
+  const {spawn}=require('node:child_process'),root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-resolution-restart-'));
+  t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+  const child=spawn(process.execPath,[path.join(__dirname,'fixtures','perception-resolution-effect-crash.js'),root,phase],{env:process.env,stdio:['ignore','pipe','pipe']});
+  let output='';child.stdout.on('data',data=>{output+=data;});child.stderr.on('data',data=>{output+=data;});
+  const exited=await new Promise((resolve,reject)=>{child.once('error',reject);child.once('exit',(code,signal)=>resolve({code,signal}));});
+  assert.equal(exited.code,78,output);assert.equal(JSON.parse(fs.readFileSync(path.join(root,'revision.json'),'utf8')).revision,2);
+  const dataDir=path.join(root,'data'),database=new Database(path.join(dataDir,'shelfdeck.db'),{readonly:true});
+  const original=database.prepare("SELECT j.effect_id,j.state effect_state,e.event_id,e.state event_state,w.work_id,w.process_id FROM fx_effect_journal j JOIN fx_event_attempts a ON a.event_attempt_id=j.event_attempt_id JOIN fx_workflow_events e ON e.event_id=a.event_id JOIN fx_supporting_works w ON w.work_id=e.work_id WHERE e.capability_ref='perception.resolution.commit@1' AND e.state='executing' ORDER BY e.event_id LIMIT 1").get();
+  assert.ok(original);assert.equal(original.effect_state,'intended');
+  assert.equal(database.prepare('SELECT count(*) count FROM fx_commit_markers WHERE effect_id=?').get(original.effect_id).count,phase==='before_commit'?0:1);
+  assert.equal(database.prepare('SELECT count(*) count FROM fx_event_result_bindings WHERE event_id=?').get(original.event_id).count,phase==='before_commit'?0:1);
+  const errors=[],targetId='crash-shelf-entry';
+  function targetProjection(type,id){if(type!=='shelf_entry'||id!==targetId)return null;
+    const revision=2,body={targetType:type,targetId:id,targetRevision:revision,title:'Crash Race',year:2024,providerIdentity:'tmdb_movie:991124',shelfEntrySnapshotDigest:canonicalDigest({targetId,revision})};
+    return Object.freeze({...body,targetDigest:canonicalDigest(body)});}
+  const host=await createCleanServiceHost({dataDir,adminDistDir:path.join(root,'admin'),secretRoot:'perception-resolution-crash-fixture',perceptionTargetProjectionReader:targetProjection,onExecutionRuntimeError:error=>errors.push(error)});
+  try{
+    const deadline=Date.now()+25_000;let effect,successor;
+    while(Date.now()<deadline){
+      effect=database.prepare('SELECT j.state effect_state,e.state event_state FROM fx_effect_journal j JOIN fx_event_attempts a ON a.event_attempt_id=j.event_attempt_id JOIN fx_workflow_events e ON e.event_id=a.event_id WHERE j.effect_id=?').get(original.effect_id);
+      successor=database.prepare("SELECT work_id FROM fx_supporting_works WHERE process_id=? AND work_id<>? AND work_kind='resolution' AND state='succeeded' LIMIT 1").get(original.process_id,original.work_id);
+      if(effect?.effect_state===(phase==='before_commit'?'failed':'committed')&&effect.event_state===(phase==='before_commit'?'failed':'succeeded')&&successor)break;
+      await pause(25);
+    }
+    assert.deepEqual(effect,{effect_state:phase==='before_commit'?'failed':'committed',event_state:phase==='before_commit'?'failed':'succeeded'},JSON.stringify(errors.map(error=>({code:error.code,message:error.message}))));
+    assert.ok(successor,'The current basis must produce a successor after restart.');
+    assert.equal(database.prepare('SELECT count(*) count FROM fx_commit_markers WHERE effect_id=?').get(original.effect_id).count,phase==='before_commit'?0:1);
+    assert.equal(database.prepare('SELECT count(*) count FROM fx_event_result_bindings WHERE event_id=?').get(original.event_id).count,phase==='before_commit'?0:1);
+    assert.deepEqual(errors.map(error=>error.code),[]);
+  }finally{await host.close();database.close();}
+});
+
 test('direct ratings for different Subjects can be acquired concurrently without sharing an active Source',async(t)=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-concurrent-subject-ratings-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
   const dataDir=path.join(root,'data'),admin=path.join(root,'admin');fs.mkdirSync(admin,{recursive:true});fs.writeFileSync(path.join(admin,'index.html'),'<div id="root"></div>');
