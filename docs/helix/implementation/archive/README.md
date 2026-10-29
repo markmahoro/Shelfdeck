@@ -21,8 +21,10 @@ Last updated: 2026-09-30
   `PROD-034_ONE_TIME_ABORTED_HANDOFF_CORRECTION_20260831.md` 保存前三项生产纠正包。
 - `PROD-035_TO_PROD-064_PRODUCTION_STABILIZATION_20260903.md` 保存后续稳定化索引。
 
-这些文件只用于追溯。当前事实、计划与活动阶段只能从 `../../CURRENT_STATUS.md`、`../../CURRENT_PLAN.md` 和
-`../CURRENT_PHASE.md` 读取。
+这些文件只用于追溯。活工作以 GitHub PR 为准；默认阅读 SSOT + Playbook + 根 `AGENTS.md` PR-ledger 指针。
+
+- Legacy phase 包全文：[CURRENT_PHASE_LEGACY_PACKET_THROUGH_20261021.md](CURRENT_PHASE_LEGACY_PACKET_THROUGH_20261021.md)（`../CURRENT_PHASE.md` 仅为 stub）。
+- STATUS 长叙事见 [`../../archive/status/`](../../archive/status/)。薄 `../../CURRENT_STATUS.md` 仅保留授权部署身份位。
 
 - [SERIES_DEVELOPMENT_20261008](SERIES_DEVELOPMENT_20261008.md)：Series五节点开发冻结包；首个可部署候选84c2cd9268，未部署生产，最终证据见包首链接。
 
