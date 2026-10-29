@@ -89,6 +89,8 @@ export function processFailureLabel(code: string, message?: string) {
     CLEAN_ARCA_STAGE_TARGET_OCCUPIED: '写入目标已被占用',
     CLEAN_ARCA_JAV_SHORT_TARGET_OCCUPIED: '目标目录已存在',
     CLEAN_ARCA_SHORT_STAGE_UNCERTAIN: '暂存文件状态无法确认',
+    ARCA_JAV_SHORT_RECOVERY_UNPROVEN: '暂存或目标目录需要检查',
+    ARCA_JAV_SHORT_RECOVERY_UNRESOLVED: '目录中仍有待核查的内容',
     CLEAN_ARCA_JAV_CODE_REQUIRED: '影片番号无法核对',
     CLEAN_ARCA_JAV_TITLE_UNFITTING: '影片名称无法安全缩短',
     CLEAN_ARCA_JAV_SHORT_STEM_MISMATCH: '收藏架命名规则不匹配',

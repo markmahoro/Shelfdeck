@@ -876,7 +876,8 @@ function createFormationQuery(options) {
       const failureCode = item.arcaStatus.failureCode || 'ARCA_ONDECK_BLOCKED',
         canRetry = item.arcaStatus.retryAvailable !== false,
         canRecheck = item.arcaStatus.canRecheck === true,
-        label = failureCode === 'CLEAN_ARCA_SHORT_STAGE_UNCERTAIN' ? '暂存文件状态无法确认，已停止上架'
+        label = failureCode === 'ARCA_JAV_SHORT_RECOVERY_UNPROVEN' ? '暂存或目标目录需要检查，已停止上架'
+          : failureCode === 'CLEAN_ARCA_SHORT_STAGE_UNCERTAIN' ? '暂存文件状态无法确认，已停止上架'
           : failureCode === 'CLEAN_ARCA_JAV_SHORT_TARGET_OCCUPIED' ? '目标目录已存在，已停止上架'
           : failureCode === 'CLEAN_ARCA_STAGE_TARGET_OCCUPIED' ? '目标位置存在冲突，已停止上架'
           : failureCode === 'CLEAN_ARCA_TARGET_OCCUPIED' ? '目标位置已被占用，已停止上架'

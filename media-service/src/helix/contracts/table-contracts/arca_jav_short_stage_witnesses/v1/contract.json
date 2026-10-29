@@ -1,0 +1,256 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_jav_short_stage_witnesses/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_jav_short_stage_witnesses",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "witness_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "on_deck_run_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "work_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "event_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "event_attempt_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "effect_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "target_commit_slot_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "decision_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "member_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "kind",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "stage_member",
+          "target_directory"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "state",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "intent",
+          "created",
+          "copied",
+          "linked"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
+        "name": "revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 13,
+        "name": "witness_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 14,
+        "name": "witness_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 15,
+        "name": "witness_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 16,
+        "name": "updated_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "witness_id"
+    ],
+    "declaredForeignKeyColumns": [],
+    "uniqueConstraints": [
+      [
+        "event_id",
+        "member_key"
+      ]
+    ],
+    "hotIndexes": [
+      [
+        "effect_id",
+        "state"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [
+      {
+        "column": "kind",
+        "enumValues": [
+          "stage_member",
+          "target_directory"
+        ]
+      },
+      {
+        "column": "state",
+        "enumValues": [
+          "intent",
+          "created",
+          "copied",
+          "linked"
+        ]
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [
+        "revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [
+      {
+        "column": "witness_json",
+        "schemaRefColumn": "witness_schema_ref",
+        "maxBytes": 65536,
+        "source": "table-row",
+        "requiresJsonValidCheck": true
+      }
+    ],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`UNIQUE(event_id,member_key)`、`INDEX(effect_id,state)`",
+      "仅首次JAV single短标题On-deck，Arca持有逐成员或目标目录的有界物理进度",
+      "JSON为closed witness≤64 KiB，按原Event/Attempt/Effect、Slot、Decision和源成员围栏CAS推进",
+      "不建立Control、收藏或Foundation反向外键。"
+    ],
+    "rawContract": {
+      "columns": "`witness_id PK, on_deck_run_id, work_id, event_id, event_attempt_id, effect_id, target_commit_slot_id, decision_digest, member_key, kind(stage_member|target_directory), state(intent|created|copied|linked), revision, witness_schema_ref, witness_json, witness_digest, updated_at_ms`",
+      "constraints": "`UNIQUE(event_id,member_key)`、`INDEX(effect_id,state)`；仅首次JAV single短标题On-deck，Arca持有逐成员或目标目录的有界物理进度；JSON为closed witness≤64 KiB，按原Event/Attempt/Effect、Slot、Decision和源成员围栏CAS推进；不建立Control、收藏或Foundation反向外键。"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 9694,
+      "lineDigest": "68375b691dea42ce7b8d60da53af19be9ed8822f40f79b3b46489a8389556038"
+    },
+    "foreignKeys": []
+  }
+}

@@ -69,3 +69,28 @@ it('offers recheck for an occupied shortened JAV target', async () => {
   await waitFor(()=>expect(recheck).toHaveBeenCalledWith(item));
   expect(await screen.findByText('已提交重新检查')).toBeInTheDocument();
 });
+
+it('shows the location of an unproven shortened placement before recheck', async()=>{
+  mockRunningRuntime();
+  const summary={totalCount:1,inProgressCount:0,attentionRequiredCount:1,completedCount:0,endedCount:0},
+    projection={status:'ready' as const,asOfMs:100};
+  const item={subjectId:'subject-jav-gap',displayIdentity:'IPX-177',classification:'attention_required',status:'active',contentProfile:'jav',
+    addedAtMs:1,currentRun:null,handoffB:{offerId:'offer-gap',state:'published'},productIdentityIssue:null,currentPlan:null,myRating:null,
+    targetShelfId:null,targetShelfName:null,organizingRequirement:'',routingState:'resolved',unresolvedReasonCode:null,
+    nextAction:{label:'暂存或目标目录需要检查，已停止上架',state:'attention_required',progress:null},
+    executorIssue:{phase:'on_deck_execution',errorCode:'ARCA_JAV_SHORT_RECOVERY_UNPROVEN',owner:'arca',recoveryState:'attention_required',
+      canRetry:false,canRecheck:true,offerId:'offer-gap',onDeckRunId:'run-gap',details:{sourceDirectory:'/media/JAV/.shelfdeck-stage-gap'}}
+  } as unknown as FormationSubject;
+  vi.spyOn(helixAdminApi,'listFormation').mockImplementation((section)=>Promise.resolve({items:section==='active'?[item]:[],summary,nextCursor:null,projection}));
+  vi.spyOn(helixAdminApi,'listFormationHistory').mockResolvedValue({items:[],summary,nextCursor:null,projection});
+  vi.spyOn(helixAdminApi,'listShelves').mockResolvedValue({items:[]});
+  vi.spyOn(helixAdminApi,'getPerceptionSyncState').mockRejectedValue(new Error('not configured'));
+  vi.spyOn(helixAdminApi,'listCareWork').mockResolvedValue({items:[],counts:{},nextCursor:null});
+  vi.spyOn(helixAdminApi,'listJavCorrectionWork').mockResolvedValue({items:[],counts:{},nextCursor:null});
+  vi.spyOn(helixAdminApi,'getFormation').mockResolvedValue(item);
+  render(<MemoryRouter initialEntries={['/formation']}><App /></MemoryRouter>);
+  expect(await screen.findByText('暂存或目标目录需要检查，已停止上架')).toBeInTheDocument();
+  expect(screen.getByRole('button',{name:'重新检查'})).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button',{name:'查看过程'}));
+  expect(await screen.findByText('/media/JAV/.shelfdeck-stage-gap')).toBeInTheDocument();
+});

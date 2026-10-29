@@ -4,6 +4,7 @@ const {hasRequiredUsAdultActor}=require('../../../contracts/us-adult-actor-packa
 const { readControlProjections } = require('../persistence/read-control-projections');
 const {createInventoryVerificationStore,resolveInventoryVerification}=require('../persistence/inventory-verification-store');
 const {createStagedManifestStore,resolveStagedResult}=require('../persistence/staged-manifest-store');
+const {createJavShortWitnessStore}=require('../persistence/jav-short-witness-store');
 const {createAcceptanceCheckEvidenceStore,resolveAcceptanceResult,RECORD:CHECK_RECORD}=require('../persistence/acceptance-check-evidence-store');
 const {settlementTargetEntries,dispositionCompletions:buildDispositionCompletions}=require('../model/settlement-completion');
 const {assertDispositionFinalReality}=require('../model/product-disposition');
@@ -221,6 +222,51 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
   controls=createMaterialControlProjectionPort(options),inbox=createInboxCoordinator(options);
   const effectAt=(execution)=>Number.isSafeInteger(execution.effectOccurredAtMs)?execution.effectOccurredAtMs:now();
   function ctx(execution){return context(options,execution,dependencyRefs(options,execution));}
+  async function observeShortEffect(recovery,capabilityRef){
+    if(recovery.work?.owner_domain!=='arca'||recovery.work?.process_type!=='arca_ondeck_run')return null;
+    try{
+      if(recovery.event?.work_id!==recovery.work.work_id||recovery.event.capability_ref!==capabilityRef||
+          recovery.node?.capability_ref!==capabilityRef||recovery.attempt?.event_id!==recovery.event.event_id||
+          recovery.effect?.event_attempt_id!==recovery.attempt.event_attempt_id||recovery.effect.effect_class!=='material_commit'||
+          !/^[a-f0-9]{64}$/.test(recovery.effect.effect_id||''))
+        throw Object.assign(new Error('Original short-path Effect scope changed.'),{code:'ARCA_JAV_SHORT_WITNESS_INVALID'});
+      const execution={workId:recovery.work.work_id,eventId:recovery.event.event_id,eventAttemptId:recovery.attempt.event_attempt_id,
+        capabilityRef,effectId:recovery.effect.effect_id,idempotencyKey:recovery.effect.idempotency_key||null,
+        ownerScope:{processType:'arca_ondeck_run',processId:recovery.work.process_id}},
+        c=ctx(execution),identity=c.packageValue?.resolvedIdentitySnapshot?.factValue?.resolvedProductIdentity||c.packageValue?.resolvedIdentitySnapshot?.factValue;
+      if(identity?.contentProfile!=='jav')return null;
+      const slots=options.workResultReader.read(execution.workId).filter(item=>item.capabilityRef===C.slot&&item.outcomeKind==='succeeded');
+      if(slots.length!==1)throw Object.assign(new Error('The original Target Slot Result is unavailable.'),{code:'ARCA_JAV_SHORT_WITNESS_INVALID'});
+      const request={onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,shelf:c.shelf,
+        onDeckProductPackage:c.packageValue,finalInventoryDecision:c.finalInventoryDecision,targetCommitSlotHandle:slots[0].result,
+        replaySettledSources:true,nfoPresentationBasis:nfoPresentationBasis(c)};
+      if(!options.inventoryPort.resolveTargetLocation(request).shortenedJavTitle)return null;
+      const shortPathWitness=createJavShortWitnessStore(options).bind(execution,request);
+      return await options.inventoryPort.observeShortRecovery({...request,shortPathWitness},capabilityRef===C.stage?'stage':'placement');
+    }catch(error){
+      const unobservable=['EACCES','EPERM','EIO','ESTALE','ETIMEDOUT','ECONNRESET','ENETDOWN','ENETUNREACH','EHOSTUNREACH'].includes(error?.code);
+      return {status:unobservable?'unobservable':'conflict',rollbackDeclared:false,evidenceDigest:canonicalDigest({
+        schema:'arca.jav-short-recovery-failure@1',eventId:recovery.event?.event_id||null,reasonCode:error?.code||'ARCA_JAV_SHORT_RECOVERY_INVALID'})};
+    }
+  }
+  function priorShortStage(execution,request){
+    if(typeof options.workResultReader.listWorks!=='function')return null;
+    const works=options.workResultReader.listWorks({ownerDomain:'arca',processType:'arca_ondeck_run',
+      processId:request.onDeckRunId,workKind:'on_deck_execution'}).filter(item=>item.work_id!==execution.workId),matches=[];
+    for(const work of works){
+      const rows=options.workResultReader.read(work.work_id);
+      for(const result of rows.filter(item=>item.capabilityRef===C.stage&&item.outcomeKind==='succeeded')){
+        const manifest=resolveStagedResult(options,result.result);
+        if(manifest?.targetCommitSlotId!==request.targetCommitSlotHandle.slotId||
+            manifest.sourceProductManifestDigest!==request.onDeckProductPackage.productMaterialManifest.manifestDigest)continue;
+        if(rows.some(item=>item.capabilityRef===C.stagedVerify&&item.outcomeKind==='succeeded'&&item.result?.result==='passed'&&
+            item.result.stagedInventoryManifestDigest===manifest.manifestDigest))matches.push(manifest);
+      }
+    }
+    const distinct=[...new Map(matches.map(item=>[canonicalJson(item),item])).values()];
+    if(distinct.length>1)throw Object.assign(new Error('Earlier Stage Results disagree for the same Slot.'),{code:'CLEAN_ARCA_SHORT_STAGE_UNCERTAIN'});
+    return distinct[0]||null;
+  }
   function settlementCtx(execution,materialKey){return options.contextReader.readSettlement(
     execution.ownerScope.processId,dependencyRefs(options,execution),materialKey);}
   function assertSettlementApproval(execution,member,location){
@@ -353,27 +399,47 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
       onDeckProductPackage:c.packageValue,finalInventoryDecision:c.finalInventoryDecision,targetCommitSlotHandle:n.targetHandle,observedAtMs:at,
       replayCommitted:execution.recoveryDecision==='already_committed',replaySettledSources:true});
     return committedOutcome(execution,C.slot,result,at,'material_commit');},validateResult(_c,o){if(!o?.result?.slotId)throw new TypeError('Target Commit Slot Handle is invalid.');}});
-  ports[C.stage]=Object.freeze({validateInputs(c){requireNamed(c,['productMaterialHandleList','targetCommitSlotHandle']);},async execute(execution){try{const c=ctx(execution),at=effectAt(execution),aftercare=aftercareRequest(execution,c,at),staged=await options.inventoryPort.stage({
+  ports[C.stage]=Object.freeze({validateInputs(c){requireNamed(c,['productMaterialHandleList','targetCommitSlotHandle']);},async execute(execution){try{const c=ctx(execution),at=effectAt(execution),aftercare=aftercareRequest(execution,c,at),request={
     ...(aftercare||{
     onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,shelf:c.shelf,onDeckProductPackage:c.packageValue,
     finalInventoryDecision:c.finalInventoryDecision,observedAtMs:at,replayCommitted:execution.recoveryDecision==='already_committed',replaySettledSources:true,
     nfoPresentationBasis:nfoPresentationBasis(c),priorPlacementReceipt:priorOnDeckPlacementReceipt(options,execution,execution.namedInputs.targetCommitSlotHandle.slotId)}),targetCommitSlotHandle:execution.namedInputs.targetCommitSlotHandle,
-    ...(aftercare?{shouldContinue:aftercareShouldContinue(execution,aftercare.aftercareCaseId)}:{shouldContinue:execution.shouldContinue})});
+    ...(aftercare?{shouldContinue:aftercareShouldContinue(execution,aftercare.aftercareCaseId)}:{shouldContinue:execution.shouldContinue})};
+    const identity=c.packageValue?.resolvedIdentitySnapshot?.factValue?.resolvedProductIdentity||c.packageValue?.resolvedIdentitySnapshot?.factValue,
+      shortened=!aftercare&&identity?.contentProfile==='jav'&&options.inventoryPort.resolveTargetLocation(request).shortenedJavTitle,
+      store=createStagedManifestStore(options),prior=shortened&&execution.recoveryDecision==='continue_forward'?store.readEvent(execution):null;
+    let record=null,staged;
+    const earlier=shortened&&!prior?priorShortStage(execution,request):null;
+    if(prior||earlier){
+      staged=prior?.manifest||earlier;record=prior?.record||null;
+      await options.inventoryPort.verifyStaged({...request,stagedInventoryManifest:staged,allowStageReceiptResume:true});
+    }else staged=await options.inventoryPort.stage({...request,...(shortened?{
+      shortPathWitness:createJavShortWitnessStore(options).bind(execution,request),
+      onStagedManifest:value=>{record=store.save(execution,value);}}:{})});
     if(aftercare)readAftercarePlacementAuthority(options,execution,aftercare.aftercareCaseId);
     else onDeck.acquireStagedCustody({
       onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,
       shelfId:c.shelf.shelfId,package:c.packageValue,stagedInventoryManifest:staged});
-    const record=createStagedManifestStore(options).save(execution,staged);
+    if(!record)record=store.save(execution,staged);
     return committedOutcome(execution,C.stage,record,at,'material_commit');
     }catch(error){const failed=stagePreconditionFailureOutcome(error);if(failed)return failed;throw error;}},
+    observeEffectReality:recovery=>observeShortEffect(recovery,C.stage),
     validateResult(_c,o){if(o?.result?.schemaRef!=='helix://contracts/types/StagedInventoryManifestRecord/v1')throw new TypeError('Staged Inventory Manifest Record is invalid.');}});
   ports[C.stagedVerify]=Object.freeze({validateInputs(c){requireNamed(c,['stagedManifest','finalInventoryDecision']);},async execute(execution){try{
     const c=ctx(execution),n=execution.namedInputs,request=aftercareRequest(execution,c)||{onDeckRunId:c.responsibility.onDeckRunId,
       custodyId:c.responsibility.custodyId,shelf:c.shelf,onDeckProductPackage:c.packageValue,finalInventoryDecision:c.finalInventoryDecision,
       observedAtMs:now(),replayCommitted:false,replaySettledSources:true,nfoPresentationBasis:nfoPresentationBasis(c),
       priorPlacementReceipt:priorOnDeckPlacementReceipt(options,execution,n.stagedManifest.targetCommitSlotId)};
-    const aftercare=execution.ownerScope.processType==='arca_shelf_entry',result=await options.inventoryPort.verifyStaged({...request,finalInventoryDecision:n.finalInventoryDecision,
-      stagedInventoryManifest:n.stagedManifest,...(aftercare?{shouldContinue:aftercareShouldContinue(execution,request.aftercareCaseId)}:{})});
+    const aftercare=execution.ownerScope.processType==='arca_shelf_entry',identity=c.packageValue?.resolvedIdentitySnapshot?.factValue?.resolvedProductIdentity||c.packageValue?.resolvedIdentitySnapshot?.factValue,
+      shortened=!aftercare&&identity?.contentProfile==='jav'&&options.inventoryPort.resolveTargetLocation(request).shortenedJavTitle;
+    if(shortened){
+      const matches=options.workResultReader.read(execution.workId).filter(item=>item.capabilityRef===C.stage&&item.outcomeKind==='succeeded')
+        .map(item=>resolveStagedResult(options,item.result)).filter(value=>canonicalJson(value)===canonicalJson(n.stagedManifest));
+      if(matches.length!==1)throw Object.assign(new Error('The exact Stage Result is unavailable for verification.'),{code:'CLEAN_ARCA_SHORT_STAGE_UNCERTAIN'});
+    }
+    const result=await options.inventoryPort.verifyStaged({...request,finalInventoryDecision:n.finalInventoryDecision,
+      stagedInventoryManifest:n.stagedManifest,...(shortened?{allowStageReceiptResume:true}:{}),
+      ...(aftercare?{shouldContinue:aftercareShouldContinue(execution,request.aftercareCaseId)}:{})});
     if(aftercare)readAftercarePlacementAuthority(options,execution,request.aftercareCaseId);
     return outcome(C.stagedVerify,result,now());}catch(error){const failed=shortenedStageObservationFailureOutcome(error);if(failed)return failed;throw error;}},
     validateResult(_c,o){if(o?.result?.result!=='passed')throw new TypeError('Staged Inventory Verification is invalid.');}});
@@ -405,13 +471,17 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
       .filter(value=>value?.manifestDigest===n.verifiedStagedManifest.stagedInventoryManifestDigest):[];
     if(target?.shortenedJavTitle&&stageMatches.length!==1)throw Object.assign(new Error('The exact shortened-target Stage Result is unavailable.'),
       {code:'CLEAN_ARCA_SHORT_PUBLICATION_UNCERTAIN'});
-    const body=await options.inventoryPort.switchPlacement({onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,shelf:c.shelf,
+    const placementRequest={onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,shelf:c.shelf,
       onDeckProductPackage:c.packageValue,finalInventoryDecision:c.finalInventoryDecision,stagedInventoryVerification:n.verifiedStagedManifest,
-      ...(target?.shortenedJavTitle?{stagedInventoryManifest:stageMatches[0],shouldContinue:execution.shouldContinue}:{}),
       targetBindings:n.targetBindings,replacedInputSetDigest:canonicalDigest(c.packageValue.offloadContextManifest.members),observedAtMs:at,
       replayCommitted:execution.recoveryDecision==='already_committed',replaySettledSources:true,nfoPresentationBasis:nfoPresentationBasis(c),
-      priorPlacementReceipt:priorOnDeckPlacementReceipt(options,execution)});
+      priorPlacementReceipt:priorOnDeckPlacementReceipt(options,execution)};
+    const witnessRequest=target?.shortenedJavTitle?{...placementRequest,targetCommitSlotHandle:options.inventoryPort.slotHandle(placementRequest)}:null;
+    const body=await options.inventoryPort.switchPlacement({...placementRequest,
+      ...(witnessRequest?{stagedInventoryManifest:stageMatches[0],shouldContinue:execution.shouldContinue,recoveryDecision:execution.recoveryDecision,
+        shortPathWitness:createJavShortWitnessStore(options).bind(execution,witnessRequest)}:{})});
     return committedOutcome(execution,C.placement,body,at,'material_commit');}catch(error){const failed=placementPreconditionFailureOutcome(error);if(failed)return failed;throw error;}},
+    observeEffectReality:recovery=>observeShortEffect(recovery,C.placement),
     validateResult(_c,o){if(o?.result?.receiptKind!=='placement_switched')throw new TypeError('Placement Switch Receipt is invalid.');}});
   ports[C.settlement]=Object.freeze({validateInputs(c){requireNamed(c,['oldPrimaryStructuralExclusiveRelatedHandleList','inputSettlementApproval']);},async execute(execution){try{const n=execution.namedInputs,m=n.oldPrimaryStructuralExclusiveRelatedHandleList.members[0],at=effectAt(execution),c=settlementCtx(execution,m.materialKey),
     settled=await options.inventoryPort.settleInputAsync({materialHandle:m.materialHandle,approval:n.inputSettlementApproval,

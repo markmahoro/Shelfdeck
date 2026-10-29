@@ -446,6 +446,10 @@ function createProcurementExecutionRuntime(options) {
       if(context.event?.capability_ref==='arca.series_presentation.files.publish@1')return arcaCapabilityRegistration.ports[context.event.capability_ref].observeEffectReality(context);
       if(context.event?.capability_ref==='arca.jav_correction.formal_retirement.execute@1')return arcaCapabilityRegistration.ports['arca.jav_correction.formal_retirement.execute@1'].observeEffectReality(context);
       const value = observed(context), committed = value.markers.length === 1;
+      if(!committed&&['arca.inventory.product.stage@1','arca.inventory.placement.switch@1'].includes(context.event?.capability_ref)){
+        const short=await arcaCapabilityRegistration.ports[context.event.capability_ref].observeEffectReality(context);
+        if(short)return short;
+      }
       if(!committed&&['arca.us_adult.files.stage@1','arca.us_adult.files.publish@1','arca.us_adult.files.retire@1'].includes(context.event?.capability_ref))
         return arcaCapabilityRegistration.ports[context.event.capability_ref].observeEffectReality(context);
       if(!committed&&['arca.jav_correction.files.stage@1','arca.jav_correction.files.publish@1'].includes(context.event?.capability_ref))

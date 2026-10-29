@@ -105,13 +105,24 @@
       }
     },
     {
+      "id": "arca_jav_short_stage_witnesses",
+      "owner": "arca",
+      "columnsContract": "`witness_id PK, on_deck_run_id, work_id, event_id, event_attempt_id, effect_id, target_commit_slot_id, decision_digest, member_key, kind(stage_member|target_directory), state(intent|created|copied|linked), revision, witness_schema_ref, witness_json, witness_digest, updated_at_ms`",
+      "constraintsContract": "`UNIQUE(event_id,member_key)`、`INDEX(effect_id,state)`；仅首次JAV single短标题On-deck，Arca持有逐成员或目标目录的有界物理进度；JSON为closed witness≤64 KiB，按原Event/Attempt/Effect、Slot、Decision和源成员围栏CAS推进；不建立Control、收藏或Foundation反向外键。",
+      "source": {
+        "section": "8.5.12",
+        "line": 9694,
+        "lineDigest": "68375b691dea42ce7b8d60da53af19be9ed8822f40f79b3b46489a8389556038"
+      }
+    },
+    {
       "id": "perception_sources",
       "owner": "perception",
       "columnsContract": "`perception_source_id PK, source_kind, integration_id, status, config_revision, current_cursor_revision NULL, created_at_ms, updated_at_ms`",
       "constraintsContract": "`current_cursor_revision IS NULL`表示尚无cursor row；`FOREIGN KEY(perception_source_id,current_cursor_revision) REFERENCES perception_source_cursors(perception_source_id,revision)`，SQLite以NULL跳过尚不存在的optional pointer校验；`INDEX(status,source_kind,perception_source_id)`；Integration ID为opaque platform reference",
       "source": {
         "section": "8.5.13",
-        "line": 9699,
+        "line": 9702,
         "lineDigest": "34bdf0c016622b6e972c4799b9a649b5fc923d7277a94298de102e9ece3182a5"
       }
     },
@@ -122,7 +133,7 @@
       "constraintsContract": "一次Acquisition只属于一个Source/config revision；Scope JSON上限`16 KiB`；`UNIQUE(perception_source_id) WHERE state='active'`；`initial_cursor_revision=0`只是“创建时不存在cursor row”的逻辑CAS sentinel，不是FK pointer；Process历史不覆盖",
       "source": {
         "section": "8.5.13",
-        "line": 9700,
+        "line": 9703,
         "lineDigest": "d4bfdbe0156ddb39ce060728f319fffe67e356241e77aed250f6fbb046790f3b"
       }
     },
@@ -133,19 +144,8 @@
       "constraintsContract": "用户主动继续同一Acquisition的immutable Intent；`UNIQUE(actor_id,idempotency_key)`；`INDEX(perception_acquisition_id,intent_id)`；只对active且当前Source/config相同的Douban采集签发；重放先于current-state校验；存在Intent后该Acquisition按normal准入，Scope内原始executionOrigin不变",
       "source": {
         "section": "8.5.13",
-        "line": 9701,
+        "line": 9704,
         "lineDigest": "587cb9fabd1c864f87e79e7942a7423ace8ce52a582bca9c810e29a75a68fd25"
-      }
-    },
-    {
-      "id": "perception_source_cursors",
-      "owner": "perception",
-      "columnsContract": "`perception_source_id FK, revision, perception_acquisition_id FK, cursor_in, cursor_out, observation_page_digest, has_more, committed_at_ms`",
-      "constraintsContract": "`PK(perception_source_id,revision)`；revision从1递增且不重置；Source current pointer显式复合FK引用；仅Source从未同步时expected revision为0，配置/scope不兼容的后续Acquisition可令`cursor_in=null`但仍CAS当前非零revision；不覆盖历史",
-      "source": {
-        "section": "8.5.13",
-        "line": 9702,
-        "lineDigest": "d904ca3d03d48f36f837049824d373257b78c8abafb50cbbd529238ab700d8bb"
       }
     }
   ]

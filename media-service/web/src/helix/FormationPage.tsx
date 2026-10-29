@@ -82,6 +82,8 @@ function ProcessDetail({ item, loading=false, error='' }:{ item:FormationSubject
   })).values()];
   return <article className="formation-process-card" aria-label={`${item.displayIdentity}的媒体整理过程`}>
     <header className="formation-process-head"><div><span className="formation-process-eyebrow">媒体整理过程</span><h3>{item.displayIdentity}</h3><SeriesDelivery item={item} /><p>{item.currentPlan?.configurationTarget?item.currentPlan.statusText:currentProgressLabel(item)}</p><SettlementConfiguration item={item} /></div><span className="formation-process-status" data-state={stageState(item)}>{statusLabel(item)}</span></header>
+    {item.executorIssue?.errorCode==='ARCA_JAV_SHORT_RECOVERY_UNPROVEN'&&item.executorIssue.details?.sourceDirectory&&
+      <section role="note"><p>{item.executorIssue.details.sourceDirectory}</p></section>}
     {failureNotes.map(f=><section key={f.eventId} role="note">
       {(f.diagnosticsUnavailable||!f.diagnostics||!f.diagnostics.sourceDirectory&&!f.diagnostics.unknownNames?.length&&!f.diagnostics.field&&!f.diagnostics.networkCode&&!f.diagnostics.timeout)&&<p>具体失败原因暂不可用</p>}
       {f.diagnostics?.sourceDirectory&&<p>{f.diagnostics.sourceDirectory}</p>}
@@ -282,7 +284,7 @@ export default function FormationPage() {
           const result=await helixAdminApi.retryPreparation(item.preparationFailure.workId);
           if(result.kind==='deferred'){setNotice('当前资源忙，请稍后重试。');return;}
           setNotice('已提交重试整理');
-        }else{await helixAdminApi.retryAcceptance(item);setNotice(item.executorIssue?.errorCode==='CLEAN_ARCA_JAV_SHORT_TARGET_OCCUPIED'?'已提交重新检查':'已提交重试上架');}
+        }else{await helixAdminApi.retryAcceptance(item);setNotice(item.executorIssue?.canRecheck?'已提交重新检查':'已提交重试上架');}
       }
       else if(kind==='chooseShelf')await helixAdminApi.chooseShelf(item,String(value));
       else await helixAdminApi.chooseProductIdentity(item,String(value));

@@ -97,6 +97,7 @@ const FAILURE_COPY = Object.freeze({
   CLEAN_ARCA_STAGE_TARGET_OCCUPIED:'目标位置已有与本次产品不同的文件，已停止写入并保留现有文件',
   CLEAN_ARCA_JAV_SHORT_TARGET_OCCUPIED:'目标目录已存在，已停止上架并保留现有文件',
   CLEAN_ARCA_SHORT_STAGE_UNCERTAIN:'暂存文件状态无法确认，已停止上架并保留现有文件',
+  ARCA_JAV_SHORT_RECOVERY_UNPROVEN:'暂存或目标目录需要检查，已停止上架并保留现有文件',
   CLEAN_ARCA_JAV_CODE_REQUIRED:'影片番号无法核对，不能生成上架名称',
   CLEAN_ARCA_JAV_TITLE_UNFITTING:'影片名称无法在目标目录中安全缩短',
   CLEAN_ARCA_JAV_SHORT_STEM_MISMATCH:'收藏架命名规则无法生成对应的影片和资料文件',

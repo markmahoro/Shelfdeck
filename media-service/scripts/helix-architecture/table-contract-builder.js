@@ -22,6 +22,7 @@ const PARTIAL_UNIQUE_EXCLUDED_TABLES = new Set(['libra_workspaces', 'libra_works
 // explicit lifecycle CAS transitions. A prose occurrence of "immutable" must
 // not turn the whole relation into an append-only table.
 const MUTABLE_LIFECYCLE_TABLES = new Set([
+  'arca_jav_short_stage_witnesses',
   'arca_series_root_relocations',
   'arca_series_presentation_scopes','arca_series_presentation_reservations','arca_series_presentation_references',
   'fx_supporting_works',
@@ -52,6 +53,8 @@ const MUTABLE_LIFECYCLE_TABLES = new Set([
 // Level 6/7 lifecycles are preserved verbatim; unnamed technical projections
 // use the smallest Foundation/Platform lifecycle needed by those contracts.
 const ENUM_OVERRIDES = Object.freeze({
+  'arca_jav_short_stage_witnesses.kind': ['stage_member', 'target_directory'],
+  'arca_jav_short_stage_witnesses.state': ['intent', 'created', 'copied', 'linked'],
   'libra_task_cancellations.state': ['pending', 'completed', 'handoff_accepted'],
   'fx_supporting_works.state': ['admitted', 'ready', 'running', 'blocked', 'succeeded', 'failed', 'cancelled'],
   'fx_work_attempts.state': ['ready', 'running', 'blocked', 'succeeded', 'failed', 'cancelled'],

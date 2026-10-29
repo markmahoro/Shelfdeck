@@ -606,6 +606,29 @@ CREATE TABLE "arca_jav_identity_corrections" (
 CREATE INDEX "idx_arca_jav_identity_corrections_hot_01" ON "arca_jav_identity_corrections" ("shelf_entry_id", "state");
 CREATE UNIQUE INDEX "uidx_arca_jav_identity_corrections_partial_01" ON "arca_jav_identity_corrections" ("shelf_entry_id") WHERE "terminal_at_ms" IS NULL OR "cleanup_state" IN ('pending','active','attention_required');
 
+CREATE TABLE "arca_jav_short_stage_witnesses" (
+  "witness_id" TEXT PRIMARY KEY,
+  "on_deck_run_id" TEXT,
+  "work_id" TEXT,
+  "event_id" TEXT,
+  "event_attempt_id" TEXT,
+  "effect_id" TEXT,
+  "target_commit_slot_id" TEXT,
+  "decision_digest" TEXT CHECK (length("decision_digest") = 64 AND "decision_digest" NOT GLOB '*[^0-9a-f]*'),
+  "member_key" TEXT,
+  "kind" TEXT CHECK ("kind" IN ('stage_member', 'target_directory')),
+  "state" TEXT CHECK ("state" IN ('intent', 'created', 'copied', 'linked')),
+  "revision" INTEGER CHECK ("revision" >= 1),
+  "witness_schema_ref" TEXT,
+  "witness_json" TEXT,
+  "witness_digest" TEXT CHECK (length("witness_digest") = 64 AND "witness_digest" NOT GLOB '*[^0-9a-f]*'),
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  UNIQUE ("event_id", "member_key"),
+  CHECK (json_valid("witness_json")),
+  CHECK (length(CAST("witness_json" AS BLOB)) <= 65536)
+);
+CREATE INDEX "idx_arca_jav_short_stage_witnesses_hot_01" ON "arca_jav_short_stage_witnesses" ("effect_id", "state");
+
 CREATE TABLE "arca_material_bindings" (
   "owner_object_type" TEXT,
   "owner_object_id" TEXT,

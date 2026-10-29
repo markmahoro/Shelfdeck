@@ -1,20 +1,23 @@
 'use strict';
 
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
+const path=require('node:path');
+const {createJavShortWitnessStore}=require('../persistence/jav-short-witness-store');
 
 const {createSeriesPresentationStore}=require('../persistence/series-presentation-store');
 const {createSeriesSourceReassessmentFence}=require('../persistence/series-source-reassessment-fence');
 const MAX_ITEMS = 100;
 const NON_RETRYABLE = new Set([
   'CLEAN_ARCA_STAGE_TARGET_OCCUPIED', 'CLEAN_ARCA_TARGET_OCCUPIED', 'CLEAN_ARCA_JAV_SHORT_TARGET_OCCUPIED',
-  'CLEAN_ARCA_SHORT_STAGE_UNCERTAIN', 'CLEAN_ARCA_PLACEMENT_UNVERIFIED',
+  'CLEAN_ARCA_SHORT_STAGE_UNCERTAIN', 'ARCA_JAV_SHORT_RECOVERY_UNPROVEN', 'CLEAN_ARCA_PLACEMENT_UNVERIFIED',
   'CLEAN_ARCA_STAGE_SLOT_INVALID', 'CLEAN_ARCA_STAGE_SLOT_DRIFT', 'CLEAN_ARCA_TARGET_ESCAPE',
   'CLEAN_ARCA_SETTLEMENT_REALITY_DRIFT', 'CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBER',
   'CLEAN_ARCA_SETTLEMENT_MAPPING_INVALID', 'CLEAN_ARCA_SETTLEMENT_MAPPING_DRIFT',
   'CLEAN_ARCA_SETTLEMENT_HANDLE_INVALID', 'ARCA_ONDECK_SETTLEMENT_APPROVAL_STALE',
   'CLEAN_ARCA_FINAL_NFO_SEMANTIC_DRIFT', 'CLEAN_ARCA_FINAL_NFO_BASIS_MISSING',
 ]);
-const RECHECKABLE = new Set(['CLEAN_ARCA_STAGE_TARGET_OCCUPIED', 'CLEAN_ARCA_TARGET_OCCUPIED', 'CLEAN_ARCA_JAV_SHORT_TARGET_OCCUPIED']);
+const RECHECKABLE = new Set(['CLEAN_ARCA_STAGE_TARGET_OCCUPIED', 'CLEAN_ARCA_TARGET_OCCUPIED', 'CLEAN_ARCA_JAV_SHORT_TARGET_OCCUPIED',
+  'ARCA_JAV_SHORT_RECOVERY_UNPROVEN']);
 
 function createFormationStatusProjection(options) {
   if (!options?.schemaManifest || !options.unitOfWork) {
@@ -28,7 +31,16 @@ function createFormationStatusProjection(options) {
       String(left.work_id).localeCompare(String(right.work_id))).reverse();
     for (const work of ordered) {
       const failure = reader.readFailures(work.work_id)[0];
-      if (failure) return Object.freeze({workId:work.work_id,failureCode:failure.code||null,diagnostics:failure.diagnostics||null});
+      if (failure) {
+        if (['P4_EVENT_RECOVERY_REALITY_CONFLICT','CLEAN_ARCA_SHORT_STAGE_UNCERTAIN','CLEAN_ARCA_SHORT_PUBLICATION_UNCERTAIN'].includes(failure.code)) {
+          const witnesses=createJavShortWitnessStore(options).readEvent(onDeckRunId,failure.eventId);
+          if(witnesses.length){const witness=witnesses.find(item=>item.state==='intent')||witnesses[0],
+            location=witness.kind==='target_directory'?witness.targetPath:witness.stagedPath;
+            return Object.freeze({workId:work.work_id,failureCode:'ARCA_JAV_SHORT_RECOVERY_UNPROVEN',
+              diagnostics:Object.freeze({sourceDirectory:path.dirname(location),conflicts:[{target:location,name:path.basename(location)}],conflictCount:1})});}
+        }
+        return Object.freeze({workId:work.work_id,failureCode:failure.code||null,diagnostics:failure.diagnostics||null});
+      }
     }
     return null;
   }

@@ -159,8 +159,10 @@ function inspectRetirementPlan(db, options = {}) {
     const historyWorks=runs.filter(row=>!currentRunIds.has(row.libra_run_id)).flatMap(row=>readWorks.all('libra','libra_run',row.libra_run_id))
       .filter(row=>!CLOSED_WORKS.has(row.state));
     if(historyWorks.length)blockers.push({code:'RESET_TERMINAL_RUN_EXECUTION_PENDING',count:historyWorks.length});
+    const hasShortWitnesses=Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='arca_jav_short_stage_witnesses'").get());
     const recordedEffects = db.prepare(`SELECT effect_id,state,intent_digest,updated_at_ms FROM fx_effect_journal
-      WHERE effect_class!='pure' AND state IN ('intended','effect_observed','reconcile_required') ORDER BY effect_id`).all();
+      WHERE effect_class!='pure' AND (state IN ('intended','effect_observed','reconcile_required')${hasShortWitnesses?
+        " OR (state='failed' AND EXISTS (SELECT 1 FROM arca_jav_short_stage_witnesses w WHERE w.effect_id=fx_effect_journal.effect_id))":''}) ORDER BY effect_id`).all();
     const history=recordedEffects.some(row=>row.state==='reconcile_required') && db.readonly
       ?require('./formation-retirement-history').readCompletedHistoricalEffects(db):{proofs:[],rejected:[]};
     const historicalIds=new Set(history.proofs.map(row=>row.effectId));

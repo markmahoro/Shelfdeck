@@ -44,6 +44,21 @@ function createStagedManifestStore(options){
   function resolve(record){const row=options.unitOfWork.execute([{participantId:'arca_stage_read',owner:'arca',repositories:[repo],
     execute:c=>c.repository(repo.repositoryId).invoke('find',{record_id:record.recordId})}]).arca_stage_read;
     return unpack(row,record).manifest;}
+  function readEvent(execution){
+    return options.unitOfWork.execute([{participantId:'arca_stage_record_fence',owner:'execution-foundation',repositories:[fence],execute(c){
+      const r=c.repository(fence.repositoryId),work=r.invoke('work',{work_id:execution.workId}),event=r.invoke('event',{event_id:execution.eventId}),
+        attempt=r.invoke('attempt',{event_attempt_id:execution.eventAttemptId});
+      if(work?.owner_domain!=='arca'||work.process_type!==execution.ownerScope.processType||work.process_id!==execution.ownerScope.processId||
+          work.state!=='running'||event?.work_id!==execution.workId||event.capability_ref!==execution.capabilityRef||event.state!=='executing'||
+          attempt?.event_id!==execution.eventId||attempt.state!=='executing')fail('Stage Manifest recovery execution fence changed.');
+    }},{participantId:'arca_stage_record_read_event',owner:'arca',repositories:[repo],execute(c){
+      const row=c.repository(repo.repositoryId).invoke('event',{event_id:execution.eventId});
+      if(!row)return null;
+      if(row.work_id!==execution.workId||row.process_type!==execution.ownerScope.processType||row.process_id!==execution.ownerScope.processId||
+          row.target_commit_slot_id!==execution.namedInputs?.targetCommitSlotHandle?.slotId)fail('Stage Manifest recovery scope changed.');
+      return unpack(row);
+    }}]).arca_stage_record_read_event;
+  }
   function save(execution,manifest,correctionPlan=null){
     options.contractValidator.validate(MANIFEST,manifest);
     validateManifest(manifest);
@@ -90,7 +105,7 @@ function createStagedManifestStore(options){
         record_schema_ref:RECORD,record_json:canonicalJson(record),record_digest:canonicalDigest(record),created_at_ms:c.commitTimeMs});return record;
     }}]).arca_stage_record_save;
   }
-  return Object.freeze({resolve,save});
+  return Object.freeze({resolve,readEvent,save});
 }
 function resolveStagedResult(options,value){return value?.schemaRef===RECORD?createStagedManifestStore(options).resolve(value):value;}
 function stagedResultReader(options){return Object.freeze({...options.workResultReader,read(workId){return options.workResultReader.read(workId)

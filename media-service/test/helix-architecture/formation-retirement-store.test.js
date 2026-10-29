@@ -78,6 +78,26 @@ function pendingIntake(f) {
   return {processId,intake,procurement,command};
 }
 
+test('Fresh Reset refuses a failed short-path Effect with unresolved Arca witness',()=>{
+  const f=fixture();
+  try{
+    const source=path.join(f.root,'source.mkv'),shelf=path.join(f.root,'shelf'),stage=path.join(shelf,'.shelfdeck-stage-test');
+    fs.mkdirSync(stage,{recursive:true});fs.writeFileSync(source,'original source');
+    const staged=path.join(stage,'pending.tmp');fs.writeFileSync(staged,'unclassified');
+    const before=[source,staged].map(name=>({name,bytes:fs.readFileSync(name),inode:fs.statSync(name,{bigint:true}).ino}));
+    f.db.prepare("INSERT INTO fx_workflow_events(event_id,capability_ref,state) VALUES ('short-event','arca.inventory.product.stage@1','failed')").run();
+    f.db.prepare("INSERT INTO fx_event_attempts(event_attempt_id,event_id,state,outcome_kind) VALUES ('short-attempt','short-event','completed','failed')").run();
+    f.db.prepare("INSERT INTO fx_effect_journal(effect_id,event_attempt_id,effect_class,idempotency_key,intent_digest,state,updated_at_ms) VALUES (?,'short-attempt','material_commit','short-key',?,'failed',1)").run(D,D);
+    f.db.prepare("INSERT INTO arca_jav_short_stage_witnesses(witness_id,on_deck_run_id,work_id,event_id,event_attempt_id,effect_id,target_commit_slot_id,decision_digest,member_key,kind,state,revision,witness_schema_ref,witness_json,witness_digest,updated_at_ms) VALUES ('witness','run','work','short-event','short-attempt',?,'slot',?,'member','stage_member','intent',1,?,'{}',?,1)")
+      .run(D,D,'helix://implementation/arca/JavShortStageWitness/v1',D);
+    const plan=inspectRetirementPlan(f.db);
+    assert.ok(plan.blockers.some(item=>item.code==='RESET_UNRESOLVED_EFFECT'));
+    assert.ok(plan.guards.unresolvedEffects.some(item=>item.effect_id===D));
+    for(const item of before){assert.deepEqual(fs.readFileSync(item.name),item.bytes);assert.equal(fs.statSync(item.name,{bigint:true}).ino,item.inode);}
+    assert.equal(f.db.prepare("SELECT count(*) n FROM arca_jav_short_stage_witnesses WHERE witness_id='witness'").get().n,1);
+  }finally{f.close();}
+});
+
 test('pending Intake retirement preserves Candidate history and Procurement Control without fabricating Handoff rejection',()=>{
   const f=fixture();
   try {

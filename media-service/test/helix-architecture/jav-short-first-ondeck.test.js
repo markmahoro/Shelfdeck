@@ -118,8 +118,13 @@ test('an interrupted shortened publication is not classified as completed on re-
       !fs.existsSync(x.slot.targetDirectory)||fs.readdirSync(x.slot.targetDirectory).length===0}),{code:'CLEAN_ARCA_EFFECT_FENCED'});
     assert.equal(fs.readdirSync(x.slot.targetDirectory).length,1);
     assert.equal(fs.readdirSync(x.slot.slotDirectory).length,x.decision.members.length);
-    await assert.rejects(()=>f.port.switchPlacement(x.placement),{code:'CLEAN_ARCA_SHORT_STAGE_UNCERTAIN'});
+    await assert.rejects(()=>f.port.switchPlacement(x.placement),{code:'CLEAN_ARCA_SHORT_PUBLICATION_UNCERTAIN'});
     assert.equal(fs.readdirSync(x.slot.targetDirectory).length,1);
+    const fresh=createCleanArcaInventoryPort({schemaManifest,unitOfWork:{},workspaceRoot:path.join(f.root,'workspace')});
+    const receipt=await fresh.switchPlacement({...x.placement,recoveryDecision:'continue_forward'});
+    assert.equal(receipt.receiptKind,'placement_switched');
+    assert.equal(fs.readdirSync(x.slot.targetDirectory).length,x.decision.members.length);
+    assert.equal(fs.existsSync(x.slot.slotDirectory),false);
   }finally{fs.rmSync(f.root,{recursive:true,force:true});}
 });
 
@@ -129,6 +134,17 @@ test('a fresh service instance cannot infer Stage continuity from saved names an
     await assert.rejects(()=>fresh.verifyStaged({...f.request,finalInventoryDecision:x.decision,stagedInventoryManifest:x.staged}),
       {code:'CLEAN_ARCA_SHORT_STAGE_UNCERTAIN'});
     assert.equal(fs.readdirSync(x.slot.slotDirectory).length,x.decision.members.length);assert.equal(fs.existsSync(x.slot.targetDirectory),false);
+    const verification=await fresh.verifyStaged({...f.request,finalInventoryDecision:x.decision,stagedInventoryManifest:x.staged,allowStageReceiptResume:true});
+    assert.equal(verification.result,'passed');
+  }finally{fs.rmSync(f.root,{recursive:true,force:true});}
+});
+
+test('a completed short placement can resume its original Effect after the Stage slot was removed',async()=>{
+  const f=fixture('HALT-094 '+'題'.repeat(80));try{
+    const x=await stagedFixture(f),original=await f.port.switchPlacement(x.placement),
+      fresh=createCleanArcaInventoryPort({schemaManifest,unitOfWork:{},workspaceRoot:path.join(f.root,'workspace')});
+    const resumed=await fresh.switchPlacement({...x.placement,recoveryDecision:'continue_forward'});
+    assert.deepEqual(resumed,original);assert.equal(fs.existsSync(x.slot.slotDirectory),false);
   }finally{fs.rmSync(f.root,{recursive:true,force:true});}
 });
 

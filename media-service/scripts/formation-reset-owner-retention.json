@@ -1,6 +1,6 @@
 {
   "schemaRef": "formation-reset-owner-retention@1",
-  "schemaDigest": "906ecacce4d6de62e875d1293cec93dd198564c1c53e2f7f7979d75b2eac2d0a",
+  "schemaDigest": "e6dc5f9a87f6fecef08831ce1c0e3e86ff94b6c78b5b9272b16a2f4361bb58aa",
   "tables": [
     {
       "table": "arca_acceptance_attempts",
@@ -159,6 +159,11 @@
     },
     {
       "table": "arca_jav_identity_corrections",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_jav_short_stage_witnesses",
       "owner": "arca",
       "disposition": "dependent"
     },

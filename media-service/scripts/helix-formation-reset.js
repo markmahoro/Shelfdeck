@@ -932,6 +932,8 @@ function deleteExecutionGraph(database, graph) {
     executeByIds(database,'DELETE FROM arca_inventory_verification_records WHERE event_id IN',graph.eventIds);
   if(tableExists(database,'arca_staged_manifest_records'))
     executeByIds(database,'DELETE FROM arca_staged_manifest_records WHERE event_id IN',graph.eventIds);
+  if(tableExists(database,'arca_jav_short_stage_witnesses'))
+    executeByIds(database,'DELETE FROM arca_jav_short_stage_witnesses WHERE event_id IN',graph.eventIds);
   executeByIds(database, 'DELETE FROM fx_inbox WHERE message_id IN', graph.messageIds);
   executeByIds(database, 'DELETE FROM fx_outbox_deliveries WHERE message_id IN', graph.messageIds);
   executeByIds(database, 'DELETE FROM fx_outbox WHERE message_id IN', graph.messageIds);

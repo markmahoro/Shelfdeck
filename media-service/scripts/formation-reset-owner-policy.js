@@ -26,7 +26,7 @@ function buildOwnerRetentionPolicy(manifest, { seriesRetention, metadataRetentio
   children('arca_shelf_entries', 'shelf_entry_id', manifest.tables.filter(t => t.owner === 'arca' &&
     t.tableId !== 'arca_shelf_entries' && t.columns.includes('shelf_entry_id')).map(t => t.tableId));
   children('arca_ondeck_runs', 'on_deck_run_id', ['arca_final_inventory_decisions', 'arca_ondeck_settlement_approvals',
-    'arca_series_presentation_commit_links', 'arca_series_presentation_reservations']);
+    'arca_series_presentation_commit_links', 'arca_series_presentation_reservations', 'arca_jav_short_stage_witnesses']);
   children('arca_acceptance_attempts', 'acceptance_attempt_id', ['arca_acceptance_checks', 'arca_acceptance_check_evidence']);
   children('arca_acceptance_decisions', 'acceptance_decision_id', ['arca_handoff_b_receipts']);
   children('arca_aftercare_cases', 'aftercare_case_id', ['arca_aftercare_case_basis_inputs', 'arca_aftercare_settlement_approvals']);
@@ -104,7 +104,7 @@ function buildOwnerRetentionPolicy(manifest, { seriesRetention, metadataRetentio
   }
   children('fx_workspace_registry', 'workspace_id', ['fx_workspace_materials']);
   for (const parent of ['libra_product_fact_source_refs', 'libra_acquisition_candidate_evidence',
-    'arca_acceptance_check_evidence', 'arca_inventory_verification_records', 'arca_staged_manifest_records']) {
+    'arca_acceptance_check_evidence', 'arca_inventory_verification_records', 'arca_staged_manifest_records', 'arca_jav_short_stage_witnesses']) {
     const column = parent === 'libra_acquisition_candidate_evidence' ? 'search_work_id' : 'work_id';
     edge(parent, 'fx_supporting_works', [[column, 'work_id']]);
   }

@@ -37,7 +37,7 @@ function fixture(t) {
       backup: { databasePath: backupPath, receiptDigest: backupDigest, verify() { assert.equal(fileDigest(backupPath), backupDigest); } },
       assertStopped() {}, normalizeRetained: () => ({ fixture: true }), verifyRetained: () => ({ fixture: true }), reserveBytes: 0n };
   }
-  return { root, activePath, sourceFile, input, options };
+  return { root, activePath, sourceFile, input, options, storage };
 }
 
 test('preflight binds actual selection and boundaries while resampling available space', t => {
@@ -107,4 +107,16 @@ test('a matching preflight authorizes the tested cold copy and frozen private cl
   const db = new Database(f.activePath, { readonly: true });
   try { assert.equal(db.prepare('SELECT count(*) n FROM queue').get().n, 0); assert.equal(db.prepare('SELECT count(*) n FROM owned').get().n, 1); }
   finally { db.close(); }
+});
+
+test('offline Reset keeps source, formal Shelf and its hidden Stage sibling outside private cleanup',async t=>{
+  const f=fixture(t),shelf=path.join(f.root,'shelf'),final=path.join(shelf,'film'),stage=path.join(shelf,'.shelfdeck-stage-test');
+  fs.mkdirSync(final,{recursive:true});fs.mkdirSync(stage);
+  const formal=path.join(final,'film.mkv'),staged=path.join(stage,'pending.mkv');
+  fs.writeFileSync(formal,'formal collection');fs.writeFileSync(staged,'unclassified staged material');
+  const before=[f.sourceFile,formal,staged].map(name=>({name,bytes:fs.readFileSync(name),inode:fs.statSync(name,{bigint:true}).ino}));
+  f.storage.protectedDirectories.push(shelf);
+  const approved=buildResetPreflight(f.input()),operator=createOfflineFormationReset(f.options(approved)),prepared=await operator.prepare();
+  await operator.apply({previewDigest:prepared.previewDigest,idempotencyKey:'preserve-shelf-stage'});
+  for(const item of before){assert.deepEqual(fs.readFileSync(item.name),item.bytes);assert.equal(fs.statSync(item.name,{bigint:true}).ino,item.inode);}
 });

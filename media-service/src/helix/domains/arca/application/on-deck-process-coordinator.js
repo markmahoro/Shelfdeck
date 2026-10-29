@@ -9,6 +9,7 @@ const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { createWorkAdmission } = require('../../../foundation/execution/work-admission');
 const { createAcceptanceRecoveryStore } = require('../persistence/acceptance-recovery-store');
 const { createArcaFormationRetirementStore } = require('../persistence/formation-retirement-store');
+const { createJavShortWitnessStore } = require('../persistence/jav-short-witness-store');
 
 const LIMITS = Object.freeze({ globalOpenWorks:256, ownerOpenWorks:256, openEvents:256 });
 
@@ -76,6 +77,16 @@ function exactOffer(message) {
 function createOnDeckProcessCoordinator(options) {
   const recovery = createAcceptanceRecoveryStore(options);
   const retirement = createArcaFormationRetirementStore(options);
+  function shortWitnessConflict(onDeckRunId,workId) {
+    if(typeof options.workResultReader.readFailures!=='function')return null;
+    const failed=options.workResultReader.readFailures(workId).filter(item=>
+      ['P4_EVENT_RECOVERY_REALITY_CONFLICT','CLEAN_ARCA_SHORT_STAGE_UNCERTAIN','CLEAN_ARCA_SHORT_PUBLICATION_UNCERTAIN'].includes(item.code));
+    if(!failed.length)return null;
+    const store=createJavShortWitnessStore(options);
+    for(const item of failed){const witnesses=store.readEvent(onDeckRunId,item.eventId);
+      if(witnesses.length)return Object.freeze({failure:item,witnesses});}
+    return null;
+  }
   const retired = scope => Object.freeze({ kind:'administratively_retired', ...scope });
   function isOfferRetired(offerId, current = recovery.read(offerId)) {
     return current ? current.recoveryState === 'administratively_retired' : Boolean(retirement.readReceipt(offerId));
@@ -300,6 +311,16 @@ function createOnDeckProcessCoordinator(options) {
     }
     const refs = refsFromWorkDefinition(latest.work_id);
     const context = options.contextReader.readAccepted(onDeckRunId, refs);
+    const shortConflict=shortWitnessConflict(onDeckRunId,latest.work_id);
+    if (mode === 'automatic' && shortConflict) {
+      const attention=options.contextReader.onDeck.requireAttention(onDeckRunId,context.finalInventoryDecision.decisionDigest);
+      return Object.freeze({kind:'attention_required',reasonCode:'ARCA_JAV_SHORT_RECOVERY_UNPROVEN',onDeckRunId,
+        subjectId:context.offer.subjectId,workId:latest.work_id,replayed:attention.replayed});
+    }
+    if (mode === 'user' && shortConflict) {
+      try { options.inventoryPort.assertShortRecoveryCleared(shortConflict.witnesses); }
+      catch(error){if(error?.code==='ARCA_JAV_SHORT_RECOVERY_UNRESOLVED')error.statusCode=409;throw error;}
+    }
     if (mode === 'automatic' && rows.length >= maxGenerations) {
       const attention=options.contextReader.onDeck.requireAttention(onDeckRunId,
         context.finalInventoryDecision.decisionDigest);
@@ -324,6 +345,11 @@ function createOnDeckProcessCoordinator(options) {
       const eligibility=options.contextReader.onDeck.recoveryEligibility(onDeckRunId);
       const closesPlanningGap=!eligibility.eligible&&eligibility.reasonCode==='on_deck_run_not_blocked'&&
         ['ready','offloading'].includes(eligibility.state);
+      if(shortWitnessConflict(onDeckRunId,latest.work_id)){
+        if(closesPlanningGap){const context=options.contextReader.readAccepted(onDeckRunId,refsFromWorkDefinition(latest.work_id));
+          options.contextReader.onDeck.block(onDeckRunId,context.finalInventoryDecision.decisionDigest);}
+        continue;
+      }
       if(rows.length>=3&&eligibility.eligible)continue;
       if(!eligibility.eligible&&!closesPlanningGap)continue;
       result.push(Object.freeze({cursor:onDeckRunId,scope:Object.freeze({onDeckRunId})}));
