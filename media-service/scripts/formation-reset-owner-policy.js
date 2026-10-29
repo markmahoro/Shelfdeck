@@ -190,7 +190,13 @@ function buildOwnerRetentionPolicy(manifest, { seriesRetention, metadataRetentio
       seeds.push({ owner: 'execution-foundation', table: 'fx_event_result_bindings', key: { result_id: row.resultId } });
     }
   }
-  const policy = { tables, edges, seeds, ...(seriesRetention ? { seriesRetentionDigest: seriesRetention.digest } : {}),
+  const customTargetTables=['libra_custom_target_intents','libra_custom_target_previews'];
+  const customTargetClosure=customTargetTables.every(name=>byName.has(name))
+    ? {schemaRef:'libra.fresh-reset-custom-target-closure@1',owner:'libra'} : null;
+  if(customTargetTables.some(name=>byName.has(name))&&!customTargetClosure)
+    throw Object.assign(new Error('Custom target retention schema is incomplete.'), {code:'RESET_RETENTION_SCHEMA_UNREVIEWED'});
+  const policy = { tables, edges, seeds, ...(customTargetClosure ? {customTargetClosure} : {}),
+    ...(seriesRetention ? { seriesRetentionDigest: seriesRetention.digest } : {}),
     ...(metadataRetention ? { metadataRetentionDigest: metadataRetention.digest } : {}) };
   return Object.freeze({ ...policy, policyDigest: canonicalDigest(policy) });
 }

@@ -109,3 +109,13 @@ Foundation 的 Work Admission 新增可选 opaque read fence，并由实际写�
 新增未接线的 Libra Run 目标读取：在同一 opaque fence 下读取 Run、其精确 Spec 与该 Subject/产品范围 Target Head，核对 Basis、Spec、Scope 和持久 Head 的引用。旧标准 Run 在新的 Custom Head 确认后即为 `target_not_current`，不等待 replacement Run；终态 Run 返回 `run_not_active`。测试模拟读取旧 Head 后并发确认，随后 Foundation Work Admission 验证同一 fence，陈旧准入被原子拒绝且不留下 Work/回执；也验证可在 Replacement 排空证明上使用同一 fence 检查当前目标。目标匹配仅是局部事实，不能证明旧 Work/Effect 已排空、评分和 Shelf 基线新鲜、Material Control 或 Arca 责任安全，也不是调度许可。
 
 Windows 和隔离 Linux Docker 运行 Replacement Admission、Work Admission、Work Lifecycle、Arca Offer 责任四文件，各 **76 PASS / 0 skip**；目标确认并发使用受控 SQLite 状态变化。新读取器包边界与禁止语义无新增 finding，原有全局 2 + 1 finding 保留。该读取器及围栏尚未接入所有 Run 协调、Workspace/Plan/Event 准入和 Scheduler，尚未形成全局屏障，也未启用用户入口。
+
+## Formation Reset 的 Custom Target 精确依赖（2026-10-29）
+
+依照 SSOT 的已入藏精确 Spec variant 保留合同复核：当前分支的 243 表 schema 与既有 239 表 Owner 保留声明不匹配，正式策略先以 `RESET_RETENTION_SCHEMA_UNREVIEWED` 拒绝。以**仅测试进程内**补齐新表 disposition 的合成 SQLite 复现，Reset 实际保留已入藏 Custom Spec，但其 Intent 为零；Spec 的 Custom Target 与原标准引用是 opaque JSON，没有现有 FK 或 Owner edge 从 Spec 选中。该结果不表示生产曾运行此 Reset 或已有数据受损。
+
+修复由 Libra public Owner reader 在停止态只读来源快照中，对复制图实际选中的 Spec、Run 和 Package 验证并提供精确闭包；完整重建 Custom Spec、Intent 与 Preview，校验原标准、Subject/Scope、版本、digest、Run Target 和 Package/Spec 关系。Operator 只为已选中 Spec 加入对应 Intent、Preview 和原标准，继续执行现有 FK 闭包，不按 Subject 扫描或保留其他历史。新策略声明要求 Intent/Preview 为 `dependent`、可变 Target Head 为 `clear`；缺描述、错误分类、缺失或冲突直接拒绝。独立只读复验在复制后对来源和候选库重建相同依赖，并把摘要纳入预览证据；未改生成 DDL、FK 或共享表声明。
+
+合成测试覆盖已入藏与未入藏、同 Subject 两个已入藏版本及一个未入藏版本、无关历史即使损坏也不扩大选取、缺失原标准/Intent/Preview、篡改完整记录/版本/引用、Package 与 Run 不一致、候选库依赖损坏，以及 `database_copied` / `owners_normalized` 检查点中断后从冻结来源重试。实际模型记录用于校验，收藏及部分 Run/Package 行是受控关系夹具，不是实际媒体接纳旅程。Windows 与隔离 Linux Docker 的六个相关文件各 **64 PASS / 0 skip**；额外 48 MiB 内存测试 Windows **2 PASS**。仅在测试进程内模拟四项表分类后，People、共享 metadata 和维护 Workspace 三文件 Windows/Linux 各 **16 PASS / 0 skip**。包边界与禁止语义无新增 finding，原有全局 2 + 1 finding 保留。
+
+直接扩展运行另含既有 `formation-reset-schema.test.js` 时两平台各 **61 PASS / 4 FAIL**，四项均先被当前 239/243 schema 声明不一致挡住；仅模拟表分类后该组为 **17 PASS / 3 FAIL**，三项仍因旧来源 schema transition 未获当前目标审核而拒绝。不得修改声明或放宽 schema/FK 来掩盖；主整合须审核实际完整表集合及来源迁移合同后重新运行真实版本的 Reset 门禁。本轮没有运行生产 Reset、读取或修改 NAS，也没有证明实际收藏/生产验收。

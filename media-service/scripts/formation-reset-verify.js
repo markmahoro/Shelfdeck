@@ -10,6 +10,7 @@ const { describeFreshResetSeriesRetention } = require('../src/helix/domains/arca
 const { readResetOwnerSnapshotDatabase } = require('./formation-reset-owner-snapshot');
 const { verifyRetainedControls } = require('./formation-reset-responsibilities');
 const { verifyRetainedPeopleReferences } = require('./formation-reset-people-references');
+const { createFreshResetCustomTargetRetention } = require('../src/helix/domains/libra/public');
 
 function fail(code, details) { throw Object.assign(new Error(code), { code, details }); }
 function digestRows(rows) {
@@ -72,6 +73,34 @@ function readOnlyUnitOfWork(database) {
   } } });
 }
 
+function verifyRetainedCustomTargets(source,target,schemaManifest){
+  const before=createFreshResetCustomTargetRetention({schemaManifest,unitOfWork:readOnlyUnitOfWork(source)}),
+    after=createFreshResetCustomTargetRetention({schemaManifest,unitOfWork:readOnlyUnitOfWork(target)}),hash=createHash('sha256');
+  let count=0;hash.update('[');
+  function each(table,key,callback){
+    const statement=target.prepare('SELECT '+key+' FROM '+table+' WHERE (? IS NULL OR '+key+'>?) ORDER BY '+key+' LIMIT 128');
+    let cursor=null,batch;
+    while((batch=statement.all(cursor,cursor)).length){
+      for(const row of batch){if(typeof row[key]!=='string'||!row[key])fail('RESET_VERIFY_CUSTOM_TARGET_CHANGED');callback(row[key]);}
+      cursor=batch.at(-1)[key];
+    }
+  }
+  each('libra_acceptance_specs','acceptance_spec_id',id=>{
+    const original=before.describeSpec(id),retained=after.describeSpec(id);
+    if(canonicalJson(original)!==canonicalJson(retained))fail('RESET_VERIFY_CUSTOM_TARGET_CHANGED');
+    if(retained){if(count++)hash.update(',');hash.update(canonicalJson(retained));}
+  });
+  each('libra_runs','libra_run_id',id=>{
+    const original=before.validateRun(id),retained=after.validateRun(id);
+    if(canonicalJson(original)!==canonicalJson(retained))fail('RESET_VERIFY_CUSTOM_TARGET_CHANGED');
+  });
+  each('libra_product_packages','on_deck_package_id',id=>{
+    const original=before.validatePackage(id),retained=after.validatePackage(id);
+    if(canonicalJson(original)!==canonicalJson(retained))fail('RESET_VERIFY_CUSTOM_TARGET_CHANGED');
+  });
+  hash.update(']');return {count,digest:hash.digest('hex')};
+}
+
 function verifyRetainedCollections({ Database, sourcePath, targetPath, schemaManifest, schemaDdl }) {
   const source = new Database(sourcePath, { readonly: true, fileMustExist: true });
   let target;
@@ -98,6 +127,7 @@ function verifyRetainedCollections({ Database, sourcePath, targetPath, schemaMan
       return { table, ...before };
     });
     const shared = verifySharedCollections(source, target);
+    const customTargets = verifyRetainedCustomTargets(source,target,schemaManifest);
     const packages = source.prepare(`SELECT DISTINCT p.on_deck_package_id,p.offer_id,p.package_revision,p.package_digest
       FROM arca_ondeck_commit_receipts c JOIN arca_ondeck_runs r ON r.on_deck_run_id=c.on_deck_run_id
       JOIN arca_ondeck_custodies k ON k.custody_id=r.custody_id
@@ -142,7 +172,7 @@ function verifyRetainedCollections({ Database, sourcePath, targetPath, schemaMan
         fail('RESET_VERIFY_PACKAGE_CHANGED', { packageId: row.on_deck_package_id });
       reconstructed.push({ packageId: row.on_deck_package_id, digest: canonicalDigest(after) });
     }
-    return { schemaRef: 'formation-reset-collection-verification@1', integrity, controls, protections, shared, peopleReferences,
+    return { schemaRef: 'formation-reset-collection-verification@1', integrity, controls, protections, shared, peopleReferences, customTargets,
       reconstructedCommits: ownership.length, ownershipDigest: canonicalDigest(ownership),
       reconstructedPackages: reconstructed.length, packageReadDigest: canonicalDigest(reconstructed) };
   } finally {
@@ -153,4 +183,4 @@ function verifyRetainedCollections({ Database, sourcePath, targetPath, schemaMan
   }
 }
 
-module.exports = Object.freeze({ verifyRetainedCollections, digestRows });
+module.exports = Object.freeze({ verifyRetainedCollections, verifyRetainedCustomTargets, digestRows });
