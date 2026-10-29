@@ -1,5 +1,7 @@
 # Aftercare 缺失 Artifact 的物理身份碰撞
 
+> **后续审查结论：`c2e2127e9` 不具备最终候选资格。** 同字节外部目标可被误收编，外部同 inode Stage 可被清理，外部 Stage 单独存在时也可被发布；原有测试结论仅适用于其当时覆盖的现场。完整负例和待审查的 Stage 归属方案见 [Stage 归属审查](AFTERCARE_ARTIFACT_STAGE_OWNERSHIP_REVIEW_20261029.md)。下文保留当时的源码、测试与首轮失败证据，不将它们改写成新的通过结论。
+
 工作项：`AFTERCARE-MISSING-ARTIFACT-IDENTITY-COLLISION`。范围为 Arca Aftercare 的已冻结缺失 NFO、poster 或 fanart 的物化；不改变 Physical Material Identity 公式、Material Control Owner、Inventory 事务或目标重现时的保护。该记录是隔离开发证据，不是生产验收。
 
 ## 首份门禁与根因边界
