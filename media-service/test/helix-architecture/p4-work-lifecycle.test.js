@@ -384,6 +384,29 @@ test('Owner can replan a blocked Work onto a new Attempt without changing identi
   assert.equal(second.attempt.basis_digest, first.attempt.basis_digest);
 }));
 
+test('guarded blocked Work replan verifies its exact Owner Basis and read fence in the write transaction',()=>fixture(({lifecycle,unitOfWork,databasePath})=>{
+  const {attempt}=lifecycle.ensurePlanningAttempt('work-1'),scope={ownerDomain:'procurement',processType:'procurement_run',
+    processId:'run-1',workKind:'evidence_assessment',executionBasisDigest:'a'.repeat(64)},db=new Database(databasePath);
+  try{db.prepare(`INSERT INTO fx_workflow_plans(plan_id,attempt_id,planner_ref,planner_version,catalog_digest,basis_digest,graph_digest,state,created_at_ms)
+    VALUES(?,?,?,?,?,?,?,?,?)`).run('blocked-plan',attempt.attempt_id,'planner@1',1,'b'.repeat(64),'a'.repeat(64),'c'.repeat(64),'temporarily_unplannable',2);}
+  finally{db.close();}
+  lifecycle.startPlanned('work-1',attempt.attempt_id,'media_device_strategies_unavailable');
+  const request={workId:'work-1',disposition:'replan'},oldFence=unitOfWork.captureReadFence(),change=new Database(databasePath);
+  try{change.prepare("INSERT INTO libra_subjects(subject_id,status,content_profile,structure_kind,intake_revision) VALUES('replan-race','active','movie','single',1)").run();}
+  finally{change.close();}
+  assert.throws(()=>lifecycle.settleWork(request,{readFence:oldFence,expectedScope:scope}),{code:'P3_UOW_READ_FENCE_CHANGED'});
+  assert.throws(()=>lifecycle.settleWork(request,{readFence:unitOfWork.captureReadFence(),expectedScope:{...scope,processId:'other-run'}}),
+    {code:'P4_WORK_OWNER_SCOPE_CHANGED'});
+  assert.throws(()=>lifecycle.settleWork(request,{readFence:unitOfWork.captureReadFence(),expectedScope:{...scope,executionBasisDigest:'b'.repeat(64)}}),
+    {code:'P4_WORK_OWNER_SCOPE_CHANGED'});
+  assert.equal(read(databasePath,'SELECT state FROM fx_supporting_works WHERE work_id=?','work-1').state,'blocked');
+  assert.equal(read(databasePath,'SELECT state FROM fx_work_attempts WHERE attempt_id=?',attempt.attempt_id).state,'blocked');
+  const fence=unitOfWork.captureReadFence();
+  assert.equal(lifecycle.settleWork(request,{readFence:fence,expectedScope:scope}).state,'ready');
+  assert.equal(read(databasePath,'SELECT state FROM fx_work_attempts WHERE attempt_id=?',attempt.attempt_id).state,'cancelled');
+  assert.throws(()=>lifecycle.settleWork(request,{readFence:fence,expectedScope:scope}),{code:'P3_UOW_READ_FENCE_CHANGED'});
+}));
+
 test('Owner can request a new bounded Attempt without changing Work identity or Basis', () => fixture(({ lifecycle, databasePath }) => {
   const first = lifecycle.ensurePlanningAttempt('work-1');
   const database = new Database(databasePath);
