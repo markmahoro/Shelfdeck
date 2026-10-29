@@ -77,6 +77,12 @@ US 候选现在读取同一 Run 的 `resolved_identity`、`product_metadata` 和
 
 此改动改变用户可见的预览资格，属于后端联动 UI；按 Playbook §12.3 仍需用户指定 UI 负责人核验整合后的确切版本和受影响页面。没有执行 NAS 重测、生产确认、自动或手动接纳，不能据此关闭生产问题。
 
+## US 瑕疵确认界面的走查修复（2026-10-29）
+
+UI 负责人对开发版本 `d37bc4272` 的提前走查为 FAIL，指出确认失败显示在弹窗背后、实测成品体积误写为预计及列表序号重复；这不是整合版本验收。独立前端提交 `80ea48f5e` 在弹窗内显示具体可操作错误，明确的 4xx 拒绝使旧候选失效；重新读取当前 Run 并获得新的 eligible Preview 后才允许再次确认。网络或服务端结果不明确时保持待核对状态，不把它判作失败，也不凭 Run 变为 active 推定本命令成功；原 Candidate、Run revision/digest 和幂等键保留在当前浏览器内存，用户核对提交时重放同一请求。确认响应已成功但页面刷新失败时只提供刷新状态，不再次发命令。
+
+大小文案在 `measured=true` 时仅使用 `actualSizeBytes` 与实际限额计算超出量；只有预测数据使用“预计”，缺失实际值不冒充预测。删除有序列表的手写编号和没有证据支持的编码/音轨承诺，保留精确瑕疵及确认后果。当前实现版本的 `tsc`/Web build 通过，3 个相关 Vitest 文件 **31 PASS**；Chromium 四个视口（1920×1080、1280×800、1024×768、390×844）以键盘/实际页面执行实测与预测、单编号、旧 Preview 失效和重检、网络未知结果及原请求核对，共 **16 PASS**。本轮浏览器使用受控前端 API 夹具，不是实际媒体、Arca 或生产操作。窄屏实测/错误/未知结果截图保存在本任务 ignored Evidence，SHA-256 分别为 `469e51e8049f22964936d76da756af6a71953de2b26ef938fe0d3b5c2c33d6e2`、`edcefe7242b32f85079b9589bc625139959fc1019c02f26a96461229e4801c32`、`10bf8a381d8c0e247cc8a60adc8feebbf00339cecb90a824f703563fcc22a9c6`。合并后的精确版本仍须 UI 负责人复验，不能据此声明最终 UI/UAT 或生产验收通过。
+
 ## 验证与保留的失败
 
 - 本机 Node 逻辑/真实 SQLite 定向：最终 16 个相关文件 133 PASS / 0 skip，包含 Preview/确认、Publication、Run Admission、Promotion、Delivery 与 Provider；此前 14 个文件 99 PASS / 0 skip。覆盖的评分/Accepted 是受控投影，不是实际 Perception 修改或 Arca 提交。
@@ -85,3 +91,9 @@ US 候选现在读取同一 Run 的 `resolved_identity`、`product_metadata` 和
 - Manifest 和 P2 contract 检查 PASS。包边界首跑 2 finding：基线 `buffalo-face-catalogue.js` 的 `usearch`、`better-sqlite3` 尚未在全局策略登记；禁止语义首跑 1 finding：基线 `us-adult-catalogue-assessment.js` 的 `membership`。这三个源码/策略路径相对 `f24164ae0` 未修改；没有改变其他线程或全局策略来遮盖 finding。完整 Architecture 未通过。
 - 保留首跑失败：Provider 三项最初因沙箱临时目录 `rename` 的 `EPERM` 全部失败，解除权限限制后同范围通过；新增电影字段测试最初发现空年份误拒、冲突年份/ID 误放行，新增类型测试最初发现剧集类型误放行；重放测试最初发现已替代 Run 拒绝重放，进一步的完整 Basis 篡改测试先红后绿；新 Run 初次测试证明缺失当前标准投影或评分要求改变仍可准入，追加基线门槛后定向复验通过。新增 Preview/确认测试先发现损坏 Foundation 回执仍能重放、复用幂等键改变 Preview 未返回冲突；Publication 新鲜度负例先证明未读取当前基线，均修正后复验通过。夹具加入基线读取器后，原“缺失读取器”测试一度因夹具默认值而未真正模拟缺失，显式传入 `undefined` 恢复原负例并通过。新增媒体观察局部变量 `sourceBindings` 被禁止语义扫描识别为旧 Domain 概念：实际变量是 Event 输入端口绑定，按真实含义改为 `mediaPortBindings` 后该文件 0 finding，基线 `membership` finding 仍保留。这些均未通过删断言或降低安全门槛修正。
 - 最初 Docker daemon 不可用，后续已完成上面受限的 Linux 容器定向验证；仍未构建本分支精确依赖镜像，也未验证真实下载、真实媒体生产、最终 UI 或生产验收。未部署、改库、重试/取消生产任务、Reset、启停或修改生产媒体。
+
+## Supporting Work 准入围栏（2026-10-29）
+
+Foundation 的 Work Admission 新增可选 opaque read fence，并由实际写入 Work 和 Admission Receipt 的同一 Unit of Work 验证：读取后 Owner 状态变化会原子拒绝，且不留下 Work 或回执。精确已提交命令的重放先核验原回执，因此后续 Owner 变化不妨碍重放；这不放宽新提交的校验。真实临时 SQLite 测试先复现原实现忽略 fence、错误接受陈旧读取，再验证变化发生于旧 Effect 排空和新 Work 准入之间时拒绝，重新排空并获取新 fence 后通过。
+
+提交 `8b8a19532` 的 Work Admission、Replacement Run Admission、Work Lifecycle 和 Arca Offer Withdrawal 四个测试文件，在 Windows Node 和隔离 Linux Docker 各为 **70 PASS / 0 skip**。这是供 Owner 编排选择使用的原子准入原语，尚未接入全部 Run、Workspace Admission 或 Scheduler；在途旧 Event/Effect 和已 Accepted/Rejected Offer 的处理仍须按各 Owner 合同完成，不能视为全局调度屏障或开放入口的证据。
