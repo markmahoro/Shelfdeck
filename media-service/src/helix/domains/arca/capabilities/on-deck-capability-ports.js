@@ -195,9 +195,25 @@ function settlementPreconditionFailureOutcome(error) {
 }
 
 function stagePreconditionFailureOutcome(error) {
-  if (error?.code !== 'CLEAN_ARCA_STAGE_TARGET_OCCUPIED') return null;
+  if (!['CLEAN_ARCA_STAGE_TARGET_OCCUPIED','CLEAN_ARCA_JAV_SHORT_TARGET_OCCUPIED'].includes(error?.code)) return null;
   return Object.freeze({kind:'failed',failureClass:'stage_precondition',code:error.code,
     message:error.message,retryDirective:'never',
+    evidence:Object.freeze({errorCode:error.code,diagnostics:failureDiagnostics(error)})});
+}
+
+function javFeasibilityFailureOutcome(error, packageValue) {
+  const identity=packageValue?.resolvedIdentitySnapshot?.factValue?.resolvedProductIdentity||packageValue?.resolvedIdentitySnapshot?.factValue;
+  if(identity?.contentProfile!=='jav'||!['CLEAN_ARCA_TARGET_SEGMENT_INVALID','CLEAN_ARCA_JAV_CODE_REQUIRED',
+    'CLEAN_ARCA_JAV_TITLE_UNFITTING','CLEAN_ARCA_JAV_SHORT_STEM_MISMATCH','CLEAN_ARCA_TARGET_COLLISION'].includes(error?.code)) return null;
+  const code=error.code==='CLEAN_ARCA_TARGET_SEGMENT_INVALID'?'CLEAN_ARCA_JAV_NAME_INVALID':
+    error.code==='CLEAN_ARCA_TARGET_COLLISION'?'CLEAN_ARCA_JAV_TARGET_COLLISION':error.code;
+  return Object.freeze({kind:'failed',failureClass:'contract',code,message:String(error.message),retryDirective:'never',
+    evidence:Object.freeze({errorCode:code,diagnostics:failureDiagnostics(error)})});
+}
+
+function shortenedStageObservationFailureOutcome(error) {
+  if (error?.code !== 'CLEAN_ARCA_SHORT_STAGE_UNCERTAIN') return null;
+  return Object.freeze({kind:'failed',failureClass:'stage_precondition',code:error.code,message:String(error.message),retryDirective:'never',
     evidence:Object.freeze({errorCode:error.code,diagnostics:failureDiagnostics(error)})});
 }
 
@@ -263,9 +279,12 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
   ports[C.space]=pure(C.space,['productManifest','spaceRequirement'],(n,c,at)=>{const snapshot=packageRequirementSnapshot(c),space=evaluatePackageSpace(c.packageValue,snapshot.value.requirements.space);return dimensionCheck(C.space,'space',{
     acceptanceAttemptId:acceptanceAttemptId(c),standardRevision:c.shelf.currentStandardRevision,packageDigest:c.packageValue.packageDigest,
     productManifest:n.productManifest,spaceRequirement:n.spaceRequirement},c,at,space.actualGapCodes,n.spaceRequirement.digest,space);});
-  ports[C.feasibility]=pure(C.feasibility,['offLoadContext','placementPolicy','targetEndpoint'],(_n,c,at)=>options.inventoryPort.assess({
-    onDeckRunId:stable('arca-ondeck-preview-',{offer:c.offer.offerId}),custodyId:stable('arca-custody-preview-',{offer:c.offer.offerId}),shelf:c.shelf,
-    onDeckProductPackage:c.packageValue,observedAtMs:at,replayCommitted:false}));
+  ports[C.feasibility]=Object.freeze({validateInputs(c){requireNamed(c,['offLoadContext','placementPolicy','targetEndpoint']);},execute(execution){
+    const c=ctx(execution);let result;
+    try {result=options.inventoryPort.assess({onDeckRunId:stable('arca-ondeck-preview-',{offer:c.offer.offerId}),
+      custodyId:stable('arca-custody-preview-',{offer:c.offer.offerId}),shelf:c.shelf,onDeckProductPackage:c.packageValue,observedAtMs:now(),replayCommitted:false});}
+    catch(error){const failed=javFeasibilityFailureOutcome(error,c.packageValue);if(failed)return failed;throw error;}
+    return outcome(C.feasibility,result,now());},validateResult(_c,o){if(!o?.result)throw new TypeError(C.feasibility+' Result is absent.');}});
   ports[C.accept]=Object.freeze({validateInputs(c){requireNamed(c,['acceptedPayload','responsibilityControlCommitHandle']);},execute(execution){const c=ctx(execution),
     assessmentWork=options.workResultReader.listWorks({ownerDomain:'arca',processType:'arca_acceptance',processId:c.offer.offerId,workKind:'acceptance_assessment'})
       .find((item)=>options.workResultReader.status(item.work_id)?.state==='succeeded');
@@ -345,7 +364,7 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
     onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,shelf:c.shelf,onDeckProductPackage:c.packageValue,
     finalInventoryDecision:c.finalInventoryDecision,observedAtMs:at,replayCommitted:execution.recoveryDecision==='already_committed',replaySettledSources:true,
     nfoPresentationBasis:nfoPresentationBasis(c),priorPlacementReceipt:priorOnDeckPlacementReceipt(options,execution,execution.namedInputs.targetCommitSlotHandle.slotId)}),targetCommitSlotHandle:execution.namedInputs.targetCommitSlotHandle,
-    ...(aftercare?{shouldContinue:aftercareShouldContinue(execution,aftercare.aftercareCaseId)}:{})});
+    ...(aftercare?{shouldContinue:aftercareShouldContinue(execution,aftercare.aftercareCaseId)}:{shouldContinue:execution.shouldContinue})});
     if(aftercare)readAftercarePlacementAuthority(options,execution,aftercare.aftercareCaseId);
     else onDeck.acquireStagedCustody({
       onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,
@@ -354,7 +373,7 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
     return committedOutcome(execution,C.stage,record,at,'material_commit');
     }catch(error){const failed=stagePreconditionFailureOutcome(error);if(failed)return failed;throw error;}},
     validateResult(_c,o){if(o?.result?.schemaRef!=='helix://contracts/types/StagedInventoryManifestRecord/v1')throw new TypeError('Staged Inventory Manifest Record is invalid.');}});
-  ports[C.stagedVerify]=Object.freeze({validateInputs(c){requireNamed(c,['stagedManifest','finalInventoryDecision']);},async execute(execution){
+  ports[C.stagedVerify]=Object.freeze({validateInputs(c){requireNamed(c,['stagedManifest','finalInventoryDecision']);},async execute(execution){try{
     const c=ctx(execution),n=execution.namedInputs,request=aftercareRequest(execution,c)||{onDeckRunId:c.responsibility.onDeckRunId,
       custodyId:c.responsibility.custodyId,shelf:c.shelf,onDeckProductPackage:c.packageValue,finalInventoryDecision:c.finalInventoryDecision,
       observedAtMs:now(),replayCommitted:false,replaySettledSources:true,nfoPresentationBasis:nfoPresentationBasis(c),
@@ -362,7 +381,8 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
     const aftercare=execution.ownerScope.processType==='arca_shelf_entry',result=await options.inventoryPort.verifyStaged({...request,finalInventoryDecision:n.finalInventoryDecision,
       stagedInventoryManifest:n.stagedManifest,...(aftercare?{shouldContinue:aftercareShouldContinue(execution,request.aftercareCaseId)}:{})});
     if(aftercare)readAftercarePlacementAuthority(options,execution,request.aftercareCaseId);
-    return outcome(C.stagedVerify,result,now());},validateResult(_c,o){if(o?.result?.result!=='passed')throw new TypeError('Staged Inventory Verification is invalid.');}});
+    return outcome(C.stagedVerify,result,now());}catch(error){const failed=shortenedStageObservationFailureOutcome(error);if(failed)return failed;throw error;}},
+    validateResult(_c,o){if(o?.result?.result!=='passed')throw new TypeError('Staged Inventory Verification is invalid.');}});
   ports[C.finalVerify]=Object.freeze({validateInputs(x){requireNamed(x,['finalBindings','productDispositionManifest']);},async execute(execution){const c=ctx(execution),n=execution.namedInputs,at=now(),aftercare=Boolean(c.shelfEntryId),
     reality=await options.inventoryPort.readFinalAsync(finalReadRequest(execution,c,at)),basisDigest=canonicalDigest({inputs:n,finalRealityDigest:reality.realityDigest}),
     keys=reality.members.map((item)=>item.sourceMaterialKey).sort(),processId=aftercare?c.shelfEntryId:c.responsibility.onDeckRunId,
@@ -382,8 +402,18 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
       shouldContinue:aftercareShouldContinue(execution,aftercare.aftercareCaseId)});
       readAftercarePlacementAuthority(options,execution,aftercare.aftercareCaseId);
       return committedOutcome(execution,C.placement,body,at,'material_commit');}
+    const identity=c.packageValue.resolvedIdentitySnapshot?.factValue?.resolvedProductIdentity||c.packageValue.resolvedIdentitySnapshot?.factValue;
+    const target=identity?.contentProfile==='jav'?options.inventoryPort.resolveTargetLocation({shelf:c.shelf,onDeckProductPackage:c.packageValue,
+      finalInventoryDecision:c.finalInventoryDecision}):null;
+    const stageMatches=target?.shortenedJavTitle?options.workResultReader.read(execution.workId)
+      .filter(item=>item.capabilityRef===C.stage&&item.outcomeKind==='succeeded')
+      .map(item=>resolveStagedResult(options,item.result))
+      .filter(value=>value?.manifestDigest===n.verifiedStagedManifest.stagedInventoryManifestDigest):[];
+    if(target?.shortenedJavTitle&&stageMatches.length!==1)throw Object.assign(new Error('The exact shortened-target Stage Result is unavailable.'),
+      {code:'CLEAN_ARCA_SHORT_PUBLICATION_UNCERTAIN'});
     const body=await options.inventoryPort.switchPlacement({onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,shelf:c.shelf,
       onDeckProductPackage:c.packageValue,finalInventoryDecision:c.finalInventoryDecision,stagedInventoryVerification:n.verifiedStagedManifest,
+      ...(target?.shortenedJavTitle?{stagedInventoryManifest:stageMatches[0],shouldContinue:execution.shouldContinue}:{}),
       targetBindings:n.targetBindings,replacedInputSetDigest:canonicalDigest(c.packageValue.offloadContextManifest.members),observedAtMs:at,
       replayCommitted:execution.recoveryDecision==='already_committed',replaySettledSources:true,nfoPresentationBasis:nfoPresentationBasis(c),
       priorPlacementReceipt:priorOnDeckPlacementReceipt(options,execution)});
@@ -477,4 +507,5 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
 }
 
 module.exports=Object.freeze({createOnDeckCapabilityPorts,readAftercarePlacementAuthority,nfoPresentationBasis,
-  priorOnDeckPlacementReceipt,placementPreconditionFailureOutcome,settlementPreconditionFailureOutcome,stagePreconditionFailureOutcome});
+  priorOnDeckPlacementReceipt,placementPreconditionFailureOutcome,settlementPreconditionFailureOutcome,stagePreconditionFailureOutcome,
+  javFeasibilityFailureOutcome,shortenedStageObservationFailureOutcome});

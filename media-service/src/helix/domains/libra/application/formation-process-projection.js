@@ -95,6 +95,13 @@ const FAILURE_COPY = Object.freeze({
   CLEAN_ARCA_TARGET_ROOT_UNAVAILABLE:'目标收藏架当前无法访问',
   CLEAN_ARCA_TARGET_OCCUPIED:'目标位置已经存在其他媒体文件',
   CLEAN_ARCA_STAGE_TARGET_OCCUPIED:'目标位置已有与本次产品不同的文件，已停止写入并保留现有文件',
+  CLEAN_ARCA_JAV_SHORT_TARGET_OCCUPIED:'目标目录已存在，已停止上架并保留现有文件',
+  CLEAN_ARCA_SHORT_STAGE_UNCERTAIN:'暂存文件状态无法确认，已停止上架并保留现有文件',
+  CLEAN_ARCA_JAV_CODE_REQUIRED:'影片番号无法核对，不能生成上架名称',
+  CLEAN_ARCA_JAV_TITLE_UNFITTING:'影片名称无法在目标目录中安全缩短',
+  CLEAN_ARCA_JAV_SHORT_STEM_MISMATCH:'收藏架命名规则无法生成对应的影片和资料文件',
+  CLEAN_ARCA_JAV_NAME_INVALID:'上架名称包含无效字符',
+  CLEAN_ARCA_JAV_TARGET_COLLISION:'影片资料的目标名称冲突',
   CLEAN_ARCA_TARGET_COLLISION:'本次写入会与目标位置中的现有文件冲突',
   FENCE_REJECTED:'执行前核对发现文件或计划状态已经发生变化',
 });

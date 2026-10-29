@@ -46,6 +46,7 @@
     "onnxruntime-node": "1.30.0",
     "sharp": "^0.35.2",
     "undici": "^6.28.0",
+    "unicode-segmenter": "0.17.3",
     "usearch": "2.25.3"
   },
   "optionalDependencies": {

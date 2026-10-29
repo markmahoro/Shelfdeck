@@ -41,3 +41,31 @@ it('offers one direct retry for a deterministic stage collision', async () => {
   await waitFor(() => expect(retry).toHaveBeenCalledWith(item));
   expect(screen.queryByRole('dialog', { name: '处理目标位置冲突' })).not.toBeInTheDocument();
 });
+
+it('offers recheck for an occupied shortened JAV target', async () => {
+  mockRunningRuntime();
+  const summary = { totalCount:1, inProgressCount:0, attentionRequiredCount:1, completedCount:0, endedCount:0 };
+  const projection = { status:'ready' as const, asOfMs:100 };
+  const item = {
+    subjectId:'subject-jav-conflict', displayIdentity:'IPX-177', classification:'attention_required', status:'active',
+    contentProfile:'jav', addedAtMs:1, currentRun:null, handoffB:{offerId:'offer-jav',state:'published'},
+    productIdentityIssue:null,currentPlan:null,myRating:null,targetShelfId:null,targetShelfName:null,organizingRequirement:'',
+    routingState:'resolved',unresolvedReasonCode:null,
+    nextAction:{label:'目标目录已存在，已停止上架',state:'attention_required',progress:null},
+    executorIssue:{phase:'on_deck_execution',errorCode:'CLEAN_ARCA_JAV_SHORT_TARGET_OCCUPIED',owner:'arca',
+      recoveryState:'attention_required',canRetry:false,canRecheck:true,offerId:'offer-jav',onDeckRunId:'run-jav'},
+  } as unknown as FormationSubject;
+  vi.spyOn(helixAdminApi,'listFormation').mockImplementation((section)=>Promise.resolve({items:section==='active'?[item]:[],summary,nextCursor:null,projection}));
+  vi.spyOn(helixAdminApi,'listFormationHistory').mockResolvedValue({items:[],summary,nextCursor:null,projection});
+  vi.spyOn(helixAdminApi,'listShelves').mockResolvedValue({items:[]});
+  vi.spyOn(helixAdminApi,'getPerceptionSyncState').mockRejectedValue(new Error('not configured'));
+  vi.spyOn(helixAdminApi,'listCareWork').mockResolvedValue({items:[],counts:{},nextCursor:null});
+  vi.spyOn(helixAdminApi,'listJavCorrectionWork').mockResolvedValue({items:[],counts:{},nextCursor:null});
+  const recheck=vi.spyOn(helixAdminApi,'retryAcceptance').mockResolvedValue({} as never);
+  render(<MemoryRouter initialEntries={['/formation']}><App /></MemoryRouter>);
+  expect(await screen.findByText('目标目录已存在，已停止上架')).toBeInTheDocument();
+  expect(screen.queryByRole('button',{name:'重试上架'})).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button',{name:'重新检查'}));
+  await waitFor(()=>expect(recheck).toHaveBeenCalledWith(item));
+  expect(await screen.findByText('已提交重新检查')).toBeInTheDocument();
+});

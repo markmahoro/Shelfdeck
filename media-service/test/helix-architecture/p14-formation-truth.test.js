@@ -114,6 +114,35 @@ test('Formation explains an Arca target failure instead of showing a stalled han
   assert.equal(item.executorIssue.canRetry, true);
 });
 
+test('JAV name failures do not offer an unchanged acceptance retry',()=>{
+  for(const code of ['CLEAN_ARCA_JAV_NAME_INVALID','CLEAN_ARCA_JAV_CODE_REQUIRED','CLEAN_ARCA_JAV_TITLE_UNFITTING',
+    'CLEAN_ARCA_JAV_SHORT_STEM_MISMATCH','CLEAN_ARCA_JAV_TARGET_COLLISION']){
+    const query=createFormationQuery({store:{},detailSource:{get:()=>({subjectId:'s',classification:'in_progress',handoffB:{offerId:'o'}})},
+      readAcceptanceRecovery:()=>({recoveryState:'attention_required',errorCode:code,failurePhase:'acceptance_assessment',
+        terminalAttemptCount:1,ownerDomain:'arca',recoveryGeneration:1,automaticRecoveryUsed:false,offerId:'o'})});
+    const item=query.get('s');assert.equal(item.executorIssue.canRetry,false);assert.notEqual(item.nextAction.label,'媒体整理完成，收藏架验收或上架失败');
+  }
+});
+
+test('an occupied shortened JAV directory reports a recheck instead of attributing its bytes',()=>{
+  const query=createFormationQuery({store:{},detailSource:{get:()=>({subjectId:'s',classification:'attention_required',handoffB:{offerId:'o'},
+    arcaStatus:{stage:'attention_required',reasonCode:'ARCA_ONDECK_BLOCKED',onDeckRunId:'r',
+      failureCode:'CLEAN_ARCA_JAV_SHORT_TARGET_OCCUPIED',retryAvailable:false,canRecheck:true,
+      diagnostics:{conflicts:[{target:'/target/short',name:'short'}],conflictCount:1}}})},
+    readAcceptanceRecovery:()=>({recoveryState:'resolved',offerId:'o'})});
+  const item=query.get('s');assert.equal(item.nextAction.label,'目标目录已存在，已停止上架');
+  assert.equal(item.executorIssue.canRetry,false);assert.equal(item.executorIssue.canRecheck,true);assert.equal(item.executorIssue.details.conflictCount,1);
+});
+
+test('an unclassified shortened JAV Stage is visible without an automatic retry',()=>{
+  const query=createFormationQuery({store:{},detailSource:{get:()=>({subjectId:'s',classification:'attention_required',handoffB:{offerId:'o'},
+    arcaStatus:{stage:'attention_required',reasonCode:'ARCA_ONDECK_BLOCKED',onDeckRunId:'r',
+      failureCode:'CLEAN_ARCA_SHORT_STAGE_UNCERTAIN',retryAvailable:false,canRecheck:false}})},
+    readAcceptanceRecovery:()=>({recoveryState:'resolved',offerId:'o'})});
+  const item=query.get('s');assert.equal(item.nextAction.label,'暂存文件状态无法确认，已停止上架');
+  assert.equal(item.executorIssue.canRetry,false);assert.equal(item.executorIssue.canRecheck,false);
+});
+
 test('Accepted On-deck attention exposes retry for the same Arca Run', () => {
   const query = createFormationQuery({
     store:{},
