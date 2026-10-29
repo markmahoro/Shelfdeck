@@ -1,0 +1,351 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/people_us_adult_catalogue_registration_origins/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "people_us_adult_catalogue_registration_origins",
+    "owner": "people",
+    "prefix": "people_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "person_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "decision_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": true,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "decision_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "decision_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "decision_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "operation_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": true,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "origin_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "origin_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "origin_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "catalogue_input_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "catalogue_input_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
+        "name": "catalogue_input_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 13,
+        "name": "name_resolution_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 14,
+        "name": "name_resolution_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 15,
+        "name": "name_resolution_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 16,
+        "name": "observation_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 17,
+        "name": "observation_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 18,
+        "name": "observation_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 19,
+        "name": "provider_observation_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 20,
+        "name": "provider_observation_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 21,
+        "name": "provider_observation_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 22,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "person_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "person_id",
+      "operation_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "decision_id"
+      ],
+      [
+        "operation_id"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [
+      {
+        "column": "decision_json",
+        "schemaRefColumn": "decision_schema_ref",
+        "maxBytes": 262144,
+        "source": "8.6.19-typed-payload",
+        "requiresJsonValidCheck": true
+      },
+      {
+        "column": "origin_json",
+        "schemaRefColumn": "origin_schema_ref",
+        "maxBytes": 65536,
+        "source": "8.6.19-typed-payload",
+        "requiresJsonValidCheck": true
+      },
+      {
+        "column": "catalogue_input_json",
+        "schemaRefColumn": "catalogue_input_schema_ref",
+        "maxBytes": 262144,
+        "source": "8.6.19-typed-payload",
+        "requiresJsonValidCheck": true
+      },
+      {
+        "column": "name_resolution_json",
+        "schemaRefColumn": "name_resolution_schema_ref",
+        "maxBytes": 65536,
+        "source": "8.6.19-typed-payload",
+        "requiresJsonValidCheck": true
+      },
+      {
+        "column": "observation_json",
+        "schemaRefColumn": "observation_schema_ref",
+        "maxBytes": 8388608,
+        "source": "8.6.19-typed-payload",
+        "requiresJsonValidCheck": true
+      },
+      {
+        "column": "provider_observation_json",
+        "schemaRefColumn": "provider_observation_schema_ref",
+        "maxBytes": 524288,
+        "source": "8.6.19-typed-payload",
+        "requiresJsonValidCheck": true
+      }
+    ],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "People-owned immutable系统建档证据"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "People-owned immutable系统建档证据",
+      "Decision完整canonical副本≤`256 KiB`，origin为closed来源、姓名和图片证明≤`64 KiB`",
+      "精确Libra目录输入≤`256 KiB`和People姓名解析≤`64 KiB`都保存完整副本并重算摘要",
+      "目录Observation完整canonical副本≤`8 MiB`且digest等于来源Artifact digest",
+      "安全Provider Observation完整canonical副本≤`512 KiB`，不持久化URL或Secret",
+      "与Person同事务发布，Person保留时精确保留本行及Operation、Reference、系统审计闭包，不反向保留未入藏Libra Subject或视频"
+    ],
+    "rawContract": {
+      "columns": "`person_id PK FK, decision_id UNIQUE, decision_schema_ref, decision_json, decision_digest, operation_id FK UNIQUE, origin_schema_ref, origin_json, origin_digest, catalogue_input_schema_ref, catalogue_input_json, catalogue_input_digest, name_resolution_schema_ref, name_resolution_json, name_resolution_digest, observation_schema_ref, observation_json, observation_digest, provider_observation_schema_ref, provider_observation_json, provider_observation_digest, created_at_ms`",
+      "constraints": "People-owned immutable系统建档证据；Decision完整canonical副本≤`256 KiB`，origin为closed来源、姓名和图片证明≤`64 KiB`；精确Libra目录输入≤`256 KiB`和People姓名解析≤`64 KiB`都保存完整副本并重算摘要；目录Observation完整canonical副本≤`8 MiB`且digest等于来源Artifact digest；安全Provider Observation完整canonical副本≤`512 KiB`，不持久化URL或Secret；与Person同事务发布，Person保留时精确保留本行及Operation、Reference、系统审计闭包，不反向保留未入藏Libra Subject或视频"
+    },
+    "source": {
+      "section": "8.5.13",
+      "line": 9752,
+      "lineDigest": "cd1a3a2f87957bf5f141ae10d12bf8d7bd2f0088390c5c97cf1ab02a825c3b03"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "person_id"
+        ],
+        "targetTable": "people_persons",
+        "targetColumns": [
+          "person_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "operation_id"
+        ],
+        "targetTable": "people_image_operations",
+        "targetColumns": [
+          "operation_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

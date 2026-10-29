@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/FaceCatalogueObservationHandle/v1",
+  "title": "FaceCatalogueObservationHandle@1",
+  "x-helix-ssotRefs": [
+    "8.6.18"
+  ],
+  "x-helix-maxCanonicalBytes": 16384,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/FaceCatalogueObservationHandle/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "analysisId": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "libraRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "workspaceId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "runExecutionBasisDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "basisDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "mode": {
+      "enum": [
+        "initial",
+        "initial_and_supplement"
+      ]
+    },
+    "completedBatchSetDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "observationSourceSetDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "modelRefDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "catalogueGenerationDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "searchPolicyDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "clusterParameterDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "resultKind": {
+      "enum": [
+        "observed",
+        "no_faces"
+      ]
+    },
+    "frameCount": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 40
+    },
+    "faceCount": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1280
+    },
+    "groupCount": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1280
+    },
+    "queryCount": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1280
+    },
+    "observationDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "observationArtifactHandle": {
+      "$ref": "helix://contracts/types/ArtifactHandle/v1"
+    },
+    "outputTargetDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "handleDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "analysisId",
+    "libraRunId",
+    "workspaceId",
+    "runExecutionBasisDigest",
+    "basisDigest",
+    "mode",
+    "completedBatchSetDigest",
+    "observationSourceSetDigest",
+    "modelRefDigest",
+    "catalogueGenerationDigest",
+    "searchPolicyDigest",
+    "clusterParameterDigest",
+    "resultKind",
+    "frameCount",
+    "faceCount",
+    "groupCount",
+    "queryCount",
+    "observationDigest",
+    "observationArtifactHandle",
+    "outputTargetDigest",
+    "handleDigest"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "resultKind": {
+            "const": "no_faces"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "faceCount": {
+            "const": 0
+          },
+          "groupCount": {
+            "const": 0
+          },
+          "queryCount": {
+            "const": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "resultKind": {
+            "const": "observed"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "faceCount": {
+            "minimum": 1
+          },
+          "groupCount": {
+            "minimum": 1
+          },
+          "queryCount": {
+            "minimum": 1
+          }
+        }
+      }
+    }
+  ]
+}

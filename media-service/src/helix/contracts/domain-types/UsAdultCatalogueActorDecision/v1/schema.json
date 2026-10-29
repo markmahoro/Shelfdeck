@@ -1,0 +1,334 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/UsAdultCatalogueActorDecision/v1",
+  "title": "UsAdultCatalogueActorDecision@1",
+  "x-helix-ssotRefs": [
+    "6.4.7.1",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "x-helix-maxCanonicalBytes": 262144,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/domain-types/UsAdultCatalogueActorDecision/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "decisionId": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "libraRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "subjectId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "runExecutionBasisDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "resolvedIdentityDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "catalogueAnalysisId": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "catalogueBasisDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "catalogueDecisionInputDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "observationResultRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "workId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "attemptId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "planId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "eventId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "resultId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "capabilityRef": {
+          "const": "libra.us_adult.catalogue.observe@1"
+        },
+        "resultSchemaRef": {
+          "const": "helix://contracts/capabilities/libra.us_adult.catalogue.observe/v1/result"
+        },
+        "resultDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "inputBindingDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "workId",
+        "attemptId",
+        "planId",
+        "eventId",
+        "resultId",
+        "capabilityRef",
+        "resultSchemaRef",
+        "resultDigest",
+        "inputBindingDigest"
+      ]
+    },
+    "observationHandle": {
+      "$ref": "helix://contracts/types/FaceCatalogueObservationHandle/v1"
+    },
+    "assessmentPolicyDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "assessmentDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "representativeImagePolicyDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "winner": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "identityKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "aliases": {
+          "type": "array",
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "groupIds": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1280,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "coverageStrata": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 19
+          }
+        },
+        "supportingRepresentativeStrata": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 19
+          }
+        }
+      },
+      "required": [
+        "identityKey",
+        "uid",
+        "name",
+        "aliases",
+        "groupIds",
+        "coverageStrata",
+        "supportingRepresentativeStrata"
+      ]
+    },
+    "nameResolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "reused",
+            "registered"
+          ]
+        },
+        "policyRef": {
+          "const": "people.us-adult-name-resolution@1"
+        },
+        "nameQueryDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "libraryNamesDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "resolutionDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "registrationDecisionId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "registrationDecisionDigest": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "policyRef",
+        "nameQueryDigest",
+        "libraryNamesDigest",
+        "resolutionDigest",
+        "registrationDecisionId",
+        "registrationDecisionDigest"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "reused"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "registrationDecisionId": {
+                "type": "null"
+              },
+              "registrationDecisionDigest": {
+                "type": "null"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "registrationDecisionId": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "registrationDecisionDigest": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "personSnapshot": {
+      "$ref": "helix://contracts/domain-types/UsAdultPersonSnapshot/v1"
+    },
+    "referenceAssetId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "referenceModelRefDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "expectedChoiceHead": {
+      "type": "null"
+    },
+    "decisionDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "decisionId",
+    "libraRunId",
+    "subjectId",
+    "runExecutionBasisDigest",
+    "resolvedIdentityDigest",
+    "catalogueAnalysisId",
+    "catalogueBasisDigest",
+    "catalogueDecisionInputDigest",
+    "observationResultRef",
+    "observationHandle",
+    "assessmentPolicyDigest",
+    "assessmentDigest",
+    "representativeImagePolicyDigest",
+    "winner",
+    "nameResolution",
+    "personSnapshot",
+    "referenceAssetId",
+    "referenceModelRefDigest",
+    "expectedChoiceHead",
+    "decisionDigest"
+  ]
+}

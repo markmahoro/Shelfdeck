@@ -34,6 +34,7 @@ function bind(exportName, implementation) {
 }
 
 module.exports = Object.freeze({
+  verifyFreshResetCatalogueRegistration: require('../model/fresh-reset-catalogue-registration').verifyFreshResetCatalogueRegistration,
   freshResetReferenceArtifactDependencies: require('../model/fresh-reset-reference-retention').freshResetReferenceArtifactDependencies,
   describeFreshResetReferenceRetention: require('../model/fresh-reset-reference-retention').describeFreshResetReferenceRetention,
   PACKAGE_ID: packageId,

@@ -23,7 +23,6 @@ const projection: PeopleProjection = {
 function renderPeople(value:PeopleProjection=projection) {
   vi.spyOn(helixAdminApi, 'listPeople').mockResolvedValue(value);
   vi.spyOn(helixAdminApi, 'listPeopleRegistrationCandidates').mockResolvedValue({ items: [] });
-  vi.spyOn(helixAdminApi, 'readUsAdultRecommendations').mockResolvedValue({publication:null,items:[]});
   return render(<SessionProvider><PeoplePage /></SessionProvider>);
 }
 
@@ -77,6 +76,24 @@ describe('People contact sheet', () => {
     vi.mocked(helixAdminApi.listPeople).mockResolvedValueOnce({...projection,items:[]});
     fireEvent.click(more);
     await waitFor(()=>expect(helixAdminApi.listPeople).toHaveBeenLastCalledWith(expect.objectContaining({libraryKind:'jav',cursor:'next-jav-person'})));
+  });
+
+  it('opens the US registry directly and retains manual registration without unknown-face claims', async () => {
+    renderPeople();
+    await screen.findByRole('article', { name: '周迅，已登记' });
+    vi.mocked(helixAdminApi.listPeople).mockResolvedValue({ ...projection, items: [{ ...projection.items[1], libraryKind: 'us_adult',
+      canonicalName: 'Known Actor', currentReferenceRevision: 1 }] });
+    fireEvent.click(screen.getByRole('tab', { name: 'US Adult 演员' }));
+    await screen.findByRole('article', { name: 'Known Actor，已登记' });
+    expect(screen.queryByRole('region', { name: 'US Adult 人物推荐' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /认领/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '新建演员' }));
+    expect(await screen.findByRole('heading', { name: '新建 US Adult 演员' })).toBeInTheDocument();
+    expect(screen.getByLabelText('姓名')).toBeEnabled();
+    expect(screen.getByLabelText('上传参考图片')).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: '取消' }));
+    expect(screen.queryByRole('heading', { name: '新建 US Adult 演员' })).not.toBeInTheDocument();
+    expect(screen.getByRole('article', { name: 'Known Actor，已登记' })).toBeInTheDocument();
   });
 });
 
