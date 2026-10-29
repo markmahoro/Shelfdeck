@@ -63,6 +63,8 @@
 
 所有日志和冻结副本均在本 worktree ignored 的 `.codex/series-parallel-20261029/`。所有测试容器 `--rm` 退出，无生产数据、SMB 来源或 NAS 挂载。没有把首轮失败记为全绿，没有把名称过滤 skip 记为执行。
 
+资料切片提交为 `878d814d3`。最终提交相对生产基线的全部 29 个 JavaScript 文件，已逐字节核对等于最终 Linux 定向验证的冻结 `presentation-source-2`；本次之后只补 Evidence。可复验测试包为本 worktree 的 `.codex/series-parallel-20261029/series-linux-test-source.zip`，13,747,748 bytes，SHA256 `40e0da372ed6390fd0064f6cb1c2f57ece6681af1eb198779736125b8e353420`。包内 `SERIES_QUALIFICATION.json` 记录源码提交、依赖镜像和三个 Schema 前置；只含必要仓库代码/架构资料，没有生产数据、运行配置或私有环境 checklist。它是显式前置下的 Linux 测试源码包，不能作为完成生成合同整合的生产镜像。
+
 ## 合同与可部署差异审查
 
 - 恢复仅由 Arca 精确 Scope/recipe 与 Foundation 原 Effect 负责，完整读取正式 NFO 后才允许证明具名别名；任何异 inode、字节、链接/父路径、执行围栏或快照变化仍拒绝。未知文件、其他收藏/来源均无删除权限。
