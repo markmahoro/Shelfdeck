@@ -28,6 +28,8 @@ function definition(kind,processType,processId,basisDigest,outputContractRef){re
   executionBasisDigest:basisDigest,dependencyRefs:Object.freeze([]),priorityClass:'normal_foreground',priorityRevision:1,
   capabilityCatalogScope:'perception',workspaceMaterialScope:Object.freeze([]),idempotencyKey:stable('perception-'+kind+'-key-',{processId,basisDigest}),
   concurrencyScope:processId+'/'+kind,outputContractRef});}
+function resolutionBasis(context){return {queryInputDigest:context.query.queryInputDigest,recordSetDigest:context.recordSet.recordSetDigest,ruleDigest:context.ruleSnapshot.ruleDigest};}
+function matchesResolutionBasis(base,digest){return digest===canonicalDigest(base)||digest===canonicalDigest({...base,recoveryBasis:RESOLUTION_INPUT_CONTRACT_REPAIR_BASIS});}
 function queryFor(target,factKind='rating'){if(!['rating','watched'].includes(factKind))throw new TypeError('Perception query fact kind is invalid.');const evidence=[];const add=(anchorKind,anchorValue,confidenceClass)=>{if(!anchorValue)return;evidence.push({anchorKind,anchorValue:String(anchorValue),confidenceClass,
   evidenceDigest:canonicalDigest({targetType:target.targetType,targetId:target.targetId,targetRevision:target.targetRevision,anchorKind,anchorValue:String(anchorValue)})});};
   add(target.targetType==='shelf_entry'?'shelf_entry_id':'subject_id',target.targetId,'exact');
@@ -145,12 +147,24 @@ function createPerceptionProcessServices(options){
   }
   function ensureResolutionContext(context,targetType,targetId,factKind){const existing=store.getResolution(context.query.queryContract,context.query.queryInputDigest);
     if(existing&&existing.recordSetDigest===context.recordSet.recordSetDigest&&existing.ruleDigest===context.ruleSnapshot.ruleDigest)return freeze({kind:'terminal',resolution:existing,queryResult:versionedQueryResult(existing,30*24*60*60*1000)});
-    const processId=(factKind==='watched'?'watched/':'')+targetType+':'+targetId,base={queryInputDigest:context.query.queryInputDigest,recordSetDigest:context.recordSet.recordSetDigest,ruleDigest:context.ruleSnapshot.ruleDigest},basisDigest=canonicalDigest(base);
+    const processId=(factKind==='watched'?'watched/':'')+targetType+':'+targetId,base=resolutionBasis(context),basisDigest=canonicalDigest(base);
     const priorStatus=workStatus(definition('resolution','perception_resolution',processId,basisDigest,RESOLUTION_RESULT).workId);
+    if(priorStatus?.state==='failed'&&priorStatus.latestAttempt?.failure_code==='P4_EXECUTION_INPUT_BASIS_SUPERSEDED')
+      return freeze({kind:'failed',workId:priorStatus.work_id,reasonCode:'P4_EXECUTION_INPUT_BASIS_SUPERSEDED',queryInputDigest:context.query.queryInputDigest});
     const retryBasisDigest=priorStatus?.state==='failed'&&priorStatus.latestAttempt?.failure_code===RESOLUTION_INPUT_CONTRACT_REPAIR_CODE
       ? canonicalDigest({...base,recoveryBasis:RESOLUTION_INPUT_CONTRACT_REPAIR_BASIS}) : basisDigest;
     const work=definition('resolution','perception_resolution',processId,retryBasisDigest,RESOLUTION_RESULT),submitted=submit(work);return freeze({kind:'pending',workId:work.workId,replayed:submitted.replayed,queryInputDigest:context.query.queryInputDigest});}
   function reconcileResolution(processId){const value=resolutionTarget(processId);return ensureResolution(value.targetType,value.targetId,value.factKind);}
+  function supersededResolutionDisposition(processId,workId){
+    const status=workStatus(workId);if(!status||Number(status.latestAttempt?.ordinal||0)>=3)return 'failed';
+    let context;try{context=resolutionProcessContext(processId);}catch(error){if(error?.code==='PERCEPTION_TARGET_NOT_FOUND')return 'failed';throw error;}
+    if(!matchesResolutionBasis(resolutionBasis(context),status.basis_digest))return 'failed';
+    const current=store.getResolution(context.query.queryContract,context.query.queryInputDigest);
+    return current&&current.recordSetDigest===context.recordSet.recordSetDigest&&current.ruleDigest===context.ruleSnapshot.ruleDigest?'failed':'replan';
+  }
+  function reconcileSupersededResolution(processId){
+    try{return reconcileResolution(processId);}catch(error){if(error?.code==='PERCEPTION_TARGET_NOT_FOUND')return freeze({kind:'target_unavailable'});throw error;}
+  }
   function reconcileImpactedSubjectResolutions(acquisitionId,listSubjectPage){
     if(typeof listSubjectPage!=='function')return freeze({matchedSubjectIds:[]});
     const anchorValues=new Set(store.listRecordsForAcquisition(acquisitionId).flatMap((record)=>(record.anchors || []).flatMap((anchor)=>
@@ -206,9 +220,9 @@ function createPerceptionProcessServices(options){
     return freeze({latest,activeCount,completionState,lastCursorOut:latestCursor?.cursorOut||latest?.initialCursorValue||null,
       cursorRevision:source?.currentCursorRevision||0,committedPageCount:latest?Math.max(0,(source?.currentCursorRevision||0)-latest.initialCursorRevision):0,
       recordCount:store.countRecordsForSource(config.sourceId)});}
-  return Object.freeze({store,ruleSnapshot,acquisitionContext,resolutionContext,resolutionProcessContext,reconcileAcquisition,reconcileResolution,reconcileImpactedSubjectResolutions,createRecord,requestAcquisition,ensureResolution,ensureTargetResolutions,resolveDecisionFact,
+  return Object.freeze({store,ruleSnapshot,acquisitionContext,resolutionContext,resolutionProcessContext,reconcileAcquisition,reconcileResolution,reconcileSupersededResolution,supersededResolutionDisposition,reconcileImpactedSubjectResolutions,createRecord,requestAcquisition,ensureResolution,ensureTargetResolutions,resolveDecisionFact,
     readCurrentRating,readCurrentRatings,readCurrentWatched,listRecords:(query)=>store.listRecords(query),listAcquisitions:()=>store.listAcquisitions(),
     syncState,periodicAcquisition,acquisitionSchedulingClass});
 }
 
-module.exports=Object.freeze({createPerceptionProcessServices,queryFor,queryHandle,directSourceId,RESOLUTION_INPUT_CONTRACT_REPAIR_CODE});
+module.exports=Object.freeze({createPerceptionProcessServices,queryFor,queryHandle,directSourceId,resolutionBasis,matchesResolutionBasis,RESOLUTION_INPUT_CONTRACT_REPAIR_CODE});

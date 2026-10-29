@@ -957,6 +957,10 @@ function createProcurementExecutionRuntime(options) {
   }
   const domainReconciler = { async reconcile(request) {
     if(request.reconcilePhase==='attempt_terminal'){
+      if(request.ownerDomain==='perception'&&request.processType==='perception_resolution'&&
+          request.workAttemptState==='failed'&&request.workAttemptFailureCode==='P4_EXECUTION_INPUT_BASIS_SUPERSEDED'){
+        return {workId:request.workId,disposition:perceptionProcessServices.supersededResolutionDisposition(request.processId,request.workId)};
+      }
       if(request.ownerDomain==='libra'&&request.processType==='libra_intake'&&request.workKind==='acceptance'&&
           request.workAttemptState==='failed'&&request.workAttemptFailureCode==='P8_ACCEPTANCE_CONTINUITY_BASIS_STALE'){
         return {workId:request.workId,disposition:'replan'};
@@ -1106,6 +1110,9 @@ function createProcurementExecutionRuntime(options) {
       return {workId:request.workId,disposition:request.workAttemptState};
     }
     if(request.ownerDomain==='perception'&&request.processType==='perception_resolution'){
+      if(request.workAttemptState==='failed'&&request.workAttemptFailureCode==='P4_EXECUTION_INPUT_BASIS_SUPERSEDED'){
+        perceptionProcessServices.reconcileSupersededResolution(request.processId);
+      }
       if(request.workAttemptState==='succeeded'){
         perceptionProcessServices.reconcileResolution(request.processId);
         if(request.processId.startsWith('subject:')){

@@ -451,6 +451,75 @@ test('assembles, resolves and commits a complete typed Resolution without Facade
   });
 });
 
+test('Resolution preserves the frozen Record Set across head races, conflicts and target removal',()=>{
+  fixture(({databasePath,store,unitOfWork})=>{
+    const {createPerceptionProjections}=require('../../src/helix/domains/perception/planning/perception-planners');
+    register(store);start(store);const anchor={anchorKind:'provider_id',anchorValue:'douban:race',confidenceClass:'strong',evidenceDigest:hash('race')};
+    page(store,{records:[record('race-first',{rating:5,anchors:[anchor]})]});
+    const {queryHandle,ruleSnapshot}=resolutionBasis(anchor),assembler=createPerceptionResolutionInputAssembler({store});
+    let context=assembler.assemble({queryHandle,ruleSnapshot}),targetPresent=true;
+    const projection=createPerceptionProjections({processServices:{store,resolutionProcessContext(){
+      if(!targetPresent)throw Object.assign(new Error('Target removed.'),{code:'PERCEPTION_TARGET_NOT_FOUND'});return context;
+    }}}).find(item=>item.projectionRef.endsWith('/ResolutionCommitHandle/v1')).projection;
+    const draft=resolvePerception(context,{draftId:'draft-before-record',producedAtMs:1});
+    const scope=()=>({processId:'subject:race'}),parameters=value=>({processId:'subject:race',commitEventId:'commit-race',executionBasisDigest:value.basisDigest});
+    assert.throws(()=>projection.project({ownerScope:{processId:'subject:other'},sourceResult:draft,parameters:parameters(draft)}),{code:'P6_PERCEPTION_RESOLUTION_SCOPE_MISMATCH'});
+    const before=projection.project({ownerScope:scope(),sourceResult:draft,parameters:parameters(draft)});
+    assert.equal(before.expectedRevision,0);
+    register(store,'race-source-2');start(store,{perceptionAcquisitionId:'race-acquisition-2',perceptionSourceId:'race-source-2'});
+    page(store,{perceptionAcquisitionId:'race-acquisition-2',perceptionSourceId:'race-source-2',acquisitionCommitReceiptId:'race-commit-2',commitMarker:'race-marker-2',
+      records:[record('race-conflicting',{rating:1,anchors:[anchor]})]});
+    context=assembler.assemble({queryHandle,ruleSnapshot});
+    assert.notEqual(context.recordSet.recordSetDigest,draft.recordSetDigest);
+    assert.throws(()=>projection.project({ownerScope:scope(),sourceResult:draft,parameters:parameters(draft)}),{code:'P4_EXECUTION_INPUT_BASIS_SUPERSEDED'});
+    const next=resolvePerception(context,{draftId:'draft-after-record',producedAtMs:2});assert.equal(next.reasonCode,'strongest_value_conflict');
+    const currentHandle=projection.project({ownerScope:scope(),sourceResult:next,parameters:parameters(next)});
+    unitOfWork.execute([store.createResolutionCommitParticipant(currentHandle,next)]);
+    assert.throws(()=>unitOfWork.execute([store.createResolutionCommitParticipant(before,draft)]),{code:'P6_PERCEPTION_RESOLUTION_REVISION_CONFLICT'});
+    assert.equal(store.getResolution(draft.queryContract,draft.queryInputDigest).reasonCode,'strongest_value_conflict');
+    assert.equal(count(databasePath,'perception_resolution_revisions'),1);
+    assert.throws(()=>projection.project({ownerScope:scope(),sourceResult:next,parameters:parameters(next)}),{code:'P4_EXECUTION_INPUT_BASIS_SUPERSEDED'});
+    assert.equal(count(databasePath,'perception_resolution_revisions'),1);
+    assert.throws(()=>projection.project({ownerScope:scope(),sourceResult:{...next,reasonCode:'requested_fact_absent'},parameters:parameters(next)}),{code:'P6_PERCEPTION_RESOLUTION_COMMIT_MISMATCH'});
+    targetPresent=false;
+    assert.throws(()=>projection.project({ownerScope:scope(),sourceResult:next,parameters:parameters(next)}),{code:'P4_EXECUTION_INPUT_BASIS_SUPERSEDED'});
+    assert.equal(count(databasePath,'perception_resolution_revisions'),1);
+  });
+});
+
+test('Resolution retries only the same still-current basis, with bounded Work Attempts and durable backoff',()=>{
+  fixture(({store,unitOfWork})=>{
+    let target={targetType:'subject',targetId:'retry-subject',targetRevision:1,title:'Retry Film',year:2024,providerIdentity:null},status=null;
+    const services=createPerceptionProcessServices({schemaManifest,unitOfWork,perceptionStore:store,workResultReader:{status:()=>status},targetProjectionReader:()=>target});
+    const context=services.resolutionProcessContext('subject:retry-subject'),basis=canonicalDigest({queryInputDigest:context.query.queryInputDigest,
+      recordSetDigest:context.recordSet.recordSetDigest,ruleDigest:context.ruleSnapshot.ruleDigest});
+    status={basis_digest:basis,latestAttempt:{ordinal:1}};
+    assert.equal(services.supersededResolutionDisposition('subject:retry-subject','work'),'replan');
+    status.latestAttempt.ordinal=3;assert.equal(services.supersededResolutionDisposition('subject:retry-subject','work'),'failed');
+    status.latestAttempt.ordinal=1;target={...target,targetRevision:2};
+    assert.equal(services.supersededResolutionDisposition('subject:retry-subject','work'),'failed');
+    target=null;assert.equal(services.supersededResolutionDisposition('subject:retry-subject','work'),'failed');
+    assert.equal(services.reconcileSupersededResolution('subject:retry-subject').kind,'target_unavailable');
+    target={targetType:'subject',targetId:'retry-subject',targetRevision:1,title:'Retry Film',year:2024,providerIdentity:null};
+    status={work_id:'failed-work',state:'failed',basis_digest:basis,latestAttempt:{ordinal:3,failure_code:'P4_EXECUTION_INPUT_BASIS_SUPERSEDED'}};
+    assert.deepEqual(services.ensureResolution('subject','retry-subject'),{kind:'failed',workId:'failed-work',reasonCode:'P4_EXECUTION_INPUT_BASIS_SUPERSEDED',queryInputDigest:context.query.queryInputDigest});
+    const {createPerceptionPlanners,createPerceptionProjections}=require('../../src/helix/domains/perception/planning/perception-planners');
+    const registry={snapshot:[],resolve(ref){return {manifest:{effectClass:ref.includes('commit')?'domain_fact_commit':'pure_observation',
+      parametersSchemaRef:'helix://test/'+ref+'/parameters',resultSchemaRef:'helix://test/'+ref+'/result',resourceDemandSchemaRef:'helix://test/resources',fenceSchemaRef:'helix://test/fence'}};}},
+      policyRegistry={digest:hash('policies'),bindingFor:()=>({retryPolicyRef:'retry',timeoutPolicyRef:'timeout'})};
+    const reader={status:()=>({latestAttempt:{ordinal:2n},previousAttempt:{failure_code:'P4_EXECUTION_INPUT_BASIS_SUPERSEDED',finished_at_ms:100n}})};
+    const options={registry,policyRegistry,workResultReader:reader,processServices:services,now:()=>1000};
+    const planner=createPerceptionPlanners(options).find(item=>item.plannerContractRef.endsWith('/Resolution/v1')),
+      request={workId:'work',workAttemptId:'attempt-2',ownerDomain:'perception',processType:'perception_resolution',processId:'subject:retry-subject',executionBasisDigest:basis},
+      plan=planner.plan(request),binding=plan.nodes[0].inputBindings.bindings[0];
+    assert.equal(binding.parameters.notBeforeMs,1100);
+    assert.deepEqual(planner.plan(request),plan);
+    const queryProjection=createPerceptionProjections(options).find(item=>item.projectionRef.endsWith('/ResolutionQuery/v1')).projection;
+    assert.throws(()=>queryProjection.project({ownerScope:{processId:request.processId},parameters:binding.parameters}),
+      error=>error.code==='P4_EXECUTION_INPUT_TEMPORARILY_UNAVAILABLE'&&error.retryAtMs===1100);
+  });
+});
+
 test('projects historical title-year aliases into title-only Resolution evidence', () => {
   fixture(({ store }) => {
     register(store); start(store);

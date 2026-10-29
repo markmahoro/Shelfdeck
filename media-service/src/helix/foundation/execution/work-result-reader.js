@@ -14,7 +14,7 @@ function definition(schemaManifest){return createRepositoryDefinition({repositor
   list_process_works:{kind:'select-all',tableId:'fx_supporting_works',columns:['work_id','owner_domain','process_type','process_id','work_kind','state','created_at_ms','updated_at_ms'],keyColumns:['owner_domain','process_type','process_id','work_kind'],safeIntegers:true},
   page_owner_works:{kind:'select-page-after',tableId:'fx_supporting_works',columns:['work_id','owner_domain','process_type','process_id','work_kind','state'],fixedKeyColumns:['owner_domain','work_kind','state'],keyColumn:'work_id',maxItems:100},
   list_owner_works:{kind:'select-all',tableId:'fx_supporting_works',columns:['work_id','owner_domain','process_type','process_id','work_kind','state'],keyColumns:['owner_domain','work_kind']},
-  list_attempts:{kind:'select-all',tableId:'fx_work_attempts',columns:['attempt_id','work_id','ordinal','state','failure_code'],keyColumns:['work_id'],safeIntegers:true},
+  list_attempts:{kind:'select-all',tableId:'fx_work_attempts',columns:['attempt_id','work_id','ordinal','state','failure_code','finished_at_ms'],keyColumns:['work_id'],safeIntegers:true},
   list_events:{kind:'select-all',tableId:'fx_workflow_events',columns:['event_id','plan_id','node_id','work_id','attempt_id','owner_domain',
     'capability_ref','state','result_id'],keyColumns:['work_id']},
   find_plan:{kind:'select-one',tableId:'fx_workflow_plans',columns:['plan_id','planner_version','graph_digest','state'],keyColumns:['plan_id'],safeIntegers:true},
@@ -59,8 +59,9 @@ function createWorkResultReader(options){if(!options?.schemaManifest||!options.u
     status(workId){return options.unitOfWork.execute([{participantId:'work_status_read',owner:'execution-foundation',repositories:[repository],execute(context){
       const repo=context.repository(repository.repositoryId);const row=repo.invoke('find_work',{work_id:workId});
       if(!row)return null;
-      const latest=repo.invoke('list_attempts',{work_id:workId}).sort((left,right)=>Number(right.ordinal)-Number(left.ordinal))[0]||null;
-      return Object.freeze({...row,latestAttempt:latest?Object.freeze(latest):null});
+      const attempts=repo.invoke('list_attempts',{work_id:workId}).sort((left,right)=>Number(right.ordinal)-Number(left.ordinal));
+      const latest=attempts[0]||null,previous=attempts[1]||null;
+      return Object.freeze({...row,latestAttempt:latest?Object.freeze(latest):null,previousAttempt:previous?Object.freeze(previous):null});
     }}]).work_status_read;},
     listWorks(scope){
       if(!scope||typeof scope.ownerDomain!=='string'||typeof scope.processType!=='string'||typeof scope.processId!=='string'||typeof scope.workKind!=='string'){
