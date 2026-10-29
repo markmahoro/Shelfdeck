@@ -1,6 +1,6 @@
 import {expect,test,type Page} from '@playwright/test';
 const GiB=1073741824;
-async function fixture(page:Page,mode:'stale'|'unknown'|'measured'|'forecast') {
+async function fixture(page:Page,mode:'stale'|'unknown'|'measured'|'forecast'|'held'|'unknown-held') {
   const item={formationViewId:'view-us',subjectId:'subject-us',displayIdentity:'测试影片',contentProfile:'western_adult',structureKind:'single',
     classification:'attention_required',status:'active',myRating:null,myRatingSource:'douban',myRatingRevision:null,addedAtMs:1,
     primaryMaterialCount:1,organizingRequirement:'HEVC',organizingAction:'',organizingSteps:[],currentPlan:null,executorIssue:null,
@@ -8,6 +8,7 @@ async function fixture(page:Page,mode:'stale'|'unknown'|'measured'|'forecast') {
     nextAction:{label:'需要处理',state:'attention_required',progress:null},currentRun:{libraRunId:'run-us',state:'frozen',stateRevision:3,
       stateDigest:'a'.repeat(64),priorityClass:'normal',packageRevisionHead:0,currentIdentityRevision:1}};
   const state={submitted:false,changed:false},writes:Array<Record<string,unknown>>=[];
+  let release=()=>{};const held=new Promise<void>(resolve=>{release=resolve;});
   const summary={totalCount:1,inProgressCount:0,attentionRequiredCount:1,completedCount:0,endedCount:0};
   await page.route('**/v1/**',async route=>{
     const req=route.request(),url=new URL(req.url()),path=url.pathname;
@@ -21,9 +22,10 @@ async function fixture(page:Page,mode:'stale'|'unknown'|'measured'|'forecast') {
     }
     if(path.endsWith('/actions/admit-with-defects')){
       writes.push(req.postDataJSON());
+      if(mode==='held'||mode==='unknown-held'&&writes.length===2)await held;
       if(mode==='stale'&&writes.length===1){state.changed=true;return route.fulfill({status:409,json:{error:{code:'P9_DEFECT_ADMISSION_EVIDENCE_PENDING',message:'成品证据已变化，请重新核对。'}}});}
-      if(mode==='unknown'&&writes.length===1)return route.abort('connectionreset');
-      state.submitted=true;return route.fulfill({json:{resultKind:'defect_admitted',libraRunId:'run-us',replayed:mode==='unknown'}});
+      if((mode==='unknown'||mode==='unknown-held')&&writes.length===1)return route.abort('connectionreset');
+      state.submitted=true;return route.fulfill({json:{resultKind:'defect_admitted',libraRunId:'run-us',replayed:mode==='unknown'||mode==='unknown-held'}});
     }
     if(path==='/v1/admin/runtime')return route.fulfill({json:{mode:'running',desiredMode:'running',normalSupplyAllowed:true,revision:1,operation:null,activity:{}}});
     if(path==='/v1/admin/formation'){
@@ -36,7 +38,7 @@ async function fixture(page:Page,mode:'stale'|'unknown'|'measured'|'forecast') {
   await page.goto('/formation');
   const accept=page.getByRole('button',{name:'接受瑕疵',exact:true});await expect(accept).toBeEnabled();await accept.press('Enter');
   const dialog=page.getByRole('dialog',{name:'确认接受瑕疵入库'});await expect(dialog).toBeVisible();
-  return {dialog,writes,state};
+  return {dialog,writes,state,release};
 }
 
 test('measured size and list order are accurate before any confirmation',async({page},info)=>{
@@ -68,4 +70,37 @@ test('an uncertain response can be checked with the exact original command',asyn
   await expect(dialog.getByRole('alert')).toContainText('提交结果尚未确认');await expect(dialog.getByRole('button',{name:'确认接受',exact:true})).toBeDisabled();
   await dialog.screenshot({path:info.outputPath('unknown.png')});await dialog.getByRole('button',{name:'确认提交结果',exact:true}).press('Enter');
   await expect(dialog).toBeHidden();expect(writes).toHaveLength(2);expect(writes[1]).toEqual(writes[0]);
+});
+
+test('keyboard focus remains inside the dialog while a confirmation is pending',async({page},info)=>{
+  const {dialog,writes,release}=await fixture(page,'held');
+  try{
+    const confirm=dialog.getByRole('button',{name:'确认接受',exact:true});await confirm.focus();
+    await page.keyboard.press('Enter');await expect(confirm).toBeDisabled();
+    expect(writes).toHaveLength(1);
+    await expect(dialog).toBeFocused();
+    await expect(dialog.getByRole('status')).toHaveText('正在处理，请稍候。');
+    await expect(dialog.getByRole('button',{name:'关闭'})).toBeDisabled();
+    await page.keyboard.press('Tab');await expect(dialog).toBeFocused();
+    await page.keyboard.press('Tab');await expect(dialog).toBeFocused();
+    await page.keyboard.press('Shift+Tab');await expect(dialog).toBeFocused();
+    await page.keyboard.press('Escape');await expect(dialog).toBeVisible();
+    await page.locator('.dialog-scrim').click({position:{x:2,y:2}});await expect(dialog).toBeVisible();await expect(dialog).toBeFocused();
+    await dialog.getByText('测试影片').click();await expect(dialog).toBeFocused();
+    await dialog.screenshot({path:info.outputPath('submitting.png')});
+  }finally{release();}
+  await expect(dialog).toBeHidden();expect(writes).toHaveLength(1);
+});
+
+test('checking an uncertain result keeps focus and reuses the original command',async({page})=>{
+  const {dialog,writes,release}=await fixture(page,'unknown-held');
+  try{
+    await dialog.getByRole('button',{name:'确认接受',exact:true}).press('Enter');
+    await expect(dialog.getByRole('alert')).toContainText('提交结果尚未确认');
+    await dialog.getByRole('button',{name:'确认提交结果',exact:true}).press('Enter');
+    await expect(dialog.getByRole('button',{name:'确认提交结果',exact:true})).toBeDisabled();
+    await expect(dialog).toBeFocused();await page.keyboard.press('Tab');await expect(dialog).toBeFocused();
+    expect(writes).toHaveLength(2);expect(writes[1]).toEqual(writes[0]);
+  }finally{release();}
+  await expect(dialog).toBeHidden();
 });

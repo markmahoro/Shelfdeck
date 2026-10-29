@@ -63,6 +63,7 @@ export default function DefectAdmissionDialog({item,candidate,onClose,onComplete
       if(event.key!=='Tab')return;
       const controls=Array.from(node.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),select:not(:disabled),a[href]'));
       const first=controls[0],last=controls[controls.length-1];
+      if(!first){event.preventDefault();node.focus();return;}
       if(!node.contains(document.activeElement)||document.activeElement===node){event.preventDefault();(event.shiftKey?last:first)?.focus();}
       else if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}
       else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}
@@ -71,12 +72,15 @@ export default function DefectAdmissionDialog({item,candidate,onClose,onComplete
     return()=>{document.removeEventListener('keydown',keys,true);document.body.classList.remove('modal-open');
       requestAnimationFrame(()=>{if(!node.isConnected&&origin.current?.isConnected)origin.current.focus();});};
   },[]);
+  function beginBusy(){
+    busyRef.current=true;dialog.current?.focus({preventScroll:true});setBusy(true);setError('');
+  }
   async function refreshAccepted(){
     try{await onComplete();pendingCommands.delete(target);onClose();}
     catch(cause){if(isUnauthorized(cause))onUnauthorized();else setError('瑕疵已接受，状态读取失败。');}
   }
   async function recheck(){
-    if(busyRef.current||phase!=='stale')return;busyRef.current=true;setBusy(true);setError('');
+    if(busyRef.current||phase!=='stale')return;beginBusy();
     try{
       const latest=await helixAdminApi.getFormation(current.formationViewId);
       if(latest.currentRun?.libraRunId!==target||latest.currentRun.state!=='frozen'){
@@ -91,7 +95,7 @@ export default function DefectAdmissionDialog({item,candidate,onClose,onComplete
     finally{busyRef.current=false;setBusy(false);}
   }
   async function submit(){
-    if(busyRef.current||phase==='stale')return;busyRef.current=true;setBusy(true);setError('');
+    if(busyRef.current||phase==='stale')return;beginBusy();
     try{
       if(phase==='accepted'){await refreshAccepted();return;}
       let command=pendingCommands.get(target),wasUnknown=Boolean(command);
@@ -114,7 +118,7 @@ export default function DefectAdmissionDialog({item,candidate,onClose,onComplete
       command.phase='accepted';setPhase('accepted');await refreshAccepted();
     }finally{busyRef.current=false;setBusy(false);}
   }
-  return <Dialog dialogRef={dialog} open title="确认接受瑕疵入库" onClose={()=>{if(!busyRef.current)onClose();}} actions={<>
+  return <Dialog dialogRef={dialog} closeDisabled={busy} open title="确认接受瑕疵入库" onClose={()=>{if(!busyRef.current)onClose();}} actions={<>
     <Button type="button" disabled={busy} onClick={onClose}>取消</Button>
     {phase==='stale'&&<Button type="button" disabled={busy} onClick={()=>void recheck()}>重新检查</Button>}
     {phase==='unknown'&&<Button type="button" disabled={busy} onClick={()=>void submit()}>确认提交结果</Button>}
@@ -126,5 +130,6 @@ export default function DefectAdmissionDialog({item,candidate,onClose,onComplete
         <p>本次按列明瑕疵继续上架，并保留瑕疵记录；上架仍须通过文件安全检查。</p></>}
       {error&&<p className="form-error" role="alert">{error}</p>}
     </div>
+    {busy&&<p role="status">正在处理，请稍候。</p>}
   </Dialog>;
 }
