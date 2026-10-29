@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+演员Observation `9f1af5e47`与有界fd读取修订`d0381a976`已仅在主整合index暂存待验证，未进入Series候选。固定临时tree `8bc9cd0042ea76b59ae63a435b1314a5bd80cb1e`的4669跟踪文件在Linux逐blob一致；观察/Workspace/codec测试Linux 42通过，Windows 41通过/1失败：Windows对打开文件的真实rename返回EPERM，测试尚未到应用身份校验。演员线程正单独修可移植夹具，保留Linux真实重命名并新增Windows路径/fd不一致注入；静态边界/P2通过。实际Runtime/Permit/真实模型和Phase Exit仍未完成，正式Reset声明保持关闭。
+
 2026-10-29分诊新增两个隔离风险：On-deck Stage可能把预先放入的同字节外来文件记入Manifest，实验发布随后误认并移动，尚未证明真实Host的Control/Commit受影响；Withdrawal Receipt不能仅因Offer未Accepted就判定可清除，保留责任及迟到投递闭包仍待证明。正式Reset声明不变、生产未处置。[目标排他](implementation/evidence/ARCA_TARGET_EXCLUSION_RECOVERY_20261029.md) / [Withdrawal审计](implementation/evidence/ARCA_WITHDRAWN_OFFER_RESET_AUDIT_20261029.md)。
 
 2026-10-29 UI负责人对4774具体版本给出FAIL：受控评分Resolution重试耗尽后决策已失败，评分读取仍为pending、页面误示正在匹配；未证明生产发生或真实调度链已复现。Perception独立修复进行中，4774不可发布。Linux Web 49文件/274项在为隔离依赖缓存提供临时可写目录后通过；完整架构和Service继续留证。
