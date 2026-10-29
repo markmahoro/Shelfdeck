@@ -106,3 +106,19 @@ Endpoint 上限调查：隔离 Linux 基线镜像的 `getconf NAME_MAX /tmp` 返
 Reset 合同保留来源和正式收藏目录的当前实际文件，系统专用 Workspace/暂存/缓存只按停止态冻结清单和独立清理回执处理；位于 Shelf 目标下的旧 Slot 不能未经具体清单和归属证明当成可删除的系统临时目录。Reset 成功后仍停止，只有另经授权恢复正常供给才会按当前 Field 重新观察；重新观察并不保证这两条必定重采或入藏，仍取决于来源存在、Field 覆盖及启用状态、排除/Control、扫描和后续验收，且主动截断修复必须先真正完成并经资格验证。当前两条来源的最新可见性、生产当时其他未入藏任务与是否存在精确清理阻断均未重新查询。
 
 历史 `docs/v2/PRODUCTION_DEPLOYMENT.md` 曾描述带 `--subject-ids` 的旧 `formation-reset-nas.js` 用法；当前 SSOT 已由 Fresh-generation 合同取代旧管理退役主流程，不能只凭历史参数宣称存在当前可对这两条执行的安全 Reset，更不能调用旧物理删除工具替代现行 Operator。若要另做两条定向处理，须先有 Arca/相关 Owner 明确授权与冻结范围、完整 Effect/Control/文件现实和可恢复合同，再在隔离副本验证；目前没有该证明或本次生产处置授权。
+
+## 2026-10-29 截短 Decision 候选与隔离文件、Effect 反例
+
+**本增量仍未把主动截短接入正式 Acceptance、On-deck 或 UI，也没有授权写生产。** `planJavShortening` 使用现有 Arca 完整渲染与原 Product Manifest，形成带摘要的 `FinalInventoryDecision/v1` 候选，并明确返回 `commitAuthorized=false`、目标冲突和 Endpoint 限制尚未验证。合成 HALT/EMLB 字节形状可形成稳定候选，保留完整 typed 番号、原始 Fact、扩展名和 Primary/NFO 同 stem；目录及所有文件含预留后缀后在 255-byte 假定内。正式 `prepareSlot` 目前仍拒绝直接消费该候选。测试为了验证同一候选的物理形状，**只在隔离副本中克隆并替换测试用 Fact 的 title**，再调用现有 Stage/Verify 和下述实验发布原语；这不是实际未修改 Fact 的正式 Host 贯通，也没有完成 Arca Commit。
+
+新增的独立 `jav-short-exclusive-publication.js` 是未接线的物理实验，不是可自行授权的写入入口。它检查候选 Decision、Slot 的路径和摘要、Product/Stage Manifest 及其 Verification，并要求调用者提供持续有效的外部 `shouldContinue`。首次使用独占目录创建及同卷不覆盖 hard link；中断后只在给定恢复分类且最终成员仍与原 Stage 物理身份一致时尝试继续。未知成员、外来同字节文件、变化的 Stage、空目标目录无法证明归属、`already_committed` 时缺失最终成员等情形保留现场并失败。此原语只返回物理结果，不生成 Effect Receipt、Control 或 On-deck Commit；其目录占用异常中的 `effectWriteStarted=false` 只描述**本次原语调用**在该位置尚未写入，不能证明该 Run 的先前 Effect 或其他 Work generation 零副作用。调用者必须独立重验冻结 Decision、Owner 责任、所有先前未知 Effect、目标 Reservation 与实际路径事实。
+
+真实隔离文件测试在 Windows 与 Linux 分别验证：两组候选的 Stage/Verify/物理发布形状、两个独立进程竞争同一目标只有一个目录创建成功、同字节外来目标不得冒认、首次建目录及逐成员 hard link/Stage 清理阶段的中断、未知文件与围栏失效后的保护。Windows 的大小写等价目录竞争测试通过；Linux 大小写敏感的临时文件系统跳过该项，Linux 另通过目标被替换为 symlink 的负例。实际 CIFS 的 hard link、inode 稳定性、目录操作原子性及路径等价尚未验证，不能由这些平台结果推断。
+
+新增的 SQLite 测试使用真实 Foundation Effect Journal 保存 `material_commit` Intent，模拟成员放置后中断，并证明测试提供的 guard 会拒绝不同 Effect、不同原 Event Attempt 和无已提交状态冒充 `already_committed`；原始 Effect 在实验发布完成后仍为 `reconcile_required` 且没有 commit marker。该 guard 和预设恢复分类仅是测试夹具，**没有接入正式 Runtime、Owner Reservation 或真实 recovery observer**，因此不构成 Receipt 或完整恢复资格。当前组合代码对普通 On-deck `material_commit` 无 marker 时返回 `forward_required`，Foundation 因而给出 `continue_forward`，它本身没有检查实际目标归属；必须增加 Arca 专属现实观察、精确责任/Stage/Effect 证明及所有历史 Effect 的处理后才能用于截短。
+
+关键混合写入反例已用实际隔离文件重现：新实验原语放置第一个成员后中断；另一个 Run 的现有 `stage` 可以把该目标中同字节文件当成自己的 Stage 物理身份，并由现有 `switchPlacement` 将其余成员放到同一目录。实验原语再恢复时识别其余文件并非原 Stage 身份而停止。该反例只证明底层物理端口会混合文件，**不证明第二个 Run 能获得 Control 或完成 Commit**。它说明仅为新写入方使用 `mkdir`/hard link，不能阻止其他 On-deck、Aftercare、Correction、Series 等写入方进入目标；必须在 Arca 内建立涵盖所有相关写入路径、Inventory/Control 和真实 Endpoint 等价语义的排他与恢复合同。路径组件在检查与操作之间可能被其他进程替换，当前基于路径的 Node 操作和事前检查也尚未证明消除所有 TOCTOU 窗口；不能把原语用于正式放置或声称所有对手竞争已受控。
+
+定向回归：禁网 Linux Docker、只读源码挂载、15 个相关测试文件 **303 PASS / 0 FAIL / 1 SKIP**，跳过项为大小写等价实测；包含真实 SQLite Journal 夹具、两进程竞争、Linux symlink 和混合写入反例。Windows Node 25 定向 **20 PASS / 0 FAIL / 2 SKIP**，两项分别为该环境未装 `better-sqlite3` 的 Journal 夹具及 Windows symlink 负例；Windows 真实大小写等价竞争通过。Linux 使用镜像中的 Node 20 和原生 SQLite，两个平台均使用隔离临时合成文件；这不是完整服务、真实 Host、真实 CIFS 或用户指定 UI 负责人的具体版本验收。
+
+整合前还须处理旧合同边界：早期提交 `b492e3a1a` 对一般路径取消了历史 180 UTF-16 单元静默截断并增加前置预算，这可能令其他 Profile 或既有冻结 Decision 的重建结果漂移；现有测试只是证明漂移会拒绝，并不能替代用户要求的旧 Accepted/Decision 与其他 Profile 现行合同。不得将整个分支当作已具资格的生产修复直接合并或部署，须由主整合依据当前 SSOT 逐项评估并完成真实 Host、Endpoint、Effect/Owner、UI 和发布资格。主整合 SSOT 精确提交为 `3e707a033837ca3bf2a0c6e26a65603e15678069`；本分支不提交或覆盖其全局 Registry/manifest 生成物。

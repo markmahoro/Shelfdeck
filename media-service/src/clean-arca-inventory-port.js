@@ -679,12 +679,13 @@ function createCleanArcaInventoryPort(options) {
       throw error;
     }
     const rendered = renderCandidate(choice.title);
-    return Object.freeze({ ...rendered, shortened:choice.shortened, rule:choice.rule || null,
+    return Object.freeze({ ...rendered, title:choice.title, shortened:choice.shortened, rule:choice.rule || null,
       targetCollisionChecked:false, endpointComponentLimitVerified:false });
   }
 
-  function buildPlan(request) {
-    const { targetRoot, targetDirectory, identity, placement, series } = resolveTargetLocation(request);
+  function buildPlan(request, previewTitle = null) {
+    const { targetRoot, targetDirectory, identity, placement, series } = previewTitle === null
+      ? resolveTargetLocation(request) : resolveTargetLocationWithTitle(request, false, previewTitle);
     const shelf = request.shelf;
     const packageValue = request.onDeckProductPackage;
     const primary = packageValue.productMaterialManifest.members
@@ -820,8 +821,7 @@ function createCleanArcaInventoryPort(options) {
     });
   }
 
-  function prepare(request) {
-    const built = buildPlan(request);
+  function prepareBuiltDecision(request, built) {
     const members = built.plans.map((plan) => {
       const basis = {
         schema: 'arca.final-inventory-member@1',
@@ -879,6 +879,23 @@ function createCleanArcaInventoryPort(options) {
       digest: decisionDigest,
       decisionDigest,
     });
+  }
+
+  function prepare(request) {
+    return prepareBuiltDecision(request, buildPlan(request));
+  }
+
+  // A candidate is still non-authoritative until Arca proves endpoint limits,
+  // target ownership and writer exclusion. It is not consumed by Acceptance.
+  function planJavShortening(request) {
+    const preview = previewJavTitle(request);
+    if (!preview.shortened) {
+      fail('CLEAN_ARCA_JAV_TITLE_NOT_SHORTENED', 'A shortened Decision candidate requires an over-budget original title.');
+    }
+    const built = buildPlan(request, preview.title);
+    const decision = prepareBuiltDecision(request, built);
+    return Object.freeze({ decision, targetDirectory:built.targetDirectory, rule:preview.rule,
+      targetCollisionChecked:false, endpointComponentLimitVerified:false, commitAuthorized:false });
   }
 
   function assess(request) {
@@ -2031,7 +2048,7 @@ function createCleanArcaInventoryPort(options) {
       targetEndpointId:request.shelf.target.endpointId,targetDirectory,observations})});
   }
 
-  return Object.freeze({ assess, resolveTargetLocation, resolvePolicyTargetLocation:request=>resolveTargetLocation(request,true), prepare, previewJavTitle, inspectJavCorrectionPlacement, materialize, slotHandle, prepareSlot, observeEmptyStageSlot,
+  return Object.freeze({ assess, resolveTargetLocation, resolvePolicyTargetLocation:request=>resolveTargetLocation(request,true), prepare, previewJavTitle, planJavShortening, inspectJavCorrectionPlacement, materialize, slotHandle, prepareSlot, observeEmptyStageSlot,
     stage, verifyStaged, switchPlacement, readFinal, readFinalAsync, settleInput, settleInputAsync });
 }
 
