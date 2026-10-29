@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-29电影/自定义标准线程交付b3929e199：Libra内部基础和电影候选身份增量已提交；本机Linux核心107项及MoviePilot定向5项通过，精确依赖镜像、完整用户旅程和三项静态基线问题仍开放。该线已确认可在Libra Owner内承接US瑕疵预览修复；未进行生产接受。
+
 2026-10-29整合进展：Series独立候选1d8a45843f已补齐三个Schema，固定镜像构建、上传和SHA校验完成；生产仍运行a2bf2d6fd，未部署或线上重试。真实CIFS直接文件测试8项失败，探针确认新文件路径stat与fd stat时间戳短暂不一致；真实Host的同一Series publish Effect进入reconcile_required，正在验证保留围栏的自动恢复。完整Linux架构/Service/Web、具体版本UI、生产副本及七条线上验收仍开放；首次构建、检出及测试失败保留。演员Store 2f9fc0702的本机Linux19项通过，正式Host/Phase 4未完成。
 
 生产只读分诊13:36快照为33 attention、5进行中：共享剧资料15条/13个build；HALT-094/EMLB-094确定为Arca UTF-8路径超限且均未复制；两条US瑕疵预览未读已有产品字段。新增事项及责任见[分诊整合Evidence](implementation/evidence/PRODUCTION_TRIAGE_INTEGRATION_20261029.md)和唯一Master/Phase；不把新增条目自动加入七条重试范围。

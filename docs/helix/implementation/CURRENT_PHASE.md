@@ -10,7 +10,7 @@
 | 演员线程 01a164c5-1b9a-7312-a8ec-701ea6032526 | 继续Catalogue Basis/Work/Artifact/补采恢复及Phase 4→5闭环 | Store检查点2f9fc0702；固定Linux本机19项及本地223项通过，NAS首轮仍incomplete，正式Host/完整门禁未完成，不作为Series发布基线 |
 | ShelfDeck 生产待处理条目分诊 01a18626-520c-79a0-8240-066bd0a777a3 | 当前一次快照、逐条分诊与新增机制故障，给生产补丁排序 | 只读生产，不改源码/状态；首个快照33 attention/5进行中，仍在核对，不等于33个bug |
 | ShelfDeck 剧集上架与自愈修复 01a18627-6d8b-7d72-aa5a-bcb7cbf6ed0f | 7条Series恢复、季poster复用和精确剧情切片已提交 | a4989adf9、878d814d3、f442a6f2f基于a2bf2d6fd；三个资料Schema及登记摘要由本线程集成，固定候选/生产验收未完成 |
-| ShelfDeck 电影寻源与自定义标准 01a18628-b31a-70c3-abbc-bd29b688cbce | 电影候选身份可靠性独立排查；继续三层目标、新Run、Arca/Aftercare闭环 | 自f24164ae0的独立worktree；18文件SHA交接完成、原件保留，主线程不并行编辑此范围 |
+| ShelfDeck 电影寻源与自定义标准 01a18628-b31a-70c3-abbc-bd29b688cbce | 电影候选与自定义标准Libra基础切片b3929e199已交付；续修US瑕疵预览 | 18文件SHA交接完成；完整API/UI、Arca责任投影和Handoff B等未闭合，Linux精确依赖镜像及真实旅程未完成，不开放半成品 |
 
 这些线程只提交自己的代码/专属Evidence，不改SSOT/Master/本包/全局生成物；共享合同由本线程合并。NAS重型验证串行安排。用户要求优先交付可拆的Series补丁并完成七条指定任务验收；仍须先完成固定候选适用门禁、具体版本UI及真实CIFS资格。没有再次Reset、手工改库或扩大其他生产数据处置的授权。以下为Phase 4技术范围与既有Evidence，较早串行顺序不再约束其他线。
 
@@ -31,7 +31,7 @@
 ## 生产分诊新增阻断
 
 - ARCA-PATH-COMPONENT-BUDGET：HALT-094和EMLB-094的Arca路径及temporary后缀超出实际CIFS组件字节限制；六次Stage均在复制前失败，旧Final Decision不可静默改写。建议单独开发线，按Owner与证据确认设计，禁止重试或清理生产现场。
-- US-SIZE-DEFECT-PREVIEW：两条US瑕疵预览未读取已有产品事实；现由电影/自定义标准线程核对范围重叠，尚未修复或接受。
+- US-SIZE-DEFECT-PREVIEW：两条US瑕疵预览未读取已有产品事实；电影/自定义标准线程确认同属Libra Owner并承接独立修复，须覆盖手动/自动及身份、附件、文件安全负例；尚未修复或接受。
 - SERIES-PRESENTATION-EXPANSION：13个build/15个Season Subject是13:36快照；后续新增条目不自动纳入七条线上操作授权。其他网络/协议/来源错误和正常人工待决分别承接。
 
 以上均未因局部Linux PASS而自动完成。

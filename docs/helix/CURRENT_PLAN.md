@@ -30,7 +30,7 @@
 | 工作项 | 责任与当前状态 |
 | --- | --- |
 | ARCA-PATH-COMPONENT-BUDGET | HALT-094、EMLB-094的UTF-8目录/正式名/临时后缀超限，Arca Placement须按组件字节预算和碰撞保护修复；两条Stage为空，旧冻结Decision及生产处置另按精确合同处理。建议独立开发线，不阻挡已隔离的Series候选。 |
-| US-SIZE-DEFECT-PREVIEW | TTIA-026、Roxy Raye的Libra瑕疵预览遗漏US已提交产品字段，实际仍ineligible；与现有自定义标准线程核对重叠后安排，不扩大接纳权限。 |
+| US-SIZE-DEFECT-PREVIEW | TTIA-026、Roxy Raye的Libra瑕疵预览遗漏US已提交产品字段，实际仍ineligible；电影/自定义标准线程确认可在Libra Owner内承接，已安排独立修复与手动/自动及安全负例，不扩大接纳权限。 |
 | SERIES-PRESENTATION-EXPANSION | 13个共享build、15个Season Subject有同类故障，含原7条和后续新增；先完成已授权七条线上验收，新增条目不自动扩大人工处置范围。 |
 
 分诊事实和具体边界见[整合Evidence](implementation/evidence/PRODUCTION_TRIAGE_INTEGRATION_20261029.md)；人工身份/演员待决及其他来源故障不并作同一缺陷。
