@@ -1063,27 +1063,49 @@ function createProtocolTransport(profile, options) {
       Array.from({length:last - first + 1}, (_, index) => 'E' + String(first + index).padStart(3, '0')).sort()) });
   }
 
-  function moviepilotCandidateIdentityAnchors(row, query) {
+  function moviepilotCandidateIdentityKeys(row) {
     const media = row?.media_info && typeof row.media_info === 'object'
       ? row.media_info : {};
-    const providerKey = media.tmdb_id ?? media.tmdbid ??
-      media.tmdbId ?? null;
-    if (providerKey === null || providerKey === undefined ||
-        !String(providerKey).trim()) return Object.freeze([]);
+    const keys = new Set();
+    let invalid = false;
+    for (const value of [media.tmdb_id, media.tmdbid, media.tmdbId]) {
+      if (value === null || value === undefined || typeof value === 'string' && !value.trim()) continue;
+      if (typeof value !== 'string' && !(typeof value === 'number' && Number.isSafeInteger(value))) {
+        invalid = true;
+        continue;
+      }
+      keys.add(String(value).trim());
+    }
+    return {keys:[...keys].sort((a,b)=>Buffer.from(a).compare(Buffer.from(b))),invalid};
+  }
+
+  function moviepilotMovieProfileCompatible(row) {
+    return [row?.media_info?.type,row?.meta_info?.type].every((value)=>{
+      if (value === null || value === undefined || typeof value === 'string' && !value.trim()) return true;
+      return typeof value === 'string' && ['movie','电影'].includes(value.normalize('NFKC').trim().toLowerCase());
+    });
+  }
+
+  function moviepilotCandidateIdentityAnchors(row, query) {
+    if (query.contentProfile !== 'series' && !moviepilotMovieProfileCompatible(row)) return Object.freeze([]);
+    const media = row?.media_info && typeof row.media_info === 'object' ? row.media_info : {};
+    const seriesKey = media.tmdb_id ?? media.tmdbid ?? media.tmdbId ?? null;
+    const keys = query.contentProfile === 'series'
+      ? (seriesKey === null || seriesKey === undefined || !String(seriesKey).trim() ? [] : [String(seriesKey)])
+      : moviepilotCandidateIdentityKeys(row).keys;
     const coverage = moviepilotSeriesCoverage(row);
     if (query.contentProfile === 'series' && coverage.seasonNumber === null) return Object.freeze([]);
-    const basis = {
-      provider: 'tmdb',
-      namespace: query.contentProfile === 'series'
-        ? 'tmdb_series' : 'tmdb_movie',
-      providerKey: String(providerKey),
-      seasonNumber: query.contentProfile === 'series'
-        ? coverage.seasonNumber : null,
-    };
-    return Object.freeze([Object.freeze({
-      ...basis,
-      identityAnchorDigest: digest(canonicalJson(basis)),
-    })]);
+    return Object.freeze(keys.map((providerKey)=>{
+      const basis = {
+        provider: 'tmdb',
+        namespace: query.contentProfile === 'series'
+          ? 'tmdb_series' : 'tmdb_movie',
+        providerKey,
+        seasonNumber: query.contentProfile === 'series'
+          ? coverage.seasonNumber : null,
+      };
+      return Object.freeze({...basis,identityAnchorDigest:digest(canonicalJson(basis))});
+    }));
   }
 
   function moviepilotSeederCount(row) {
@@ -1132,9 +1154,11 @@ function createProtocolTransport(profile, options) {
       ? row.torrent_info : {};
     const actualTitles = [media.title, media.name]
       .map(normalizedMovieTitle).filter(Boolean);
-    const actualYear = media.year ?? media.release_year ?? meta.year ??
-      meta.release_year ?? null;
-    if (String(actualYear || '').trim() !== expectedYear) return false;
+    const years = [media.year, media.release_year, meta.year, meta.release_year]
+      .filter((value)=>value !== null && value !== undefined &&
+        !(typeof value === 'string' && !value.trim()));
+    if (!years.length || years.some((value)=>
+      !['string','number'].includes(typeof value) || String(value).trim() !== expectedYear)) return false;
     if (actualTitles.length > 0) {
       return actualTitles.every((actual) => expectedTitles.includes(actual));
     }
@@ -1153,6 +1177,10 @@ function createProtocolTransport(profile, options) {
   }
 
   function moviepilotCandidateAvailable(row, identityAnchors, query) {
+    if (query.contentProfile !== 'series') {
+      const identityKeys = moviepilotCandidateIdentityKeys(row);
+      if (!moviepilotMovieProfileCompatible(row) || identityKeys.invalid || identityKeys.keys.length > 1) return false;
+    }
     if (query.contentProfile === 'series' &&
         (identityAnchors.length === 0 || canonicalJson(moviepilotSeriesCoverage(row).episodeKeys) !== canonicalJson(query.requestedEpisodeKeys))) return false;
     if (moviepilotSeederCount(row) <= 0) return false;
