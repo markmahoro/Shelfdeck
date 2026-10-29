@@ -19,7 +19,7 @@
 
 ## 历史与证据
 
-- STATUS 长叙事归档：[archive/status/](archive/status/)
+- STATUS 长叙事：本路径 git history（stub 前最后全文见 commit `16c8714c2`）
 - Legacy phase 包：[implementation/archive/CURRENT_PHASE_LEGACY_PACKET_THROUGH_20261021.md](implementation/archive/CURRENT_PHASE_LEGACY_PACKET_THROUGH_20261021.md)
 - [Movie 收尾快照](implementation/archive/20260930_BETA_MOVIE_CLOSEOUT/SNAPSHOT.md)冻结旧活动文档，不能继续指导当前实施。
 - [implementation/archive 索引](implementation/archive/README.md)记录已结束实现包；`implementation/evidence/`保存验收及发布证据。

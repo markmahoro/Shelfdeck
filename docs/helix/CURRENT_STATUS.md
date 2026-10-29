@@ -14,8 +14,4 @@ Optional: at most one line of product/release goal may sit here or in `CURRENT_P
 
 ## Historical narrative (preserved)
 
-The prior long STATUS narrative through 2026-10-21 is preserved at:
-
-[`archive/status/CURRENT_STATUS_NARRATIVE_THROUGH_20261021.md`](archive/status/CURRENT_STATUS_NARRATIVE_THROUGH_20261021.md)
-
-Acceptance and release evidence remains under [`implementation/evidence/`](implementation/evidence/). Do not delete historical evidence to “clean” this stub.
+The prior long STATUS narrative through 2026-10-21 remains in **git history** for this path (last full body before this stub: commit `16c8714c2`, file `docs/helix/CURRENT_STATUS.md`). Do not delete `implementation/evidence/` or other historical Evidence to “clean” this stub.
