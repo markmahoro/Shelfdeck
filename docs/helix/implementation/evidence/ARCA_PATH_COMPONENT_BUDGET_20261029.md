@@ -87,6 +87,8 @@ SSOT §6.5.3、§10.5.3 由 Arca 冻结 Final Inventory Decision 并持有 Place
 
 可复用的工程参考：`media-service/src/helix/integrations/jav-correction-formal-files.js` 的 Correction 发布先验证冻结 File Plan、Staged Manifest 和真实物理身份，对可疑目标与未知目录成员拒绝，并以 `linkSync` 发布已验证 Stage；成功物理效果有独立后续验证/Receipt。该实现属于**已入藏 Correction**，其原 Inventory、retained source、权限和中断合同与首次 On-deck 不同，不能直接把 Correction 的 Plan 或 `continue_forward` 视为新条目的归属证明。跨 Writer 的预约/文件系统等价以及当前 CIFS 对原子操作的支持仍需独立证明。
 
+Endpoint 上限调查：隔离 Linux 基线镜像的 `getconf NAME_MAX /tmp` 返回 `255`；Node 20 的 `fs.statfsSync('/tmp')` 只暴露 type、block 和文件数量等字段，没有组件名长度字段。这只是对容器 tmpfs 的只读本机观察，不能证明 NAS CIFS 的实际限制，也不能把 `getconf` 数值本身当作路径可用性或文件系统等价语义的完整证明。
+
 隔离分支新增纯 `jav-title-prefix` 计算草案、固定依赖，以及复用现有 Arca 命名渲染的内部只读 `previewJavTitle`；它尚未接入 Acceptance、Decision、Stage 或 UI，不能据此声称系统已经主动截短。预览明确返回 `targetCollisionChecked=false`、`endpointComponentLimitVerified=false`，不授予 Reservation/写入权限，也不声称已验证真实文件系统限制；仅在确需截短时从唯一 canonical typed `jav_code` 提取完整番号，不更改原事实。Windows Node 25 与隔离 Linux Node 20 各 9 项纯计算测试通过，Windows 另有 4 项实际渲染预览测试通过；Linux 14 个相关测试文件合计 237 PASS（含现有拒绝长标题行为、Stage/Placement、JAV Correction、Series Reservation 及 US Adult 回归）。两组 HALT/EMLB 已验证实际渲染预览中的目录、扩展名、Primary/NFO stem 和后缀预算，源事实与目标目录保持原样；尚未以截短结果贯通正式 Stage→Verify→Placement。碰撞同前缀、组合字符、ZWJ、非法 Unicode、号码前导零与后缀、固定字段不足、字幕限定词和原名成员过长有单元覆盖；完整并发归属、真实 Endpoint 等价、崩溃证明、实际 UI/Owner 审核、真实 CIFS 与完整发布 Gate 仍未完成。
 
 后续增量：预览增加真实 Endpoint 字节限制未验证标记后，Windows 4 项、隔离 Linux 5 项实际预览复验通过；另新增同短名已有相同字节目标仍不得宣称归属的本机/隔离 Linux 测试各 1 PASS。新增的大小写和 NFC/NFD 路径等价反例与其余纯算法测试在 Windows、隔离 Linux 各 10 PASS；这些是字符串和只读预览测试，不代表实际 CIFS 等价规则或竞争控制已实现。上方 237 项为增量前的完整定向集合，不把增量测试与其混写成同一轮固定版本全量结果。
