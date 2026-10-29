@@ -38,6 +38,18 @@
 
 此路径尚未接入实际用户入口或 Runtime 自动接续。新 Run 的 Admission 先于旧 Work 取消；`cancelProcessWorks` 返回的 draining 状态目前未形成新 Run 调度屏障，调用后中断也尚无 Runtime 持久恢复入口。不能发布或开启该内部入口。已 Accepted 的 Arca 责任仍必须通过 Arca 的公开责任投影与 read fence 保护；不得用取消 Libra 旧 Run 代替该边界。
 
+## Linux 电影测试库路径防护（独立提交）
+
+主线程隔离 Linux Service gate 发现测试库构建脚本先执行 `path.resolve`，导致 Linux 上 `Z:\Film` 变成普通绝对路径、绕过原有盘符拒绝。独立提交 `db539e9df` 在解析前校验原始盘符和 UNC 字符串，解析后仍保留同一检查及已有文件系统根、目标边界保护；只修改脚本与其测试，可单独 cherry-pick。Linux 原测试为 4 PASS / 1 FAIL，添加盘符及 UNC 用例后、修复前为 5 PASS / 9 FAIL；修复后 Linux 与 Windows 均为 14 PASS / 0 skip。这是路径字符串防护，不识别 Linux 已挂载 SMB 或证明挂载类型安全；没有修改生产或主线程工作树。
+
+## Movie 外部寻源记录的有界读取（2026-10-29）
+
+新增未接线的 Libra 内部读取器，只处理当前原标准的单电影 Run。从 Owner Run Snapshot 与身份 Fact、Foundation 的精确 Work/最新成功 Attempt、Query→Search→Selection 输入绑定和 Libra Candidate Evidence 重建一次已记录搜索；重新计算 Query 与 Selection，并核验结果、候选、身份、Spec 和引用摘要。无 Work、未成功或搜索失败只返回待补证；错误状态、跨 Run/Subject、旧 Basis、错误连接、缺失或损坏 Evidence 均拒绝。返回的是原始候选声明与选择结果，既不创建目标建议，也不授权下载、生产、Conformance 或接纳。调用方须在同一 opaque fence 下与其他当前 Owner 证据组合。
+
+MoviePilot Adapter 只查询去重后的前三个标题关键词，合并去重后再截取最多 100 条；当前记录不保存逐关键词覆盖、上游分页或截断结论，无法证明本次搜索完整。无论输出条数是多少，读取器始终标记覆盖范围未知，并仅注明是否达到合同上限。后续须由相关 Owner 明确有界搜索范围及其完成/截断 Evidence，并把它绑定精确 Query、Provider 配置和结果，不能以少于 100 条推断完整，更不能声称覆盖所有 Provider。`unavailable`、零结果、缺身份 Anchor 或 `not_selected` 都不证明无片源，也不能单独支持放宽要求；不得据此开启 Preview 或认为用户已接受。重复调整后的 custom Spec、完整路径/媒体验证和其他 Provider 的证据仍未实现。
+
+新增测试以真实 Planner 生成 Event 绑定，在临时 SQLite 中保存 100 条、超过 64 KiB 的候选记录；重启后使用真实 Foundation Work Result Reader 与 Libra Evidence Store 重建，篡改记录后拒绝。Run Snapshot、身份 Fact 和 Provider 数据为受控夹具，非真实下载或生产证据。先添加未知 Work 状态负例时为 3 PASS / 1 FAIL，补充状态校验后通过。最终本机 Windows Node 及本机隔离 Linux Docker 各运行新读取器、现有寻源管线、局部媒体差异和 Preview/确认共 4 个文件：各 26 PASS / 0 skip。Windows 开发反馈只读复用另一份本机 checkout 的依赖；Linux 使用下述已有镜像与依赖差异，不是精确依赖镜像或整套验收。包边界与禁止语义扫描对新读取器均无新增 finding，项目基线的 2 + 1 finding 仍在。
+
 ## 需要主线程整合的精确缺口
 
 1. **标准目标与评分变化**：当前 `libra_custom_target_heads` 只能引用非空修改集合的 custom Intent，普通 Spec Admission 在存在该 Head 时拒绝，Promotion Fence 也只允许匹配 custom variant；`collectionTargetRef` 虽声明 `standard`，没有可验证的标准 Intent/Head 发布与替代路径。必须由统一合同/存储明确版本化的当前标准目标、显式恢复标准及语义基线变化后的 CAS/重放/保留语义；不能删除 Head、静默沿用旧放宽项，或把旧 custom 目标自动应用到新评分。普通 Acceptance Spec Coordinator/Run Coordinator 还需要区分实际 custom Spec 与其 `originalTarget` 所对应的当前标准，核验新的 Perception/Shelf/身份公开投影；不能只比较两个不同 variant 的 `specDigest`。主线程统一处理公共 SSOT、生成物与存储。
