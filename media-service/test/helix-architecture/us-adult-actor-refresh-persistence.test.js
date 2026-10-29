@@ -79,7 +79,7 @@ test('mutating a caller object after participant preparation cannot change the a
 });
 test('an unbound actor closure is rejected and unrelated health Findings remain available for their own repair',t=>{
   const f=fixture(t),s=f.services(),started=s.command.request('entry',f.request,'admin');
-  f.db.prepare('INSERT INTO arca_aftercare_assessments VALUES(?,?,?,?,?,?,?,?,?,?,?,?)').run('assessment','entry',2,1,1,
+  f.db.prepare('INSERT INTO arca_aftercare_assessments(assessment_id,shelf_entry_id,inventory_revision,standard_revision,placement_revision,decision_fact_set_digest,care_basis_digest,assessment_kind,result,incident_key,evidence_digest,assessed_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)').run('assessment','entry',2,1,1,
     f.context.basis.decisionFactSetDigest,f.context.basis.digest,'presentation','unhealthy',null,D('health'),10000);
   f.db.prepare('INSERT INTO arca_aftercare_findings VALUES(?,?,?,?,?,?,?,?)').run('finding','assessment','presentation:nfo_missing','warning','auto_repair',D('missing'),'open',10000);
   s.care.admitCase(started.aftercareCaseId);

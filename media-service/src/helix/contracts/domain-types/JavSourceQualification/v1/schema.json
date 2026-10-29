@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/JavSourceQualification/v1",
+  "title": "JavSourceQualification@1",
+  "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/domain-types/JavSourceQualification/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "siteRef": {
+      "type": "string",
+      "enum": [
+        "javdb",
+        "javmenu",
+        "jav321",
+        "fc2_official",
+        "caribbeancom_official",
+        "heydouga_official",
+        "avwiki",
+        "mgstage",
+        "dl_getchu",
+        "gyutto",
+        "fanza"
+      ]
+    },
+    "integrationId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "configRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "authMode": {
+      "const": "anonymous"
+    },
+    "endpointProfileDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "networkRouteDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "allowedOperation": {
+      "type": "string",
+      "enum": [
+        "libra.product_identity.evidence.observe@1",
+        "libra.product_metadata.fetch@1",
+        "libra.product_artifact.acquire@1"
+      ]
+    },
+    "artifactKind": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "poster",
+            "fanart"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sourceFenceDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "siteRef",
+    "integrationId",
+    "configRevision",
+    "authMode",
+    "endpointProfileDigest",
+    "networkRouteDigest",
+    "allowedOperation",
+    "artifactKind",
+    "sourceFenceDigest"
+  ]
+}

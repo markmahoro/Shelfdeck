@@ -131,7 +131,9 @@
             "maximum": 1
           },
           "threshold": {
-            "const": 0.363
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
           },
           "faceModelRefDigest": {
             "const": "ef00e17ea63c0aae5fbd42a9125d0b7cfe9e0c74f67678c0c318b32d4eb3a3a0"

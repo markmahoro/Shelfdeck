@@ -385,7 +385,7 @@ function createWorkLifecycle(options) {
         typeof request.reasonCode !== 'string' || !request.reasonCode) {
       fail('P4_WORK_CANCELLATION_SCOPE_INVALID', 'Process Work cancellation requires an exact Owner scope and reason.');
     }
-    return execute('work_lifecycle_cancel_process', (context) => {
+    const result = execute('work_lifecycle_cancel_process', (context) => {
       const works = context.repository('work_lifecycle_works');
       const attempts = context.repository('work_lifecycle_attempts');
       const events = context.repository('work_lifecycle_events');
@@ -434,6 +434,9 @@ function createWorkLifecycle(options) {
       return Object.freeze({ownerDomain:request.ownerDomain,processType:request.processType,processId:request.processId,
         reasonCode:request.reasonCode,selectedWorks:selected.length,cancelledWorks,drainingWorks,cancelledEvents});
     });
+    // Notify after commit; startup reconciliation covers an exit before this callback.
+    options.onProcessCancelled?.(request);
+    return result;
   }
 
   function repairCancelledWorkAttempt(request) {

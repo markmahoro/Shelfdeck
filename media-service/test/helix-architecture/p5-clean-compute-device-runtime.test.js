@@ -46,6 +46,16 @@ test('active Libra Runs replan blocked transcode assessments after a ready encod
   assert.match(source, /disposition: 'replan'/);
 });
 
+test('P5 pipeline qualification cannot ignore the configured probe executable', {timeout:60000}, async()=>{
+  const previous=process.env.FFPROBE_PATH;
+  process.env.FFPROBE_PATH=path.join(require('node:os').tmpdir(),'missing-configured-pipeline-ffprobe');
+  try {
+    const result=await runValidatedPipelineProbe(ffmpeg,'libx265',30000);
+    assert.equal(result.passed,false);
+    assert.equal(result.reasonCode,'pipeline_mode_failed');
+  } finally {if(previous===undefined)delete process.env.FFPROBE_PATH;else process.env.FFPROBE_PATH=previous;}
+});
+
 test('P5 publishes the DV normalization profile only after the complete CPU pipeline self-test closes', {
   timeout:60_000,
 }, async () => {

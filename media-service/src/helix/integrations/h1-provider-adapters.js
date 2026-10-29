@@ -1019,7 +1019,14 @@ function createProtocolTransport(profile, options) {
         headers: { accept: 'application/json' },
         signal: AbortSignal.timeout(request.timeoutMs),
       }, EXTERNAL_JSON_LIMIT);
-      if (found?.success === false) fail(PROVIDER_ERROR,'MoviePilot reported an unsuccessful search.');
+      if (found?.success === false) {
+        // MoviePilot's title-search endpoint represents no matches with this
+        // explicit negative envelope. Other errors must still fail the search.
+        const emptyData=found.data===null||(found.data&&typeof found.data==='object'&&
+          !Array.isArray(found.data)&&Object.keys(found.data).length===0);
+        if(found.message==='\u672a\u641c\u7d22\u5230\u4efb\u4f55\u8d44\u6e90'&&emptyData)continue;
+        fail(PROVIDER_ERROR,'MoviePilot reported an unsuccessful search.');
+      }
       const page = Array.isArray(found)
         ? found
         : Array.isArray(found?.data)

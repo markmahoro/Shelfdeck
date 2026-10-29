@@ -25,6 +25,7 @@ function schemaClosure(manifest, schemas) {
     walk(schema);
   }
   for (const port of Object.values(manifest.inputPorts)) visit(port.schemaRef);
+  for (const evidence of manifest.preboundEvidenceContracts || []) visit(evidence.schemaRef);
   for (const [key, value] of Object.entries(manifest)) {
     if (key.endsWith('SchemaRef') && typeof value === 'string') visit(value);
   }

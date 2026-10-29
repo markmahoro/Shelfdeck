@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.series_presentation.source.observe/v1/inputs",
+  "title": "arca.series_presentation.source.observe@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "seriesPresentationScope": {
+      "$ref": "#/$defs/seriesPresentationScope"
+    }
+  },
+  "required": [
+    "seriesPresentationScope"
+  ],
+  "$defs": {
+    "seriesPresentationScope": {
+      "$ref": "helix://contracts/domain-types/SeriesPresentationScope/v1",
+      "x-helix-typeExpression": "SeriesPresentationScope"
+    }
+  }
+}

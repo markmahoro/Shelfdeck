@@ -51,6 +51,10 @@ function createLibraPipelineAdmission(options) {
       }
     },
     releaseForSubject(subjectId) { return store.release(subjectId); },
+    releaseForProcess(processId) {
+      return store.listTokens().filter(token => token.processId === processId)
+        .map(token => store.release(token.subjectId, processId));
+    },
   });
 }
 

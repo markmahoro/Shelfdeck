@@ -4,7 +4,7 @@ const {MATCH,REFERENCE_PROJECTION_REF,workId,resultRef,projectionSetDigest,EMBED
 function scoredPage(basis,page,ordinal,score,clusterSetDigest=D('cluster-handle')){
   const person=page.items[0],projection=person.referenceProjection,asset=projection.contributions[0].activeAssets[0],
     matchBody={clusterId:'face-cluster-000000',personId:person.personId,personRevision:person.personRevision,projectionRevision:projection.projectionRevision,
-      projectionDigest:projection.projectionDigest,confidenceClass:'strong',score,threshold:0.363,referenceAssetId:asset.referenceAssetId,
+      projectionDigest:projection.projectionDigest,confidenceClass:'strong',score,threshold:0.42,referenceAssetId:asset.referenceAssetId,
       artifactDigest:asset.artifactDigest,faceModelRefDigest:basis.faceModelRef.digest,referenceModelRefDigest:basis.referenceModelRefDigest},
     payload={clusterSetDigest,referenceProjectionSetDigest:projectionSetDigest(page),
       matches:score===null?[]:[{...matchBody,evidenceDigest:D({schema:'shared.face-reference-match-evidence@1',...matchBody})}],unmatchedClusterIds:[]},

@@ -1,4 +1,5 @@
 'use strict';
+const {assertNoEntrySeriesRelocation}=require('./series-root-relocation-gate');
 const {inventoryContentProfile}=require('../model/product-content-profile');
 const {evidenceInventoryRevision}=require('./person-evidence-origin');
 const {canonicalDigest}=require('../../../contracts/canonical-json');
@@ -24,7 +25,7 @@ function createPersonRecordRefreshStore(options,repository) {
       domainParticipant:{participantId:'arca_person_record_refresh',owner:'arca',repositories:[repository],execute(context) {
         const repo=context.repository(repository.repositoryId),entry=repo.invoke('find_entry',{shelf_entry_id:shelfEntryId}),
           shelf=entry&&repo.invoke('find_shelf',{shelf_id:entry.shelf_id});
-        assertNoJavCorrection(repo,shelfEntryId);
+        assertNoJavCorrection(repo,shelfEntryId);assertNoEntrySeriesRelocation(repo,shelfEntryId);
         const profile=entry && inventoryContentProfile(repo.invoke('find_identity',{shelf_entry_id:shelfEntryId,revision:entry.canonical_identity_revision}),entry.structure_kind);
         if(profile==='western_adult')fail('ARCA_USER_ACTOR_REFRESH_REQUIRED','US Adult actor refresh requires a user Aftercare Intent.');
         const libraryKind=profile==='jav'?'jav':'normal';

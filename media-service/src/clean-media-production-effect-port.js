@@ -131,7 +131,7 @@ function runProcess(executable, argv, timeoutMs, progress = null, control = {}) 
     let progressBuffer='',durationBuffer='',lastReportedAt=0,lastOutTime='0',lastActivityAt=Date.now();
     const startedAtMs=Date.now();
     const remainingMs=Number.isSafeInteger(control.deadlineAtMs)
-      ?Math.max(1,control.deadlineAtMs-startedAtMs):timeoutMs;
+      ?Math.max(1,control.deadlineAtMs-(control.now || Date.now)()):timeoutMs;
     const boundedTimeout=Math.min(timeoutMs,remainingMs);
     let timeoutReason=remainingMs<timeoutMs?'event_deadline':'process_timeout';
     const stallTimeoutMs=Number.isSafeInteger(control.stallTimeoutMs)&&control.stallTimeoutMs>0
@@ -189,6 +189,7 @@ function createCleanMediaProductionEffectPort(options) {
   }
   const ffmpegPath = resolveFfmpegPath(options.ffmpegPath);
   const timeoutMs = options.timeoutMs || LOCAL_MEDIA_ENCODE_TIMEOUT_MS;
+  const now = options.now || Date.now;
   const processRegistry = options.ffmpegProcessRegistry || createFfmpegProcessRegistry();
   function sourceLocation(handle) {
     if (handle?.schemaRef === 'helix://contracts/types/WorkspaceMaterialHandle/v1') {
@@ -247,7 +248,7 @@ function createCleanMediaProductionEffectPort(options) {
             if (typeof control.shouldContinue === 'function' && control.shouldContinue() === false) {
               fail('LIBRA_MEDIA_ISO_PAYLOAD_CANCELLED', 'ISO payload observation authority changed.');
             }
-            if (Number.isSafeInteger(control.deadlineAtMs) && Date.now() >= control.deadlineAtMs) {
+            if (Number.isSafeInteger(control.deadlineAtMs) && now() >= control.deadlineAtMs) {
               fail('LIBRA_MEDIA_ISO_PAYLOAD_TIMEOUT', 'ISO payload observation exceeded its deadline.');
             }
             const want = Math.min(buffer.length, extentRemaining);
@@ -362,7 +363,7 @@ function createCleanMediaProductionEffectPort(options) {
       ...productStreamMap(intent),'-frames:v',String(frames),...pipeline.videoArgs,'-c:a','copy','-c:s','copy','-f','matroska',nullTarget];
     try{
       await runProcess(ffmpegPath,argv,30_000,null,
-        {processRegistry,deadlineAtMs:request.deadlineAtMs,shouldContinue:request.shouldContinue,abortSignal:request.abortSignal});
+        {processRegistry,now,deadlineAtMs:request.deadlineAtMs,shouldContinue:request.shouldContinue,abortSignal:request.abortSignal});
       return Object.freeze({sampleCount:frames,passedSampleCount:frames,reasonCode:null,
         samplePointsPercent:Object.freeze([0]),passedSamplePointsPercent:Object.freeze([0]),
         preflightDigest:canonicalDigest({schema:'libra.transcode-preflight@1',sourceHandleDigest:canonicalDigest(request.sourceHandle),
@@ -385,7 +386,7 @@ function createCleanMediaProductionEffectPort(options) {
     for(const point of points){const seconds=Math.max(0,durationMs/1000*point/100);
       try{await runProcess(ffmpegPath,['-hide_banner','-nostdin','-loglevel','error','-ss',seconds.toFixed(3),'-i',source,
         '-map','0:v:0','-frames:v','1','-f','null',process.platform==='win32'?'NUL':'/dev/null'],30_000,null,
-        {processRegistry,deadlineAtMs:request.deadlineAtMs,shouldContinue:request.shouldContinue});passed.push(point);}
+        {processRegistry,now,deadlineAtMs:request.deadlineAtMs,shouldContinue:request.shouldContinue});passed.push(point);}
       catch(error){
         if(error?.code==='LIBRA_MEDIA_FFMPEG_TIMEOUT')error.details={...error.details,stage:'playback_decode',samplePointPercent:point};
         if(error?.code==='P4_EXECUTION_SHUTDOWN_INTERRUPTED'||error?.code==='LIBRA_MEDIA_FFMPEG_TIMEOUT'||error?.code==='ENOENT'||error?.code==='EACCES')throw error;
@@ -400,7 +401,7 @@ function createCleanMediaProductionEffectPort(options) {
         const scratch=await fs.promises.mkdtemp(path.join(os.tmpdir(),'shelfdeck-join-decode-')),proofPath=path.join(scratch,'frame.sha256');
         try { await runProcess(ffmpegPath,['-hide_banner','-nostdin','-loglevel','error','-ss',(point/1000).toFixed(3),'-i',source,
           '-map','0:v:0','-frames:v','1','-f','framehash','-hash','sha256',proofPath],30_000,null,
-          {processRegistry,deadlineAtMs:request.deadlineAtMs,shouldContinue:request.shouldContinue});
+          {processRegistry,now,deadlineAtMs:request.deadlineAtMs,shouldContinue:request.shouldContinue});
           if((await fs.promises.stat(proofPath)).size>65536)fail('LIBRA_MEDIA_JOIN_DECODE_BOUND','Join decode frame proof exceeded its bound.');
           const frames=(await fs.promises.readFile(proofPath,'utf8')).split(/\r?\n/).filter(line=>line&&!line.startsWith('#'));
           if(frames.length===1&&/,[ ]*[a-f0-9]{64}$/.test(frames[0])){joinPassed.push(point);frameDigests.push(canonicalDigest(frames[0]));}
@@ -502,7 +503,7 @@ function createCleanMediaProductionEffectPort(options) {
           await runProcess(ffmpegPath, ['-hide_banner','-nostdin','-loglevel','error',
             '-ss',seconds.toFixed(3),...input.argv,'-map','0:v:0','-frames:v','1','-f','null',
             process.platform==='win32'?'NUL':'/dev/null'], 30_000, null,
-          { processRegistry, deadlineAtMs:request.deadlineAtMs,
+          { processRegistry, now, deadlineAtMs:request.deadlineAtMs,
             shouldContinue:request.shouldContinue });
           passed.push(point);
         } catch (error) {
@@ -537,7 +538,7 @@ function createCleanMediaProductionEffectPort(options) {
     const target = request.outputTarget;
     const progress=request.reportProgress?progressGroup(request.reportProgress,1,request.progressFloor):null;
     const run=(args,limit,processProgress=null)=>runProcess(ffmpegPath,args,limit,processProgress,
-      {processRegistry,deadlineAtMs:request.deadlineAtMs,shouldContinue:request.shouldContinue});
+      {processRegistry,now,deadlineAtMs:request.deadlineAtMs,shouldContinue:request.shouldContinue});
     return options.workspaceProductPort.materializeMedia({ libraRunId:target.libraRunId, workspaceId:target.workspaceId,
       relativePath:target.targetRelativePath, intentDigest:request.productionIntent.intentDigest,
       idempotencyKey:request.idempotencyKey, effectScopeDigest:target.effectScopeDigest,
@@ -581,7 +582,7 @@ function createCleanMediaProductionEffectPort(options) {
     const phaseCount=request.productionIntent.video.rateControlMode==='two_pass_abr'?2:1,
       progress=request.reportProgress?progressGroup(request.reportProgress,phaseCount,request.progressFloor):null;
     const run=(args,limit,processProgress=null)=>runProcess(ffmpegPath,args,limit,processProgress,
-      {processRegistry,deadlineAtMs:request.deadlineAtMs,shouldContinue:request.shouldContinue});
+      {processRegistry,now,deadlineAtMs:request.deadlineAtMs,shouldContinue:request.shouldContinue});
     return options.workspaceProductPort.materializeMedia({ libraRunId:target.libraRunId, workspaceId:target.workspaceId,
       relativePath:target.targetRelativePath, intentDigest:request.productionIntent.intentDigest,
       idempotencyKey:request.idempotencyKey, effectScopeDigest:target.effectScopeDigest,

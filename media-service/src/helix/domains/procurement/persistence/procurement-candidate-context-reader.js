@@ -1,5 +1,6 @@
 'use strict';
 
+const path = require('node:path');
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { activeTriageRule } = require('../model/procurement-run-contracts');
 const { relatedArtworkRole } = require('../model/related-artwork-role');
@@ -95,7 +96,7 @@ function parentOf(location) {
   const value = normalizedLocation(location); const index = value.lastIndexOf('/');
   return index < 0 ? '.' : value.slice(0, index) || '.';
 }
-function reconstructRelatedReferences({ basis, scope, candidateMembers, observed, observationRevision }) {
+function reconstructRelatedReferences({ basis, scope, candidateMembers, observed, observationRevision, contentProfile }) {
   const primary = candidateMembers.filter((member) => member.role === 'primary_payload');
   if (!primary.length || !scope) return Object.freeze([]);
   const knownLocations = observed.map((item) => item.relativeLocation || item.location);
@@ -132,20 +133,30 @@ function reconstructRelatedReferences({ basis, scope, candidateMembers, observed
       /^(poster|fanart|background|backdrop|banner|clearlogo|landscape|logo|discart)\.(jpg|jpeg|png|webp)$/.test(lower) ||
       /^season0*\d+-(poster|fanart|background|backdrop|banner|landscape)\.(jpg|jpeg|png|webp)$/.test(lower) ||
       (scope.relatedRuleRevision >= 2 && /^thumbs\.db$/.test(lower));
+    // A Season directory owns its own display files. Only the known generic
+    // Season roles are admitted; episode-scoped or arbitrary artwork stays subject
+    // to the exact stem rule below.
+    const seasonPresentation = contentProfile === 'series' && scope.relatedRuleRevision >= 3 &&
+      (/^(poster|fanart)\.(jpg|jpeg|png|webp)$/.test(lower) || lower === 'season.nfo');
     const stemMatches = [...stems].some((value) => stem === value || stem.startsWith(value + '.') || stem.startsWith(value + '-') || stem.startsWith(value + '_'));
     const sidecar = /\.(srt|ass|ssa|vtt|aac|ac3|dts|flac|mka|chapters|xml)$/.test(lower);
     const mediaPayload = /\.(3gp|asf|avi|divx|flv|iso|m2ts|m4v|mkv|mov|mp4|mpeg|mpg|mts|mxf|ogm|rm|rmvb|ts|vob|webm|wmv)$/.test(lower);
     const associationMode = scope.associationMode;
     const allowed = associationMode === 'single_movie_directory' || associationMode === 'bdmv_external'
-      ? stemMatches || standard
-      : stemMatches;
+      ? stemMatches || standard || seasonPresentation
+      : stemMatches || seasonPresentation;
     if (mediaPayload || !allowed) continue;
     const matchingContexts = primaryContexts.filter(value => value.parent === parentOf(relative) &&
       (stem === value.stem || stem.startsWith(value.stem + '.') || stem.startsWith(value.stem + '-') || stem.startsWith(value.stem + '_')));
+    const orderedContexts = [...primaryContexts].sort((a, b) => Buffer.compare(Buffer.from(a.materialKey), Buffer.from(b.materialKey)));
+    const seasonContexts = seasonPresentation
+      ? orderedContexts.filter((value) => value.parent === parentOf(relative)) : [];
     // An exclusive reference must retain its exact Primary, not the first
-    // member in a Season. Ambiguous shared names cannot grant disposition.
+    // member in a Season. A Season display file is anchored to the stable first
+    // episode in that same Season so it still has one disposition owner.
     const primaryContext = matchingContexts.length === 1 ? matchingContexts[0]
-      : primaryContexts.length === 1 ? primaryContexts[0] : null;
+      : seasonPresentation ? seasonContexts[0] || null
+        : primaryContexts.length === 1 ? primaryContexts[0] : null;
     if (!primaryContext) continue;
     const artworkRole = relatedArtworkRole(lower, stems);
     const role = extension === '.nfo' ? 'nfo' : artworkRole ? artworkRole
@@ -251,14 +262,30 @@ function createProcurementCandidateContextReader(options) {
         observedCache.set(observedScopeKey, observed);
       }
       const relatedReferences = reconstructRelatedReferences({ basis, scope:relatedScope, candidateMembers,
-        observed:observed || [], observationRevision:relatedScope.observationProjectionRevision });
+        observed:observed || [], observationRevision:relatedScope.observationProjectionRevision,
+        contentProfile:entry.unit.contentProfile });
+      let seriesPresentationSourceRefs=null;
+      if(entry.unit.contentProfile==='series'&&typeof options.triageReader.listObservedMaterialsInScope==='function'){
+        const roots=[...new Set(candidateMembers.filter(member=>member.role==='primary_payload').map(member=>{
+          const relative=basis.members.find(row=>row.material_key===member.materialKey)?.field_relative_location||'',parts=normalizedLocation(relative).split('/'),
+            season=parts.findIndex(part=>/^(season[ ._-]*[0-9]+|s[0-9]{1,2}|第[0-9]+季)$/i.test(part));
+          return season<0?null:parts.slice(0,season).join('/')||'.';}))];
+        if(roots.length===1&&roots[0]!==null){const sourceRoot=roots[0],entries=options.triageReader.listObservedMaterialsInScope(request.runId,sourceRoot),references=[];
+          for(const artifactKind of ['nfo','poster','fanart']){const names=artifactKind==='nfo'?['tvshow.nfo']:['jpg','jpeg','png','webp'].map(ext=>artifactKind+'.'+ext),
+            candidates=entries.filter(row=>names.includes(baseName(row.relativeLocation||row.location).toLowerCase())&&row.identity),
+            item=candidates.sort((a,b)=>names.indexOf(baseName(a.relativeLocation||a.location).toLowerCase())-names.indexOf(baseName(b.relativeLocation||b.location).toLowerCase()))[0];
+            if(item)references.push({artifactKind,endpointId:item.endpointId,location:item.location,physicalIdentity:item.identity,entryDigest:item.entryDigest});}
+          if(references.some(row=>row.artifactKind==='nfo'))seriesPresentationSourceRefs=require('../../../contracts/series-local-source').buildReferenceSet({fieldId:basis.run.field_id,accessRevision:Number(basis.run.access_revision),
+            fieldRoot:basis.access.root_location,sourceRoot:sourceRoot==='.'?basis.access.root_location:path.join(basis.access.root_location,sourceRoot),observationDigest:entry.payloadDigest,references});
+        }
+      }
       const context = Object.freeze({
         snapshot:Object.freeze({ run:snapshot.run, access:snapshot.access, selectionScopes:snapshot.selectionScopes,
           candidateMaterials:snapshot.candidateMaterials }),
         structure:entry.structure,
         unit:entry.unit,
         candidateMembers,
-        relatedReferences,
+        relatedReferences,seriesPresentationSourceRefs,
         ordinal:entry.ordinal,
         evidenceId:entry.evidenceId,
         evidencePayloadDigest:entry.payloadDigest,

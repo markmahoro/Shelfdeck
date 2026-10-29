@@ -205,7 +205,8 @@ function createJavIdentitySelection(options) {
   }
   return Object.freeze({preview,choose,snapshotSources:sourceSnapshot,resolveSourceHandle:handleFor,
     validateSourceHandleEvidence(handle,binding,observedAtMs,operationId) {
-      return validateProductIntegrationHandle(handle,{...binding,integrationType:'jav_source',secretRef:null,allowedOperation:operationId,artifactKind:null},observedAtMs);
+      return Number.isSafeInteger(observedAtMs)&&observedAtMs>=0&&validateProductIntegrationHandle(handle,
+        {...binding,integrationType:'jav_source',secretRef:null,allowedOperation:operationId,artifactKind:null},observedAtMs);
     }});
 }
 

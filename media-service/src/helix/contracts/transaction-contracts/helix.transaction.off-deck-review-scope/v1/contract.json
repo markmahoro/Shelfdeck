@@ -39,7 +39,8 @@
     "readTables": [
       "arca_jav_identity_corrections",
       "arca_shelf_entries",
-      "arca_inventory_materials"
+      "arca_inventory_materials",
+      "arca_series_root_relocations"
     ],
     "variants": [],
     "dynamicTableRequirements": [],
@@ -69,7 +70,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 8884,
+      "line": 8883,
       "lineDigest": "d84e96ef7c300f188c7958c64da90cad90657ecdc8ba7aab1237058b1403e2e7"
     }
   }

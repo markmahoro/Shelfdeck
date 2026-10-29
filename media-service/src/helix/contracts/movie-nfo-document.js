@@ -132,7 +132,8 @@ function attribute(node, name) {
   return node.attributes?.find((item) => item.name.toLowerCase() === name.toLowerCase())?.value;
 }
 
-function analyzeMovieNfo(value) {
+function analyzeNfoDocument(value,expectedRoot) {
+  if(!['movie','tvshow'].includes(expectedRoot))throw new TypeError('NFO parser requires a declared document root.');
   const decoded = decodeBounded(value);
   if (!decoded.usable) return decoded;
   const tokenized = tokenize(decoded.xml);
@@ -152,8 +153,8 @@ function analyzeMovieNfo(value) {
     }
     if (token.kind === 'open' || token.kind === 'self') {
       if (stack.length === 0) {
-        if (root || rootClosed || token.name.toLowerCase() !== 'movie' || token.kind === 'self') {
-          return Object.freeze({ usable:false, reasonCode:'movie_root_required' });
+        if (root || rootClosed || token.name.toLowerCase() !== expectedRoot || token.kind === 'self') {
+          return Object.freeze({ usable:false, reasonCode:expectedRoot+'_root_required' });
         }
         root = { name:token.name, openStart:token.start, openEnd:token.end, closeStart:null, closeEnd:null };
       } else if (stack.length === 1) {
@@ -186,6 +187,8 @@ function analyzeMovieNfo(value) {
     directChildren:Object.freeze(directChildren.map((item) => Object.freeze(item))) });
 }
 
+function analyzeMovieNfo(value){return analyzeNfoDocument(value,'movie');}
+
 function directText(document, tag, predicate = () => true) {
   const child = document.directChildren.find((item) => item.name === tag && predicate(item));
   return childText(document, child);
@@ -214,4 +217,4 @@ function inspectAftercareMovieNfo(value) {
 }
 
 
-module.exports=Object.freeze({MAX_NFO_BYTES,bytesOf,analyzeMovieNfo,attribute,directText,childText,inspectMovieNfo:inspectAftercareMovieNfo});
+module.exports=Object.freeze({MAX_NFO_BYTES,bytesOf,analyzeNfoDocument,analyzeMovieNfo,attribute,directText,childText,inspectMovieNfo:inspectAftercareMovieNfo});

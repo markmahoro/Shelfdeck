@@ -7,7 +7,7 @@ function createUserFormationResetWorkerPort(options){
   let checking=null;
   function run(operation,preview,beforeApply){return new Promise((resolve,reject)=>{
     const worker=new Worker(path.join(__dirname,'../scripts/user-formation-reset-worker.js'),{
-      workerData:{operation,preview,dataDir:options.dataDir,workspaceRoot:options.workspaceRoot},
+      workerData:{operation,preview,resetId:operation==='recover'?preview:undefined,dataDir:options.dataDir,workspaceRoot:options.workspaceRoot},
       resourceLimits:{maxOldGenerationSizeMb:256},execArgv:[]});
     let settled=false;
     const finish=(callback,value)=>{if(!settled){settled=true;callback(value);}};
@@ -23,6 +23,6 @@ function createUserFormationResetWorkerPort(options){
   });}
   return Object.freeze({preview:()=>{if(!checking)checking=run('preview').finally(()=>{checking=null;});return checking;},apply:(preview,beforeApply)=>{
     options.assertWorkspaceAvailable?.();return run('apply',preview,beforeApply);
-  }});
+  },recover:(resetId)=>{options.assertWorkspaceAvailable?.();return run('recover',resetId);}});
 }
 module.exports=Object.freeze({createUserFormationResetWorkerPort});

@@ -54,7 +54,8 @@
                     "superseded",
                     "frozen",
                     "completed",
-                    "discarded"
+                    "discarded",
+                    "administratively_retired"
                   ]
                 },
                 "runStateRevision": {

@@ -31,7 +31,8 @@ function createOffdeckContextReader(options) {
         expectedMtimeNs:0, expectedCtimeNs:0,
         fingerprintVerifiedAtMs:Number(value.scope.created_at_ms), readScope:'offdeck_exact_identity', expiresAtMs:Number.MAX_SAFE_INTEGER };
       const materialHandle=Object.freeze({...handleBasis,fenceDigest:canonicalDigest(handleBasis)});
-      return Object.freeze({ordinal:Number(row.ordinal),materialKey:row.material_key,role:row.material_role,relatedReferenceId:row.related_reference_id||null,
+      const expectedByteDigest=row.shared_scope_id?store.sharedMaterialDigest(row.shared_scope_id,Number(row.shared_version),row.material_key):undefined;
+      return Object.freeze({ordinal:Number(row.ordinal),expectedByteDigest,materialKey:row.material_key,role:row.material_role,sharedScopeId:row.shared_scope_id||null,sharedVersion:row.shared_version===null?null:Number(row.shared_version),relatedReferenceId:row.related_reference_id||null,
         deleteCondition:row.delete_condition,memberDigest:row.member_digest,scopeRow:Object.freeze({...row}),materialHandle,control});
     });
     const authorization=Object.freeze({schemaRef:'helix://contracts/types/AuthorizationHandle/v1',schemaVersion:1,

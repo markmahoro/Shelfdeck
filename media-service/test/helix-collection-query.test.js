@@ -107,3 +107,45 @@ test('Series Collection projects only claimed Episodes, shared files and parts f
   assert.throws(()=>collectionSeriesProjection(entry,[material('bad',['E1'])],facts),/key/);
   assert.equal(collectionSeriesProjection({structure_kind:'single'},[],[]),null);
 });
+
+
+test('real SQLite title/year/search paging preserves results and reads heavy collection details only for the selected page',()=>{
+  const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),Database=require('better-sqlite3');
+  const {openSqliteKernel}=require('../src/helix/foundation/persistence/sqlite-kernel');
+  const {createSqliteUnitOfWork}=require('../src/helix/foundation/persistence/sqlite-unit-of-work');
+  const schemaManifest=require('../src/helix/foundation/persistence/generated/clean-schema.manifest.json');
+  const temporary=fs.mkdtempSync(path.join(os.tmpdir(),'collection-page-')),databasePath=path.join(temporary,'test.db');
+  const kernel=openSqliteKernel({Database,databasePath,schemaManifest,schemaDdl:fs.readFileSync(path.join(__dirname,'../src/helix/foundation/persistence/generated/clean-schema.sql'),'utf8')});
+  const db=new Database(databasePath),actual=createSqliteUnitOfWork({kernel}),detailReads=[];
+  try {
+    db.pragma('foreign_keys=ON');db.prepare("INSERT INTO arca_shelves(shelf_id,name,status) VALUES ('shelf','Shelf','active')").run();
+    for(let i=0;i<12;i++){
+      const id='entry-'+String(i).padStart(2,'0'),title=['Alpha','Beta','阿尔法','阿尔法'][i%4],year=2020+i%3;
+      db.prepare("INSERT INTO arca_shelf_entries(shelf_entry_id,shelf_id,status,structure_kind,created_at_ms) VALUES (?,'shelf','active','single',?)").run(id,i);
+      db.prepare("INSERT INTO arca_canonical_identity_revisions(shelf_entry_id,revision,structure_kind,identity_kind,provider,provider_key) VALUES (?,1,'single','tmdb_movie','tmdb',?)").run(id,String(i));
+      db.prepare('INSERT INTO arca_inventory_representations(shelf_entry_id,revision) VALUES (?,1)').run(id);
+      db.prepare('INSERT INTO arca_deck_fact_revisions(shelf_entry_id,revision) VALUES (?,1)').run(id);
+      db.prepare('UPDATE arca_shelf_entries SET canonical_identity_revision=1,current_inventory_revision=1,current_deck_fact_revision=1 WHERE shelf_entry_id=?').run(id);
+      db.prepare("INSERT INTO arca_inventory_product_facts(shelf_entry_id,inventory_revision,fact_kind,fact_revision,fact_json) VALUES (?,1,'product_metadata',1,?)").run(id,JSON.stringify({descriptiveFacts:{entries:[{key:'title',value:title},{key:'year',value:year}]}}));
+    }
+    const unitOfWork={execute(participants){return actual.execute(participants.map(participant=>({...participant,execute(context){
+      return participant.execute({...context,repository(id){const repo=context.repository(id);return {invoke(name,args){
+        if(['find_materials','find_people','find_facts'].includes(name))detailReads.push({name,ids:args.values});
+        return repo.invoke(name,args);
+      }};}});
+    }})));}};
+    const query=createArcaCollectionQuery({schemaManifest,unitOfWork,posterReader:async()=>null});
+    for(const options of [{sort:'title'},{sort:'year_desc'},{sort:'title',q:'阿尔法'},{sort:'year_desc',q:'2021'}]){
+      const expected=query.list(options);let cursor=null,actualItems=[];
+      do {
+        detailReads.length=0;
+        const page=query.list({...options,limit:2,cursor});
+        assert.equal(page.resultCount,expected.resultCount);
+        for(const read of detailReads)assert.ok(read.ids.every(id=>page.items.some(item=>item.shelfEntryId===id)),read.name+' must stay within this page');
+        actualItems.push(...page.items);cursor=page.nextCursor;
+      }while(cursor);
+      assert.deepEqual(actualItems,expected.items);
+    }
+    assert.deepEqual(db.pragma('foreign_key_check'),[]);
+  }finally{db.close();kernel.close();fs.rmSync(temporary,{recursive:true,force:true});}
+});

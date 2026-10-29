@@ -78,7 +78,7 @@ function createAftercareContextReader(options){const store=options.aftercareStor
     const contexts=items.map(item=>{
       const relevant=usesRatingDecision(item.standardValue,item.structureKind,item.canonicalIdentity),rating=ratings.get(item.shelfEntryId),
         digests=relevant?[...item.decisionFactDigests,...(rating?.state==='ready'&&rating.resolutionDigest?[rating.resolutionDigest]:[])]:[];
-      return {shelfEntryId:item.shelfEntryId,originalRequirements:originals.get(item.shelfEntryId),materialRoles:item.materialRoles,
+      return {shelfEntryId:item.shelfEntryId,structureKind:item.structureKind,seriesIdentityHint:item.structureKind==='season'?{shelfId:item.shelfId,providerKey:item.canonicalIdentity.provider_key}:null,originalRequirements:originals.get(item.shelfEntryId),materialRoles:item.materialRoles,
         defectAuthorization:authorizations.get(item.shelfEntryId)||null,
         effectiveRequirements:effectiveRequirements({raw:{identity:item.canonicalIdentity,entry:{structure_kind:item.structureKind},standard:{value:item.standardValue},facts:item.decisionFacts||[],perceptionRating:rating}}),
         incidentResourceHints:item.incidentResourceHints,authorizedDefectManifest:item.authorizedDefectManifest,

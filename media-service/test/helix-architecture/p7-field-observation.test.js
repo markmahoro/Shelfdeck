@@ -26,6 +26,8 @@ const { evaluateExtractionEligibility } = require('../../src/helix/domains/procu
 const { createEligibilityReconcileStore } = require('../../src/helix/domains/procurement/persistence/eligibility-reconcile-store');
 const { createFieldObservationCommitRegistration, createFieldObservationStore, FACT_SCHEMA, RESULT_SCHEMA } = require('../../src/helix/domains/procurement/persistence/field-observation-store');
 const { createMaterialFieldStore } = require('../../src/helix/domains/procurement/persistence/material-field-store');
+const { createFreshResetFieldNormalization } = require('../../src/helix/domains/procurement/public');
+const { createFieldObservationAdminService } = require('../../src/helix/domains/procurement/application/field-observation-admin-service');
 const observationTransaction = require('../../src/helix/contracts/transaction-contracts/helix.transaction.field-observation-page-commit/v1/contract.json');
 
 const generatedRoot = path.resolve(__dirname, '../../src/helix/foundation/persistence/generated');
@@ -124,6 +126,42 @@ function commitRequest(page,eventId) {
     handle,payload:page,commitMarker:{commitMarker:'marker-'+page.observationId,effectId:null,commitDigest:hash('commit-'+page.observationId)},
     resultBinding:{resultId:'result-'+page.observationId,eventId,evidenceSchemaRef:compact.schemaRef,evidence:compact},outboxMessages:[] };
 }
+
+test('fresh Reset starts a new scan, rejects a delayed old page, and preserves retained observation facts', async () => fixture(async ({databasePath, field, fieldStore, coordinator, unitOfWork}) => {
+  seedRuntime(databasePath, 'old-work', 'old-event');
+  const oldPage = await observe(field, pageRequest('old-work', 'old-page', 0), [raw('a')]);
+  coordinator.execute(commitRequest(oldPage, 'old-event'));
+  const db = new Database(databasePath);
+  try {
+    const before = db.prepare('SELECT * FROM proc_field_observations').all();
+    // Isolated copy's declared projection detaches this pointer before Owner normalization.
+    db.exec('UPDATE proc_material_fields SET current_observation_revision=NULL');
+    const normalize = createFreshResetFieldNormalization({ schemaManifest, unitOfWork });
+    const generationId = 'a'.repeat(64), normalized = normalize({ generationId });
+    assert.equal(normalized.fields[0].minimumObservationRevision, 1);
+    assert.deepEqual(normalize({ generationId }), normalized);
+    assert.throws(() => normalize({ generationId: 'b'.repeat(64) }), { code: 'PROCUREMENT_RESET_BARRIER_CONFLICT' });
+    assert.deepEqual(db.prepare('SELECT * FROM proc_field_observations').all(), before);
+    seedRuntime(databasePath, 'late-work', 'late-event');
+    const latePage = await observe(field, pageRequest('late-work', 'late-page', 1), [raw('b')]);
+    assert.throws(() => coordinator.execute(commitRequest(latePage, 'late-event')), { code: 'P7_FIELD_OBSERVATION_RESET_BARRIER' });
+    assert.equal(db.prepare('SELECT count(*) n FROM proc_field_observations').get().n, 1);
+    const admin = createFieldObservationAdminService({ schemaManifest, unitOfWork, materialFieldStore: fieldStore,
+      executionRuntimeHost: { wake() {} } });
+    const request = { fieldId: 'field-1', expectedAccessRevision: 1, expectedObservationRevision: 1, idempotencyKey: 'observe', pageBudget: 256 };
+    const admitted = admin.observe(request);
+    assert.ok(admitted.observationWorkId.startsWith('field-observation-work-' + generationId + '-'));
+    assert.equal(admin.observe(request).replayed, true);
+    const newWork = 'field-observation-work-' + generationId + '-fixture';
+    seedRuntime(databasePath, newWork, 'new-event');
+    const freshPage = await observe(field, pageRequest(newWork, 'fresh-page', 1), [raw('c')]);
+    assert.equal(freshPage.cursorIn, null);
+    const result = coordinator.execute(commitRequest(freshPage, 'new-event'));
+    assert.equal(result.typedResult.revision, 2);
+    assert.deepEqual(db.prepare('SELECT * FROM proc_field_observations WHERE revision=1').all(), before);
+    assert.deepEqual(db.pragma('foreign_key_check'), []);
+  } finally { db.close(); }
+}));
 
 test('observes and atomically commits a durable bounded page with zero Outbox and lossless int64 persistence', async () => fixture(async ({databasePath,field,coordinator}) => {
   seedRuntime(databasePath,'work-1','event-1'); const page=await observe(field,pageRequest('work-1','observation-1',0),[raw('a'),raw('b')]);

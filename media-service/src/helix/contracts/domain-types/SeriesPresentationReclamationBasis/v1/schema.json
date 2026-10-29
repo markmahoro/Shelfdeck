@@ -1,0 +1,193 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/SeriesPresentationReclamationBasis/v1",
+  "title": "SeriesPresentationReclamationBasis@1",
+  "x-helix-ssotRefs": [
+    "8.5.12"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "x-helix-maxCanonicalBytes": 131072,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/domain-types/SeriesPresentationReclamationBasis/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "objectId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "scopeDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "kind": {
+      "enum": [
+        "committed",
+        "superseded",
+        "retired"
+      ]
+    },
+    "retirementReceipt": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "schema": {
+              "const": "arca.series-retained-retirement@1"
+            },
+            "scopeId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "buildId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "scopeDigest": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "headDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "sharedVersion": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "retainedRootLocation": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "controlSetDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "receiptDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "schema",
+            "scopeId",
+            "buildId",
+            "scopeDigest",
+            "headDigest",
+            "sharedVersion",
+            "retainedRootLocation",
+            "controlSetDigest",
+            "receiptDigest"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sourceObserved": {
+      "anyOf": [
+        {
+          "$ref": "helix://contracts/types/SeriesPresentationSourceObserved/v1"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "prepared": {
+      "anyOf": [
+        {
+          "$ref": "helix://contracts/types/SeriesPresentationAssetsPrepared/v1"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "ready": {
+      "anyOf": [
+        {
+          "$ref": "helix://contracts/types/SeriesPresentationReady/v1"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "registeredArtifacts": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "artifactKind": {
+            "enum": [
+              "nfo",
+              "poster",
+              "fanart"
+            ]
+          },
+          "workspaceMaterialHandle": {
+            "$ref": "helix://contracts/types/WorkspaceMaterialHandle/v1"
+          },
+          "artifactHandle": {
+            "$ref": "helix://contracts/types/ArtifactHandle/v1"
+          }
+        },
+        "required": [
+          "artifactKind",
+          "workspaceMaterialHandle",
+          "artifactHandle"
+        ]
+      }
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "objectId",
+    "revision",
+    "scopeDigest",
+    "kind",
+    "retirementReceipt",
+    "sourceObserved",
+    "prepared",
+    "ready",
+    "registeredArtifacts",
+    "digest"
+  ]
+}

@@ -87,6 +87,7 @@ function draft(parameters,sourceResults){const identity=sourceResults.find((sour
     displayIdentity:unit.displayIdentity,identityMetadata:unit.identityMetadata,identityClaim:identity,materialInputForm:unit.materialInputForm,
     structureEvidence:{evidenceId:structure.evidenceId,payloadDigest:structure.payloadDigest,unit},primaryInputManifestDraft:manifest,
     seasonContinuityClaims:unit.seasonContinuityClaims,seasonContinuityClaimSetDigest:unit.seasonContinuityClaimSetDigest,relatedReferences,
+    ...(parameters.seriesPresentationSourceRefs?{seriesPresentationSourceRefs:parameters.seriesPresentationSourceRefs}:{}),
     relatedReferenceSetDigest:canonicalDigest({schema:'procurement.related-reference-set@1',items:relatedReferences}),
     relatedDispositionScopeDigest:canonicalDigest({schema:'procurement.related-disposition-scope@1',items:relatedDispositionItems}),
     memberControlEvidenceSetDigest:canonicalDigest({schema:'procurement.candidate-member-control-evidence@1',items:controls}),candidateDraftDigest:''};
@@ -97,7 +98,7 @@ function hydrate(parameters,options){
   const context=options.candidateContextReader.read({runId:parameters.runId,evidenceWorkId:evidenceWorkId({run}),unitId:parameters.unitId,workId:parameters.workId});
   if(!context)throw new Error('Candidate projection source Structure Unit is unavailable.');
   return Object.freeze({...parameters,snapshot:context.snapshot,structure:context.structure,unit:context.unit,
-    candidateMembers:context.candidateMembers,relatedReferences:context.relatedReferences,rule:context.rule});}
+    candidateMembers:context.candidateMembers,relatedReferences:context.relatedReferences,seriesPresentationSourceRefs:context.seriesPresentationSourceRefs,rule:context.rule});}
 function createCandidateDraftProjection(options){return Object.freeze({project({sourceResults,parameters}){return draft(hydrate(parameters,options),sourceResults);}});}
 function createCandidateCommitHandleProjection(options){return Object.freeze({project({sourceResults,parameters}){const value=draft(hydrate(parameters,options),sourceResults);return Object.freeze({
   schemaRef:'helix://contracts/types/DomainFactCommitHandle/v1',schemaVersion:1,handleId:stableId('candidate-commit-handle-',{draftId:value.draftId}),

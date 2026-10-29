@@ -70,6 +70,25 @@ function consolidateRuntimeCopies(root, copies) {
     `COPY ${groups.get(item.parent).join(' ')} ${item.parent}/`);
 }
 
+function consolidateCanonicalRecipe(root, recipe) {
+  let runtime = false, pending = [];
+  const result = [], flush = () => { result.push(...consolidateRuntimeCopies(root, pending)); pending = []; };
+  for (const line of recipe.split(/\r?\n/)) {
+    if (line === 'FROM service-base AS service-runtime') runtime = true;
+    if (runtime && line.startsWith('COPY ') && !line.startsWith('COPY --from=')) pending.push(line);
+    else { flush(); result.push(line); }
+  }
+  flush();
+  return result.join('\n');
+}
+
+function assertExportableLayerCount(count) {
+  // Leave headroom below overlay2's lower-directory limit, including the
+  // container writable layer. Desktop's containerd store accepts deeper images.
+  if (!Number.isInteger(count) || count < 1 || count > 96)
+    throw new Error(`Production image has ${count} layers; the export budget is 96.`);
+}
+
 async function main(argv = process.argv.slice(2)) {
   const tag = String(argv[0] || '').trim();
   if (!tag || ![1,5].includes(argv.length) || (argv.length===5 && argv[1]!=='--reuse-runtime') || !/^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(tag)) {
@@ -131,6 +150,10 @@ async function main(argv = process.argv.slice(2)) {
       `LABEL org.opencontainers.image.revision="${execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim()}"`,
       'ENTRYPOINT []','CMD ["node", "src/server.js"]',''].join('\n'));
     console.log(`==> Verified unchanged runtime ${image} (${imageId}); rebuilding all canonical service sources`);
+  } else {
+    const recipe = fs.readFileSync(path.join(root, dockerfile), 'utf8');
+    dockerfile = path.join(outputDir, 'runtime.Dockerfile');
+    fs.writeFileSync(dockerfile, consolidateCanonicalRecipe(root, recipe));
   }
 
   const taggedImage = `${IMAGE_NAME}:${tag}`;
@@ -154,6 +177,10 @@ async function main(argv = process.argv.slice(2)) {
     { cwd: root },
   );
 
+  const layerCount = Number(execFileSync('docker', ['image', 'inspect', taggedImage, '--format', '{{len .RootFS.Layers}}'],
+    { cwd: root, encoding: 'utf8' }).trim());
+  assertExportableLayerCount(layerCount);
+  console.log(`==> Runtime layer budget passed: ${layerCount}/96`);
   console.log(`==> Exporting image to ${tarPath}`);
   await run(
     'docker',
@@ -174,4 +201,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { consolidateRuntimeCopies };
+module.exports = { consolidateRuntimeCopies, consolidateCanonicalRecipe, assertExportableLayerCount };

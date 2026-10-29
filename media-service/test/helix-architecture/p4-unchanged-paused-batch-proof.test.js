@@ -2,7 +2,7 @@
 
 const test = require('node:test'), assert = require('node:assert/strict');
 const { canonicalDigest: D } = require('../../src/helix/contracts/canonical-json');
-const { createUnchangedPausedBatchProof } = require('../../src/helix/foundation/execution/unchanged-paused-batch-proof');
+const { createUnchangedPausedBatchProof } = require('../../scripts/helix-architecture/history-evidence/unchanged-paused-batch-proof');
 const { createExecutionPolicyRegistry } = require('../../src/helix/foundation/execution/execution-policy');
 const { executionCatalogDigest } = require('../../src/helix/foundation/execution/workflow-plan');
 

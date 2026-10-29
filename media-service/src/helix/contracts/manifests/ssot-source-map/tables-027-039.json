@@ -12,7 +12,7 @@
       "constraintsContract": "`PK(artifact_handle_id,consumer_domain,consumer_scope_type,consumer_scope_id,reference_kind,reference_revision)`；GC只处理无active reference Artifact",
       "source": {
         "section": "8.5.10",
-        "line": 9521,
+        "line": 9520,
         "lineDigest": "78787f3ac7052b2b3d8024e78b21a426cf0b74cee321911424bf6067b995c01e"
       }
     },
@@ -23,8 +23,19 @@
       "constraintsContract": "`INDEX(owner_domain,scope_type,scope_id,occurred_at_ms)`；append-only",
       "source": {
         "section": "8.5.10",
-        "line": 9522,
+        "line": 9521,
         "lineDigest": "315e101d842e9c6aeebe4c7d83f7859cb3ab491dbef995f9c8d9d7bf1a9823d0"
+      }
+    },
+    {
+      "id": "proc_field_reset_barriers",
+      "owner": "procurement",
+      "columnsContract": "`field_id PK FK, reset_id, minimum_observation_revision, created_at_ms`",
+      "constraintsContract": "Procurement拥有的当前数据库代际观察屏障；每个保留Field恰一行，Reset后immutable，下一次Reset在新库重建；`minimum_observation_revision>=0`为保留Observation证据的revision上界，不是新采购资格；新Observation必须使用包含reset_id的Work identity并从null cursor开始；Run admission同事务拒绝不超过屏障的terminal Observation。不修改冻结包或历史Observation，不在Foundation Receipt里存业务屏障；不把reset_id加入Material物理Identity",
+      "source": {
+        "section": "8.5.11",
+        "line": 9530,
+        "lineDigest": "472b9b9b407f91e8414276fb67f193c4bcbdd8beec588dc7bf64c9c97d0fdb60"
       }
     },
     {
@@ -129,23 +140,12 @@
     {
       "id": "proc_run_materials",
       "owner": "procurement",
-      "columnsContract": "`procurement_run_id FK, ordinal, material_key, selection_role, field_relative_location, selection_scope_kind(standalone_file|ordinary_directory|bdmv_container), selection_scope_key, selection_scope_root_relative_location, selection_scope_ordinal, scope_member_ordinal, selection_scope_member_count, selection_scope_member_set_digest, selection_scope_digest, mount_scope_id, inode, fingerprint_algorithm, fingerprint_version, content_fingerprint, size_bytes, binding_revision, eligibility_revision, eligibility_basis_digest, last_snapshot_digest, last_observation_id, endpoint_id, location, reality_digest, provenance_digest, expected_control_revision, expected_control_state, expected_control_owner_domain NULL, expected_control_owner_scope_type NULL, expected_control_owner_scope_id NULL, expected_control_region_projection, expected_control_evidence_digest, expected_control_projection_digest, admission_control_action(acquire|assert_same_field), admitted_control_revision, admitted_control_projection_digest, basis_member_digest, selection_state(run_selection|candidate_delivery|released|transferred), candidate_package_id NULL FK, terminal_disposition NULL|completed_without_candidate|triage_failed|handoff_accepted|handoff_rejected, terminal_evidence_digest NULL, selected_at_ms, reservation_updated_at_ms`",
+      "columnsContract": "`procurement_run_id FK, ordinal, material_key, selection_role, field_relative_location, selection_scope_kind(standalone_file|ordinary_directory|bdmv_container|local_media_group), selection_scope_key, selection_scope_root_relative_location, selection_scope_ordinal, scope_member_ordinal, selection_scope_member_count, selection_scope_member_set_digest, selection_scope_digest, mount_scope_id, inode, fingerprint_algorithm, fingerprint_version, content_fingerprint, size_bytes, binding_revision, eligibility_revision, eligibility_basis_digest, last_snapshot_digest, last_observation_id, endpoint_id, location, reality_digest, provenance_digest, expected_control_revision, expected_control_state, expected_control_owner_domain NULL, expected_control_owner_scope_type NULL, expected_control_owner_scope_id NULL, expected_control_region_projection, expected_control_evidence_digest, expected_control_projection_digest, admission_control_action(acquire|assert_same_field), admitted_control_revision, admitted_control_projection_digest, basis_member_digest, selection_state(run_selection|candidate_delivery|released|transferred), candidate_package_id NULL FK, terminal_disposition NULL|completed_without_candidate|triage_failed|handoff_accepted|handoff_rejected|administratively_retired, terminal_evidence_digest NULL, selected_at_ms, reservation_updated_at_ms`",
       "constraintsContract": "`rowMutability=cas_lifecycle`；closed transitions仅为`run_selection → candidate_delivery|released`及`candidate_delivery → transferred|released`。`PK(procurement_run_id,ordinal)`及`UNIQUE(procurement_run_id,material_key)`；ordinal从0连续，`1..1024`项且`selection_role=triage_input`；Scope identity/count/digests在同一Scope全部成员上逐字一致，scope/member ordinal连续且恰好重建Run head；Physical Identity四元组与`size_bytes`必须从Admission同事务重读的`proc_field_materials` current row逐字节复制，满足8.6.18 `PhysicalMaterialIdentity@2`的materialKey公式且size为non-negative safe integer，并作为immutable Run Basis列参与`basis_member_digest`；expected Control列完整映射Admission前的available `MaterialControlProjectionSnapshot`，包括evidence/projection两个不同digest；admitted pair冻结事务后同Field Procurement Control output并共同形成Receipt的`controlRevisionSetDigest`；Identity/size/Scope、expected字段、`basis_member_digest`和admitted pair均为write-once，禁止旁读最新值覆盖；`UNIQUE(material_key) WHERE selection_state IN ('run_selection','candidate_delivery')`强制跨Run/Candidate占用唯一；`run_selection`无Candidate/terminal pair，`candidate_delivery`要求Candidate且无terminal pair；Candidate publish只允许`run_selection → candidate_delivery`并一次性填Candidate FK，之后该FK不可改写；Run Seal只把剩余Selection置`released+completed_without_candidate|triage_failed`、要求Candidate为NULL并保存Decision同一逐成员Evidence digest；Handoff终态只允许已有Candidate的Reservation变`transferred+handoff_accepted`或`released+handoff_rejected`并保存对应Receipt/Decision Evidence digest；terminal disposition/evidence是同一CAS的write-once bundle，终态后只能相同Evidence幂等重放，不得再次UPDATE；`INDEX(candidate_package_id,procurement_run_id,ordinal)`",
       "source": {
         "section": "8.5.11",
         "line": 9540,
-        "lineDigest": "8f22af62fd7bbd2c19e161dd809dc490a43c91a3ef94fab44ae85b3d9bc8ba98"
-      }
-    },
-    {
-      "id": "proc_candidate_packages",
-      "owner": "procurement",
-      "columnsContract": "`candidate_package_id PK, procurement_run_id FK, package_revision, field_id, field_access_revision, field_context_digest, media_type(single|group), content_profile(movie|series|jav|western_adult), material_input_form(stream_file|bdmv|dvd|iso|jav_named_parts), jav_part_set_schema_ref NULL, jav_part_set_json NULL, structure_kind(single|season), display_identity, identity_metadata_schema_ref, identity_metadata_json, identity_metadata_digest, identity_claim_schema_ref, identity_claim_json, identity_claim_digest, structure_evidence_id, structure_evidence_payload_digest, structure_unit_id, structure_unit_digest, triage_rule_ref, triage_rule_revision, triage_rule_authority_digest, primary_input_manifest_id, manifest_digest, related_reference_set_digest, related_disposition_scope_digest, member_control_evidence_set_digest, package_digest, state, published_at_ms`",
-      "constraintsContract": "JAV named-parts variant必须保存完整有序实际成员JavPartSet，schema ref为`helix://implementation/procurement/JavPartSet/v1`且JCS≤16 KiB；其他variant两列NULL；Identity Metadata/Claim JSON在Series各≤`64 KiB`，其他Profile各≤`16 KiB`；完整来源提示与摘要保持，Foundation Result仍≤`64 KiB`；`UNIQUE(procurement_run_id,package_revision)`且revision必须等于Run head CAS后的值；Field Context、Profile/mediaType/structure/Identity/Unit/Rule/Manifest/Control/Related必须与完整CandidateDraft逐项一致；`seasonContinuityClaimSetDigest`由immutable `proc_candidate_season_continuity_claims`、Related的set/scope digest均由immutable `proc_candidate_related_references`按8.6.18唯一公式重建，不新增opaque JSON或旁读；published内容immutable；Publication必须与Manifest、Episode Claim/完整Related relation、对应`proc_run_materials → candidate_delivery`、Offer/Outbox、typed Result/marker同事务成立；`INDEX(state,published_at_ms)`",
-      "source": {
-        "section": "8.5.11",
-        "line": 9541,
-        "lineDigest": "4d5b443ef16a39251cf5a321596543e439b2d5dcb2b78382dcd62a28c88a8b47"
+        "lineDigest": "78920f5e79c78e219f12c1b70812d268b816145ee89cbeff9d30982df74ccb9a"
       }
     }
   ]

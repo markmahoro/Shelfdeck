@@ -58,6 +58,16 @@ function parseDurableJson(value, code, label) {
   return parsed;
 }
 
+function groupRows(rows, keyOf) {
+  const grouped = new Map();
+  for (const row of rows) {
+    const key = keyOf(row);
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key).push(row);
+  }
+  return grouped;
+}
+
 function createExecutionProgressProjectionReader(options) {
   const repository = createRepositoryDefinition({
     repositoryId: 'execution_progress_projection_reader',
@@ -93,6 +103,7 @@ function createExecutionProgressProjectionReader(options) {
     read(processIds, readOptions = {}) {
       const ids = [...new Set(processIds)].filter(Boolean).sort();
       if (!ids.length) return Object.freeze([]);
+      const processIdSet = new Set(ids);
       const includePlans = readOptions.includePlans === true;
       if (readOptions.resultCapabilityRefs !== undefined && (!Array.isArray(readOptions.resultCapabilityRefs) ||
           readOptions.resultCapabilityRefs.length > 256 || readOptions.resultCapabilityRefs.some(ref=>typeof ref!=='string'||!ref))) {
@@ -104,7 +115,7 @@ function createExecutionProgressProjectionReader(options) {
         const workIds=readOptions.workIds===undefined?null:[...new Set(readOptions.workIds)].filter(Boolean).sort();
         const selectedIds=workIds||ids,statement=workIds?'exact_works':'works';
         for (let offset = 0; offset < selectedIds.length; offset += 500) works.push(...r.invoke(statement,
-          { values: selectedIds.slice(offset, offset + 500) }).filter(work=>ids.includes(work.process_id)));
+          { values: selectedIds.slice(offset, offset + 500) }).filter(work=>processIdSet.has(work.process_id)));
         for (let offset = 0; offset < works.length; offset += 500) {
           const values=works.slice(offset, offset + 500).map((item) => item.work_id);
           if (includePlans) attempts.push(...r.invoke('attempts', { values }));
@@ -147,9 +158,11 @@ function createExecutionProgressProjectionReader(options) {
         const nodeByKey = new Map(nodes.map((node) => [[node.plan_id,node.node_id].join('\0'), node]));
         const planById = new Map(plans.map((plan) => [plan.plan_id, plan]));
         const attemptById = new Map(attempts.map((attempt)=>[attempt.attempt_id,attempt]));
-        const edgesByPlan = new Map(planIds.map((planId) => [planId, Object.freeze(edges.filter((edge) => edge.plan_id === planId)
-          .map((edge) => Object.freeze({ fromNodeId:edge.from_node_id, toNodeId:edge.to_node_id,
-            dependencyKind:edge.dependency_kind })))]));
+        const eventsByWork = groupRows(events, event=>event.work_id);
+        const plansByWork = groupRows(plans, plan=>attemptById.get(plan.attempt_id)?.work_id);
+        const edgesByPlan = new Map([...groupRows(edges, edge=>edge.plan_id)].map(([planId, items]) =>
+          [planId, Object.freeze(items.map(edge=>Object.freeze({fromNodeId:edge.from_node_id,
+            toNodeId:edge.to_node_id,dependencyKind:edge.dependency_kind})))]));
         const resultByEvent=new Map(resultHeaders.map(row=>[row.event_id,Object.freeze({outcomeKind:row.outcome_kind,
           resultSchemaRef:row.result_schema_ref,result:null,resultDigest:row.result_digest,committedAtMs:Number(row.committed_at_ms)})]));
         for(const row of results){let value;try{value=JSON.parse(row.result_json);}catch{throw Object.assign(new Error('Durable execution Result is not valid JSON.'),{code:'EXECUTION_PROGRESS_RESULT_INVALID'});}if(canonicalJson(value)!==row.result_json||canonicalDigest(value)!==row.result_digest)throw Object.assign(new Error('Durable execution Result failed its digest fence.'),{code:'EXECUTION_PROGRESS_RESULT_INVALID'});resultByEvent.set(row.event_id,Object.freeze({outcomeKind:row.outcome_kind,resultSchemaRef:row.result_schema_ref,result:value,resultDigest:row.result_digest,committedAtMs:Number(row.committed_at_ms)}));}
@@ -157,12 +170,12 @@ function createExecutionProgressProjectionReader(options) {
           workId: work.work_id, ownerDomain:work.owner_domain, processType:work.process_type,
           processId: work.process_id, workKind: work.work_kind, state: work.state,
           createdAtMs: Number(work.created_at_ms), terminalAtMs: ['succeeded','failed','cancelled'].includes(work.state)?Number(work.updated_at_ms):null,
-          ...(includePlans ? { plans:Object.freeze(plans.filter((plan)=>attemptById.get(plan.attempt_id)?.work_id===work.work_id)
+          ...(includePlans ? { plans:Object.freeze((plansByWork.get(work.work_id)||[])
             .sort((left,right)=>Number(left.created_at_ms)-Number(right.created_at_ms)||left.plan_id.localeCompare(right.plan_id))
             .map((plan)=>Object.freeze({ planId:plan.plan_id, plannerRef:plan.planner_ref,
               plannerVersion:Number(plan.planner_version), state:plan.state, createdAtMs:Number(plan.created_at_ms),
               edges:edgesByPlan.get(plan.plan_id)||Object.freeze([]) }))) } : {}),
-          events: Object.freeze(events.filter((event) => event.work_id === work.work_id).map((event) => {
+          events: Object.freeze((eventsByWork.get(work.work_id)||[]).map((event) => {
             const node = nodeByKey.get([event.plan_id,event.node_id].join('\0')), plan = planById.get(event.plan_id);
             if (!node || (includePlans && !plan)) throw Object.assign(new Error('Durable execution Plan envelope is incomplete.'),
               { code:'EXECUTION_PROGRESS_PLAN_INVALID' });

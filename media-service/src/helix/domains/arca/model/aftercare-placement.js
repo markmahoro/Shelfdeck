@@ -91,7 +91,7 @@ function inventoryMember(row) {
   return Object.freeze({ ...base, memberDigest:canonicalDigest(base) });
 }
 
-function buildInventoryPlacementRequest(context, inventoryPort, at, caseId, processKind, actorSelection=null) {
+function buildInventoryPlacementBasis(context, at, caseId, processKind, actorSelection=null) {
   const members = context.raw.materials.map(inventoryMember)
     .sort((left, right) => left.materialKey.localeCompare(right.materialKey));
   const identity = metadataIdentity(context);
@@ -174,8 +174,17 @@ function buildInventoryPlacementRequest(context, inventoryPort, at, caseId, proc
     ...(series?{inventoryArtifactScopes:Object.freeze(context.raw.materials.filter(item=>item.role==='metadata_sidecar')
       .map(item=>Object.freeze({materialKey:item.material_key,scope:readInventoryArtifactScope(item)})))}:{}),
   };
-  const finalInventoryDecision = inventoryPort.prepare(base);
-  return Object.freeze({ ...base, finalInventoryDecision });
+  return Object.freeze(base);
+}
+
+function buildInventoryPlacementRequest(context, inventoryPort, at, caseId, processKind, actorSelection=null) {
+  const base=buildInventoryPlacementBasis(context,at,caseId,processKind,actorSelection);
+  const finalInventoryDecision=inventoryPort.prepare(base);
+  return Object.freeze({...base,finalInventoryDecision});
+}
+
+function buildAftercarePlacementBasis(context, at, caseId) {
+  return buildInventoryPlacementBasis(context,at,caseId,'aftercare');
 }
 
 function buildAftercareInventoryRequest(context, inventoryPort, at, caseId, actorSelection=null) {
@@ -265,5 +274,5 @@ function placementMaterialReceipts(context, workResultReader, sourceWorkId,
     right.finalMaterialIdentity.materialKey)));
 }
 
-module.exports = Object.freeze({ buildAftercareInventoryRequest, buildJavCorrectionPlacementRequest, classifyAcceptedPlacement,
+module.exports = Object.freeze({ buildAftercarePlacementBasis, buildAftercareInventoryRequest, buildJavCorrectionPlacementRequest, classifyAcceptedPlacement,
   metadataIdentity, placementMaterialReceipts, placementMatchesInventory });

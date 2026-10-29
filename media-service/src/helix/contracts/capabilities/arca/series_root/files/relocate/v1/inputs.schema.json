@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.series_root.files.relocate/v1/inputs",
+  "title": "arca.series_root.files.relocate@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "seriesRootRelocationReference": {
+      "$ref": "#/$defs/seriesRootRelocationReference"
+    }
+  },
+  "required": [
+    "seriesRootRelocationReference"
+  ],
+  "$defs": {
+    "seriesRootRelocationReference": {
+      "$ref": "helix://contracts/domain-types/SeriesRootRelocationReference/v1",
+      "x-helix-typeExpression": "SeriesRootRelocationReference"
+    }
+  }
+}

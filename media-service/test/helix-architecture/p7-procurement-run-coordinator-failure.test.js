@@ -19,6 +19,41 @@ const generatedRoot = path.resolve(__dirname, '../../src/helix/foundation/persis
 const schemaDdl = fs.readFileSync(path.join(generatedRoot, 'clean-schema.sql'), 'utf8');
 const schemaManifest = JSON.parse(fs.readFileSync(path.join(generatedRoot, 'clean-schema.manifest.json'), 'utf8'));
 
+for (const scenario of ['succeeded', 'evidence_failed', 'candidate_failed'])
+test('terminal preparation failure lookup reads only needed structure evidence: ' + scenario, t => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-terminal-preparation-'));
+  const databasePath=path.join(root,'shelfdeck.db');
+  const kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest,now:()=>1700000001000});
+  t.after(()=>{kernel.close();fs.rmSync(root,{recursive:true,force:true});});
+  const unitOfWork=createSqliteUnitOfWork({kernel});
+  const reader=createWorkResultReader({schemaManifest,unitOfWork});
+  const runId='terminal-preparation-'+scenario,materialKey=canonicalDigest({material:scenario});
+  let run={procurement_run_id:runId,run_basis_digest:canonicalDigest({runId}),state:'active',state_revision:1,candidate_package_revision_head:0};
+  const structure={payloadDigest:canonicalDigest({structure:scenario}),unassignedMaterials:[]};
+  const unit={unitId:'terminal-unit',unitDigest:canonicalDigest({unit:scenario}),members:[{materialKey}]};
+  let obsolete=false,reads=0;
+  const coordinator=createProcurementRunCoordinator({schemaManifest,unitOfWork,
+    triageReader:{readRunHeader:()=>run,readRunBasis:()=>({run,members:[{material_key:materialKey}]}),listCandidatePackages:()=>[]},
+    workResultReader:reader,evidenceIndex:{read(){reads++;if(obsolete)throw Object.assign(new Error('Obsolete structure rule'),{code:'P7_TRIAGE_UNIT_RECORD_DRIFT'});
+      return {structureResults:[structure],units:[{structure,unit,ordinal:0}],terminal:false};}},runSealStore:{seal(){assert.fail('No seal expected');}}});
+  assert.equal(coordinator.reconcile(runId).kind,'candidate_work_ready');
+  const db=new Database(databasePath);
+  try {
+    db.prepare("UPDATE fx_supporting_works SET state=CASE WHEN work_kind='evidence_assessment' THEN ? ELSE ? END WHERE process_id=?")
+      .run(scenario==='evidence_failed'?'failed':'succeeded',scenario==='candidate_failed'?'failed':'succeeded',runId);
+  } finally {db.close();}
+  run={...run,state:'sealed'};obsolete=true;reads=0;
+  if(scenario==='candidate_failed'){
+    assert.throws(()=>coordinator.readTechnicalPreparationFailures(runId),{code:'P7_TRIAGE_UNIT_RECORD_DRIFT'});
+    assert.equal(reads,1);
+  } else {
+    const failures=coordinator.readTechnicalPreparationFailures(runId);
+    assert.equal(failures.size,scenario==='evidence_failed'?1:0);
+    if(failures.size)assert.match(failures.get(materialKey),/^[0-9a-f]{64}$/);
+    assert.equal(reads,0);
+  }
+});
+
 test('failed Evidence Assessment seals its Procurement Run and releases the immutable Selection', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-procurement-coordinator-failure-'));
   const kernel = openSqliteKernel({

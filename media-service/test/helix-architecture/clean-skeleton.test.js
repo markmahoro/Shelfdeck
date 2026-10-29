@@ -48,18 +48,23 @@ test('clean package IDs exactly match the accepted P1 physical skeleton', () => 
 
 test('each Domain exposes one frozen public package identity', () => {
   const expectedExports = {
-    procurement: ['PACKAGE_ID', 'CandidateDeliveryPort', 'ProcurementCommandFacade', 'ProcurementExecutionRegistration', 'ProcurementQueryFacade'],
-    libra: ['PACKAGE_ID', 'LibraExecutionRegistration', 'LibraIntakeFacade', 'ProductDeliveryPort', 'WorkspaceReclamationPort', 'UsAdultRecommendationQueryFacade', 'UsAdultRecommendationCommandFacade', 'createLibraArtifactAuditSource'],
-    arca: ['PACKAGE_ID', 'ArcaExecutionRegistration', 'createArcaArtifactAuditSource'],
+    procurement: ['PACKAGE_ID', 'CandidateDeliveryPort', 'ProcurementCommandFacade', 'ProcurementExecutionRegistration', 'ProcurementQueryFacade', 'createCandidateAcceptanceConsumer', 'createCandidateRetirementStore', 'createFreshResetFieldNormalization', 'retryCommandExecutionContract'],
+    libra: ['PACKAGE_ID', 'LibraExecutionRegistration', 'LibraIntakeFacade', 'ProductDeliveryPort', 'WorkspaceReclamationPort', 'UsAdultRecommendationQueryFacade', 'UsAdultRecommendationCommandFacade', 'createLibraArtifactAuditSource', 'createFormationRetirementStore', 'createIntakeRetirementStore', 'createProductDeliveryReader', 'describeFreshResetMetadataRetention', 'describeFreshResetWorkspaceRetention', 'createFreshResetWorkspaceArchive'],
+    arca: ['PACKAGE_ID', 'ArcaExecutionRegistration', 'createArcaArtifactAuditSource', 'createSeriesPresentationQuery', 'createArcaFormationRetirementStore', 'createFormationSharedRetirement', 'describeFreshResetSeriesRetention', 'describeFreshResetWorkspaceRetention', 'createFreshResetSeriesNormalization'],
     perception: ['PACKAGE_ID', 'PerceptionCommandFacade', 'PerceptionExecutionRegistration', 'PerceptionResolutionFacade'],
-    people: ['PACKAGE_ID', 'PeopleCommandFacade', 'PersonReferenceQueryFacade', 'createPeopleImageExecutionRegistration', 'createPeopleProcessServices']
+    people: ['PACKAGE_ID', 'PeopleCommandFacade', 'PersonReferenceQueryFacade', 'createPeopleImageExecutionRegistration', 'createPeopleProcessServices', 'describeFreshResetReferenceRetention', 'freshResetReferenceArtifactDependencies']
   };
   for (const domain of domainNames) {
     const entry = require(path.join(helixRoot, 'domains', domain, 'public'));
     assert.equal(entry.PACKAGE_ID, `domains.${domain}.public`);
     assert.deepEqual(Object.keys(entry).sort(), expectedExports[domain].sort());
-    for (const exportName of expectedExports[domain].filter((name) => name !== 'PACKAGE_ID')) {
+    for (const exportName of expectedExports[domain].filter((name) => !['PACKAGE_ID', 'retryCommandExecutionContract'].includes(name))) {
       assert.equal(typeof entry[exportName], 'function');
+    }
+    if (domain === 'procurement') {
+      assert.equal(Object.isFrozen(entry.retryCommandExecutionContract), true);
+      assert.equal(entry.retryCommandExecutionContract.ownerDomain, 'procurement');
+      assert.equal(entry.retryCommandExecutionContract.schemaRef, 'helix://foundation/evidence/SynchronousCommandContracts/v1');
     }
     assert.equal(Object.isFrozen(entry), true);
   }
@@ -96,7 +101,7 @@ test('composition root import is side-effect free and factory requires exact cle
     facades,
     sessionTokens:{ authenticate:() => ({}), verifyApiKey:() => ({}) },
   });
-  assert.equal(app.routeCount, 164);
+  assert.equal(app.routeCount, 168);
   assert.deepEqual(await app.start(), { state:'ready', normalSupplyAllowed:true });
   assert.equal(app.readiness().generation, 'helix-clean-v3');
   await assert.rejects(app.start(), (error) => error.code === 'HELIX_LIFECYCLE_CONFLICT');
@@ -105,6 +110,9 @@ test('composition root import is side-effect free and factory requires exact cle
 
 test('formal product startup selects only the P14 clean service host', () => {
   const content = fs.readFileSync(path.resolve(__dirname, '../../src/server.js'), 'utf8');
-  assert.match(content, /createCleanServiceHost/);
+  assert.match(content, /createRuntimeSupervisor/);
+  const supervisor = fs.readFileSync(path.resolve(__dirname, '../../src/clean-runtime-supervisor.js'), 'utf8');
+  assert.match(supervisor, /createCleanServiceHost/);
+  assert.doesNotMatch(supervisor, /require\(['"]\.\/app['"]\)|helixRuntimePreflight|transcodeService|tray/);
   assert.doesNotMatch(content, /require\(['"]\.\/app['"]\)|helixRuntimePreflight|transcodeService|tray/);
 });

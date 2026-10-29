@@ -4,23 +4,90 @@ const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { buildProductFactHandle, buildResolvedProductIdentity } = require('./product-fact-contracts');
 const { buildProviderSeasonContinuityClaim, frozenSeriesSeasonNumber } = require('./series-identity-contracts');
 
-function fail(message) { throw new TypeError(message); }
+function fail(message, code = 'PRODUCT_IDENTITY_COMMIT_INVALID') {
+  const error = new TypeError(message);
+  error.code = code;
+  throw error;
+}
 
-const SOURCE_EDITION_TOKEN = /(?:2160p|1080p|720p|480p|4k|uhd|hevc|h\.?265|h\.?264|x265|x264|atmos|truehd|ddp|bluray|blu-ray|bdmv|remux|web-?dl)/i;
+const SOURCE_EDITION_TOKEN = /(?:2160p|1080p|720p|480p|4k|uhd|hevc|h\.?265|h\.?264|x265|x264|av1|atmos|truehd|ddp|eac3|ac3|dts|flac|bluray|blu-ray|bdmv|remux|web-?dl|hdr10?|dolby.?vision|dovi)/i;
+const EDITION_MAX_LENGTH = 120;
+const GENERIC_EDITION_LABELS = new Set(['movie', 'film', 'video', 'feature', 'main', 'part', 'disc', 'bdmv', 'bluray', 'blu-ray']);
 
-function editionFromSourceDisplay(sourceDisplay, title, year) {
-  const raw = String(sourceDisplay || '').trim();
-  const cleanedTitle = String(title || '').trim();
-  if (!raw || !cleanedTitle) return null;
-  const yearText = year === null || year === undefined || year === '' ? '' : String(year);
-  const titleYear = yearText ? cleanedTitle + ' (' + yearText + ')' : cleanedTitle;
+function sanitizeEdition(value) {
+  let text = String(value || '').replace(/[<>:"/\\|?*\u0000-\u001f]/g, ' ')
+    .replace(/_+/g, ' ').replace(/\s+/g, ' ')
+    .replace(/^[\s\-–—]+|[\s\-–—]+$/g, '').trim();
+  if (text.length > EDITION_MAX_LENGTH) text = text.slice(0, EDITION_MAX_LENGTH).trim();
+  if (!text || /^[a-f0-9]{32,}$/i.test(text) || /\(\d+\)?/.test(text) || /^\d+$/.test(text)) return null;
+  return text;
+}
+
+function sourceEditionLabel(label, title, year) {
+  const raw = String(label || '').replace(/\\/g, '/').split('/').pop()
+    .replace(/\.[^.]+$/, '').replace(/[._]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!raw) return null;
+  const titleText = String(title || '').trim(), yearText = year === null || year === undefined || year === '' ? '' : String(year),
+    titleYear = yearText ? titleText + ' (' + yearText + ')' : titleText;
   let rest = raw;
   if (rest.startsWith(titleYear)) rest = rest.slice(titleYear.length);
-  else if (rest.startsWith(cleanedTitle)) rest = rest.slice(cleanedTitle.length);
-  else return null;
-  rest = rest.replace(/^\s*[\(\uff08]\d{4}[\)\uff09]/, '').replace(/^\s*[-–—]\s*/, '').trim();
-  if (!rest || rest === raw || !SOURCE_EDITION_TOKEN.test(rest)) return null;
-  return rest;
+  else if (rest.startsWith(titleText)) rest = rest.slice(titleText.length);
+  rest = rest.replace(/^\s*[\(\[]?(?:19|20)\d{2}[\)\]]?[\s._\-–—]*/, '')
+    .replace(/^[\s\-–—._[\(【]+/, '').replace(/[\s\-–—._\]\)】]+$/, '').trim();
+  if (!rest || rest === raw) {
+    const token = raw.match(SOURCE_EDITION_TOKEN);
+    if (!token || token.index === undefined) return null;
+    const tail = raw.slice(token.index).replace(/^[\(\[]+|[\)\]]+$/g, '').trim();
+    return sanitizeEdition(tail);
+  }
+  if (!SOURCE_EDITION_TOKEN.test(rest) &&
+      (rest.length < 2 || GENERIC_EDITION_LABELS.has(rest.toLocaleLowerCase('en-US')))) return null;
+  return sanitizeEdition(rest);
+}
+
+function locationParts(location) {
+  const normalized = String(location || '').replace(/\\/g, '/').replace(/\/+$/, '');
+  const parts = normalized.split('/').filter(Boolean);
+  return { base: parts.at(-1) || '', parent: parts.at(-2) || '' };
+}
+
+function sourceHasEditionSignal(locations) {
+  return locations.some((location) => {
+    const { base, parent } = locationParts(location);
+    return [base, parent].some((label) => SOURCE_EDITION_TOKEN.test(label) ||
+      /\(\d{1,3}\)/.test(label) || /[a-f0-9]{32,}/i.test(label));
+  });
+}
+
+function editionFromSourceDisplay(sourceDisplay, title, year, { sourceLocations = [] } = {}) {
+  const raw = String(sourceDisplay || '').trim();
+  const cleanedTitle = String(title || '').trim();
+  if (!cleanedTitle) return null;
+  const yearText = year === null || year === undefined || year === '' ? '' : String(year);
+  const titleYear = yearText ? cleanedTitle + ' (' + yearText + ')' : cleanedTitle;
+  if (raw) {
+    let rest = raw;
+    if (rest.startsWith(titleYear)) rest = rest.slice(titleYear.length);
+    else if (rest.startsWith(cleanedTitle)) rest = rest.slice(cleanedTitle.length);
+    else rest = '';
+    rest = rest.replace(/^\s*[\(\uff08]\d{4}[\)\uff09]/, '').replace(/^\s*[-–—]\s*/, '').trim();
+    if (rest && rest !== raw && SOURCE_EDITION_TOKEN.test(rest)) {
+      const cleaned = sanitizeEdition(rest);
+      if (cleaned) return cleaned;
+    }
+  }
+  const locations = [...new Set((Array.isArray(sourceLocations) ? sourceLocations : [])
+    .filter((item) => typeof item === 'string' && item))].sort((a, b) => Buffer.compare(Buffer.from(a), Buffer.from(b)));
+  for (const location of locations) {
+    const { base, parent } = locationParts(location);
+    const fromBase = sourceEditionLabel(base, cleanedTitle, year);
+    if (fromBase) return fromBase;
+    if (parent && parent !== base) {
+      const fromParent = sourceEditionLabel(parent, cleanedTitle, year);
+      if (fromParent) return fromParent;
+    }
+  }
+  return null;
 }
 
 function providerFact(decisionEvidence,sourceResultItem,contentProfile='movie',seasonNumber=null) {
@@ -85,7 +152,11 @@ function buildProductIdentityCommitBundle(value) {
   if(Number.isSafeInteger(fact.releaseYear))displayEntries.push({key:'year',value:String(fact.releaseYear)});
   else if(identityClaim.claimedYear)displayEntries.push({key:'year',value:identityClaim.claimedYear});
   const editionYear=Number.isSafeInteger(fact.releaseYear)?fact.releaseYear:identityClaim.claimedYear;
-  const edition=editionFromSourceDisplay(identityClaim.displayIdentity||identityClaim.claimedTitle,displayTitle,editionYear);
+  const sourceLocations=profile==='movie'&&Array.isArray(snapshot.members)
+    ?snapshot.members.filter(item=>item.role==='primary_payload').map(item=>item.location) : [];
+  const edition=editionFromSourceDisplay(identityClaim.displayIdentity||identityClaim.claimedTitle,displayTitle,editionYear,{sourceLocations});
+  if(!edition&&profile==='movie'&&sourceHasEditionSignal(sourceLocations))
+    fail('The source filename or directory contains a version signal that cannot form a safe edition label.','PRODUCT_IDENTITY_EDITION_REQUIRED');
   if(edition)displayEntries.push({key:'edition',value:edition});
   const resolvedProductIdentity=buildResolvedProductIdentity({producerRef:'libra.product_identity.resolve@1',
     basisDigest:decisionEvidence.digest,observedAtMs:0,subjectId:snapshot.run.subjectId,structureKind:series?'season':'single',contentProfile:profile,

@@ -1,0 +1,262 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_series_presentation_scopes/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_series_presentation_scopes",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "scope_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "shelf_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "provider",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "tmdb"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "provider_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "endpoint_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "mount_scope_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "shelf_root",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "root_location",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "placement_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "current_version",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "active_build_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 12,
+        "name": "retirement_scope_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 13,
+        "name": "state_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 14,
+        "name": "state_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 15,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 16,
+        "name": "updated_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "scope_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "shelf_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "shelf_id",
+        "provider",
+        "provider_key"
+      ],
+      [
+        "endpoint_id",
+        "root_location"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [
+      {
+        "column": "provider",
+        "enumValues": [
+          "tmdb"
+        ]
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [
+        "placement_revision",
+        "state_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": [
+        "目标与身份冻结，current_version与active_build_id按state_revision/state_digest CAS"
+      ]
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`rowMutability=cas_lifecycle`",
+      "`UNIQUE(shelf_id,provider,provider_key)`",
+      "`UNIQUE(endpoint_id,root_location)`",
+      "目标与身份冻结，current_version与active_build_id按state_revision/state_digest CAS",
+      "未有Commit引用不等于Own",
+      "引用存在时不删除scope"
+    ],
+    "rawContract": {
+      "columns": "`scope_id PK, shelf_id FK, provider(tmdb), provider_key, endpoint_id, mount_scope_id, shelf_root, root_location, placement_revision, current_version, active_build_id NULL, retirement_scope_id NULL, state_revision, state_digest, created_at_ms, updated_at_ms`",
+      "constraints": "`rowMutability=cas_lifecycle`；`UNIQUE(shelf_id,provider,provider_key)`；`UNIQUE(endpoint_id,root_location)`；目标与身份冻结，current_version与active_build_id按state_revision/state_digest CAS；未有Commit引用不等于Own；引用存在时不删除scope"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 9621,
+      "lineDigest": "9629f1141d913ded62e5ce9ea74ac90d261e8567e8887ba03fa24e92d49a89da"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "shelf_id"
+        ],
+        "targetTable": "arca_shelves",
+        "targetColumns": [
+          "shelf_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "retirement_scope_id"
+        ],
+        "targetTable": "arca_offdeck_scopes",
+        "targetColumns": [
+          "destruction_scope_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

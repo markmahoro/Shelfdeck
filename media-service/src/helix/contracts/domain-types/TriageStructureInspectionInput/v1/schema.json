@@ -161,7 +161,8 @@
                 "enum": [
                   "standalone_file",
                   "ordinary_directory",
-                  "bdmv_container"
+                  "bdmv_container",
+                  "local_media_group"
                 ]
               },
               "selectionScopeKey": {

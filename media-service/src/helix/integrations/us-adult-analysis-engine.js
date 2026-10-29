@@ -102,7 +102,7 @@ function createUsAdultAnalysisEngine(options) {
         memberOrdinals:Object.freeze(members.map(member => member.ordinal)), vectors:Object.freeze(members.map(member => member.vector)),
       })))});
     },
-    async matchReferences({faceClusterSetHandle, clusters, personReferenceProjections}) {
+    async matchReferences({faceClusterSetHandle, clusters, personReferenceProjections, threshold}) {
       if (!Array.isArray(clusters) || clusters.length > 1280) fail('US_ADULT_ANALYSIS_CHANGED', 'Matching exceeds its frozen face groups.');
       const faces = [];
       for (const cluster of clusters) {
@@ -111,7 +111,7 @@ function createUsAdultAnalysisEngine(options) {
         }
         for (const feature of cluster.vectors) faces.push({faceGroupId:cluster.clusterId, vector:feature});
       }
-      const result = await matcher.matchPage({faceModelRefDigest:faceClusterSetHandle?.faceModelRefDigest, faces, personReferenceProjections});
+      const result = await matcher.matchPage({faceModelRefDigest:faceClusterSetHandle?.faceModelRefDigest, faces, personReferenceProjections, threshold});
       return Object.freeze({matches:Object.freeze(result.matches.map(({faceGroupId, ...match}) => Object.freeze({...match, clusterId:faceGroupId})))});
     },
     async analyzeWestern({analysisSpec}) {

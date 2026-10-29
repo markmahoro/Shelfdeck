@@ -22,6 +22,8 @@ const PARTIAL_UNIQUE_EXCLUDED_TABLES = new Set(['libra_workspaces', 'libra_works
 // explicit lifecycle CAS transitions. A prose occurrence of "immutable" must
 // not turn the whole relation into an append-only table.
 const MUTABLE_LIFECYCLE_TABLES = new Set([
+  'arca_series_root_relocations',
+  'arca_series_presentation_scopes','arca_series_presentation_reservations','arca_series_presentation_references',
   'fx_supporting_works',
   'fx_workspace_registry',
   'fx_workspace_materials',
@@ -75,20 +77,21 @@ const ENUM_OVERRIDES = Object.freeze({
   'proc_procurement_retry_intent_materials.expected_control_state': ['uncontrolled', 'controlled'],
   'proc_run_materials.expected_control_state': ['uncontrolled', 'controlled'],
   'proc_candidate_packages.state': ['published'],
-  'proc_candidate_deliveries.state': ['open', 'accepted', 'rejected', 'stale'],
-  'libra_subjects.status': ['active', 'abandoned', 'completed'],
+  'proc_candidate_deliveries.state': ['open', 'accepted', 'rejected', 'stale', 'administratively_retired'],
+  'libra_subjects.status': ['active', 'abandoned', 'completed', 'administratively_retired', 'ended'],
   'libra_intake_decisions.expected_target_status': ['active'],
   'libra_material_bindings.health_state': ['active', 'stale', 'released'],
   'libra_decision_basis_revisions.status': ['ready', 'unresolved', 'superseded'],
-  'libra_runs.state': ['active', 'suspended', 'superseded', 'frozen', 'discarded', 'completed'],
+  'libra_runs.state': ['active', 'suspended', 'superseded', 'frozen', 'discarded', 'completed', 'administratively_retired'],
   'libra_formation_projections.classification': ['waiting', 'in_progress', 'completed'],
   'libra_formation_projections.attention_state': ['none', 'attention_required', 'blocked', 'suspended', 'frozen'],
   'libra_formation_projections.progress_mode': ['determinate', 'indeterminate'],
   'libra_formation_projections.next_action_state': ['admitted', 'pending', 'ready', 'running', 'waiting_for_resource', 'waiting_for_external', 'waiting_for_approval', 'executing', 'succeeded', 'skipped', 'failed', 'cancelled', 'completed', 'attention_required', 'blocked', 'suspended', 'frozen'],
-  'libra_formation_projections.subject_status': ['active', 'abandoned', 'completed'],
+  'libra_formation_projections.subject_status': ['active', 'abandoned', 'completed', 'administratively_retired', 'ended'],
   'libra_formation_projections.routing_state': ['preparing', 'unresolved', 'resolved'],
-  'libra_formation_projections.current_libra_run_state': ['active', 'suspended', 'superseded', 'frozen', 'discarded', 'completed'],
-  'libra_run_revisions.state': ['active', 'suspended', 'superseded', 'frozen', 'discarded', 'completed'],
+  'libra_formation_projections.current_libra_run_state': ['active', 'suspended', 'superseded', 'frozen', 'discarded', 'completed', 'administratively_retired'],
+  'libra_run_revisions.state': ['active', 'suspended', 'superseded', 'frozen', 'discarded', 'completed', 'administratively_retired'],
+  'libra_run_revisions.transition_kind': ['admitted', 'freshness_confirmed', 'suspended', 'recovery_reassessed', 'resumed', 'reprioritized', 'superseded', 'frozen', 'secondary_target', 'defect_admitted', 'discarded', 'completed', 'administratively_retired'],
   'libra_episode_delivery_members.state': ['pending', 'delivered', 'superseded'],
   'libra_workspaces.state': ['active', 'reclaiming', 'reclaimed'],
   'libra_workspace_revisions.state': ['active', 'reclaiming', 'reclaimed'],
@@ -96,10 +99,10 @@ const ENUM_OVERRIDES = Object.freeze({
   'libra_workspace_cleanup_members.state': ['pending', 'completed', 'blocked'],
   'libra_product_packages.state': ['published'],
   'arca_shelves.status': ['active', 'deregistering', 'deregistered'],
-  'arca_acceptance_attempts.state': ['active', 'waiting', 'accepted', 'rejected'],
+  'arca_acceptance_attempts.state': ['active', 'waiting', 'accepted', 'rejected', 'administratively_retired'],
   'arca_ondeck_custodies.state': ['active', 'committed', 'released'],
   'arca_material_bindings.health_state': ['active', 'stale', 'released'],
-  'arca_ondeck_runs.state': ['ready', 'offloading', 'blocked', 'committed'],
+  'arca_ondeck_runs.state': ['ready', 'offloading', 'blocked', 'committed', 'administratively_retired'],
   'arca_ondeck_settlement_approvals.state': ['active', 'consumed', 'stale'],
   'arca_shelf_entries.status': ['active', 'offdeck_in_progress', 'offdecked', 'deregistered'],
   'arca_deck_fact_revisions.state': ['active', 'offdeck_in_progress', 'offdecked', 'deregistered'],
@@ -134,6 +137,9 @@ const ENUM_OVERRIDES = Object.freeze({
   'platform_workers.status': ['active', 'offline', 'disabled']
 });
 const INTEGER_COLUMN_OVERRIDES = new Set([
+  'arca_series_presentation_scopes.current_version','arca_series_presentation_builds.expected_version',
+  'arca_series_presentation_reservations.committed_version','arca_series_presentation_references.first_committed_version',
+  'arca_series_presentation_commit_links.shared_version','arca_offdeck_scope_materials.shared_version',
   'fx_workflow_plans.planner_version',
   'fx_workflow_plans.work_objective_version',
   'fx_plan_nodes.contract_version',
@@ -157,10 +163,21 @@ const NULLABLE_COLUMN_OVERRIDES = new Set([
   'libra_intake_decisions.expected_target_status'
 ]);
 const FOREIGN_KEY_OVERRIDES = Object.freeze({
+  'proc_field_reset_barriers.field_id': ['proc_material_fields', 'field_id'],
+  'fx_plan_edges.plan_id': ['fx_workflow_plans', 'plan_id'],
+  'fx_plan_nodes.plan_id': ['fx_workflow_plans', 'plan_id'],
+  'fx_workflow_events.plan_id': ['fx_workflow_plans', 'plan_id'],
+  'libra_product_fact_source_refs.plan_id': ['fx_workflow_plans', 'plan_id'],
+  'fx_plan_contracts.plan_id': ['fx_workflow_plans', 'plan_id'],
+  'fx_plan_contracts.contract_digest': ['fx_execution_contracts', 'contract_digest'],
+  'fx_plan_history_audits.plan_id': ['fx_workflow_plans', 'plan_id'],
   'arca_us_actor_refresh_pages.intent_id':['arca_us_actor_refresh_intents','intent_id'],
   'libra_us_adult_reference_pages.analysis_id':['libra_us_adult_analysis_bases','analysis_id'],
   'libra_us_adult_match_completions.analysis_id':['libra_us_adult_analysis_bases','analysis_id'],
   'libra_us_adult_actor_choice_heads.intent_id':['libra_us_adult_actor_choice_intents','intent_id'],
+  'libra_episode_metadata_mapping_heads.intent_id':['libra_episode_metadata_mapping_intents','intent_id'],
+  'libra_episode_metadata_mapping_intents.review_id':['libra_episode_metadata_reviews','review_id'],
+  'libra_runs.episode_metadata_mapping_intent_id':['libra_episode_metadata_mapping_intents','intent_id'],
   'arca_jav_correction_recovery_intents.correction_id': ['arca_jav_identity_corrections', 'correction_id'],
   'arca_jav_correction_directory_checks.correction_id': ['arca_jav_identity_corrections', 'correction_id'],
   'fx_plan_nodes.compensation_for_event_id': ['fx_workflow_events', 'event_id'],
@@ -187,6 +204,18 @@ const FOREIGN_KEY_OVERRIDES = Object.freeze({
   'libra_subject_episode_scopes.first_intake_decision_id': ['libra_intake_decisions', 'intake_decision_id']
 });
 const EXPLICIT_FOREIGN_KEYS = Object.freeze({
+  arca_offdeck_scope_materials:[{columns:['destruction_scope_id'],targetTable:'arca_offdeck_scopes',targetColumns:['destruction_scope_id']},
+    {columns:['shared_scope_id','shared_version'],targetTable:'arca_series_presentation_versions',targetColumns:['scope_id','revision']}],
+  arca_series_presentation_scopes:[{columns:['retirement_scope_id'],targetTable:'arca_offdeck_scopes',targetColumns:['destruction_scope_id']}],
+  arca_series_root_relocations:[{columns:['scope_id'],targetTable:'arca_series_presentation_scopes',targetColumns:['scope_id']},{columns:['shelf_id'],targetTable:'arca_shelves',targetColumns:['shelf_id']}],
+  arca_series_presentation_builds:[{columns:['scope_id'],targetTable:'arca_series_presentation_scopes',targetColumns:['scope_id']}],
+  arca_series_presentation_versions:[{columns:['scope_id'],targetTable:'arca_series_presentation_scopes',targetColumns:['scope_id']},
+    {columns:['build_id'],targetTable:'arca_series_presentation_builds',targetColumns:['build_id']}],
+  arca_series_presentation_reservations:[{columns:['scope_id'],targetTable:'arca_series_presentation_scopes',targetColumns:['scope_id']},
+    {columns:['on_deck_run_id'],targetTable:'arca_ondeck_runs',targetColumns:['on_deck_run_id']}],
+  arca_series_presentation_references:[{columns:['scope_id'],targetTable:'arca_series_presentation_scopes',targetColumns:['scope_id']},
+    {columns:['shelf_entry_id'],targetTable:'arca_shelf_entries',targetColumns:['shelf_entry_id']}],
+  arca_series_presentation_commit_links:[{columns:['scope_id','shared_version'],targetTable:'arca_series_presentation_versions',targetColumns:['scope_id','revision']}],
   libra_acquisition_candidate_evidence: [
     {columns:['libra_run_id'],targetTable:'libra_runs',targetColumns:['libra_run_id']},
     {columns:['search_work_id'],targetTable:'fx_supporting_works',targetColumns:['work_id']},
@@ -318,6 +347,8 @@ const JSON_SCHEMA_COLUMN_OVERRIDES = Object.freeze({
   'libra_product_fact_revisions.fact_json': 'schema_ref'
 });
 const JSON_LIMIT_OVERRIDES = Object.freeze({
+  'fx_execution_contracts.contract_json': 1024 * 1024,
+  'arca_series_root_relocations.plan_json':4*1024*1024,
   'libra_task_cancellations.request_json':1024*1024,
   'arca_us_actor_refresh_intents.payload_json':256*1024,
   'arca_us_actor_refresh_pages.page_json':512*1024,
@@ -329,6 +360,8 @@ const JSON_LIMIT_OVERRIDES = Object.freeze({
   'people_us_recommendation_publications.snapshot_json':1024*1024,
   'libra_us_adult_reference_pages.page_json':1024*1024,
   'libra_us_adult_actor_choice_intents.record_json':256*1024,
+  'libra_episode_metadata_reviews.record_json':3*1024*1024,
+  'libra_episode_metadata_mapping_intents.record_json':1024*1024,
   'libra_us_adult_match_completions.completion_json':256*1024,
   'libra_acquisition_candidate_evidence.evidence_json':262144,
   'libra_acquisition_candidate_evidence.record_json':4096,
@@ -364,6 +397,7 @@ const JSON_LIMIT_OVERRIDES = Object.freeze({
 });
 const CURRENT_POINTER_TARGETS = Object.freeze({
   libra_us_adult_actor_choice_heads: [[['subject_id','current_revision'],'libra_us_adult_actor_choice_intents',['subject_id','choice_revision']]],
+  libra_episode_metadata_mapping_heads: [[['subject_id','current_revision'],'libra_episode_metadata_mapping_intents',['subject_id','mapping_revision']]],
   libra_defect_authorization_head: [[['current_authorization_id','current_revision'],'libra_defect_authorizations',['authorization_id','revision']]],
   arca_defect_admission_heads: [[['shelf_entry_id','current_revision'],'arca_defect_admissions',['shelf_entry_id','revision']]],
   fx_workflow_events: [[['event_id', 'current_progress_revision'], 'fx_event_progress', ['event_id', 'revision']]],
@@ -637,6 +671,7 @@ function resolveForeignKeys(rows) {
       const sameOwner = candidates.filter((candidate) => candidate.owner === row.owner);
       if (sameOwner.length > 0) candidates = sameOwner;
       if (column === 'subject_id') candidates = candidates.filter((candidate) => candidate.tableId === 'libra_subjects');
+      if (column === 'field_id') candidates = candidates.filter((candidate) => candidate.tableId === 'proc_material_fields');
       if (column === 'libra_run_id') candidates = candidates.filter((candidate) => candidate.tableId === 'libra_runs');
       if (column === 'shelf_entry_id') candidates = candidates.filter((candidate) => candidate.tableId === 'arca_shelf_entries');
       if (column === 'rule_template_id') candidates = candidates.filter((candidate) => candidate.tableId === 'arca_rule_templates');

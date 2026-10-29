@@ -599,7 +599,15 @@ function discoverScope(database, options = {}) {
     ...unique(identitySelectionIntentIds).map((targetId) => Object.freeze({ ownerDomain:'libra',
       targetType:'product_identity_selection_intent', targetId })),
   ]);
+  const usAdultAnalysisIds=tableExists(database,'libra_us_adult_analysis_bases')
+    ? unique(rowsByIds(database,'SELECT analysis_id FROM libra_us_adult_analysis_bases WHERE libra_run_id IN',runIds).map(row=>row.analysis_id)):[];
+  const usAdultActorChoiceIntentIds=tableExists(database,'libra_us_adult_actor_choice_intents')
+    ? unique(rowsByIds(database,'SELECT intent_id FROM libra_us_adult_actor_choice_intents WHERE libra_run_id IN',runIds).map(row=>row.intent_id)):[];
+  const usAdultActorChoiceHeadSubjectIds=tableExists(database,'libra_us_adult_actor_choice_heads')
+    ? unique(rowsByIds(database,'SELECT subject_id FROM libra_us_adult_actor_choice_heads WHERE intent_id IN',usAdultActorChoiceIntentIds).map(row=>row.subject_id)):[];
   return Object.freeze({
+    usAdultAnalysisIds:Object.freeze(usAdultAnalysisIds),usAdultActorChoiceIntentIds:Object.freeze(usAdultActorChoiceIntentIds),
+    usAdultActorChoiceHeadSubjectIds:Object.freeze(usAdultActorChoiceHeadSubjectIds),
     committed: Object.freeze({ onDeckRunIds:committedOnDeckRunIds, packageIds:committedPackageIds,
       runIds:committedRunIds, subjectIds:committedSubjectIds }),
     selectedSubjectIds:selected,
@@ -688,6 +696,14 @@ function discoverOrphans(database, scope) {
 
 function inspectBlockers(database, scope) {
   const blockers = [];
+  const outsideAnalysis=tableExists(database,'libra_us_adult_analysis_bases')?rowsByIds(database,'SELECT analysis_id,subject_id,workspace_id FROM libra_us_adult_analysis_bases WHERE analysis_id IN',scope.usAdultAnalysisIds)
+    .filter(row=>!scope.resetSubjectIds.includes(row.subject_id)||!scope.workspaceIds.includes(row.workspace_id)):[];
+  const outsideChoices=tableExists(database,'libra_us_adult_actor_choice_intents')?rowsByIds(database,'SELECT intent_id,subject_id FROM libra_us_adult_actor_choice_intents WHERE intent_id IN',scope.usAdultActorChoiceIntentIds)
+    .filter(row=>!scope.resetSubjectIds.includes(row.subject_id)):[];
+  const outsideCompletions=tableExists(database,'libra_us_adult_match_completions')?rowsByIds(database,'SELECT analysis_id,libra_run_id,subject_id FROM libra_us_adult_match_completions WHERE analysis_id IN',scope.usAdultAnalysisIds)
+    .filter(row=>!scope.runIds.includes(row.libra_run_id)||!scope.resetSubjectIds.includes(row.subject_id)):[];
+  const outsideHeads=scope.usAdultActorChoiceHeadSubjectIds.filter(id=>!scope.resetSubjectIds.includes(id));
+  if(outsideAnalysis.length||outsideChoices.length||outsideCompletions.length||outsideHeads.length)blockers.push({code:'US_ADULT_RESET_SCOPE_CONFLICT',rows:[...outsideAnalysis,...outsideChoices,...outsideCompletions,...outsideHeads]});
   if (scope.selectedSubjectIds) {
     const outsideIntakes = rowsByIds(database,
       'SELECT intake_decision_id,target_subject_id FROM libra_intake_decisions WHERE intake_decision_id IN', scope.intakeDecisionIds)
@@ -969,6 +985,16 @@ function rollbackRetainedSubjectIntakes(database, scope, nowMs) {
 }
 
 function deleteFormationBusinessGraph(database, scope, nowMs) {
+  if(tableExists(database,'libra_us_adult_actor_choice_heads'))
+    executeByIds(database,'DELETE FROM libra_us_adult_actor_choice_heads WHERE subject_id IN',scope.usAdultActorChoiceHeadSubjectIds);
+  if(tableExists(database,'libra_us_adult_actor_choice_intents'))
+    executeByIds(database,'DELETE FROM libra_us_adult_actor_choice_intents WHERE intent_id IN',scope.usAdultActorChoiceIntentIds);
+  if(tableExists(database,'libra_us_adult_reference_pages'))
+    executeByIds(database,'DELETE FROM libra_us_adult_reference_pages WHERE analysis_id IN',scope.usAdultAnalysisIds);
+  if(tableExists(database,'libra_us_adult_match_completions'))
+    executeByIds(database,'DELETE FROM libra_us_adult_match_completions WHERE analysis_id IN',scope.usAdultAnalysisIds);
+  if(tableExists(database,'libra_us_adult_analysis_bases'))
+    executeByIds(database,'DELETE FROM libra_us_adult_analysis_bases WHERE analysis_id IN',scope.usAdultAnalysisIds);
   if(tableExists(database,'libra_acquisition_candidate_evidence'))
     executeByIds(database,'DELETE FROM libra_acquisition_candidate_evidence WHERE libra_run_id IN',scope.runIds);
   rollbackRetainedSubjectIntakes(database, scope, nowMs);
@@ -1168,6 +1194,12 @@ function verifyFrozenManifest(database, manifest) {
   const residual = {};
   const reserved = recoveryReservations(database, graph.workIds);
   if (reserved.length) residual.recoveryReservations = reserved.map(({workId,circuit})=>({workId,circuitKey:circuit.circuit_key}));
+  for(const [table,key,ids] of [['libra_us_adult_analysis_bases','analysis_id',scope.usAdultAnalysisIds],
+    ['libra_us_adult_match_completions','analysis_id',scope.usAdultAnalysisIds],
+    ['libra_us_adult_reference_pages','analysis_id',scope.usAdultAnalysisIds],
+    ['libra_us_adult_actor_choice_intents','intent_id',scope.usAdultActorChoiceIntentIds],
+    ['libra_us_adult_actor_choice_heads','subject_id',scope.usAdultActorChoiceHeadSubjectIds]])
+    if(tableExists(database,table))assertIdsAbsent(database,table,key,ids,residual);
   assertIdsAbsent(database, 'libra_subjects', 'subject_id', scope.disposableSubjectIds, residual);
   assertIdsAbsent(database, 'libra_intake_decisions', 'intake_decision_id', scope.intakeDecisionIds, residual);
   if(tableExists(database,'libra_acquisition_candidate_evidence'))

@@ -3,6 +3,7 @@
 const path = require('node:path');
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { identifyJavFilename } = require('./jav-filename-identity');
+const { localContext, localSeriesGroup } = require('./local-media-groups');
 const {
   normalized: normalizeScopeLocation,
   resolveBdmvContainerScope,
@@ -10,7 +11,7 @@ const {
 
 const MAX_RUN_PHYSICAL_MEMBERS = 1024;
 const MAX_SELECTION_SCOPE_MEMBERS = 1024;
-const SCOPE_KINDS = Object.freeze(['standalone_file', 'ordinary_directory', 'bdmv_container']);
+const SCOPE_KINDS = Object.freeze(['standalone_file', 'ordinary_directory', 'bdmv_container', 'local_media_group']);
 
 class ProcurementRunCreatorError extends Error {
   constructor(code, message, details = {}) {
@@ -53,11 +54,6 @@ function bdmvContainerRoot(relativeLocation, knownLocations = []) {
   return resolveBdmvContainerScope(relativeLocation, knownLocations)?.containerRelativeLocation || null;
 }
 
-function topLevelDirectory(relativeLocation) {
-  const index = relativeLocation.indexOf('/');
-  return index < 0 ? null : relativeLocation.slice(0, index);
-}
-
 function scopeFor(relativeLocation, knownLocations, profileHint='movie') {
   const bdmv = resolveBdmvContainerScope(relativeLocation, knownLocations);
   if (bdmv) return Object.freeze({
@@ -66,19 +62,30 @@ function scopeFor(relativeLocation, knownLocations, profileHint='movie') {
     scopeRootRelativeLocation: bdmv.containerRelativeLocation,
     bdmvRootRelativeLocation: bdmv.bdmvRootRelativeLocation,
   });
-  const directory = topLevelDirectory(relativeLocation);
-  if (directory) return Object.freeze({
+  const dvdRoot = knownLocations.map(location=>location.match(/^(.*?)(?:\/)?VIDEO_TS\//i))
+    .filter(Boolean).map(match=>match[1]||'.').find(root=>root==='.'||relativeLocation.startsWith(root+'/'));
+  if (dvdRoot) return Object.freeze({
     scopeKind: 'ordinary_directory',
-    scopeKey: 'ordinary-directory:' + directory,
-    scopeRootRelativeLocation: directory,
+    scopeKey: 'dvd-container:' + dvdRoot,
+    scopeRootRelativeLocation: dvdRoot,
     bdmvRootRelativeLocation: null,
+  });
+  const series = ['series','mixed'].includes(profileHint) && localSeriesGroup(localContext(relativeLocation));
+  if (series) return Object.freeze({
+    scopeKind:'local_media_group', scopeKey:'series-local:'+series.groupDigest,
+    scopeRootRelativeLocation:'.', bdmvRootRelativeLocation:null,
   });
   const named=identifyJavFilename(relativeLocation);
   if (['jav','mixed'].includes(profileHint) && named.javCode && named.multipartPart &&
       /\.(?:mp4|mkv|wmv|avi|mov|m4v|ts|m2ts)$/i.test(relativeLocation) &&
       !(profileHint==='mixed' && /(?:^|[^a-z0-9])s\d{1,2}e\d{1,3}/i.test(relativeLocation))) return Object.freeze({
-    scopeKind:'ordinary_directory', scopeKey:'jav-named-parts:'+named.javCode,
-    scopeRootRelativeLocation:'.', bdmvRootRelativeLocation:null,
+    scopeKind:'local_media_group', scopeKey:'jav-named-parts:'+canonicalDigest({parent:directParent(relativeLocation),code:named.javCode}),
+    scopeRootRelativeLocation:directParent(relativeLocation), bdmvRootRelativeLocation:null,
+  });
+  const parent=directParent(relativeLocation);
+  if(parent!=='.'&&knownLocations.filter(location=>directParent(location)===parent).length===1)return Object.freeze({
+    scopeKind:'ordinary_directory',scopeKey:'ordinary-directory:'+parent,
+    scopeRootRelativeLocation:parent,bdmvRootRelativeLocation:null,
   });
   return Object.freeze({
     scopeKind: 'standalone_file',

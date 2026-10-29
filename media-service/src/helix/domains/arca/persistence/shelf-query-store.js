@@ -1,4 +1,5 @@
 'use strict';
+const relocationGate=require('./series-root-relocation-gate');
 const {statements:targetBindingStatements,captureTargetBinding,fromShelf}=require('./shelf-target-binding');
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
@@ -32,6 +33,7 @@ function createShelfQueryStore(options) {
   if (!options?.schemaManifest || !options?.unitOfWork) throw new TypeError('Arca Shelf store requires clean persistence dependencies.');
   const repository = createRepositoryDefinition({ repositoryId: 'arca_shelf_repository', owner: 'arca', schemaManifest: options.schemaManifest, statements: {
       ...javCorrectionGate.statements,
+    ...relocationGate.statements,
     ...targetBindingStatements,
     overview_counts:{kind:'count-grouped',tableId:'arca_shelves',groupColumn:'status'},
     list_shelves: { kind: 'select-all', tableId: 'arca_shelves', columns: ['shelf_id','name','target_endpoint_id','target_root_location','target_mount_scope_id','target_mount_scope_revision','status','current_standard_revision','current_placement_revision','routing_projection_revision','routing_projection_digest','created_at_ms','updated_at_ms'], keyColumns: [] },
@@ -353,7 +355,7 @@ function createShelfQueryStore(options) {
     exact(input, ['shelfId','expectedStandardRevision','expectedRoutingProjectionRevision','standard'], 'P14_SHELF_STANDARD_REVISION_INPUT');
     exact(input.standard, ['ruleTemplateId','ruleTemplateRevision','schemaRef','value','digest'], 'P14_SHELF_STANDARD_INPUT');
     const repo = context.repository(repository.repositoryId);
-    javCorrectionGate.assertNoShelfJavCorrections(repo,input.shelfId); const current = repo.invoke('find_shelf', { shelf_id: input.shelfId });
+    javCorrectionGate.assertNoShelfJavCorrections(repo,input.shelfId);relocationGate.assertNoShelfSeriesRelocation(repo,input.shelfId); const current = repo.invoke('find_shelf', { shelf_id: input.shelfId });
     if (!current) fail('P14_SHELF_NOT_FOUND', 'Shelf does not exist.');
     if (current.status !== 'active' || current.current_standard_revision !== input.expectedStandardRevision ||
         current.routing_projection_revision !== input.expectedRoutingProjectionRevision) fail('P14_SHELF_STANDARD_CAS', 'Shelf Standard head is stale.');
@@ -371,7 +373,7 @@ function createShelfQueryStore(options) {
     validatePlacement(input);
     validateTargetBundle(input);
     const repo = context.repository(repository.repositoryId);
-    javCorrectionGate.assertNoShelfJavCorrections(repo,input.shelfId); const current = repo.invoke('find_shelf', { shelf_id: input.shelfId });
+    javCorrectionGate.assertNoShelfJavCorrections(repo,input.shelfId);relocationGate.assertNoShelfSeriesRelocation(repo,input.shelfId); const current = repo.invoke('find_shelf', { shelf_id: input.shelfId });
     if (!current) fail('P14_SHELF_NOT_FOUND', 'Shelf does not exist.');
     const currentTarget = {
       endpointId: current.target_endpoint_id,

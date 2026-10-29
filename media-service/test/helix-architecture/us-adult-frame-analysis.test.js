@@ -40,7 +40,7 @@ test('real Service FFmpeg extracts twenty points and CPU matching selects one ac
     referenceProjectionDigest:canonicalDigest('reference-projection'),artifactDigest:canonicalDigest('image'),modelRefDigest:faceModelReference('single_reference_face').digest},
     winner=engine.match(analysis,[{...ref,personId:'z-actor'},{...ref,personId:'a-actor'}]);
   assert.equal(winner.personId,'a-actor');assert.equal(winner.personRevision,2);assert.equal(winner.referenceAssetId,'photo-1');assert.equal(winner.referenceRevision,3);assert.ok(winner.score>0.9,winner.score);
-  assert.equal(winner.analysisDigest,analysis.analysisDigest);assert.equal(winner.threshold,0.363);
+  assert.equal(winner.analysisDigest,analysis.analysisDigest);assert.equal(winner.threshold,0.42);
   assert.equal(engine.match(analysis,[]),null);
   const hash=bytes=>require('node:crypto').createHash('sha256').update(bytes).digest('hex'),
     referenceBytes=fs.readFileSync(process.env.SHELFDECK_FACE_TEST_IMAGE),

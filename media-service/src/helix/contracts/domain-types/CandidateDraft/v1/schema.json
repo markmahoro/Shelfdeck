@@ -1685,6 +1685,94 @@
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
+    },
+    "seriesPresentationSourceRefs": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema": {
+          "const": "shelfdeck.series-source-references@1"
+        },
+        "fieldId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "accessRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "fieldRoot": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "sourceRoot": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "observationDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "references": {
+          "type": "array",
+          "maxItems": 3,
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "artifactKind": {
+                "enum": [
+                  "nfo",
+                  "poster",
+                  "fanart"
+                ]
+              },
+              "endpointId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "location": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "physicalIdentity": {
+                "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v2"
+              },
+              "entryDigest": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "artifactKind",
+              "endpointId",
+              "location",
+              "physicalIdentity",
+              "entryDigest"
+            ]
+          }
+        },
+        "sourceSetDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "schema",
+        "fieldId",
+        "accessRevision",
+        "fieldRoot",
+        "sourceRoot",
+        "observationDigest",
+        "references",
+        "sourceSetDigest"
+      ]
     }
   },
   "required": [

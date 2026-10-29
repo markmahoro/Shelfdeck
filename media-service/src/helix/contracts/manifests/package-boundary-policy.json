@@ -3,6 +3,7 @@
   "defaultInternalDecision": "deny",
   "defaultExternalDecision": "deny",
   "externalModuleRules": [
+    {"source":"platform.application","allow":["node:crypto"]},
     {
       "source": "contracts",
       "allow": [
@@ -45,6 +46,10 @@
     {
       "source": "domains.arca.model",
       "allow": ["node:path", "node:util"]
+    },
+    {
+      "source": "domains.procurement.persistence",
+      "allow": ["node:path"]
     },
     {
       "source": "domains.arca.persistence",

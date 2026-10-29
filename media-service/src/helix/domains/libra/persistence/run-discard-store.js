@@ -1,5 +1,7 @@
 'use strict';
 
+const {continuityHeadDigest,CONTINUITY_HEAD_ID}=require('../model/libra-intake-contracts');
+
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
 const {
@@ -64,6 +66,14 @@ function libraDefinition(schemaManifest) {
   return createRepositoryDefinition({
     repositoryId: 'libra_run_discard', owner: 'libra', schemaManifest,
     statements: {
+      subject:{kind:'select-one',tableId:'libra_subjects',columns:['structure_kind','status'],keyColumns:['subject_id']},
+      end_subject:{kind:'update',tableId:'libra_subjects',setColumns:['status','terminal_at_ms','updated_at_ms'],
+        keyColumns:['subject_id'],compareColumns:[{column:'status',parameter:'expected_status'}]},
+      continuity:{kind:'select-one',tableId:'libra_subject_continuity_heads',columns:['current_revision'],keyColumns:['head_id'],safeIntegers:true},
+      advance_continuity:{kind:'update',tableId:'libra_subject_continuity_heads',setColumns:['current_revision','head_digest','updated_at_ms'],
+        keyColumns:['head_id'],compareColumns:[{column:'current_revision',parameter:'expected_revision'}]},
+      release_token:{kind:'delete',tableId:'libra_predeck_pipeline_tokens',keyColumns:['subject_id']},
+      release_workshop:{kind:'delete',tableId:'libra_workshop_placements',keyColumns:['subject_id']},
       find_decision_by_key: { kind:'select-one', tableId:'libra_run_discard_decisions',
         columns:['discard_decision_id','libra_run_id','expected_run_state_revision','expected_run_state_digest',
           'run_scope_digest','input_control_scope_digest','workspace_cleanup_scope_id',
@@ -185,7 +195,9 @@ function controlDefinition(schemaManifest) {
     readOnly:true, schemaManifest, statements:{ find_current:{kind:'select-one',tableId:'fx_material_controls',columns:[
       'material_key','mount_scope_id','inode','size_bytes','fingerprint_algorithm','fingerprint_version',
       'content_fingerprint','owner_domain','owner_scope_type','owner_scope_id','control_revision','state'],
-    keyColumns:['material_key'],safeIntegers:true} } });
+    keyColumns:['material_key'],safeIntegers:true},
+    subject_controls:{kind:'select-all',tableId:'fx_material_controls',columns:['material_key','state'],
+      keyColumns:['owner_domain','owner_scope_type','owner_scope_id']} } });
 }
 
 function foundationDefinition(schemaManifest) {
@@ -626,6 +638,32 @@ function createRunDiscardStore(options) {
         attempt_count:0,next_attempt_at_ms:context.commitTimeMs,acked_at_ms:null});return result;
     }}];
     participants.splice(participants.length-1,0,createRunOutcomeStore(options).failureParticipant(ready,()=>receipt,reasonCode,productEvidence));
+    if(command.actorId==='system') {
+      const controlRead=controlDefinition(options.schemaManifest);
+      let remainingControl=false;
+      participants.push({participantId:'libra_terminal_subject_control_guard',owner:'material-control-authority',
+        boundBusinessOwner:'libra',repositories:[controlRead],execute(context){
+          remainingControl=context.repository(controlRead.repositoryId).invoke('subject_controls',{
+            owner_domain:'libra',owner_scope_type:'subject',owner_scope_id:run.subject_id}).some(row=>row.state==='controlled');
+        }});
+      participants.push({participantId:'libra_terminal_subject_close',owner:'libra',repositories:[libra],execute(context){
+        const repo=context.repository(libra.repositoryId),subject=repo.invoke('subject',{subject_id:run.subject_id});
+        if(subject?.structure_kind!=='single')return;
+        if(subject.status!=='active'||remainingControl||repo.invoke('list_runs',{subject_id:run.subject_id})
+          .some(row=>['active','suspended','frozen'].includes(row.state)))
+          fail('P9_DISCARD_SUBJECT_RESPONSIBILITY_PENDING','Single Subject still has current responsibility; discard must roll back.');
+        if(repo.invoke('end_subject',{subject_id:run.subject_id,status:'ended',expected_status:'active',
+          terminal_at_ms:context.commitTimeMs,updated_at_ms:context.commitTimeMs}).changes!==1)
+          fail('P9_DISCARD_SUBJECT_CAS','Single Subject changed during terminal closure.');
+        repo.invoke('release_token',{subject_id:run.subject_id});repo.invoke('release_workshop',{subject_id:run.subject_id});
+        const continuity=repo.invoke('continuity',{head_id:CONTINUITY_HEAD_ID});
+        if(continuity){const next=Number(continuity.current_revision)+1;
+          if(repo.invoke('advance_continuity',{head_id:CONTINUITY_HEAD_ID,current_revision:next,
+            head_digest:continuityHeadDigest(next),updated_at_ms:context.commitTimeMs,
+            expected_revision:Number(continuity.current_revision)}).changes!==1)
+            fail('P9_DISCARD_SUBJECT_CAS','Subject continuity changed during terminal closure.');}
+      }});
+    }
     try{options.unitOfWork.execute(participants);return result;}catch(error){if(error instanceof Replay)return inspect(command);throw error;}
   }
 

@@ -151,7 +151,7 @@ test('Workspace Reclamation query closes selector identity and excludes cleanup 
   }
   assert.equal(schemas.WorkspaceCleanupScopeProjection.properties.memberCount.maximum, 1024);
   assert.deepEqual(schemas.WorkspaceCleanupScopeProjection.properties.triggerKind.enum,
-    ['offload_completed', 'run_superseded', 'run_discarded']);
+    ['offload_completed', 'run_superseded', 'run_discarded', 'run_administratively_retired']);
 });
 
 test('Workspace Reclamation result unions are closed and typed', () => {

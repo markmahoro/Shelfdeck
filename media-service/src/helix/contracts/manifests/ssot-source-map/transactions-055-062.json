@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "mapId": "helix.ssot-contract-source-map",
+  "category": "transactions",
+  "startOrdinal": 55,
+  "endOrdinal": 62,
+  "entries": [
+    {
+      "id": "JAV Correction No Effect Cancel",
+      "owner": "arca",
+      "atomicFactSet": "Arca只允许当前attention_required且原Basis/逐材料Control不变、原Assets Work及逐次Recovery Intent明确授权的新Assets Work均为Source核验终结失败/Assets未执行、全部关联Effect/Result/Workspace Registry/Material/Artifact为空的精确用户命令；同UOW先只读重验，再CAS cancelled/state revision/terminal Receipt digest/time，与closed Command Receipt/marker/audit原子；原Entry/Canonical/Inventory/视频/原On-deck Commit不变，既有执行历史保持；不创建Effect/Outbox，不释放或转移Control，不允许有写入副作用的取消；精确重放先返回同一Receipt",
+      "source": {
+        "section": "8.5.4",
+        "line": 8880,
+        "lineDigest": "607a1ebdc4f3ec555a06788de2c6e27d4310eba9d6ec7001204bd5fcd6a5fd13"
+      }
+    },
+    {
+      "id": "Aftercare Inventory Commit",
+      "owner": "arca",
+      "atomicFactSet": "verified physical repair result + Inventory Representation/Product Fact/Media-Cast relation revision + exact new Material Control acquire/old Control release + AftercareInventoryCommitReceipt；该Receipt衔接active Case到新Inventory Basis，复检与结案前不得提前投影healthy",
+      "source": {
+        "section": "8.5.4",
+        "line": 8881,
+        "lineDigest": "967982b60ab89f7dadc37d3591b4db6e5bc50dad7e72a472cc4df0e2964a7dc6"
+      }
+    },
+    {
+      "id": "Inventory Record Refresh Commit",
+      "owner": "arca",
+      "atomicFactSet": "Arca记录更新内部命令 + exact current Inventory/Basis及bounded Observation fence + unchanged accepted Facts的新Inventory revision；Binding刷新保持Media-Cast不变并精确Control acquire/release；人物记录刷新按6.6.2.1消费People只读确定性证明，仅改对应person relation snapshot，保留材料/Binding/Control/Canonical Identity，Receipt保存证明revision/digest且不跨Owner事务；两种变体均写InventoryRecordRefreshReceipt/Command Receipt/commit marker/audit，没有物理文件写入、Case、Event Result或Outbox；active Case或Off-deck Reservation阻止提交，同输入重放原Receipt",
+      "source": {
+        "section": "8.5.4",
+        "line": 8882,
+        "lineDigest": "b77734cff233865f33e841a861d886a624c9c83acd45a3f02ac49f8ef43c635b"
+      }
+    },
+    {
+      "id": "Off-deck Review Scope",
+      "owner": "arca",
+      "atomicFactSet": "Review + per-Entry Reservation + immutable pre-authorization Destruction Scope + selection basis",
+      "source": {
+        "section": "8.5.4",
+        "line": 8883,
+        "lineDigest": "d84e96ef7c300f188c7958c64da90cad90657ecdc8ba7aab1237058b1403e2e7"
+      }
+    },
+    {
+      "id": "Off-deck Batch Authorization Intent",
+      "owner": "arca",
+      "atomicFactSet": "current Scope set verification + Selection Receipt + required High-volume Escalation Receipt + immutable Authorization Batch envelope；不创建跨Entry Case",
+      "source": {
+        "section": "8.5.4",
+        "line": 8884,
+        "lineDigest": "cae8451f709cd026085b9cb061981d31da7a71f040b5c417586bfa44b31cc22d"
+      }
+    },
+    {
+      "id": "Off-deck per-Entry Authorization/Case",
+      "owner": "arca",
+      "atomicFactSet": "Batch Intent + one current Scope verification + per-Scope Authorization + one Case + one Shelf Entry `offdeck_in_progress`；每Entry独立事务、幂等向前恢复",
+      "source": {
+        "section": "8.5.4",
+        "line": 8885,
+        "lineDigest": "e4c3bc41ecb66e8a9d32433eb9626890f9e04770d6d967b5c0131efe88c3a8aa"
+      }
+    },
+    {
+      "id": "Off-deck terminal",
+      "owner": "arca",
+      "atomicFactSet": "全部Deletion Evidence核对后的Deck Fact terminal + Control release + terminal receipt",
+      "source": {
+        "section": "8.5.4",
+        "line": 8886,
+        "lineDigest": "7dd0033bbb591666aee306f1ac5ec4ea1a987112608dc13ab5e84d5eb1cf0332"
+      }
+    },
+    {
+      "id": "Shelf Deregistration Commit",
+      "owner": "arca",
+      "atomicFactSet": "Shelf/Shelf Entry administrative terminal facts + Shelf routing projection revision/digest CAS + precise Control release + release receipt",
+      "source": {
+        "section": "8.5.4",
+        "line": 8887,
+        "lineDigest": "1ac2e4b2302ce105295e044d2aa5a8d64d18c823254c007fe20ecf8916b39073"
+      }
+    }
+  ]
+}

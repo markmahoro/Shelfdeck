@@ -1,6 +1,7 @@
 'use strict';
 const {canonicalDigest, canonicalJson} = require('../../../contracts/canonical-json');
 const {FRAME, EMBED, CLUSTER, MATCH, resultRef, frameWork, matchWork, exactResult} = require('../model/us-adult-analysis-work');
+const {matchThresholdFor} = require('../model/us-adult-analysis-basis');
 const EFFECTS = Object.freeze({[FRAME]:'workspace_write', [EMBED]:'workspace_write', [CLUSTER]:'workspace_write', [MATCH]:'pure_observation'});
 function createUsAdultAnalysisCapabilityPorts(options) {
   const now = options.now || Date.now;
@@ -54,7 +55,7 @@ function createUsAdultAnalysisCapabilityPorts(options) {
           samplingPlan:input.samplingPlan, outputTarget:input.workspaceArtifactOutputTarget}); break;
         case EMBED: result = await port.computeEmbeddings({frameArtifactSet:exactResult(options, frames, FRAME).result, faceModelRef:input.faceModelRef}); break;
         case CLUSTER: result = await port.computeClusters({faceEmbeddingSetHandle:input.faceEmbeddingSetHandle, clusterParameters:input.clusterParameters}); break;
-        case MATCH: result = await port.matchReferences({faceClusterSetHandle:input.faceClusterSetHandle, personReferenceProjectionList:input.personReferenceProjectionList}); break;
+        case MATCH: result = await port.matchReferences({faceClusterSetHandle:input.faceClusterSetHandle, personReferenceProjectionList:input.personReferenceProjectionList, threshold:matchThresholdFor(basis)}); break;
       }
       const digest = canonicalDigest(result), id = canonicalDigest({eventId:context.eventId, digest}).slice(0, 40);
       return Object.freeze({kind:'succeeded', resultSchemaRef:resultRef(capabilityRef), result,
@@ -70,7 +71,7 @@ function createUsAdultAnalysisCapabilityPorts(options) {
       const {basis} = state(context), result = outcome.result;
       if (capabilityRef === MATCH) {
         if (result.matches.length > 1 || result.matches.some(item => item.faceModelRefDigest !== basis.faceModelRef.digest ||
-          item.referenceModelRefDigest !== basis.referenceModelRefDigest || item.score < item.threshold)) throw new Error('US Adult matching must publish one highest valid actor per page.');
+          item.referenceModelRefDigest !== basis.referenceModelRefDigest || item.threshold !== matchThresholdFor(basis) || item.score < item.threshold)) throw new Error('US Adult matching must publish one highest valid actor per page.');
       } else if (result.libraRunId !== basis.libraRunId || result.workspaceId !== basis.workspaceId ||
           [EMBED, CLUSTER].includes(capabilityRef) && result.faceModelRefDigest !== basis.faceModelRef.digest) {
         throw new Error('US Adult analysis Result crossed its Run, Workspace or frozen CPU model.');

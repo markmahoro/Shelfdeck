@@ -14,6 +14,7 @@ function setup(input){
   const schemas=['UsAdultActorSelectionBasis','UsAdultActorChoiceRecord','UsAdultActorChoiceDecision','UsAdultActorChoiceReceipt','UsAdultMatchCompletion',
     'UsAdultPersonSnapshot','PersonReferenceProjection','LibraMediaCastSourceBasis','ResolvedProviderIdentity'].map(type=>require('../../../src/helix/contracts/domain-types/'+type+'/v1/schema.json'));
   schemas.push(...['MediaCastDraft','MediaCastFact','PersonMatchEvidence','MetadataObservation','IntegrationHandle'].map(type=>require('../../../src/helix/contracts/types/'+type+'/v1/schema.json')));
+  schemas.push(require('../../../src/helix/contracts/types/PhysicalMaterialIdentity/v2/schema.json'));
   const options={...input.options,contractValidator:createCapabilityContractValidator({schemas})},store=createUsAdultActorChoiceStore(options),
     command=createUsAdultActorChoiceCommand({...options,usAdultActorChoiceStore:store,movieProductionReader:{readRunSnapshot:()=>input.snapshot},
       peopleReferenceQuery:{readUsAdultPersonSnapshot({personId}){return input.pages.flatMap(page=>page.items).find(person=>person.personId===personId);}}});

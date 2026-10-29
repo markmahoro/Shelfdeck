@@ -1,4 +1,5 @@
 'use strict';
+const {createSeriesPresentationStore}=require('./series-presentation-store');
 
 const {
   canonicalDigest,
@@ -1195,6 +1196,7 @@ function createHandoffBAcceptanceStore(options) {
         control,
         finishDomain,
         foundationWrite,
+        ...[createSeriesPresentationStore(options).reservationParticipant({...request,onDeckRunId,custodyId})].filter(Boolean),
       ]);
       return Object.freeze({
         replayed: false,

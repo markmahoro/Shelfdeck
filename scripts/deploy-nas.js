@@ -26,6 +26,7 @@ const SECRET_FILE = `${COMPOSE_DIR}/secret.env`;
 const MEDIA_HOST = '/vol02/1000-0-c5b736af';
 const UPGRADE_HOST = '/vol2/1000/shelfdeck_upgrade';
 const TRANSCODE_HOST = '/vol2/1000/shelfdeck_transcode';
+const OPERATOR_BACKUP_HOST = '/vol2/1000/shelfdeck_backups';
 const ADULT_HOST = '/vol02/1000-0-24018892';
 const IMAGE_NAME = 'markmahoro/shelfdeck';
 const LOCAL_SECRET_FILE = path.join(__dirname, '..', 'tests', '.env.nas-secret');
@@ -58,7 +59,14 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--apply') parsed.apply = true;
+    else if (arg === '--verify-only') parsed.verifyOnly = true;
+    else if (arg === '--runtime-reset-config') { parsed.runtimeResetConfig = argv[++i]; if (!parsed.runtimeResetConfig) throw new Error('Runtime Reset configuration file is required.'); }
+    else if (arg === '--continue-people-reference-recovery') parsed.continuePeopleRecovery = true;
+    else if (arg === '--recover-people-references') { parsed.peopleRecoveryFile = argv[++i]; if (!parsed.peopleRecoveryFile) throw new Error('People recovery scope file is required.'); }
+    else if (arg === '--continue-fresh-reset') parsed.continueFreshReset = true;
     else if (arg === '--helix-clean-init') parsed.helixCleanInit = true;
+    else if (arg === '--fresh-reset-config') { parsed.freshResetConfig = argv[++i]; if (!parsed.freshResetConfig) throw new Error('Fresh Reset configuration file is required.'); }
+    else if (arg === '--capacity-plan') { parsed.capacityPlan = argv[++i]; if (!parsed.capacityPlan) throw new Error('Capacity plan file is required.'); }
     else if (arg === '--sha256') {
       parsed.expectedSha256 = argv[i + 1] || '';
       i += 1;
@@ -70,7 +78,28 @@ function parseArgs(argv) {
   if (parsed.expectedSha256 && !/^[a-f0-9]{64}$/i.test(parsed.expectedSha256)) {
     throw new Error('Expected SHA-256 must be a 64-character hex string.');
   }
+  if (parsed.freshResetConfig && (parsed.helixCleanInit || !parsed.expectedSha256 || !parsed.capacityPlan))
+    throw new Error('Fresh Reset deployment requires SHA-256 and capacity plan, and cannot initialize clean data.');
+  if (parsed.runtimeResetConfig && (parsed.freshResetConfig || parsed.helixCleanInit || parsed.peopleRecoveryFile ||
+      parsed.continueFreshReset || parsed.continuePeopleRecovery || !parsed.expectedSha256 || !parsed.capacityPlan))
+    throw new Error('Ordinary stopped upgrades require SHA-256 and capacity, and cannot run Reset or dependency recovery.');
+  if (parsed.continueFreshReset && !parsed.freshResetConfig) throw new Error('Cold continuation requires explicit Fresh Reset configuration.');
+  if (parsed.peopleRecoveryFile && (!parsed.freshResetConfig || parsed.continueFreshReset || parsed.helixCleanInit))
+    throw new Error('People recovery requires the explicit stopped configuration and cannot be combined with Reset or initialization.');
+  if (parsed.continuePeopleRecovery && !parsed.peopleRecoveryFile) throw new Error('People recovery continuation requires its original scope.');
+  if (parsed.verifyOnly && (parsed.apply || !parsed.expectedSha256 || parsed.helixCleanInit || parsed.continueFreshReset || parsed.continuePeopleRecovery))
+    throw new Error('Read-only verification requires SHA-256 and cannot apply or continue a mutation.');
   return parsed;
+}
+
+function healthExpectation({ resetConfiguration, peopleRecoveryScope, runtimeResetConfig }) {
+  return { status: resetConfiguration && !peopleRecoveryScope && !runtimeResetConfig ? 'maintenance' : 'ok', stopped: Boolean(resetConfiguration) };
+}
+function selectVerificationSteps(steps) {
+  const allowed = new Set(['Check image tarball', 'Verify image tarball SHA-256', 'Check compose file',
+    'Verify health', 'Verify Admin Web', 'Verify media mount', 'Verify compose still binds required hosts',
+    'Verify running image tag', 'Verify code comes from image']);
+  return steps.filter(([label]) => allowed.has(label));
 }
 
 function readEnvFile(filePath, key) {
@@ -97,7 +126,7 @@ function loadOrCreateSecretRoot({ allowCreate = false } = {}) {
   return generated;
 }
 
-function composeYaml(targetImage) {
+function composeYaml(targetImage, resetConfiguration, { coldBootstrap = true } = {}) {
   return [
     'services:',
     '  shelfdeck:',
@@ -114,8 +143,13 @@ function composeYaml(targetImage) {
     '      - FFMPEG_PATH=/usr/local/bin/ffmpeg',
     '      - FFPROBE_PATH=/usr/local/bin/ffprobe',
     '      - LIBVA_DRIVER_NAME=iHD',
+    ...(resetConfiguration ? ['      - SHELFDECK_RESET_CONFIG_FILE=/run/shelfdeck-reset/config.json',
+      ...(coldBootstrap ? [`      - SHELFDECK_RESET_BOOTSTRAP_FILE=${resetConfiguration.operationRoot}/deployment-bootstrap.json`] : [])] : []),
     '    volumes:',
     `      - ${DATA_DIR}:/app/data`,
+    `      - ${OPERATOR_BACKUP_HOST}:/app/data/operator-backups`,
+    ...(resetConfiguration ? [`      - ${OPERATOR_BACKUP_HOST}:/operator-backups`,
+      `      - ${COMPOSE_DIR}/reset-config.json:/run/shelfdeck-reset/config.json:ro`] : []),
     `      - ${TRANSCODE_HOST}:/transcode`,
     `      - ${UPGRADE_HOST}:/upgrade`,
     `      - ${MEDIA_HOST}:/media`,
@@ -187,14 +221,20 @@ async function execStep(conn, label, cmd) {
 }
 
 async function main() {
-  const { tarball, apply, expectedSha256, helixCleanInit } = parseArgs(process.argv.slice(2));
+  const { tarball, apply, expectedSha256, helixCleanInit, freshResetConfig, capacityPlan, continueFreshReset,
+    peopleRecoveryFile, continuePeopleRecovery, verifyOnly, runtimeResetConfig } = parseArgs(process.argv.slice(2));
   if (!tarball) {
-    console.error('Usage: node scripts/deploy-nas.js <tarball-on-nas> [--sha256 <hash>] [--helix-clean-init] [--apply]');
+    console.error('Usage: node scripts/deploy-nas.js <tarball-on-nas> [--sha256 <hash>] [--helix-clean-init] [--apply | --verify-only]');
     process.exit(2);
   }
   const targetImage = imageFromTarball(tarball);
   const secretRoot = loadOrCreateSecretRoot({ allowCreate: helixCleanInit });
-  const yaml = composeYaml(targetImage);
+  const configurationFile = freshResetConfig || runtimeResetConfig;
+  const resetConfiguration = configurationFile ? require('./nas-reset-bootstrap').configurationForNas(JSON.parse(fs.readFileSync(configurationFile, 'utf8'))) : null;
+  const peopleRecoveryScope = peopleRecoveryFile ? require('./nas-people-reference-recovery')
+    .recoveryScope(JSON.parse(fs.readFileSync(peopleRecoveryFile, 'utf8'))) : null;
+  const yaml = composeYaml(targetImage, resetConfiguration, { coldBootstrap: Boolean(freshResetConfig) && !peopleRecoveryScope });
+  const expectedHealth = healthExpectation({ resetConfiguration, peopleRecoveryScope, runtimeResetConfig });
   const secretEnv = `SHELFDECK_SECRET_ROOT=${secretRoot}\n`;
 
   const steps = [
@@ -209,6 +249,15 @@ async function main() {
       `test -d ${shellQuote(TRANSCODE_HOST)}`,
       `test -d ${shellQuote(ADULT_HOST)}`,
       'test -e /dev/dri/renderD128',
+    ].join(' && ')],
+    ['Prepare dedicated operator backup volume', [
+      'test "$(readlink -f /vol2/1000)" = /vol2/1000',
+      `test ! -L ${shellQuote(OPERATOR_BACKUP_HOST)}`,
+      `if [ ! -e ${shellQuote(OPERATOR_BACKUP_HOST)} ]; then mkdir -m 700 ${shellQuote(OPERATOR_BACKUP_HOST)}; fi`,
+      `test "$(readlink -f ${shellQuote(OPERATOR_BACKUP_HOST)})" = ${shellQuote(OPERATOR_BACKUP_HOST)}`,
+      `test -d ${shellQuote(OPERATOR_BACKUP_HOST)}`,
+      `test ! -L ${shellQuote(DATA_DIR + '/operator-backups')}`,
+      `if [ -e ${shellQuote(DATA_DIR + '/operator-backups')} ]; then test -d ${shellQuote(DATA_DIR + '/operator-backups')} && test -z "$(find ${shellQuote(DATA_DIR + '/operator-backups')} -mindepth 1 -maxdepth 1 -print -quit)" || { echo 'Existing in-data operator backups must be preserved and explicitly relocated before adding the backup mount.' >&2; exit 1; }; fi`,
     ].join(' && ')],
     ['Check compose file', `docker compose -f ${shellQuote(COMPOSE_FILE)} config >/dev/null`],
     ['Load image', `docker load -i ${shellQuote(tarball)}`],
@@ -225,7 +274,8 @@ async function main() {
           '--confirm',
           CLEAN_INIT_CONFIRM,
         ].join(' ')]]
-      : [['Helix runtime readiness', [
+      : freshResetConfig ? [[peopleRecoveryScope ? 'Prepare cold People reference recovery' : 'Prepare cold Reset management',
+        'Explicit stopped deployment proof and verified backup; no automatic Resume.']] : [['Helix runtime readiness', [
           'docker run --rm',
           `--env-file ${shellQuote(SECRET_FILE)}`,
           `-v ${shellQuote(`${DATA_DIR}:/run/shelfdeck-readiness-source:ro`)}`,
@@ -245,7 +295,8 @@ async function main() {
       'for i in $(seq 1 180); do',
       'body=$(curl --max-time 5 -fsS http://127.0.0.1:18080/v1/health) || { sleep 5; continue; };',
       'echo "$body";',
-      'printf "%s" "$body" | grep -q \'"status":"ok"\' && exit 0;',
+      `printf "%s" "$body" | grep -q '${'"status":"' + expectedHealth.status + '"'}' && ` +
+        (expectedHealth.stopped ? 'printf "%s" "$body" | grep -q \'"normalSupplyAllowed":false\' && ' : '') + 'exit 0;',
       'sleep 5;',
       'done;',
       'exit 1',
@@ -255,6 +306,7 @@ async function main() {
     ['Verify compose still binds required hosts', [
       `grep -F ${shellQuote(`${MEDIA_HOST}:/media`)} ${shellQuote(COMPOSE_FILE)}`,
       `grep -F ${shellQuote(`${UPGRADE_HOST}:/upgrade`)} ${shellQuote(COMPOSE_FILE)}`,
+      `grep -F ${shellQuote(`${OPERATOR_BACKUP_HOST}:/app/data/operator-backups`)} ${shellQuote(COMPOSE_FILE)}`,
       `grep -Fx ${shellQuote(`      - ${ADULT_HOST}:/adult_media`)} ${shellQuote(COMPOSE_FILE)}`,
       `grep -Fx ${shellQuote(`      - ${ADULT_HOST}:/adult`)} ${shellQuote(COMPOSE_FILE)}`,
       `grep -F '/dev/dri:/dev/dri' ${shellQuote(COMPOSE_FILE)}`,
@@ -263,22 +315,24 @@ async function main() {
     ['Verify code comes from image', 'docker inspect shelfdeck --format "{{json .Mounts}}" | grep -v "shelfdeck-releases"'],
   ];
 
-  console.log(`ShelfDeck NAS deploy (${apply ? 'APPLY' : 'DRY RUN'})`);
+  console.log(`ShelfDeck NAS deploy (${verifyOnly ? 'VERIFY ONLY' : apply ? 'APPLY' : 'DRY RUN'})`);
   console.log(`compose : ${COMPOSE_FILE}`);
   console.log(`tarball : ${tarball}`);
   console.log(`image   : ${targetImage}`);
   if (expectedSha256) console.log(`sha256 : ${expectedSha256.toLowerCase()}`);
   if (helixCleanInit) console.log('cutover: Helix clean initialization (INITIALIZE_HELIX_CLEAN_V1)');
+  if (continueFreshReset) console.log('cutover: explicit cold continuation from the original closure and verified deployment backup');
   console.log(`data dir: ${DATA_DIR}`);
   console.log(`media   : ${MEDIA_HOST} -> /media`);
   console.log(`upgrade : ${UPGRADE_HOST} -> /upgrade`);
   console.log(`transcode: ${TRANSCODE_HOST} -> /transcode`);
+  console.log(`backups : ${OPERATOR_BACKUP_HOST} -> /app/data/operator-backups`);
   console.log(`adult   : ${ADULT_HOST} -> /adult_media`);
   console.log(`adult   : ${ADULT_HOST} -> /adult`);
   console.log('qsv     : /dev/dri -> /dev/dri');
   console.log('secret  : env_file secret.env (not printed)');
 
-  if (!apply) {
+  if (!apply && !verifyOnly) {
     console.log('\nCompose to write:\n');
     process.stdout.write(yaml);
     for (const [label, cmd] of steps) {
@@ -293,13 +347,56 @@ async function main() {
 
   const conn = await connect();
   try {
-    console.log('\n>>> Upload secret.env and canonical compose');
-    await uploadText(conn, SECRET_FILE, secretEnv, 0o600);
-    await uploadText(conn, COMPOSE_FILE, yaml, 0o644);
-    const chmod = await run(conn, `chmod 600 ${shellQuote(SECRET_FILE)}`);
-    if (chmod.code !== 0) throw new Error('Protecting secret.env failed');
+    const execute = async command => {
+      const result = await run(conn, command);
+      if (result.code !== 0) throw new Error('Cold Reset deployment check failed: ' +
+        ((result.errOut + '\n' + result.out).match(/\b(?:RESET|PEOPLE_RECOVERY)_[A-Z0-9_]+\b/g)?.join(', ') || `exit ${result.code}`));
+      return result.out.replace(/^Could not chdir to home directory.*\r?\n/, '').trim();
+    };
+    if (resetConfiguration) {
+      const plan = JSON.parse(fs.readFileSync(capacityPlan, 'utf8'));
+      if (plan.schema !== 'shelfdeck.deployment-capacity@1' || !Array.isArray(plan.volumes) || plan.volumes.length !== 2 ||
+          plan.volumes.map(row => row.path).sort().join(',') !== '/vol1,/vol2' ||
+          plan.volumes.some(row => !/^[1-9][0-9]*$/.test(row.requiredAvailableBytes))) throw new Error('Explicit two-volume peak capacity plan is required.');
+      // Check before the first production write, including Compose or secrets.
+      for (const volume of plan.volumes) {
+        const available = await execute(`df -B1 --output=avail -- ${shellQuote(volume.path)} | tail -n 1`);
+        if (!/^[0-9]+$/.test(available) || BigInt(available) < BigInt(volume.requiredAvailableBytes)) throw new Error('Deployment peak capacity is insufficient.');
+      }
+    }
+    async function publishConfiguration() {
+      console.log('\n>>> Upload secret.env and canonical compose');
+      await uploadText(conn, SECRET_FILE, secretEnv, 0o600);
+      await uploadText(conn, COMPOSE_FILE, yaml, 0o644);
+      if (resetConfiguration) await uploadText(conn, `${COMPOSE_DIR}/reset-config.json`, JSON.stringify(resetConfiguration), 0o600);
+      const chmod = await run(conn, `chmod 600 ${shellQuote(SECRET_FILE)}`);
+      if (chmod.code !== 0) throw new Error('Protecting secret.env failed');
+    }
+    if ((!resetConfiguration || runtimeResetConfig) && !verifyOnly) await publishConfiguration();
 
-    for (const [label, cmd] of steps) {
+    for (const [label, cmd] of verifyOnly ? selectVerificationSteps(steps) : steps) {
+      if (label === 'Prepare cold Reset management' || label === 'Prepare cold People reference recovery') {
+        if (continueFreshReset || continuePeopleRecovery) {
+          const expectedSecret = crypto.createHash('sha256').update(secretEnv).digest('hex');
+          await execute(`[ "$(sha256sum ${shellQuote(SECRET_FILE)} | awk '{print $1}')" = ${shellQuote(expectedSecret)} ]`);
+        }
+        const prepareManagement = peopleRecoveryScope ? require('./nas-people-reference-recovery').prepareNasPeopleReferenceRecovery :
+          require('./nas-reset-bootstrap')[continueFreshReset ? 'continueNasResetManagement' : 'prepareNasResetManagement'];
+        const result = await prepareManagement({ execute,
+          upload: (file, contents) => uploadText(conn, file, contents, 0o600), configuration: resetConfiguration,
+          dataDir: DATA_DIR, transcodeDir: TRANSCODE_HOST, composeFile: COMPOSE_FILE,
+          backupHost: OPERATOR_BACKUP_HOST, secretFile: SECRET_FILE, targetImage, publishConfiguration,
+          ...(peopleRecoveryScope ? { recoveryScope: peopleRecoveryScope, continueRecovery: continuePeopleRecovery } : {}),
+          async readRuntime() {
+            const key = readEnvFile(LOCAL_ADMIN_KEY_FILE, 'SHELFDECK_ADMIN_API_KEY');
+            if (!key) throw new Error('Admin API credential is required for the safe Stop proof.');
+            const response = await fetch('http://192.168.12.230:18080/v1/admin/runtime', { headers: { 'X-Api-Key': key }, signal: AbortSignal.timeout(15000) });
+            if (!response.ok) throw new Error('Runtime safe Stop proof is unavailable.');
+            return response.json();
+          } });
+        console.log('Cold management closure proof:', result.closureDigest);
+        continue;
+      }
       const result = await execStep(conn, label, cmd);
       if (label === 'Helix clean initialization') persistAdminApiKey(result.out);
     }
@@ -307,13 +404,14 @@ async function main() {
     conn.end();
   }
 
-  console.log('\nDeploy complete.');
-  if (fs.existsSync(LOCAL_ADMIN_KEY_FILE)) {
+  console.log(verifyOnly ? '\nRead-only deployment verification complete; no production changes.' : '\nDeploy complete.');
+  if (!verifyOnly && fs.existsSync(LOCAL_ADMIN_KEY_FILE)) {
     console.log('Admin API key saved to tests/.env.nas-admin (gitignored).');
   }
 }
 
-main().catch((err) => {
+if (require.main === module) main().catch((err) => {
   console.error(`\nDEPLOY BLOCKED: ${err.message}`);
   process.exit(1);
 });
+module.exports = Object.freeze({ parseArgs, composeYaml, healthExpectation, selectVerificationSteps });

@@ -1,6 +1,7 @@
 'use strict';
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
+const { findResetBarrier } = require('../model/field-reset-barrier');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
 const { createCommandCommitCoordinator } = require('../../../foundation/persistence/commit-foundation');
 const { createExtractionPolicy, createFieldAccess, createMaterialField, validateExtractionPolicyValue } = require('../model/material-field-contracts');
@@ -22,6 +23,7 @@ function exact(value, keys, code) {
 
 function definition(schemaManifest) {
   return createRepositoryDefinition({ repositoryId: 'material_field_repository', owner: 'procurement', schemaManifest, statements: {
+    find_reset_barrier: findResetBarrier,
     material_label:{kind:'select-one',tableId:'proc_field_materials',columns:['material_key','current_location'],keyColumns:['field_id','material_key']},
     insert_policy: { kind: 'insert', tableId: 'proc_extraction_policy_revisions', columns: [
       'extraction_policy_id','revision','policy_schema_ref','policy_json','policy_digest','effective_at_ms'
@@ -259,6 +261,7 @@ function createMaterialFieldStore(options) {
       return field.policy.policy.excludedMaterialKeys.map(materialKey=>({materialKey,
         location:repo.invoke('material_label',{field_id:fieldId,material_key:materialKey})?.current_location||null}));
     });},
+    getResetBarrier(fieldId) { return execute((context) => context.repository(fields.repositoryId).invoke('find_reset_barrier', { field_id: fieldId })) || null; },
     getMaterialField(fieldId) { return execute((context) => readField(context.repository(fields.repositoryId), fieldId)); },
     listMaterialFields() { return execute((context) => context.repository(fields.repositoryId).invoke('list_fields').map((row) => readField(context.repository(fields.repositoryId), row.field_id))); },
     overviewFields(){return execute(context=>{const repo=context.repository(fields.repositoryId);return repo.invoke('list_fields',{}).map(row=>{

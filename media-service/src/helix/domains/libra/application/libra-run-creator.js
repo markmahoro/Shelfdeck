@@ -64,7 +64,7 @@ function createLibraRunCreator(options){
     if(computed!==relatedDispositionScopeDigest)throw new Error('Libra Related Binding scope differs from its Handoff A origin.');
     return Object.freeze({relatedReferenceSetDigest,relatedDispositionScopeDigest,items:Object.freeze(related)});
   }
-  function reconcileInternal(subjectId,forceReplacementOf=null){
+  function reconcileInternal(subjectId,forceReplacementOf=null,confirmedEpisodeMapping=null){
     if(options.taskCancellations?.get(subjectId)?.state==='pending')return {kind:'cancelling',subjectId};
     const context=options.contextReader.read(subjectId);if(context.kind!=='ready')return context;
     const eligible=context.runs.filter((run)=>['active','suspended','frozen'].includes(run.state)&&
@@ -88,7 +88,7 @@ function createLibraRunCreator(options){
     }
     if(forceReplacementOf&&current?.libra_run_id!==forceReplacementOf)
       throw new Error('Forced replacement no longer targets the current commit-eligible Libra Run.');
-    if(current?.state==='frozen')return Object.freeze({kind:'frozen',subjectId,libraRunId:current.libra_run_id});
+    if(current?.state==='frozen'&&!confirmedEpisodeMapping)return Object.freeze({kind:'frozen',subjectId,libraRunId:current.libra_run_id});
     if(!forceReplacementOf&&current&&current.acceptance_spec_id===context.spec.acceptanceSpecId)return Object.freeze({kind:'current',subjectId,
       libraRunId:current.libra_run_id,state:current.state,executionBasisDigest:current.execution_basis_digest});
     if(!forceReplacementOf&&current&&typeof options.contextReader.readAcceptanceSpec==='function'){const currentSpec=options.contextReader.readAcceptanceSpec(current.acceptance_spec_id);
@@ -104,7 +104,10 @@ function createLibraRunCreator(options){
       structureKind:context.subject.structure_kind,contentProfile:context.subject.content_profile,
       continuitySetDigest:context.subject.current_continuity_set_digest,episodeScopeDigest:context.subject.current_episode_scope_digest},
       decisionHeadSnapshot:options.contextReader.decisionHeadSnapshot(subjectId,context.decisionHead),acceptanceSpec:context.spec,
-      shelfProjection:context.shelfProjection,productionMaterialManifest,relatedDispositionScope:relatedDispositionScope(context)});
+      shelfProjection:context.shelfProjection,productionMaterialManifest,relatedDispositionScope:relatedDispositionScope(context),
+      ...(confirmedEpisodeMapping ? {episodeMetadataMappingRef:confirmedEpisodeMapping} : current?.execution_basis_record_json &&
+        JSON.parse(current.execution_basis_record_json).episodeMetadataMappingRef ?
+          {episodeMetadataMappingRef:JSON.parse(current.execution_basis_record_json).episodeMetadataMappingRef} : {})});
     const replacement=current?{libraRunId:current.libra_run_id,stateRevision:Number(current.state_revision),stateDigest:current.state_digest,
       runScopeDigest:current.run_scope_digest,acceptanceSpecId:current.acceptance_spec_id,executionBasisDigest:current.execution_basis_digest}:null;
     const priority=current?{priorityClass:current.priority_class,priorityIntentDigest:current.priority_intent_digest}:{priorityClass:'normal',
@@ -120,6 +123,13 @@ function createLibraRunCreator(options){
   return Object.freeze({
     reconcile(subjectId){return reconcileInternal(subjectId);},
     replace(subjectId,libraRunId){return reconcileInternal(subjectId,libraRunId);},
+    replaceConfirmedEpisodeMetadata(record){
+      const current=options.episodeMetadataMappingStore?.current(record.subjectId);
+      if(!current||current.recordId!==record.recordId||current.recordDigest!==record.recordDigest)
+        throw Object.assign(new Error('Episode mapping confirmation is no longer current.'),{code:'LIBRA_EPISODE_REVIEW_STALE'});
+      return reconcileInternal(record.subjectId,record.libraRunId,{intentId:record.recordId,recordDigest:record.recordDigest,
+        mappingDigest:record.mapping.mappingDigest,mappingRevision:record.mapping.revision});
+    },
   });
 }
 

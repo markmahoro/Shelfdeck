@@ -45,8 +45,11 @@ test('production dry run mounts the requested adult path and preserves existing 
     '/vol02/1000-0-24018892:/adult', '/vol02/1000-0-24018892:/adult_media',
     '/vol02/1000-0-c5b736af:/media', '/vol2/1000/shelfdeck_transcode:/transcode',
     '/vol2/1000/shelfdeck_upgrade:/upgrade', '/dev/dri:/dev/dri',
+    '/vol2/1000/shelfdeck_backups:/app/data/operator-backups',
   ]) assert.equal(mounts.filter(line => line === '- ' + binding).length, 1, binding);
   assert.ok(result.stdout.includes('stat -c %d:%i /adult_media'));
+  assert.ok(result.stdout.includes('Prepare dedicated operator backup volume'));
+  assert.ok(result.stdout.includes('Existing in-data operator backups must be preserved'));
   assert.ok(result.stdout.includes('Dry run only.'));
   assert.ok(!result.stdout.includes('deployment-contract-fixture-secret-root'));
 });

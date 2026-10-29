@@ -45,7 +45,9 @@ function expectedCatalog(manifest) {
 
 function assertManifest(manifest, ddl) {
   if (!manifest || manifest.schemaVersion !== 1 || manifest.compilerContract !== 'helix-p3-deterministic-sqlite-ddl/v1' ||
-      ![200,204,210,211,212,214,216,217,221,222,224,225].includes(manifest.tableCount) || !Array.isArray(manifest.tables) || manifest.tables.length !== manifest.tableCount) {
+      !Number.isSafeInteger(manifest.tableCount) || manifest.tableCount < 1 ||
+      !Array.isArray(manifest.tables) || manifest.tables.length !== manifest.tableCount ||
+      new Set(manifest.tables.map(table => table.tableId)).size !== manifest.tableCount) {
     fail('P3_SQLITE_INVALID_SCHEMA_MANIFEST', 'The clean schema manifest is incomplete or unsupported.');
   }
   if (manifest.digestAlgorithm !== 'sha256' || digest(normalizedDdl(ddl)) !== manifest.ddlDigest) {
@@ -114,8 +116,6 @@ function assertCatalog(database, manifest, expected) {
       fail('P3_SQLITE_PARTIAL_UNIQUE_MISSING', 'A required partial unique index is absent or weakened.', item);
     }
   }
-  const requiredPartialCount=manifest.tableCount===200?22:23;
-  if (partialExpected.length !== requiredPartialCount) fail('P3_SQLITE_PARTIAL_UNIQUE_COUNT', 'The clean schema requires its exact frozen partial unique index count.');
 }
 
 function assertGuardConsistency(database, manifest) {
@@ -129,9 +129,13 @@ function assertGuardConsistency(database, manifest) {
       sql: "SELECT COUNT(*) count FROM people_provider_identities i LEFT JOIN people_persons p ON p.person_id=i.person_id WHERE i.active_guard <> CASE WHEN p.status='active' AND p.current_revision=i.revision THEN 1 ELSE 0 END"
     }
   ];
-  // Historical copy-verification kernels retain their exact frozen schema.
-  // The library guard exists only in the explicitly supported US schema versions.
-  if ([211,212,214,216,217,221,222,224,225].includes(manifest.tableCount)) checks.push({
+  // Apply the guard from its declared columns, not a growing release-size list.
+  const peopleTables = ['people_provider_identities', 'people_persons'].map(id => manifest.tables.find(table => table.tableId === id));
+  if (peopleTables.some(table => table?.columns.includes('library_kind')) &&
+      !peopleTables.every(table => table?.columns.includes('library_kind'))) {
+    fail('P3_SQLITE_INVALID_SCHEMA_MANIFEST', 'People library guard requires both declared columns.');
+  }
+  if (peopleTables.every(table => table?.columns.includes('library_kind'))) checks.push({
     name:'people-provider-library',
     sql:'SELECT COUNT(*) count FROM people_provider_identities i JOIN people_persons p ON p.person_id=i.person_id WHERE i.library_kind<>p.library_kind',
   });

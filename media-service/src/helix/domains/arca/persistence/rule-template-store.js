@@ -1,4 +1,5 @@
 'use strict';
+const relocationGate=require('./series-root-relocation-gate');
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { createCommandCommitCoordinator } = require('../../../foundation/persistence/commit-foundation');
@@ -76,6 +77,7 @@ function createRuleTemplateStore(options) {
     schemaManifest: options.schemaManifest,
     statements: {
       ...javCorrectionGate.statements,
+    ...relocationGate.statements,
       list_templates: {
         kind: 'select-all',
         tableId: 'arca_rule_templates',
@@ -921,7 +923,7 @@ function createRuleTemplateStore(options) {
         }
         const updatedShelves = [];
         for (const shelfBasis of shelves) {
-          javCorrectionGate.assertNoShelfJavCorrections(repo,shelfBasis.shelfId);
+          javCorrectionGate.assertNoShelfJavCorrections(repo,shelfBasis.shelfId);relocationGate.assertNoShelfSeriesRelocation(repo,shelfBasis.shelfId);
           const standardRevision = shelfBasis.currentStandardRevision + 1;
           const routingProjectionRevision = shelfBasis.routingProjectionRevision + 1;
           const standard = buildShelfStandard({
@@ -1071,7 +1073,7 @@ function createRuleTemplateStore(options) {
         if (changed.changes !== 1) fail('SYSTEM_TEMPLATE_UPGRADE_CAS', 'System Template head CAS failed.');
         const updatedShelves = [];
         for (const shelfBasis of bound) {
-          javCorrectionGate.assertNoShelfJavCorrections(repo,shelfBasis.shelfId);
+          javCorrectionGate.assertNoShelfJavCorrections(repo,shelfBasis.shelfId);relocationGate.assertNoShelfSeriesRelocation(repo,shelfBasis.shelfId);
           const standardRevision = shelfBasis.currentStandardRevision + 1;
           const routingProjectionRevision = shelfBasis.routingProjectionRevision + 1;
           const standard = buildShelfStandard({
@@ -1239,7 +1241,7 @@ function createRuleTemplateStore(options) {
         }
         const shelf = repo.invoke('find_shelf', { shelf_id: input.shelfId });
         if (!shelf) fail('P14_RULE_TEMPLATE_SHELF_NOT_FOUND', 'Shelf does not exist.');
-        javCorrectionGate.assertNoShelfJavCorrections(repo,input.shelfId);
+        javCorrectionGate.assertNoShelfJavCorrections(repo,input.shelfId);relocationGate.assertNoShelfSeriesRelocation(repo,input.shelfId);
         if (shelf.status !== 'active' ||
             shelf.current_standard_revision !== input.expectedStandardRevision ||
             shelf.routing_projection_revision !== input.expectedRoutingProjectionRevision) {
