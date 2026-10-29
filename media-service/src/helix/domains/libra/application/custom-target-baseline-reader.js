@@ -11,7 +11,7 @@ function fail(){throw Object.assign(new Error('Current custom target Owner proje
 function createCustomTargetBaselineReader(options){
   if(typeof options?.acceptanceSpecContextReader?.read!=='function'||typeof options.readHandoffResponsibility!=='function')
     throw new TypeError('Custom target baseline requires current Spec and Arca responsibility projections.');
-  return Object.freeze({read(request){
+  return Object.freeze({read(request,{readFence}={}){
     if(typeof request?.subjectId!=='string'||!request.subjectId||typeof request.libraRunId!=='string'||!request.libraRunId||
         !/^[a-f0-9]{64}$/.test(request.productScopeDigest||''))fail();
     const context=options.acceptanceSpecContextReader.read(request.subjectId,request.libraRunId);
@@ -31,7 +31,7 @@ function createCustomTargetBaselineReader(options){
         contentProfile:subject.contentProfile,structureKind:subject.structureKind,
         productScope:{scopeKind:scope.scopeKind,episodeKeys:scope.episodeKeys},requirements}),
       responsibility=options.readHandoffResponsibility(Object.freeze({subjectId:request.subjectId,libraRunId:request.libraRunId,
-        productScopeDigest:scope.scopeDigest}));
+        productScopeDigest:scope.scopeDigest}),{readFence});
     if(!responsibility||responsibility.kind!=='ready')
       return Object.freeze({kind:'unavailable',reasonCode:'handoff_responsibility_pending'});
     if(responsibility.subjectId!==request.subjectId||responsibility.libraRunId!==request.libraRunId||

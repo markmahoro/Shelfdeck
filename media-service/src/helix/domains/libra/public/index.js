@@ -344,6 +344,8 @@ Object.defineProperties(createExecutionRegistration, {
 });
 
 module.exports = Object.freeze({
+  createLibraHandoffResponsibilityReader: require('../application/handoff-responsibility-reader').createLibraHandoffResponsibilityReader,
+  createLibraCustomTargetDispatchGuard: require('../application/custom-target-dispatch-guard').createLibraCustomTargetDispatchGuard,
   createFreshResetWorkspaceArchive: require('../persistence/fresh-reset-workspace-archive').createFreshResetWorkspaceArchive,
   describeFreshResetWorkspaceRetention: require('../model/fresh-reset-workspace-retention').describeFreshResetWorkspaceRetention,
   describeFreshResetMetadataRetention: require('../model/fresh-reset-metadata-retention').describeFreshResetMetadataRetention,

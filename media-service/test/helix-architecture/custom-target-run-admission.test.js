@@ -273,18 +273,18 @@ test('an old published Offer cannot be mistaken for a drained no-offer replaceme
   assert.notEqual(guard.check(replacement.libraRunId).kind,'ready');
 }));
 
-function seedPriorOffer(h,oldRunId) {
-  const old=h.db.prepare('SELECT * FROM libra_runs WHERE libra_run_id=?').get(oldRunId),packageRevision=1,
+function seedPriorOffer(h,oldRunId,packageRevision=1) {
+  const old=h.db.prepare('SELECT * FROM libra_runs WHERE libra_run_id=?').get(oldRunId),
     onDeckPackageId=canonicalDigest({schema:'libra.on-deck-package-id@1',libraRunId:oldRunId,packageRevision}),
-    packageDigest=D('prior-package'),offerId=canonicalDigest({schema:'libra.product-offer-id@1',onDeckPackageId,packageDigest}),
+    packageDigest=D('prior-package-'+packageRevision),offerId=canonicalDigest({schema:'libra.product-offer-id@1',onDeckPackageId,packageDigest}),
     offer={offerId,onDeckPackageId,packageRevision,packageDigest,shelfId:'shelf',libraRunId:oldRunId,subjectId:old.subject_id,
       acceptanceSpecId:old.acceptance_spec_id,relatedDispositionSetDigest:D('related-disposition')};
   h.db.prepare('INSERT INTO libra_product_packages(on_deck_package_id,offer_id,package_revision,libra_run_id,subject_id,shelf_id,acceptance_spec_id,package_digest,related_disposition_set_digest,state) VALUES(?,?,?,?,?,?,?,?,?,?)')
-    .run(onDeckPackageId,offerId,1,oldRunId,old.subject_id,'shelf',old.acceptance_spec_id,packageDigest,offer.relatedDispositionSetDigest,'published');
-  h.db.prepare('UPDATE libra_runs SET package_revision_head=1 WHERE libra_run_id=?').run(oldRunId);
+    .run(onDeckPackageId,offerId,packageRevision,oldRunId,old.subject_id,'shelf',old.acceptance_spec_id,packageDigest,offer.relatedDispositionSetDigest,'published');
+  h.db.prepare('UPDATE libra_runs SET package_revision_head=? WHERE libra_run_id=?').run(packageRevision,oldRunId);
   const body={eligibility:'ineligible',reasonCode:'target_not_current',libraRunId:oldRunId,runState:old.state,
     runStateRevision:Number(old.state_revision),runStateDigest:old.state_digest,acceptanceSpecId:old.acceptance_spec_id,
-    packageRevisionHead:1,deliveryReceiptAbsent:true};
+    packageRevisionHead:packageRevision,deliveryReceiptAbsent:true};
   return {offer,deliveryFence:{...body,fenceDigest:canonicalDigest(body)}};
 }
 
@@ -455,6 +455,47 @@ test('old Work cannot start a planning Attempt when target confirmation invalida
   assert.equal(reader.read(old).kind,'target_not_current');
 }));
 
+function customDispatchGuard(h,baseline=h.readCurrentCustomTargetBaseline,readArcaFormationStatus){
+  const {createCurrentRunTargetReader}=require('../../src/helix/domains/libra/application/current-run-target-reader');
+  const {createLibraCustomTargetDispatchGuard}=require('../../src/helix/domains/libra/public');
+  return createLibraCustomTargetDispatchGuard({targetReader:createCurrentRunTargetReader(h.options),
+    replacementReadiness:replacementReadiness(h,undefined,readArcaFormationStatus),customTargetStore:h.targets,readCurrentCustomTargetBaseline:baseline});
+}
+const dispatchScope=id=>({ownerDomain:'libra',processType:'libra_run',processId:id,workKind:'product_gap',workId:'work',eventId:'event'});
+
+test('custom dispatch combines target currency, complete prior drain and current baseline under one fence',()=>runHarness(h=>{
+  const old=h.chosen.intent.basis.libraRunId;seedDrainingRun(h,old);
+  const replacement=h.advance(h.unitOfWork.captureReadFence()),guard=customDispatchGuard(h);
+  assert.equal(guard.check(dispatchScope(old)).reasonCode,'run_not_active');
+  assert.equal(guard.check(dispatchScope(replacement.libraRunId)).reasonCode,'prior_execution_draining');
+  h.db.prepare("UPDATE fx_workflow_events SET state='succeeded' WHERE event_id='draining-event'").run();
+  h.db.prepare("UPDATE fx_event_attempts SET state='completed',outcome_kind='succeeded' WHERE event_attempt_id='draining-event-attempt'").run();
+  h.db.prepare("UPDATE fx_effect_journal SET state='committed' WHERE effect_id='draining-effect'").run();
+  const ready=guard.check(dispatchScope(replacement.libraRunId));assert.equal(ready.kind,'ready');assert.ok(ready.readFence);
+  h.setBaseline({standardSpecDigest:D('changed-requirements')});
+  assert.deepEqual(guard.check(dispatchScope(replacement.libraRunId)),{kind:'pending',reasonCode:'custom_target_baseline_changed'});
+  h.setBaseline({standardSpecDigest:h.chosen.intent.basis.baseSpecDigest,handoffState:'accepted'});
+  assert.equal(guard.check(dispatchScope(replacement.libraRunId)).reasonCode,'custom_target_baseline_changed');
+  assert.deepEqual(guard.check({ownerDomain:'arca',processType:'arca_ondeck_run'}),{kind:'not_applicable'});
+}));
+
+test('custom dispatch refuses unavailable or concurrently changed Owner baselines',()=>runHarness(h=>{
+  const replacement=h.advance(h.unitOfWork.captureReadFence()),scope=dispatchScope(replacement.libraRunId),
+    pending=customDispatchGuard(h,()=>({kind:'unavailable',reasonCode:'handoff_responsibility_pending'}));
+  assert.deepEqual(pending.check(scope),{kind:'pending',reasonCode:'custom_target_baseline_unavailable'});
+  const concurrent=customDispatchGuard(h,request=>{
+    const value=h.readCurrentCustomTargetBaseline(request);
+    h.db.prepare('UPDATE libra_subjects SET intake_revision=intake_revision+1').run();return value;
+  });
+  assert.deepEqual(concurrent.check(scope),{kind:'pending',reasonCode:'owner_view_changed'});
+  assert.throws(()=>customDispatchGuard(h,null),TypeError);
+}));
+
+test('an old standard Run is blocked by the confirmed Head even before replacement admission',()=>runHarness(h=>{
+  const old=h.chosen.intent.basis.libraRunId;h.db.prepare("UPDATE libra_runs SET state='active' WHERE libra_run_id=?").run(old);
+  assert.deepEqual(customDispatchGuard(h).check(dispatchScope(old)),{kind:'pending',reasonCode:'target_not_current'});
+}));
+
 test('target currency reader rejects corrupted Run and Spec identity rather than authorizing dispatch',()=>runHarness(h=>{
   const {createCurrentRunTargetReader}=require('../../src/helix/domains/libra/application/current-run-target-reader');
   const replacement=h.advance(h.unitOfWork.captureReadFence()),reader=createCurrentRunTargetReader(h.options),
@@ -463,4 +504,90 @@ test('target currency reader rejects corrupted Run and Spec identity rather than
   basis.acceptanceSpec.productScopeDigest=D('wrong-scope');
   h.db.prepare('UPDATE libra_runs SET execution_basis_record_json=? WHERE libra_run_id=?').run(canonicalJson(basis),replacement.libraRunId);
   assert.throws(()=>reader.read(replacement.libraRunId),{code:'LIBRA_RUN_TARGET_EVIDENCE_INVALID'});
+}));
+
+function handoffReader(h,arca){
+  const {createLibraHandoffResponsibilityReader}=require('../../src/helix/domains/libra/public');
+  const projection=arca||require('../../src/helix/domains/arca/public').createArcaOfferResponsibilityProjection(h.options);
+  return createLibraHandoffResponsibilityReader({...h.options,readArcaOfferResponsibility:offer=>projection.read(offer)});
+}
+function handoffRequest(h){return {subjectId:h.chosen.intent.subjectId,libraRunId:h.chosen.intent.basis.libraRunId,
+  productScopeDigest:h.chosen.intent.basis.productScopeDigest};}
+
+test('Libra reads exact Run Offer responsibility through Arca Owner projections',()=>runHarness(h=>{
+  const request=handoffRequest(h),reader=handoffReader(h);
+  assert.deepEqual(reader.read(request),{kind:'ready',...request,handoffState:'no_offer'});
+  assert.equal(h.advance(h.unitOfWork.captureReadFence()).kind,'admitted');
+  const prior=seedPriorOffer(h,request.libraRunId);
+  assert.deepEqual(reader.read(request),{kind:'ready',...request,handoffState:'not_accepted'});
+  h.db.pragma('foreign_keys = OFF');
+  h.db.prepare('INSERT INTO arca_acceptance_attempts(acceptance_attempt_id,offer_id,on_deck_package_id,package_digest,shelf_id,state) VALUES(?,?,?,?,?,?)')
+    .run('accepted-attempt',prior.offer.offerId,prior.offer.onDeckPackageId,prior.offer.packageDigest,prior.offer.shelfId,'accepted');
+  assert.deepEqual(reader.read(request),{kind:'ready',...request,handoffState:'accepted'});
+}));
+
+test('exact Run responsibility fails closed on a hidden Offer or unavailable Arca view',()=>runHarness(h=>{
+  const request=handoffRequest(h);h.advance(h.unitOfWork.captureReadFence());seedPriorOffer(h,request.libraRunId);
+  const missing=handoffReader(h,{read:()=>({kind:'unavailable'})});
+  assert.equal(missing.read(request).kind,'unavailable');
+  const mismatched=handoffReader(h,{read:offer=>({kind:'ready',offer:{...offer,subjectId:'other'},state:'not_accepted'})});
+  assert.throws(()=>mismatched.read(request),{code:'LIBRA_HANDOFF_RESPONSIBILITY_INVALID'});
+  h.db.prepare('UPDATE libra_runs SET package_revision_head=0 WHERE libra_run_id=?').run(request.libraRunId);
+  assert.throws(()=>handoffReader(h).read(request),{code:'LIBRA_HANDOFF_RESPONSIBILITY_INVALID'});
+  assert.throws(()=>handoffReader(h).read({...request,productScopeDigest:D('other-scope')}),{code:'LIBRA_HANDOFF_RESPONSIBILITY_INVALID'});
+}));
+
+test('an Arca change during the exact Offer read invalidates the caller\'s shared fence',()=>runHarness(h=>{
+  const request=handoffRequest(h);h.advance(h.unitOfWork.captureReadFence());const prior=seedPriorOffer(h,request.libraRunId),
+    arca=require('../../src/helix/domains/arca/public').createArcaOfferResponsibilityProjection(h.options),
+    reader=handoffReader(h,{read:offer=>{const result=arca.read(offer);h.db.pragma('foreign_keys = OFF');
+      h.db.prepare('INSERT INTO arca_acceptance_attempts(acceptance_attempt_id,offer_id,on_deck_package_id,package_digest,shelf_id,state) VALUES(?,?,?,?,?,?)')
+        .run('concurrent-accepted',prior.offer.offerId,prior.offer.onDeckPackageId,prior.offer.packageDigest,prior.offer.shelfId,'accepted');
+      return result;}}),fence=h.unitOfWork.captureReadFence();
+  assert.throws(()=>reader.read(request,{readFence:fence}),{code:'P3_UOW_READ_FENCE_CHANGED'});
+  assert.equal(handoffReader(h).read(request).handoffState,'accepted');
+}));
+
+test('Run responsibility checks every bounded Offer page and finds acceptance beyond the first page',()=>runHarness(h=>{
+  const request=handoffRequest(h);h.advance(h.unitOfWork.captureReadFence());let last;
+  for(let revision=1;revision<=101;revision++)last=seedPriorOffer(h,request.libraRunId,revision);
+  h.db.pragma('foreign_keys = OFF');
+  h.db.prepare('INSERT INTO arca_acceptance_attempts(acceptance_attempt_id,offer_id,on_deck_package_id,package_digest,shelf_id,state) VALUES(?,?,?,?,?,?)')
+    .run('accepted-later-page',last.offer.offerId,last.offer.onDeckPackageId,last.offer.packageDigest,last.offer.shelfId,'accepted');
+  assert.equal(handoffReader(h).read(request).handoffState,'accepted');
+  h.db.prepare('DELETE FROM libra_product_packages WHERE package_revision=2 AND libra_run_id=?').run(request.libraRunId);
+  assert.throws(()=>handoffReader(h).read(request),{code:'LIBRA_HANDOFF_RESPONSIBILITY_INVALID'});
+}));
+
+test('real Arca withdrawal and Owner projections compose into the custom dispatch fence',()=>runHarness(h=>{
+  const replacement=h.advance(h.unitOfWork.captureReadFence()),request=handoffRequest(h),prior=seedPriorOffer(h,request.libraRunId),
+    source=h.data.inputSet,subject={...source.subjectSnapshot,currentIdentityRevision:1,currentIdentityDigest:h.chosen.intent.basis.identityDigest};
+  subject.snapshotDigest=canonicalDigest(Object.fromEntries(Object.entries(subject).filter(([key])=>key!=='snapshotDigest')));
+  let handoffFence;const inputSet=buildDecisionInputSet({...source,subjectSnapshot:subject}),responsibility=handoffReader(h),
+    baseline=createCustomTargetBaselineReader({acceptanceSpecContextReader:{read:()=>({kind:'ready',inputSet})},
+      readHandoffResponsibility:(request,options)=>{handoffFence=options.readFence;return responsibility.read(request,options);}}),
+    formation=require('../../src/helix/domains/arca/application/formation-status-projection').createFormationStatusProjection(h.options),
+    guard=customDispatchGuard(h,baseline.read,ids=>formation.read(ids));
+  assert.equal(guard.check(dispatchScope(replacement.libraRunId)).reasonCode,'prior_offer_closure_unproven');
+  require('../../src/helix/domains/arca/persistence/offer-withdrawal-store').createOfferWithdrawalStore(h.options)
+    .close({...prior,readFence:h.unitOfWork.captureReadFence()});
+  assert.equal(responsibility.read(request).handoffState,'not_accepted');
+  const ready=guard.check(dispatchScope(replacement.libraRunId));assert.equal(ready.kind,'ready');assert.ok(ready.readFence);
+  assert.equal(handoffFence,ready.readFence);
+  const run=h.db.prepare('SELECT execution_basis_digest FROM libra_runs WHERE libra_run_id=?').get(replacement.libraRunId),
+    work={schemaRef:'helix://foundation/types/SupportingWorkDefinition/v1',schemaVersion:1,workId:'owner-composed-work',ownerDomain:'libra',
+      processType:'libra_run',processId:replacement.libraRunId,workKind:'product_gap',workObjectiveTypeRef:'helix://libra/work/ProductGap/v1',
+      workObjectiveVersion:1,executionBasisId:'owner-composed-basis',executionBasisDigest:run.execution_basis_digest,dependencyRefs:[],
+      priorityClass:'normal_foreground',priorityRevision:1,capabilityCatalogScope:'libra',workspaceMaterialScope:[],
+      idempotencyKey:'owner-composed-key',concurrencyScope:replacement.libraRunId+'/product',outputContractRef:'helix://libra/results/ProductGap/v1'},
+    admission=require('../../src/helix/foundation/execution/work-admission').createWorkAdmission({...h.options,
+      eligibilityProvider:{check:value=>({eligible:true,basisDigest:value.executionBasisDigest})},
+      limits:{globalOpenWorks:100,ownerOpenWorks:100,openEvents:100}});
+  assert.equal(admission.submit(work,{readFence:ready.readFence}).kind,'admitted');
+  const later=guard.check(dispatchScope(replacement.libraRunId));assert.equal(later.kind,'ready');
+  h.db.prepare('UPDATE libra_subjects SET intake_revision=intake_revision+1').run();
+  assert.throws(()=>admission.submit({...work,workId:'owner-stale-work',idempotencyKey:'owner-stale-key'},{readFence:later.readFence}),
+    {code:'P3_UOW_READ_FENCE_CHANGED'});
+  assert.equal(h.db.prepare("SELECT count(*) n FROM fx_supporting_works WHERE work_id='owner-stale-work'").get().n,0);
+  assert.equal(h.db.prepare("SELECT count(*) n FROM fx_command_receipts WHERE target_id='owner-stale-work'").get().n,0);
 }));

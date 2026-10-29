@@ -234,4 +234,4 @@ function createCustomTargetStore(options) {
   });
 }
 
-module.exports=Object.freeze({createCustomTargetStore});
+module.exports=Object.freeze({createCustomTargetStore,assertCurrentTargetBaseline});
