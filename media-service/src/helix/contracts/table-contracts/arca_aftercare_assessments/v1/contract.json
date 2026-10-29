@@ -109,6 +109,16 @@
       },
       {
         "ordinal": 11,
+        "name": "series_presentation_head_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 12,
         "name": "evidence_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -118,7 +128,7 @@
         "nullable": false
       },
       {
-        "ordinal": 12,
+        "ordinal": 13,
         "name": "assessed_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -178,13 +188,13 @@
       "同一Endpoint或Provider故障以稳定`incident_key`聚合，不复制为大量独立损坏Case"
     ],
     "rawContract": {
-      "columns": "`assessment_id PK, shelf_entry_id FK, inventory_revision, standard_revision, placement_revision, decision_fact_set_digest, care_basis_digest, assessment_kind, result, incident_key NULL, evidence_digest, assessed_at_ms`",
+      "columns": "`assessment_id PK, shelf_entry_id FK, inventory_revision, standard_revision, placement_revision, decision_fact_set_digest, care_basis_digest, assessment_kind, result, incident_key NULL, series_presentation_head_digest NULL, evidence_digest, assessed_at_ms`",
       "constraints": "`INDEX(shelf_entry_id,care_basis_digest,assessment_kind,assessed_at_ms)`；`INDEX(result,assessed_at_ms)`；同一Care Basis允许每日/每周或用户触发形成多次immutable Assessment history，`assessment_id`必须覆盖确定性cycle identity并承担重放幂等；同Inventory/Standard下Decision Fact或Placement变化仍可形成新Assessment；同一Endpoint或Provider故障以稳定`incident_key`聚合，不复制为大量独立损坏Case"
     },
     "source": {
       "section": "8.5.12",
-      "line": 9644,
-      "lineDigest": "4a1b31bb5c44ed0d86443ffbbb1c90c5648b6f6708d0e8675d5a4cdd55598816"
+      "line": 9663,
+      "lineDigest": "98f658ded532cb156efcd10979452ac15c410871c7ef89aeddfd4aea0440fe57"
     },
     "foreignKeys": [
       {

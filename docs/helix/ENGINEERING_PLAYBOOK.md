@@ -57,15 +57,15 @@ Arca On-deck Commit的既有整理条目均不享有跨迭代兼容权利。Sche
 既有条目增加migration、dual-read/write、fallback、resume、repair或其他兼容性代码；应使用经授权的Formation Reset调试工具
 清理，再由后续正常Observation/Intake自然产生新运行。Reset本身不得主动触发Observation或Intake。
 
-Formation Reset只有一种语义：物理删除未完成Arca On-deck Commit的整理过程记录，使其在当前运行数据库中
-视同从未发生。工具不得保留`normal|nuclear`模式、旧确认串或兼容入口；若产品未来需要“保留过程审计并批量
-终止”，必须作为独立正式领域能力设计，不得复用Reset语义。
+2026-10-23用户确认的新Administrative Formation Reset取代原物理删除语义：保留历史记录，追加管理性退役，
+旧Subject不再调度。退役不是用户取消、Rejected、撤回Accepted或业务成功；不可变Decision/Receipt、终态Run及
+Revision、Execution历史必须保留。旧物理删除CLI属于历史调试工具，不得作为新管理入口的实现或生产处置路径。
 
 Reset scope从Handoff A Accepted延伸到Arca On-deck Commit之前，必须显式覆盖Accepted但无
 Pre-deck token的Subject、active但缺少Admission Head的Libra Run，以及Subject、Run、Workspace、On-deck
-Package与Custody持有的Material Control。Reset可以终结或删除这些孤儿责任，但不得把仍由Procurement持有的
-Control误判成阻塞，也不得删除Procurement事实；Reset只回卷首次进入Formation之后的Control revision后缀，
-并恢复最后一个Procurement边界。删除范围必须使用`owner_domain + scope/process type + ID` typed identity，不能把
+Package与Custody持有的Material Control。Reset只能退役本次范围内的当前占用，不得把仍由Procurement持有的
+Control误判成阻塞，也不得删除Procurement事实；Control只追加释放revision，不截断旧revision或回卷后来Owner。
+退役范围必须使用`owner_domain + scope/process type + ID` typed identity，不能把
 不同类型ID合并成无类型集合。Postcondition必须根据冻结的pre-reset manifest独立反查业务、Execution、Artifact、
 Workspace、消息、Receipt、Marker/Result与Control闭包，不能复用scope discovery证明自己完整。
 
@@ -75,10 +75,9 @@ Reset必须保护已经Arca On-deck Commit的Shelf Entry与Deck Fact，不得触
 Reset只解决旧运行数据与新版本合同不再一致的问题。若同一缺陷会在Reset后由新建条目再次产生，必须修复根因并补回归验证，
 禁止以反复Reset替代实现修复。
 
-生产逐片处理可以通过 `--subject-ids` 显式限定未 Commit 的 Subject 集合；这是同一 Reset 语义的范围约束。
-显式空集合、无效 ID、已 Commit Subject 必须拒绝；已删除 ID 的重放是无副作用。范围外未完成流程、孤儿记录与
-Workspace 必须保留，不能利用逐片操作顺便全局清理。冻结清单仍须独立验证所选闭包清零及全库引用完整性。
-对需要保留的 Workspace 文件，应在执行前另行核验并保护；Reset 不负责将旧文件绑定迁移到新 Run。
+新管理入口覆盖当前工作台，不新增逐片Reset交互。同一Subject可包含已Commit或已结束历史，不能据此删除历史或
+释放其收藏Control；冻结清单须独立验证所选当前占用已退役、保护记录不变及全库引用完整性。范围外流程与Workspace
+必须保留，不能顺便全局清理。Workspace字节回收与退役提交分开核验；Reset不将旧文件绑定迁移到新Run。
 
 PROD-065 执行失败诊断使用 Foundation 已有 Attempt `evidence_digest` 关联本地诊断文件，composition 注入文件适配器。
 内容只含白名单、每条至多16 KiB的技术详情，不含凭据、请求URL或原始网络错误文本；不作为业务事实或副作用授权。

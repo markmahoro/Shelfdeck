@@ -28,7 +28,7 @@ function invocationFailureDetails(error) {
     : 'UNCLASSIFIED_INVOCATION_FAILURE');
   const diagnostics = failureDiagnostics(error);
   const network = {};
-  for (const key of ['stage', 'networkCode', 'timeout']) {
+  for (const key of ['stage', 'networkCode', 'timeout', 'statusCode']) {
     if (Object.hasOwn(diagnostics, key)) network[key] = diagnostics[key];
   }
   return Object.freeze({ causeCode:code, ...network });

@@ -42,7 +42,7 @@ const registry = Object.freeze({
     const manifest = manifests[capabilityRef];
     if (!manifest) throw Object.assign(new Error('missing capability'), { code: 'P4_CAPABILITY_NOT_REGISTERED' });
     if (manifest.ownerScope !== ownerDomain) throw Object.assign(new Error('owner mismatch'), { code: 'P4_CAPABILITY_NOT_VISIBLE' });
-    return { manifest };
+    return { manifest, executor: { version: 1 } };
   }
 });
 const policyBindings = Object.freeze({
@@ -54,6 +54,8 @@ const policyBindings = Object.freeze({
 });
 const policyRegistry = Object.freeze({
   digest: 'c'.repeat(64),
+  retryFor(ref) { return { ref: policyBindings[ref].retryPolicyRef }; },
+  timeoutFor(ref) { return { ref: policyBindings[ref].timeoutPolicyRef }; },
   bindingFor(capabilityRef) { return policyBindings[capabilityRef]; },
   compensation(contractRef) {
     if (contractRef !== 'helix://fixture/compensation/v1') throw Object.assign(new Error('unknown compensation'), { code: 'P4_COMPENSATION_CONTRACT_UNKNOWN' });
@@ -62,7 +64,7 @@ const policyRegistry = Object.freeze({
   }
 });
 const CATALOG_DIGEST = executionCatalogDigest(registry, policyRegistry);
-const contractValidator = Object.freeze({ validate(ref, value) {
+const contractValidator = Object.freeze({ readSchema(ref) { return { $id: ref }; }, validate(ref, value) {
   if (ref.includes('/inputs') && (!value || typeof value.inputId !== 'string')) throw Object.assign(new Error('input rejected'), { code: 'TEST_SCHEMA_REJECTED' });
   return value;
 } });
@@ -149,7 +151,7 @@ test('non-planned Resolutions contain zero nodes and planned contains a non-empt
     (error) => error.code === 'P4_RUNTIME_PLAN_RESOLUTION_NODE_MISMATCH');
 });
 
-function fixture(run) {
+function fixture(run, injectCommitFailure = false) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-workflow-plan-'));
   const databasePath = path.join(root, 'shelfdeck.db');
   let clock = 1700000001200;
@@ -174,7 +176,13 @@ function fixture(run) {
       repository.invoke('attempt', { attempt_id: 'attempt-1', work_id: 'work-1', ordinal: 1, basis_digest: 'a'.repeat(64), state: 'ready' });
     }
   }]);
-  const publisher = createWorkflowPlanPublisher({ schemaManifest, unitOfWork, registry, contractValidator, policyRegistry });
+  const publishingUnitOfWork = injectCommitFailure ? { execute(participants) {
+    return unitOfWork.execute(participants.map(participant => ({ ...participant, execute(context) {
+      participant.execute(context);
+      throw new Error('Injected failure before transaction commit');
+    } })));
+  } } : unitOfWork;
+  const publisher = createWorkflowPlanPublisher({ schemaManifest, unitOfWork: publishingUnitOfWork, registry, contractValidator, policyRegistry });
   try { return run({ publisher, databasePath }); }
   finally { kernel.close(); fs.rmSync(root, { recursive: true, force: true }); }
 }
@@ -191,6 +199,8 @@ test('publisher atomically normalizes Plan, Nodes, Edges and initial Events with
     assert.equal(first.replayed, false);
     assert.equal(publisher.publish(plan()).replayed, true);
     assert.equal(rows(databasePath, 'fx_workflow_plans').length, 1);
+    assert.equal(rows(databasePath, 'fx_execution_contracts').length, 1);
+    assert.equal(rows(databasePath, 'fx_plan_contracts').length, 1);
     const persistedPlan = rows(databasePath, 'fx_workflow_plans')[0];
     assert.equal(persistedPlan.planner_ref, 'helix://libra/planners/Fixture/v1');
     assert.equal(persistedPlan.catalog_digest, CATALOG_DIGEST);
@@ -247,4 +257,14 @@ test('Plan publication writes no Domain facts and source exposes no Planner exec
   for (const parts of [['planner', '.execute'], ['graph_', 'json'], ['flow', 'Kind'], ['action', 'Type']]) {
     assert.equal(source.includes(parts.join('')), false, parts.join(''));
   }
+});
+
+
+test('failure after all Plan writes rolls back contract evidence and the entire Plan atomically', () => {
+  fixture(({ publisher, databasePath }) => {
+    assert.throws(() => publisher.publish(plan()), /Injected failure/);
+    for (const table of ['fx_execution_contracts', 'fx_plan_contracts', 'fx_workflow_plans', 'fx_plan_nodes', 'fx_plan_edges', 'fx_workflow_events']) {
+      assert.equal(rows(databasePath, table).length, 0, table);
+    }
+  }, true);
 });

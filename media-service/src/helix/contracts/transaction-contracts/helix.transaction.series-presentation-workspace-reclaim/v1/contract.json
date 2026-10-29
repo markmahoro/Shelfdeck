@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.series-presentation-workspace-reclaim/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.series-presentation-workspace-reclaim",
+    "displayName": "Series Presentation Workspace Reclaim",
+    "ownerScope": "arca",
+    "commitClass": "workspace_write",
+    "atomicFactSet": "只在精确Ready version/成功Assets Result及Work/Effect围栏下删除本build的注册Workspace字节；逐项原Identity/完整摘要验证、缺失可继续、外来文件不删；Workspace Registry/Material/Artifact终态、Reclaimed Result/marker同事务；不改正式共享Inventory、Season Own或来源",
+    "participants": [
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_workspace_registry",
+          "fx_workspace_materials",
+          "fx_artifact_registry",
+          "fx_event_result_bindings",
+          "fx_commit_markers"
+        ]
+      }
+    ],
+    "writeTables": [
+      "fx_workspace_registry",
+      "fx_workspace_materials",
+      "fx_artifact_registry",
+      "fx_event_result_bindings",
+      "fx_commit_markers"
+    ],
+    "readTables": [
+      "arca_shelf_entries",
+      "arca_shelves",
+      "arca_canonical_identity_revisions",
+      "arca_inventory_representations",
+      "arca_inventory_materials",
+      "arca_series_presentation_scopes",
+      "arca_series_presentation_builds",
+      "arca_series_presentation_versions",
+      "arca_series_presentation_reservations",
+      "arca_series_presentation_references",
+      "arca_series_presentation_commit_links",
+      "platform_workspace_roots",
+      "fx_supporting_works",
+      "fx_workflow_events",
+      "fx_event_attempts",
+      "fx_effect_journal",
+      "fx_event_result_bindings",
+      "fx_command_receipts",
+      "arca_series_root_relocations"
+    ],
+    "variants": [],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": true,
+      "outboxRequired": false
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "series-presentation-commit",
+        "faultInjectionPoints": "exact active build, expected shared version, source and final verification, each Control CAS, version/head/Result/marker, before and after COMMIT",
+        "requiredInvariant": "Shared version, head, Control and Ready result are all present or all absent; old Season Own and historical Commit links remain unchanged; exact Event replay cannot publish a second version",
+        "source": {
+          "section": "8.9.7",
+          "line": 8866
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 8868,
+      "lineDigest": "1e294cad6f7cf93463210fa4f76eeb11d5f0ea07fd1d01a1be2d3df8b742fe9c"
+    }
+  }
+}

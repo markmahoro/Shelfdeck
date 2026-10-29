@@ -12,7 +12,7 @@ async function journey(t,{operations=null,manual=false,manualFilenameStem=null,n
   const retirementLoss=['retirement','retirement_conflict'].includes(correctionProcessLoss);
   const cleanupLoss=['cleanup_uncommitted','cleanup_committed'].includes(correctionProcessLoss);
   const workspaceLoss=cleanupLoss||['workspace_reclaim','workspace_reclaim_conflict','workspace_reclaim_commit','workspace_reclaim_rollback'].includes(correctionProcessLoss);
-  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-jav-host-')),dataDir=path.join(root,'data'),adminDistDir=path.join(root,'admin'),source=path.join(root,'source'),target=path.join(root,'shelf');
+  const root=process.env.HELIX_JAV_TTL_CRASH_ROOT||fs.mkdtempSync(path.join(os.tmpdir(),'helix-jav-host-')),dataDir=path.join(root,'data'),adminDistDir=path.join(root,'admin'),source=path.join(root,'source'),target=path.join(root,'shelf');
   for(const directory of [adminDistDir,source,target])fs.mkdirSync(directory,{recursive:true});
   fs.writeFileSync(path.join(adminDistDir,'index.html'),'<div id="root"></div>');
   const videoPath=path.join(source,manual?(manualFilenameStem||'Unrecognized')+'.mkv':sourceCase?(sourceCase.filenameStem||expectedCode)+'.mkv':parts?'IPX-177A.mkv':soloPart?'IPX-177'+soloPart+'.mkv':'IPX-177.mkv'),ffmpeg=process.env.FFMPEG_PATH||require('ffmpeg-static');
@@ -29,9 +29,15 @@ async function journey(t,{operations=null,manual=false,manualFilenameStem=null,n
     assert.equal(normalized.status,0,normalized.stderr);
   } else if(parts)fs.copyFileSync(videoPath,secondVideoPath);
   const picture=await sharp({create:{width:100,height:60,channels:3,background:'#376892'}}).jpeg().toBuffer(),requests=[];
+  let db;
   let changeConfirmedTitle=false,changeCorrectionOptional=false,allowPrimaryFailure=false,aftercareCoverUnavailable=false;
   const originalFetch=sourceCase?require('./fixtures/jav-class-transport').createJavClassTransport(picture,requests,sourceCase,()=>allowPrimaryFailure):require('./fixtures/jav-host-transport').createJavHostTransport(picture,requests,correctionOverlap,correctionPeople);
-  const fetchImpl=async url=>{const response=await originalFetch(url);
+  const fetchImpl=async url=>{
+    if(process.env.HELIX_JAV_TTL_CRASH_ROOT&&db?.prepare("SELECT event_id FROM fx_workflow_events WHERE capability_ref='libra.product_identity.evidence.observe@1' AND state='executing'").get()){
+      fs.writeFileSync(path.join(root,'ttl-crash-boundary.json'),JSON.stringify({clock:clock(),events:db.prepare("SELECT event_id FROM fx_workflow_events WHERE capability_ref='libra.product_identity.evidence.observe@1' AND state='executing'").all()}));
+      process.exit(79);
+    }
+    const response=await originalFetch(url);
     if(aftercareCoverUnavailable&&new URL(url).hostname==='c0.jdbstatic.com')return new Response(Buffer.from('invalid cover'),{headers:{'content-type':'image/jpeg'}});
     if(changeConfirmedTitle&&new URL(url).pathname==='/v/Correct02')return new Response((await response.text()).replace('Corrected JAV film','Changed film after confirmation'),{headers:response.headers});
     if(changeCorrectionOptional&&new URL(url).pathname==='/v/Correct02')return new Response((await response.text()).replace('<div class="movie-panel-info">','<div class="movie-panel-info"><div class="panel-block"><strong>日期：</strong><span class="value">2026-10-15</span></div>'),{headers:response.headers});
@@ -40,7 +46,7 @@ async function journey(t,{operations=null,manual=false,manualFilenameStem=null,n
   let clockEpoch=Date.parse('2026-10-25T12:00:00+08:00'),clockStart=Date.now();
   const clock=()=>correctionPeople?clockEpoch+Date.now()-clockStart:Date.now();
   let requestError=null,runtimeError=null,host=await createCleanServiceHost({dataDir,adminDistDir,secretRoot,now:clock,integrationFetch:fetchImpl,onExecutionRuntimeError:error=>{runtimeError=error;},onRequestError:error=>{requestError=error;}});
-  const db=new Database(path.join(dataDir,'shelfdeck.db'));
+  db=new Database(path.join(dataDir,'shelfdeck.db'));
   const primaryBytes=()=>fs.readFileSync(db.prepare("SELECT m.location FROM arca_inventory_materials m JOIN arca_shelf_entries e ON e.shelf_entry_id=m.shelf_entry_id AND e.current_inventory_revision=m.inventory_revision WHERE m.role='primary_payload'").get().location);
   t.after(async()=>{await host.close();db.close();assert.equal(path.dirname(path.resolve(root)),path.resolve(os.tmpdir()));assert.ok(path.basename(root).startsWith('helix-jav-host-'));fs.rmSync(root,{recursive:true,force:true});});
   const login=await host.inject({method:'POST',url:'/v1/admin/session',headers:{'x-api-key':initialized.adminApiKey}}),cookie=login.headers['set-cookie'];
@@ -59,7 +65,7 @@ async function journey(t,{operations=null,manual=false,manualFilenameStem=null,n
       policyDigest:canonicalDigest({extractionPolicyId:'jav-extraction',revision:1,...policy})},access:{...access,accessDigest:canonicalDigest(access)}});
   await request('PATCH','/v1/admin/routing/material-fields/'+fieldId,{idempotencyKey:'jav-route',fieldId,expectedPolicyId:null,expectedRevision:0,
     policy:{routingPolicyId:'jav-route',mode:'sorting',targets:[{shelfId:'jav-shelf',rank:1,matchExpression:{nodeKind:'predicate',factKind:'content_profile',operator:'eq',expectedValue:'jav'}}]}});
-  if(manual||sourceCase)await request('POST','/v1/admin/settings/automatic-operation/actions/enable-full',{idempotencyKey:'jav-settlement-authorization',expectedRevision:0,coverExclusiveRelatedInput:true});
+  if(manual||sourceCase||process.env.HELIX_JAV_TTL_CRASH_ROOT)await request('POST','/v1/admin/settings/automatic-operation/actions/enable-full',{idempotencyKey:'jav-settlement-authorization',expectedRevision:0,coverExclusiveRelatedInput:true});
   await request('POST','/v1/admin/material-fields/'+fieldId+'/actions/observe',{idempotencyKey:'jav-observe',fieldId,expectedAccessRevision:1,expectedObservationRevision:0,pageBudget:8});
   const diagnostics=()=>JSON.stringify({runtimeError:runtimeError?.message,incidents:db.prepare('SELECT * FROM fx_executor_incidents').all(),
     sourceExists:fs.existsSync(videoPath),
@@ -73,16 +79,22 @@ async function journey(t,{operations=null,manual=false,manualFilenameStem=null,n
   let deadline=Date.now()+20000;
   if(incompatible) {
     const second=fs.readFileSync(secondVideoPath);
-    while(Date.now()<deadline&&!runtimeError&&!db.prepare("SELECT libra_run_id FROM libra_run_outcomes WHERE outcome='unable_to_on_deck'").get())await new Promise(resolve=>setTimeout(resolve,100));
-    assert.equal(runtimeError,null,diagnostics());assert.ok(db.prepare("SELECT libra_run_id FROM libra_run_outcomes WHERE outcome='unable_to_on_deck'").get(),diagnostics());
+    while(Date.now()<deadline&&!runtimeError&&!db.prepare("SELECT libra_run_id FROM libra_runs WHERE state='frozen'").get())await new Promise(resolve=>setTimeout(resolve,100));
+    assert.equal(runtimeError,null,diagnostics());
+    const frozen=db.prepare("SELECT libra_run_id,subject_id FROM libra_runs WHERE state='frozen'").get();assert.ok(frozen,diagnostics());
+    assert.equal(db.prepare('SELECT count(*) n FROM libra_run_outcomes').get().n,0);
+    assert.equal(db.prepare('SELECT status FROM libra_subjects WHERE subject_id=?').get(frozen.subject_id).status,'active');
+    assert.equal(db.prepare('SELECT count(*) n FROM libra_predeck_pipeline_tokens WHERE subject_id=?').get(frozen.subject_id).n,1);
+    assert.equal(db.prepare("SELECT count(*) n FROM fx_material_controls WHERE owner_domain='libra' AND owner_scope_type='subject' AND owner_scope_id=? AND state='controlled'").get(frozen.subject_id).n,2);
+    const attention=await request('GET','/v1/admin/formation/'+frozen.subject_id);
+    assert.equal(attention.classification,'attention_required');
     assert.deepEqual(fs.readFileSync(videoPath),video);assert.deepEqual(fs.readFileSync(secondVideoPath),second);
     assert.equal(db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n,0);
     const rejected=db.prepare("SELECT work_id FROM fx_work_attempts WHERE failure_code='jav_part_copy_incompatible'").get();assert.ok(rejected);
     assert.equal(db.prepare('SELECT count(*) n FROM fx_workflow_events WHERE work_id=?').get(rejected.work_id).n,0);
     const evidence=JSON.parse(db.prepare("SELECT transition_evidence_json FROM libra_run_revisions WHERE json_extract(transition_evidence_json,'$.blockedWorks[0].blockerSource')='plan_rejection' ORDER BY state_revision DESC LIMIT 1").get().transition_evidence_json);
     assert.equal(evidence.blockedWorks[0].blockerSource,'plan_rejection');assert.equal(evidence.blockedWorks[0].failureCode,'jav_part_copy_incompatible');
-    const outcome=JSON.parse(db.prepare('SELECT outcome_json FROM libra_run_outcomes').get().outcome_json);
-    assert.deepEqual(outcome.terminalReasons,[evidence.blockedWorks[0]]);assert.equal(Object.hasOwn(outcome.terminalReasons[0],'capabilityRef'),false);
+    assert.equal(Object.hasOwn(evidence.blockedWorks[0],'capabilityRef'),false);
     return;
   }
   let selection=null,confirmation=null,originalCandidateClaim=null;
@@ -841,7 +853,7 @@ test('unrecognized JAV input accepts an exact FC2 official manual preview and ke
 test('JAV A/B actual inputs form one Package, remux in order and establish exactly one Arca Commit',{timeout:120000},t=>journey(t,{parts:true}));
 test('one actual JAV B input remains a single-file journey and reaches Commit without an A requirement',{timeout:120000},t=>journey(t,{soloPart:'B'}));
 test('one actual JAV A input remains a single-file journey and reaches Commit without a B requirement',{timeout:120000},t=>journey(t,{soloPart:'A'}));
-test('incompatible JAV actual parts freeze with genuine rejected-Plan evidence and retain both sources without a fake Event',{timeout:60000},t=>journey(t,{parts:true,incompatible:true}));
+test('incompatible JAV actual parts require attention with genuine rejected-Plan evidence and retain responsibility without a fake Outcome',{timeout:60000},t=>journey(t,{parts:true,incompatible:true}));
 test('JAV H.264 A/B inputs merge before a real HEVC Transcode and one final Arca Commit',{timeout:120000},t=>journey(t,{parts:true,inputCodec:'h264'}));
 test('owned real JAV Entry admits an independent correction atomically, rolls stale Control back and replays without preview cache',{timeout:120000},t=>journey(t,{correctionAdmission:true}));
 test('admitted JAV correction resumes through formal source verification and Workspace asset Work while preserving the original collection',{timeout:120000},t=>journey(t,{correctionWork:true}));

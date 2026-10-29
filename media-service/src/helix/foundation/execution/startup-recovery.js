@@ -1,6 +1,6 @@
 'use strict';
 
-const { createRepositoryDefinition } = require('../persistence/owner-repository');
+const { createStartupResponsibilitySnapshot } = require('./startup-responsibility-snapshot');
 const { EFFECT_CLASSES } = require('./runtime-contracts');
 
 const HASH = /^[0-9a-f]{64}$/;
@@ -20,43 +20,6 @@ class StartupRecoveryError extends Error {
 
 function fail(code, message, details) {
   throw new StartupRecoveryError(code, message, details);
-}
-
-function listRepository(schemaManifest, repositoryId, tableId, columns) {
-  return createRepositoryDefinition({
-    repositoryId,
-    owner: 'execution-foundation',
-    schemaManifest,
-    statements: { list: { kind: 'select-all', tableId, columns, keyColumns: [] } }
-  });
-}
-
-function definitions(schemaManifest) {
-  return Object.freeze({
-    works: listRepository(schemaManifest, 'startup_works', 'fx_supporting_works', [
-      'work_id', 'owner_domain', 'process_type', 'process_id', 'work_kind', 'state'
-    ]),
-    workAttempts: listRepository(schemaManifest, 'startup_work_attempts', 'fx_work_attempts', ['attempt_id', 'work_id', 'state']),
-    plans: listRepository(schemaManifest, 'startup_plans', 'fx_workflow_plans', ['plan_id', 'attempt_id', 'catalog_digest', 'state']),
-    events: listRepository(schemaManifest, 'startup_events', 'fx_workflow_events', [
-      'event_id', 'plan_id', 'node_id', 'work_id', 'attempt_id', 'owner_domain', 'capability_ref', 'state', 'retry_at_ms'
-    ]),
-    nodes: listRepository(schemaManifest, 'startup_nodes', 'fx_plan_nodes', [
-      'plan_id', 'node_id', 'capability_ref', 'contract_version', 'effect_class', 'input_bindings_json', 'parameters_json'
-    ]),
-    attempts: listRepository(schemaManifest, 'startup_attempts', 'fx_event_attempts', [
-      'event_attempt_id', 'event_id', 'ordinal', 'state', 'outcome_kind', 'failure_class', 'failure_code', 'started_at_ms'
-    ]),
-    effects: listRepository(schemaManifest, 'startup_effects', 'fx_effect_journal', [
-      'effect_id', 'event_attempt_id', 'effect_class', 'state', 'external_receipt_ref', 'output_digest'
-    ]),
-    defers: listRepository(schemaManifest, 'startup_defers', 'fx_resource_defer', [
-      'event_id', 'resource_key', 'state', 'retry_at_ms'
-    ]),
-    circuits: listRepository(schemaManifest, 'startup_circuits', 'fx_circuit_states', [
-      'circuit_key', 'state', 'reason_code', 'evidence_digest'
-    ])
-  });
 }
 
 function groupBy(rows, field) {
@@ -80,21 +43,8 @@ function createStartupRecovery(options) {
     fail('P4_STARTUP_STANDALONE_EFFECT_CLASS_INVALID',
       'Standalone Effect classes must be explicit non-empty identities.');
   }
-  const repositories = definitions(options.schemaManifest);
+  const responsibility = createStartupResponsibilitySnapshot(options);
   let readiness = Object.freeze({ state: 'bootstrapping', normalSupplyAllowed: false, findings: Object.freeze([]) });
-
-  function snapshot() {
-    return options.unitOfWork.execute([{
-      participantId: 'startup_snapshot',
-      owner: 'execution-foundation',
-      repositories: Object.values(repositories),
-      execute(context) {
-        return Object.freeze(Object.fromEntries(Object.entries(repositories).map(([key, repository]) => [
-          key, context.repository(repository.repositoryId).invoke('list')
-        ])));
-      }
-    }]).startup_snapshot;
-  }
 
   return Object.freeze({
     readiness() { return readiness; },
@@ -105,7 +55,7 @@ function createStartupRecovery(options) {
         return readiness;
       }
 
-      const facts = snapshot();
+      const facts = responsibility.read();
       const findings = [];
       const actions = [];
       const workIds = new Set(facts.works.map((row) => row.work_id));
@@ -191,6 +141,17 @@ function createStartupRecovery(options) {
       }
       for (const circuit of facts.circuits.filter((row) => row.state !== 'closed')) {
         if (!circuit.reason_code || !HASH.test(circuit.evidence_digest || '')) findings.push('INVALID_CIRCUIT_EVIDENCE:' + circuit.circuit_key);
+      }
+
+      for (const attempt of facts.attempts.filter(row => row.state === 'executing')) {
+        if (!events.has(attempt.event_id)) findings.push('ORPHAN_EVENT_ATTEMPT:' + attempt.event_attempt_id);
+      }
+      for (const event of facts.events.filter(row => ['pending', 'ready'].includes(row.state))) {
+        const node = nodes.get(event.plan_id + '\0' + event.node_id), plan = plans.get(event.plan_id);
+        const attempt = workAttempts.get(event.attempt_id), work = works.get(event.work_id);
+        if (!node || !plan || !attempt || !work || plan.attempt_id !== attempt.attempt_id ||
+            attempt.work_id !== work.work_id || event.owner_domain !== work.owner_domain)
+          findings.push('ORPHAN_OR_UNKNOWN_EVENT_FACT:' + event.event_id);
       }
 
       for (const event of facts.events.filter((row) => RECOVERY_EVENT_STATES.has(row.state))) {

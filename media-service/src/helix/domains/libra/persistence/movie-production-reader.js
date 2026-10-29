@@ -6,6 +6,7 @@ const { createRepositoryDefinition } = require('../../../foundation/persistence/
 const {
   workspaceStateDigest,
 } = require('../model/workspace-admission-contracts');
+const { frozenSeriesSeasonNumber } = require('../model/series-identity-contracts');
 
 class MovieProductionReaderError extends Error {
   constructor(code, message, details = {}) {
@@ -268,9 +269,9 @@ function createMovieProductionReader(options) {
     execute: body,
   }]).libra_movie_production_read;
 
-  function readRunInternal(libraRunId, requireActive) {
-    return exact((context) => {
-      const repo = context.repository(repository.repositoryId);
+  // Immutable input reconstruction is shared by descriptive queries and the
+  // executor. Current execution authority is checked only by the latter.
+  function readRunInputs(repo, libraRunId, requireActive) {
       const run = repo.invoke('find_run', { libra_run_id: libraRunId });
       if (!run || (requireActive && run.state !== 'active')) {
         fail('P14_MOVIE_PRODUCTION_RUN_UNAVAILABLE',
@@ -528,6 +529,26 @@ function createMovieProductionReader(options) {
           Buffer.from(left.referenceId),
           Buffer.from(right.referenceId),
         ));
+      return { run, specRow, spec, manifest, mappedMembers, episodeClaims, related,
+        candidateIdentityClaim, candidatePackage, candidatePrimaryInputManifest, materialInputForm,
+        executionBasisRecord, authorizedDefectManifest, secondaryTarget };
+  }
+  function assertFrozenRelatedScope({ related, executionBasisRecord, candidatePackage }) {
+    const frozenRelated=related.map((item)=>({referenceId:item.referenceId,primaryMaterialKey:item.primaryMaterialKey,
+      role:item.role,materialKey:item.identity.materialKey,associationEvidenceDigest:item.associationEvidenceDigest,
+      dispositionBasisDigest:item.dispositionBasisDigest}));
+    if(canonicalJson(frozenRelated)!==canonicalJson(executionBasisRecord.relatedDispositionScope.items)||
+        executionBasisRecord.relatedDispositionScope.relatedReferenceSetDigest!==candidatePackage.relatedReferenceSetDigest||
+        executionBasisRecord.relatedDispositionScope.relatedDispositionScopeDigest!==candidatePackage.relatedDispositionScopeDigest)
+      fail('P14_MOVIE_PRODUCTION_RELATED_DRIFT','Related references differ from the frozen Run Basis.');
+  }
+  function readRunInternal(libraRunId, requireActive) {
+    return exact((context) => {
+      const repo = context.repository(repository.repositoryId);
+      const input = readRunInputs(repo, libraRunId, requireActive);
+      const { run, specRow, spec, manifest, mappedMembers, episodeClaims, related,
+        candidateIdentityClaim, candidatePackage, candidatePrimaryInputManifest, materialInputForm,
+        executionBasisRecord, authorizedDefectManifest, secondaryTarget } = input;
       const relatedBindings = repo.invoke('list_bindings', {
         subject_id: run.subject_id,
       }).filter((row) => Number(row.current) === 1 &&
@@ -567,19 +588,14 @@ function createMovieProductionReader(options) {
           bindingEvidenceDigest: row.evidence_digest,
         });
       });
-      const frozenRelated=related.map((item)=>({referenceId:item.referenceId,primaryMaterialKey:item.primaryMaterialKey,
-        role:item.role,materialKey:item.identity.materialKey,associationEvidenceDigest:item.associationEvidenceDigest,
-        dispositionBasisDigest:item.dispositionBasisDigest}));
-      if(canonicalJson(frozenRelated)!==canonicalJson(executionBasisRecord.relatedDispositionScope.items)||
-          executionBasisRecord.relatedDispositionScope.relatedReferenceSetDigest!==candidatePackage.relatedReferenceSetDigest||
-          executionBasisRecord.relatedDispositionScope.relatedDispositionScopeDigest!==candidatePackage.relatedDispositionScopeDigest)
-        fail('P14_MOVIE_PRODUCTION_RELATED_DRIFT','Related references differ from the frozen Run Basis.');
+      assertFrozenRelatedScope(input);
       return Object.freeze({
         run: Object.freeze({
           libraRunId: run.libra_run_id,
           subjectId: run.subject_id,
           acceptanceSpecId: run.acceptance_spec_id,
           executionBasisDigest: run.execution_basis_digest,
+          ...(executionBasisRecord.episodeMetadataMappingRef ? { episodeMetadataMappingRef: executionBasisRecord.episodeMetadataMappingRef } : {}),
           runScopeDigest: run.run_scope_digest,
           state: run.state,
           stateRevision: Number(run.state_revision),
@@ -614,6 +630,17 @@ function createMovieProductionReader(options) {
   }
   function readRun(libraRunId) { return readRunInternal(libraRunId, true); }
   function readRunSnapshot(libraRunId) { return readRunInternal(libraRunId, false); }
+  function readDeliveryPresentation(libraRunId) {
+    return exact(context => {
+      const input = readRunInputs(context.repository(repository.repositoryId), libraRunId, false);
+      assertFrozenRelatedScope(input);
+      const seasonNumber = frozenSeriesSeasonNumber(input);
+      return Object.freeze({ libraRunId, seasonNumber,
+        episodeKeys: Object.freeze([...input.episodeClaims.keys()].sort((left, right) =>
+          Buffer.compare(Buffer.from(left), Buffer.from(right)))),
+        physicalFileCount: input.mappedMembers.filter(member => member.role === 'primary_payload').length });
+    });
+  }
 
   function readFact(libraRunId, factKind, factRevision = 1) {
     return exact((context) => {
@@ -854,6 +881,7 @@ function createMovieProductionReader(options) {
     readDeliveryReceipt,
     readRun,
     readRunSnapshot,
+    readDeliveryPresentation,
     readWorkspace,
     readWorkspaceRevision,
   });

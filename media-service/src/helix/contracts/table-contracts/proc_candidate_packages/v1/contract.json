@@ -133,6 +133,26 @@
       },
       {
         "ordinal": 12,
+        "name": "series_source_refs_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 13,
+        "name": "series_source_refs_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 14,
         "name": "structure_kind",
         "logicalType": "TEXT",
         "enumValues": [
@@ -145,7 +165,7 @@
         "nullable": false
       },
       {
-        "ordinal": 13,
+        "ordinal": 15,
         "name": "display_identity",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -155,7 +175,7 @@
         "nullable": false
       },
       {
-        "ordinal": 14,
+        "ordinal": 16,
         "name": "identity_metadata_schema_ref",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -165,7 +185,7 @@
         "nullable": false
       },
       {
-        "ordinal": 15,
+        "ordinal": 17,
         "name": "identity_metadata_json",
         "logicalType": "TEXT_JSON",
         "enumValues": [],
@@ -175,7 +195,7 @@
         "nullable": false
       },
       {
-        "ordinal": 16,
+        "ordinal": 18,
         "name": "identity_metadata_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -185,7 +205,7 @@
         "nullable": false
       },
       {
-        "ordinal": 17,
+        "ordinal": 19,
         "name": "identity_claim_schema_ref",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -195,7 +215,7 @@
         "nullable": false
       },
       {
-        "ordinal": 18,
+        "ordinal": 20,
         "name": "identity_claim_json",
         "logicalType": "TEXT_JSON",
         "enumValues": [],
@@ -205,7 +225,7 @@
         "nullable": false
       },
       {
-        "ordinal": 19,
+        "ordinal": 21,
         "name": "identity_claim_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -215,7 +235,7 @@
         "nullable": false
       },
       {
-        "ordinal": 20,
+        "ordinal": 22,
         "name": "structure_evidence_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -225,7 +245,7 @@
         "nullable": false
       },
       {
-        "ordinal": 21,
+        "ordinal": 23,
         "name": "structure_evidence_payload_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -235,7 +255,7 @@
         "nullable": false
       },
       {
-        "ordinal": 22,
+        "ordinal": 24,
         "name": "structure_unit_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -245,7 +265,7 @@
         "nullable": false
       },
       {
-        "ordinal": 23,
+        "ordinal": 25,
         "name": "structure_unit_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -255,7 +275,7 @@
         "nullable": false
       },
       {
-        "ordinal": 24,
+        "ordinal": 26,
         "name": "triage_rule_ref",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -265,7 +285,7 @@
         "nullable": false
       },
       {
-        "ordinal": 25,
+        "ordinal": 27,
         "name": "triage_rule_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -275,7 +295,7 @@
         "nullable": false
       },
       {
-        "ordinal": 26,
+        "ordinal": 28,
         "name": "triage_rule_authority_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -285,7 +305,7 @@
         "nullable": false
       },
       {
-        "ordinal": 27,
+        "ordinal": 29,
         "name": "primary_input_manifest_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -295,7 +315,7 @@
         "nullable": false
       },
       {
-        "ordinal": 28,
+        "ordinal": 30,
         "name": "manifest_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -305,7 +325,7 @@
         "nullable": false
       },
       {
-        "ordinal": 29,
+        "ordinal": 31,
         "name": "related_reference_set_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -315,7 +335,7 @@
         "nullable": false
       },
       {
-        "ordinal": 30,
+        "ordinal": 32,
         "name": "related_disposition_scope_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -325,7 +345,7 @@
         "nullable": false
       },
       {
-        "ordinal": 31,
+        "ordinal": 33,
         "name": "member_control_evidence_set_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -335,7 +355,7 @@
         "nullable": false
       },
       {
-        "ordinal": 32,
+        "ordinal": 34,
         "name": "package_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -345,7 +365,7 @@
         "nullable": false
       },
       {
-        "ordinal": 33,
+        "ordinal": 35,
         "name": "state",
         "logicalType": "TEXT",
         "enumValues": [
@@ -357,7 +377,7 @@
         "nullable": false
       },
       {
-        "ordinal": 34,
+        "ordinal": 36,
         "name": "published_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -446,6 +466,13 @@
         "requiresJsonValidCheck": true
       },
       {
+        "column": "series_source_refs_json",
+        "schemaRefColumn": "series_source_refs_schema_ref",
+        "maxBytes": 16384,
+        "source": "table-row",
+        "requiresJsonValidCheck": true
+      },
+      {
         "column": "identity_metadata_json",
         "schemaRefColumn": "identity_metadata_schema_ref",
         "maxBytes": 65536,
@@ -484,13 +511,13 @@
       "`INDEX(state,published_at_ms)`"
     ],
     "rawContract": {
-      "columns": "`candidate_package_id PK, procurement_run_id FK, package_revision, field_id, field_access_revision, field_context_digest, media_type(single|group), content_profile(movie|series|jav|western_adult), material_input_form(stream_file|bdmv|dvd|iso|jav_named_parts), jav_part_set_schema_ref NULL, jav_part_set_json NULL, structure_kind(single|season), display_identity, identity_metadata_schema_ref, identity_metadata_json, identity_metadata_digest, identity_claim_schema_ref, identity_claim_json, identity_claim_digest, structure_evidence_id, structure_evidence_payload_digest, structure_unit_id, structure_unit_digest, triage_rule_ref, triage_rule_revision, triage_rule_authority_digest, primary_input_manifest_id, manifest_digest, related_reference_set_digest, related_disposition_scope_digest, member_control_evidence_set_digest, package_digest, state, published_at_ms`",
+      "columns": "`candidate_package_id PK, procurement_run_id FK, package_revision, field_id, field_access_revision, field_context_digest, media_type(single|group), content_profile(movie|series|jav|western_adult), material_input_form(stream_file|bdmv|dvd|iso|jav_named_parts), jav_part_set_schema_ref NULL, jav_part_set_json NULL, series_source_refs_schema_ref NULL, series_source_refs_json NULL, structure_kind(single|season), display_identity, identity_metadata_schema_ref, identity_metadata_json, identity_metadata_digest, identity_claim_schema_ref, identity_claim_json, identity_claim_digest, structure_evidence_id, structure_evidence_payload_digest, structure_unit_id, structure_unit_digest, triage_rule_ref, triage_rule_revision, triage_rule_authority_digest, primary_input_manifest_id, manifest_digest, related_reference_set_digest, related_disposition_scope_digest, member_control_evidence_set_digest, package_digest, state, published_at_ms`",
       "constraints": "JAV named-parts variant必须保存完整有序实际成员JavPartSet，schema ref为`helix://implementation/procurement/JavPartSet/v1`且JCS≤16 KiB；其他variant两列NULL；Identity Metadata/Claim JSON在Series各≤`64 KiB`，其他Profile各≤`16 KiB`；完整来源提示与摘要保持，Foundation Result仍≤`64 KiB`；`UNIQUE(procurement_run_id,package_revision)`且revision必须等于Run head CAS后的值；Field Context、Profile/mediaType/structure/Identity/Unit/Rule/Manifest/Control/Related必须与完整CandidateDraft逐项一致；`seasonContinuityClaimSetDigest`由immutable `proc_candidate_season_continuity_claims`、Related的set/scope digest均由immutable `proc_candidate_related_references`按8.6.18唯一公式重建，不新增opaque JSON或旁读；published内容immutable；Publication必须与Manifest、Episode Claim/完整Related relation、对应`proc_run_materials → candidate_delivery`、Offer/Outbox、typed Result/marker同事务成立；`INDEX(state,published_at_ms)`"
     },
     "source": {
       "section": "8.5.11",
-      "line": 9541,
-      "lineDigest": "4d5b443ef16a39251cf5a321596543e439b2d5dcb2b78382dcd62a28c88a8b47"
+      "line": 9543,
+      "lineDigest": "1ad51b0cd41f94e17b0c6543307e4b90cc695f4f954df728174ee7531410a792"
     },
     "foreignKeys": [
       {

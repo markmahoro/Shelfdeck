@@ -1,4 +1,5 @@
 'use strict';
+const { observationBelongsToGeneration } = require('../model/field-reset-barrier');
 
 const OPEN_WORK_STATES = new Set(['admitted', 'ready', 'running', 'blocked']);
 const PAGE_BUDGET = 256;
@@ -70,7 +71,8 @@ function createFieldObservationAutomation(options) {
     if (!['movie','series','jav','western_adult','mixed'].includes(field.currentProfileHintSnapshot?.contentProfileHint)) {
       return Object.freeze({ kind: 'unsupported_profile', fieldId });
     }
-    const works = observationWorks(fieldId);
+    const barrier = options.materialFieldStore.getResetBarrier(fieldId);
+    const works = observationWorks(fieldId).filter(work => observationBelongsToGeneration(work.work_id, barrier));
     const open = works.find((work) => OPEN_WORK_STATES.has(work.state));
     if (open) return Object.freeze({ kind: 'in_progress', fieldId, observationWorkId: open.work_id });
     // Terminal partial rounds are immutable history, not live concurrency guards.

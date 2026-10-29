@@ -1,9 +1,10 @@
 'use strict';
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
-const { buildEpisodeMetadataScope } = require('../../../contracts/episode-metadata-scope');
+const { seriesMetadataScopes } = require('../model/series-metadata-scopes');
 const {
   buildMetadataFetchIntent,
+  selectSeriesMediaCastObservation,
 } = require('../model/product-fact-contracts');
 
 const METADATA_RESULT =
@@ -136,6 +137,10 @@ function providerSource(options, snapshot, identity, sourcePriority,
     providerKind: providerIdentity.provider,
     ...(snapshot.spec.contentProfile==='jav'?{javSelectedSource:require('../../../contracts/jav-selected-source').buildJavSelectedSource(identity.factValue.javSourceQualification)}:{}),
   };
+  if (episodeScope && snapshot.run.episodeMetadataMappingRef) {
+    const query = require('../model/episode-metadata-selection').resolveEpisodeMetadataQuery(options, snapshot, identity, episodeScope);
+    if (query) seed.episodeMapping = query;
+  }
   let handle;
   try {
     // This is the creation boundary for a new immutable source Work. Ask
@@ -175,44 +180,48 @@ function nextMetadataStage(options, snapshot, identity) {
   const globalRequiredFields = requiredFields.filter(field => !series || !field.startsWith('episode_'));
   const globalResults = results.filter(item => !item.result.episodeScope);
   const globalStage = metadataScopeStage(options, snapshot, identity, results, globalResults,
-    globalRequiredFields, requiredCastRoles);
+    globalRequiredFields, series ? [] : requiredCastRoles);
   if (globalStage.kind !== 'ready') return globalStage;
+  const castSource = series ? selectSeriesMediaCastObservation(results.map(item => item.result)) : null;
+  const selectedRoles = observedMediaCastRoles(castSource ? [{ result: castSource }] : []);
+  const missingEpisodeCastRoles = requiredCastRoles.filter(role => !selectedRoles.has(role));
   for (const episodeScope of scopes) {
     const scopedResults = results.filter(item => item.result.episodeScope &&
       canonicalDigest(item.result.episodeScope) === canonicalDigest(episodeScope));
     const episodeRequiredFields = [...new Set(['episode_number', 'season_number',
       ...requiredFields.filter(field => field.startsWith('episode_'))])].sort(compare);
     const stage = metadataScopeStage(options, snapshot, identity, results, scopedResults,
-      episodeRequiredFields, [], episodeScope);
+      episodeRequiredFields, castSource ? [] : missingEpisodeCastRoles, episodeScope);
+    // A source with no cast is not a fabricated success. Examine the remaining
+    // frozen Episodes before concluding that no representative cast exists.
+    if (stage.kind === 'unresolved' && stage.missingFields.length === 0 && stage.missingCastRoles.length > 0) continue;
     if (stage.kind !== 'ready') return stage;
   }
+  if (series && missingEpisodeCastRoles.length) return Object.freeze({ kind:'unresolved',
+    reasonCode:'product_metadata_required_cast_missing', requiredFields, missingFields:[],
+    requiredCastRoles, missingCastRoles:missingEpisodeCastRoles, results });
   return Object.freeze({ kind:'ready', requiredFields, missingFields:[], requiredCastRoles, missingCastRoles:[], results });
 }
 
-function seriesMetadataScopes(snapshot, identity) {
-  const provider = identity.factValue.providerIdentities.find(item => item.namespace === 'tmdb_series');
-  if (!provider) throw new Error('Series metadata requires the resolved Season identity.');
-  const keys = snapshot.spec.productScope.episodeKeys;
-  const claims = snapshot.episodeClaims.map(item => item.episodeKey);
-  if (!keys.length || canonicalDigest(keys) !== canonicalDigest(claims))
-    throw new Error('Series metadata delivery scope differs from the frozen Run manifest.');
-  return Object.freeze(keys.map(episodeKey => buildEpisodeMetadataScope({ episodeKey,
-    seasonNumber:provider.seasonNumber, episodeNumber:Number(episodeKey.slice(1)) })));
-}
 
 function metadataScopeStage(options, snapshot, identity, allResults, results, requiredFields,
   requiredCastRoles, episodeScope) {
+  const confirmedMapping=episodeScope&&snapshot.run.episodeMetadataMappingRef
+    ?require('../model/episode-metadata-selection').resolveEpisodeMetadataQuery(options,snapshot,identity,episodeScope):null;
+  if(confirmedMapping&&results.some(item=>item.result.sourceKind!=='provider'))
+    throw Object.assign(new Error('Confirmed Episode metadata cannot use an unconfirmed source.'),{code:'LIBRA_EPISODE_MAPPING_AUTHORITY_REQUIRED'});
   const observed = observedFieldKeys(results);
   const observedCastRoles = observedMediaCastRoles(results);
   const missingFields = requiredFields.filter((field) => !observed.has(field));
   const missingCastRoles = requiredCastRoles.filter((role) =>
     !observedCastRoles.has(role));
   if (results.length > 0 && missingFields.length === 0 &&
-      missingCastRoles.length === 0) {
+      missingCastRoles.length === 0 && (snapshot.spec.contentProfile!=='series'||episodeScope||
+        results.some(item=>item.result.seriesPresentationSource))) {
     return Object.freeze({ kind:'ready', requiredFields, missingFields,
       requiredCastRoles, missingCastRoles, results });
   }
-  const references = (snapshot.spec.contentProfile==='jav'?[]:nfoReferences(snapshot)).filter(reference => !episodeScope ||
+  const references = (snapshot.spec.contentProfile==='jav'||confirmedMapping?[]:nfoReferences(snapshot)).filter(reference => !episodeScope ||
     snapshot.members.some(member => member.materialKey === reference.primaryMaterialKey &&
       member.episodeClaims?.some(claim => claim.episodeKey === episodeScope.episodeKey)));
   const usedNfoRefs = new Set(results
@@ -229,6 +238,8 @@ function metadataScopeStage(options, snapshot, identity, allResults, results, re
     return Object.freeze({ kind:'unresolved',
       reasonCode:missingFields.length > 0
         ? 'product_metadata_required_fields_missing'
+        :snapshot.spec.contentProfile==='series'&&!episodeScope&&!results.some(item=>item.result.seriesPresentationSource)
+          ? 'series_presentation_basis_missing'
         : 'product_metadata_required_cast_missing',
       requiredFields, missingFields, requiredCastRoles, missingCastRoles,
       results });

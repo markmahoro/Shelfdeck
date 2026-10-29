@@ -234,6 +234,11 @@ function buildRunExecutionBasis(value) {
       standardDigest: digest(shelf.standardDigest, 'standardDigest') },
     productionMaterialManifest: manifest, relatedDispositionScope
   };
+  if (value.episodeMetadataMappingRef !== undefined) {
+    if (subject.contentProfile !== 'series') fail('P9_RUN_BASIS_MAPPING_PROFILE', 'Only a Series Run may bind Episode metadata mapping.');
+    basis.episodeMetadataMappingRef = require('../../../contracts/episode-metadata-mapping-reference')
+      .buildEpisodeMetadataMappingReference(value.episodeMetadataMappingRef);
+  }
   basis.executionBasisDigest = canonicalDigest(basis);
   if (value.executionBasisDigest !== undefined && value.executionBasisDigest !== basis.executionBasisDigest)
     fail('P9_RUN_BASIS_DIGEST', 'Execution Basis digest is invalid.');

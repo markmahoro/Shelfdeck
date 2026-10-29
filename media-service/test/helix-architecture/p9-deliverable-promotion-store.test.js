@@ -919,3 +919,25 @@ test('Off-load target persistence round-trips the full canonical list and rolls 
     assert.equal(db.prepare('SELECT count(*) AS count FROM libra_offload_context_materials').get().count,2);
   }finally{db.close();}
 }));
+
+
+test('administrative retirement closes a genuinely published but unobserved Offer through exact public delivery proof', () =>
+  withDatabase(value => {
+    const { createArcaFormationRetirementStore } = require('../../src/helix/domains/arca/public');
+    const store = createDeliverablePromotionStore({ schemaManifest, unitOfWork: value.unitOfWork });
+    store.publish(request(value));
+    const delivery = createProductDeliveryReader({ schemaManifest, unitOfWork: value.unitOfWork });
+    const query = readRequest(value), proof = delivery.readPackage(query);
+    const arca = createArcaFormationRetirementStore({ schemaManifest, unitOfWork: value.unitOfWork, readPublishedProduct: delivery.readPackage });
+    const command = { retirementId:'reset-unobserved',offerId:query.offerId,packageId:query.onDeckPackageId,
+      packageRevision:query.expectedPackageRevision,packageDigest:query.expectedPackageDigest,
+      expectedSnapshotDigest:arca.inspect(query.offerId,query.onDeckPackageId).snapshotDigest,
+      expectedDeliveryReadDigest:proof.readDigest,backupDigest:canonicalDigest({backup:1}),manifestDigest:canonicalDigest({manifest:1}) };
+    assert.throws(() => arca.commit({...command,expectedDeliveryReadDigest:'f'.repeat(64)}), {code:'ARCA_RETIREMENT_OFFER_UNOBSERVED'});
+    const result=arca.commit(command);
+    assert.equal(result.receipt.resultRef.deliveryReadDigest,proof.readDigest);
+    assert.equal(arca.commit(command).replayed,true);
+    assert.equal(arca.inspect(query.offerId,query.onDeckPackageId).decisions.length,0,'No Handoff decision is fabricated');
+    assert.equal(arca.readRetirementProof([{offerId:query.offerId,packageId:query.onDeckPackageId,packageDigest:query.expectedPackageDigest}])[0].disposition,'administratively_retired');
+    assert.equal(arca.retiredAdmission({offerId:query.offerId,onDeckPackageId:query.onDeckPackageId,packageDigest:query.expectedPackageDigest}).kind,'administratively_retired');
+  }));

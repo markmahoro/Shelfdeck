@@ -62,6 +62,15 @@
             "minLength": 1,
             "pattern": "^[a-f0-9]{64}$"
           },
+          "sharedScopeId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "sharedVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
           "materialRole": {
             "type": "string",
             "enum": [
@@ -127,7 +136,8 @@
             "type": "string",
             "enum": [
               "exclusive_primary",
-              "release_related_then_delete_if_unreferenced"
+              "release_related_then_delete_if_unreferenced",
+              "series_last_reference"
             ]
           },
           "memberDigest": {
@@ -151,9 +161,45 @@
           "controlProjectionDigest",
           "deleteCondition",
           "memberDigest"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "deleteCondition": {
+                  "const": "series_last_reference"
+                }
+              },
+              "required": [
+                "deleteCondition"
+              ]
+            },
+            "then": {
+              "required": [
+                "sharedScopeId",
+                "sharedVersion"
+              ]
+            },
+            "else": {
+              "not": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "sharedScopeId"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "sharedVersion"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
         ]
       },
-      "maxItems": 1024
+      "maxItems": 1027
     },
     "memberSetDigest": {
       "type": "string",

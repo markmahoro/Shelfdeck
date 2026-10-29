@@ -115,7 +115,7 @@ function tmdbFetch(state = {}) {
         pathname: url.pathname,
         usesProxy: Boolean(init?.dispatcher),
       });
-      return response(200, null, [0xff, 0xd8, 0xff, 0xd9]);
+      return response(state.imageStatus || 200, null, state.imageBytes?.[url.pathname] || [0xff, 0xd8, 0xff, 0xd9]);
     }
     if (!authorized) return response(401, { status_code: 7 });
     state.calls ||= [];
@@ -137,7 +137,12 @@ function tmdbFetch(state = {}) {
         results: [{ id: 550, title: 'Fight Club' }],
       });
     }
-    if (url.pathname === '/3/movie/550/images') {
+    if (url.pathname === '/3/tv/1399') return response(200, { id: state.foreignEpisodeShow ? 999 : 1399, name: 'Fixture show' });
+    if (url.pathname === '/3/tv/1399/season/0') return response(state.episodeSeasonStatus || 200, { season_number: 0, episodes: [{
+      id: 90001, show_id: state.foreignEpisode ? 999 : 1399, season_number: 0, episode_number: 1,
+      name: 'Fixture special', air_date: '2011-12-25', overview: 'Individually observed special',
+    }] });
+    if (url.pathname === '/3/movie/550/images' || url.pathname === '/3/tv/1399/images') {
       return response(200, {
         posters: [{
           aspect_ratio: 0.667,
@@ -930,6 +935,18 @@ test('H1.1 Platform ports fence real TMDB identity and metadata reads across res
     assert.equal(artifact.artifactKind, 'poster');
     assert.equal(artifact.mediaType, 'image/jpeg');
     assert.ok(Buffer.isBuffer(artifact.bytes));
+    state.imageStatus = 503;
+    await assert.rejects(runtime.fetchProviderArtifact({
+      operationId: 'libra.product_artifact.acquire@1', artifactKind: 'poster',
+      resolvedProviderIdentity, integrationHandle: artifactHandle,
+    }), error => {
+      assert.equal(error.details?.statusCode, 503);
+      assert.equal(error.details?.stage, 'image_request');
+      assert.equal(error.details?.causeCode, 'PLATFORM_INTEGRATION_HTTP_FAILED');
+      assert.equal(JSON.stringify(error.details).includes(credential), false);
+      return true;
+    });
+    state.imageStatus = 200;
     const aftercareArtifactHandle = runtime.integrationHandleResolverPort.resolve({
       integrationId: 'tmdb-main',
       integrationType: 'tmdb',
@@ -956,6 +973,89 @@ test('H1.1 Platform ports fence real TMDB identity and metadata reads across res
       state.calls.every((call) => call.usesProxy));
     assert.ok(state.imageCalls.length > 0 &&
       state.imageCalls.every((call) => call.usesProxy));
+    const seriesObservationHandle = runtime.integrationHandleResolverPort.resolve({
+      integrationId: 'tmdb-main',
+      integrationType: 'tmdb',
+      configRevision: 1,
+      allowedOperation: 'arca.series_presentation.source.observe@1',
+      artifactKind: null,
+    });
+    assert.equal(seriesObservationHandle.allowedOperation, 'arca.series_presentation.source.observe@1');
+    const seriesSourceArtifactHandle = runtime.integrationHandleResolverPort.resolve({
+      integrationId: 'tmdb-main',
+      integrationType: 'tmdb',
+      configRevision: 1,
+      allowedOperation: 'arca.series_presentation.source.observe@1',
+      artifactKind: 'poster',
+    });
+    assert.equal(seriesSourceArtifactHandle.allowedOperation, 'arca.series_presentation.source.observe@1');
+    assert.notEqual(seriesSourceArtifactHandle.handleId, seriesObservationHandle.handleId);
+    const seriesAssetsArtifactHandle = runtime.integrationHandleResolverPort.resolve({
+      integrationId: 'tmdb-main',
+      integrationType: 'tmdb',
+      configRevision: 1,
+      allowedOperation: 'arca.series_presentation.assets.prepare@1',
+      artifactKind: 'fanart',
+    });
+    assert.equal(seriesAssetsArtifactHandle.allowedOperation, 'arca.series_presentation.assets.prepare@1');
+    const localIdentity = { provider: 'tmdb', namespace: 'tmdb_series', providerKey: '1399', seasonNumber: 2 };
+    localIdentity.identityAnchorDigest = canonicalDigest(localIdentity);
+    const episodeInput = { resolvedProviderIdentity: localIdentity, providerSeasons: [0] };
+    const candidates = await runtime.observeEpisodeMetadataCandidates(episodeInput);
+    assert.equal(candidates.integrationId, 'tmdb-main'); assert.equal(candidates.configRevision, 1);
+    assert.equal(candidates.episodes[0].providerEpisode.seasonNumber, 0);
+    assert.equal(candidates.episodes[0].providerEpisode.episodeId, 90001);
+    assert.equal(Object.hasOwn(candidates, 'choices'), false);
+    const evidenceCalls = state.calls.length;
+    await assert.rejects(runtime.observeEpisodeMetadataCandidates({ ...episodeInput, providerSeasons: [0, 0] }),
+      error => error.code === 'PLATFORM_TMDB_IDENTITY_INVALID' || error.details?.causeCode === 'PLATFORM_TMDB_IDENTITY_INVALID');
+    assert.equal(state.calls.length, evidenceCalls, 'invalid candidate request cannot perform Provider IO');
+    state.episodeSeasonStatus = 404;
+    await assert.rejects(runtime.observeEpisodeMetadataCandidates(episodeInput), error =>
+      error.code === 'PLATFORM_INTEGRATION_HTTP_FAILED' || error.details?.causeCode === 'PLATFORM_INTEGRATION_HTTP_FAILED');
+    state.episodeSeasonStatus = 200; state.foreignEpisode = true;
+    await assert.rejects(runtime.observeEpisodeMetadataCandidates(episodeInput), error =>
+      error.code === 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID' || error.details?.causeCode === 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID');
+    state.foreignEpisode = false; state.foreignEpisodeShow = true;
+    await assert.rejects(runtime.observeEpisodeMetadataCandidates(episodeInput), error =>
+      error.code === 'PLATFORM_TMDB_IDENTITY_MISMATCH' || error.details?.causeCode === 'PLATFORM_TMDB_IDENTITY_MISMATCH');
+    state.foreignEpisodeShow = false;
+    // Exercise the production Host composition, not just Handle issuance or
+    // an adapter port selected by the test. Only HTTP transport is controlled.
+    const sharp = require('sharp');
+    const source = runtime.resolveSeriesImageSource({providerKey:'1399',language:'zh-CN'});
+    for (const artifactKind of ['poster', 'fanart']) {
+      const imagePath = '/' + artifactKind + '.jpg';
+      const bytes = await sharp({create:{width:artifactKind==='poster'?80:120,
+        height:artifactKind==='poster'?120:80,channels:3,background:'#334455'}}).jpeg().toBuffer();
+      state.imageBytes ||= {};
+      state.imageBytes['/t/p/original' + imagePath] = bytes;
+      const jsonBefore = state.calls.length, imagesBefore = state.imageCalls.length;
+      const observed = await runtime.fetchSeriesPresentationArtifact({
+        operationId:'arca.series_presentation.source.observe@1',source,artifactKind,
+      });
+      assert.equal(observed.imagePath, imagePath);
+      assert.equal(observed.sourceDigest, source.qualificationDigest);
+      assert.deepEqual(observed.bytes, bytes);
+      const prepared = await runtime.fetchSeriesPresentationArtifact({
+        operationId:'arca.series_presentation.assets.prepare@1',source,artifactKind,imagePath:observed.imagePath,
+      });
+      assert.deepEqual(prepared.bytes, bytes);
+      assert.equal((await sharp(prepared.bytes).metadata()).format, 'jpeg');
+      assert.deepEqual(state.calls.slice(jsonBefore).map(call=>call.pathname), ['/3/tv/1399/images']);
+      assert.deepEqual(state.imageCalls.slice(imagesBefore).map(call=>call.pathname),
+        ['/t/p/original' + imagePath, '/t/p/original' + imagePath]);
+    }
+    assert.throws(
+      () => runtime.integrationHandleResolverPort.resolve({
+        integrationId: 'tmdb-main',
+        integrationType: 'tmdb',
+        configRevision: 1,
+        allowedOperation: 'libra.product_metadata.fetch@1',
+        artifactKind: 'poster',
+      }),
+      (error) => error.code === 'PLATFORM_INTEGRATION_HANDLE_INVALID',
+    );
     assert.throws(
       () => runtime.integrationHandleResolverPort.resolve({
         integrationId: 'tmdb-main',
@@ -1538,8 +1638,8 @@ test('H1.1 source and route inventory prove no production fixture or scope expan
   assert.doesNotMatch(hostSource, /formation\.contentProfile/);
   const guard = require('../../scripts/p14-h1-change-scope-guard');
   assert.deepEqual(guard.routeImplementationStatus().counts, {
-    total:164,
-    real:142,
+    total:168,
+    real:146,
     workerBeta404: 6,
     unavailable503: 16,
   });

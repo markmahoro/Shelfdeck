@@ -1,5 +1,74 @@
 # ShelfDeck 当前计划
 
+2026-10-27 当前执行FORMATION-HISTORICAL-SERIES-PROJECTION：生产真实completed列表500已复现，其余四个工作区数据入口正常。修正Libra不可变展示读取与当前执行资格的边界，保留执行强校验；完成真实Host/缺权限/冻结证据负例、具体UI与固定候选资格后沿标准停止态备份发布，不再次Reset或改生产任务。
+
+本轮部署、Fresh Reset、People闭包纠正及恢复供给已执行并核验，新Series/US实际推进；生产保持running，不再Reset或重建观察。FORMATION-HISTORICAL-SERIES-PROJECTION作为明确未关闭项承接：历史展示读取不可变事实，不恢复旧在途责任，不弱化执行Reader。Actor/Provider映射/体积由用户决定，高达/凡人歌等待自然采购；不宣称整体Phase Exit。详见最新Status/Evidence。
+
+当前追加工作项RESET-PEOPLE-REFERENCE-CLOSURE：根因修复、精确保留事实纠正及保护负例已实现，完成固定候选全量/平台/NAS资格后，按既有恢复目标部署并补回18条原登记，核验新事实与收藏保护，按用户追加授权仅取消这3条技术失败并保留历史，等待正常重采，再Resume验证真实新流程。生产保持停止，不再次Reset或增加日常兼容分支。
+
+2026-10-27 01:48Z 新生产回归阻断（覆盖上方/下方恢复成功检查点）：恢复后3个新US任务均frozen，失败码PEOPLE_IMAGE_ARTIFACT_CHANGED。只读前后对比证实：Reset前18个active people_reference_faces均有active embedding Artifact，Reset后这18条Registry行缺失；图片Artifact仍18条正常。Owner保留策略只声明people_reference_assets.artifact_handle_id，遗漏people_reference_faces.embedding_handle_id，而原库没有People fx_artifact_references记录，FK检查无法发现该opaque引用遗漏。18个物理特征文件/48,996字节SHA全部与原备份一致，691收藏保护仍通过。此为本轮Reset缺陷，不能记为全面恢复正常或业务待确认。01:44:55.318Z正式Stop完成：revision34/stopped/quiesced/所有inFlight0/error=null，operation3b4ac11e5c4270be038b2540c5bdaf0b36202866bc3192b546029d005d046133。继续补People所需的必选Artifact闭包和负例验证，并准备从校验备份精确恢复18条登记的停止态副本方案；不再次清空已生成的新任务，不直接编辑运行库，不重建自动观察。修复及恢复后仍须正常Resume与真实新任务验证，目标尚未完成。
+
+2026-10-27 本轮生产部署、Fresh-generation Reset和恢复供给均已执行，独立691收藏/完整依赖/文件保护通过。当前完成有限分时运行核验和交付记录；未确认Provider映射、演员选择、体积瑕疵及高达/凡人歌自然采购验收继续开放，不以清空工作台关闭业务验收。4K忙载吞吐和启动风暴仍独立承接，定时观察不恢复。最新实际结果见CURRENT_STATUS；下方未部署/未Reset/最终保持停止均为历史检查点。
+
+2026-10-27 最终候选b0c32d0e9已通过完整门禁并完成标准生产部署，停在冷态管理模式。当前执行授权范围内的正式Reset预检→确认→新代际切换/清理→收藏和文件保护核验→正式Resume→实际业务推进核验。Actor/体积瑕疵及未确认季集映射不代选；高达/凡人歌不强制采购，定时观察不恢复。具体状态见CURRENT_STATUS；代码和发布门禁通过不能代替生产Reset/Resume完成。
+
+2026-10-27 用户已授权 vol1清理、生产部署及 Fresh Reset，并追加成功后恢复正常生产。固定101ce2fe0全量门禁、具体版本UI及NAS隔离资格已通过；按精确容量整理→安全Stop→完整冷备→标准部署冷态管理→正式Reset→收藏/文件保护核验→正式Resume→实际业务推进检查执行。Resume前必须完成核验；自动观察不重建。下方“授权待定/最终保持停止”均为此前时点，不再是本次最终交付约束。
+
+本轮 Reset 实施补齐：终态 Libra Workspace 以 Owner 冷态归档回执区分历史证据与当前占用；原状态不改写，物理清理另凭真实 Receipt。生产副本首次清理预检已正确阻断历史状态不一致，最终文件演练和候选全量资格仍开放，详见 CURRENT_STATUS 与发布审查材料。
+
+2026-10-27 最终资格推进：新 Reset、显式季集映射及真实新任务旅程已实现。固定版本 UI 与混合收藏完整 Reset 通过，继续完成 NAS 大表摘要有界内存验证、部署前完整冷备顺序与固定候选门禁。保留首次失败证据；精确容量删除/生产部署/Reset 待具体材料确认，成功后仍停止。
+
+
+2026-10-27 实施推进：新 Reset 已替换正式 server 主流程，具备独立冷态管理及停止态重开；继续完成季集映射持久确认、容量精确清单、混合收藏/生产副本与固定版本资格。开发及隔离验证不扩展生产处置授权，最终清理/部署/Reset 材料仍须具体可审查后确认；不自动 Resume。
+
+2026-10-26 用户确认并要求实施“彻底Reset+本轮故障修复”：替换旧工作台退役为安全停机下的新数据库代际，在线仅保留正式收藏及Owner定义的必要依赖、配置；无关任务历史仅留经校验离线备份。清空未入藏Procurement队列至Arca未提交责任及专用临时空间，按当前来源文件重新观察，不回滚正式文件。季集差异本轮处理，保留本地编目，新增Libra持有的显式Provider资料映射。容量清理先列精确清单，生产删除/部署/Reset待具体材料确认；完成后保持停止，启动风暴独立讨论，自动观察已终止。
+
+
+2026-10-26 04:58 已完成五条共享资料、搜索、诊断证据、采购查询与Probe的本地修复资格；生产发布与六条线上重试仍待该范围授权。完整Architecture首跑及三项修正/复验均保留，不宣称一次全绿；候选运行代码/镜像b2dac98fc不变。补查确认庆余年来自Reset后才首次接纳的旧采购Offer，新增PROCUREMENT-QUEUED-OFFER-RETIREMENT Design，用户是否纳入本轮的合同方向待答复；当前129个排队Series包中114无新版引用，不等同114个已失败条目，不执行队列清理或再次Reset。
+
+2026-10-26 04:46 本轮实现冻结在b2dac98fc，镜像及Windows包资格已完成；完整Architecture基线0438334a4继续运行，采购/Probe增量独立验证。等待本轮具体生产发布/重试范围授权后才执行标准部署及五条剧集、地狱尖兵线上验收；当前不修改生产。唐顿/暗算季集映射待用户方向，琅琊榜需单条取消授权，庆余年已Accepted旧包没有现成安全单片Reset入口，不调用旧物理删除CLI或再次全量Reset。当前新增的第三条演员确认仍为人工选择。
+
+2026-10-26 用户要求继续修复13条attention：优先SERIES-PRESENTATION-PORT-WIRING，随后PROVIDER-EMPTY-SEARCH与PROVIDER-FAILURE-EVIDENCE；已完成现场诊断和红绿回归，继续固定候选资格。补查PROCUREMENT-TERMINAL-FAILURE-QUERY，消除无技术失败历史对当前采购的错误重建依赖，不加旧规则兼容。唐顿庄园S02/S06、暗算S01的本地/TMDB分集编号差异进入SERIES-EPISODE-NUMBERING待确认设计，不猜跨季映射或放宽缺剧情验收；琅琊榜和庆余年旧包处置单独确定，不复用走向共和的单条取消授权，不再全量Reset。MEDIA-PROBE-TS-CRASH已复现到无用户内容的全新TS；拒绝两个不合格替代artifact，固定Ubuntu Probe候选继续HEVC色彩/ISO/TS资格，不改变转码器、预算或验收标准。此次未部署或修改生产任务。
+
+2026-10-26 02:47 《走向共和》唯一获准的旧包取消已通过线上入口完成，历史、源文件状态和收藏保护复核通过；等待正常重采的新包验收，不强制调度或扩大到其他影片。
+
+2026-10-26 修复收口：EXECUTION-RECOVERY-RESERVATION-CLOSURE已在e78dbd82f生产真实执行验证，原Circuit解除且业务继续；SERIES-SOURCE-ABSOLUTE-ROOT已部署并通过真实NFO隔离回归，尚无修复后自然生成Series包的生产验收证据。旧冻结包处置需单独确认，新增外部检索失败及既有资料请求阻塞保留开放；不追加Reset，不关闭整轮真实媒体验收或4K吞吐事项。
+
+2026-10-26 EXECUTION-RECOVERY-RESERVATION-CLOSURE / SERIES-SOURCE-ABSOLUTE-ROOT 修复资格进行中：在线取消及独立Reset Operator在提交后交由Foundation核对恢复占用；普通启动/Resume补查当前recovering责任，只对精确匹配、Work/Attempt/Event均终态且无未决Effect/等待者的占用重新开放Circuit，保留Incident及发生次数，不伪造成功。采购构建Series sourceRoot改用物理路径join，保留读取端绝对路径/containment校验。真实Host已通过“阻塞媒体→正式Reset→仍停止→模拟通知丢失→重启→Resume→正常重采→真实FFmpeg探测和入藏→Circuit关闭”；首轮暴露独立Operator漏接，修正后通过。生产仍c91fbed63，未部署或再次Reset；完整门禁和镜像资格待完成。
+
+2026-10-26 恢复监控新增两项已诊断缺陷：EXECUTION-RECOVERY-RESERVATION-CLOSURE（取消/Reset漏释放Foundation恢复占用）与SERIES-SOURCE-ABSOLUTE-ROOT（新包绝对路径被相对Scope规范化剥去首斜杠）。当前仅完成只读证据与隔离复现，尚未实施修复或生产处置；沿唯一Phase承接，保持收藏/历史，不用再次Reset代替根因修复。
+
+2026-10-25 历史合同机制三项已完成实现、固定候选资格和生产切换，c91fbed63已部署并正式Resume。接续工作是恢复后业务监控、自然采购的剧集/高达/凡人歌验收及27项明确旧证据不足的审计承接；不再执行Reset，不扩充按发布版本的运行兼容分支。4K忙载吞吐按用户决定延后。
+
+2026-10-25 用户确认实施 EXECUTION-CONTRACT-EVIDENCE / STARTUP-RESPONSIBILITY-RECOVERY / HISTORICAL-AUDIT-CUTOVER：清理按版本累积的运行兼容分支，合同证据随数据保存，启动按当前责任闭包验证，独立历史审计；保留收藏/历史且不重复Reset。按合同→原子保存→当前恢复/历史审计→一次性迁入→副本及发布资格顺序实施。补档案候选不单独部署。
+
+2026-10-25 用户要求审视逐次升级累积历史兼容的机制。678687b8e补档案候选暂停发布；已确认全局Catalog绑定、全历史启动验真与全局阻断的耦合。下一步先确认持久合同证据、当前责任恢复与独立历史审计的边界，再实施机制修订；不擅自跳过验真或扩充兼容白名单。生产仍未恢复供给，既有Reset不重复。详见本轮Evidence最新节。
+
+2026-10-25 用户要求恢复运行并监控。首次 Resume 被历史合同验真阻断；先补齐精确 hostfix4 终态档案，验证完整副本正常 Resume，随后按标准入口部署修复并恢复。现有 Reset 已成功，不再重复；源目录旧失败提示需由新的正式观察结果验证恢复。真实媒体自然重采及4K忙载吞吐边界保持。
+
+2026-10-25 本轮标准生产部署及新版整体Reset已执行完成，收藏/历史22组摘要保护通过；生产保持stopped，不恢复采购或新整理。后续原剧集问题、高达/凡人歌等待正式新流程自然验收，不因Reset成功关闭媒体验收；4K忙载吞吐继续延后。生产事实与证据见CURRENT_STATUS和当前Phase。
+
+2026-10-23 最新授权：用户要求“生产部署，部署完执行新的Reset”。完成固定版本与真实副本资格后直接执行标准发布、所需精确结构切换及整工作台管理退役；当前225Subject/14Run范围、收藏/历史/源文件保护与完成后保持停止不变，不再重复申请同一操作授权。4K忙载吞吐明确延后，不阻塞本轮；已完成的查询/海报优化及诊断证据保留。高达/凡人歌生产自然重采验收仍开放。
+
+2026-10-23 追加确认：本轮纳入整剧共享根Placement迁移及停止态既有执行收尾。待Reset转码按终止路径收尾，无需完成转码；采购及新整理始终关闭。合同见SSOT，实施/验收沿唯一CURRENT_PHASE；生产操作仍单独授权。
+
+2026-10-23 用户已授权开始本轮实施，并要求先安全停机冻结生产。当前范围按最新会话替代下方接手建议：①剧集Handle/NFO修复与当前同类故障验证；②三段重试映射；③整体工作台Reset重新设计开发（不新增单片入口，不把运维scoped脚本当线上功能）；④生命周期终局/Projection根因；⑤高达/凡人歌隔离验证，等待自然采购的真实入藏不阻塞本轮交付且保持开放；⑥独立性能诊断与迭代，覆盖4K资源竞争、overview/Formation/收藏/海报，不沿用前序agent的诊断或P1–P4；⑦固定候选资格、发布与生产验收。生产Reset尚未执行；整体Reset若后续获准执行，范围包含当时所有符合条件的工作台条目，不能承诺保留其他active任务。先修可复现缺陷再处理旧数据。具体执行见唯一CURRENT_PHASE。
+
+2026-10-23 接手计划（只读诊断后建议，尚未实施/部署/Reset）：恢复原主线 `SERIES-PRESENTATION-HANDLE`、`RETRY-ACTION-MAPPING`、`FORMATION-RESET-WORKBENCH`。生产02:18–02:25核验仍为hostfix4，attention已变为14（12条剧集公共资料依赖、2条目标冲突）；先补齐Reset的ended历史保护交集并固定候选，再完成剧集/三段重试生产验收，仅为高达和凡人歌准备精确两项Reset及正常重采。`FORMATION-TERMINAL-CLOSURE`单列推进根因与新任务验收，不将旧198概括为材料全停摆或先全量清场：实时为197个active残留Subject，937个去重Primary/结构材料中660个在至少一个对应旧Run终态后有新Selection；旧组仍在Libra的41个材料已属其他Subject。197项历史处置待逐项闭包/保留证据后另定，保留14个active Run、其他attention、收藏及源文件。性能P1–P4与既有剧根离线补文件继续不纳入。执行顺序和退出条件见唯一[CURRENT_PHASE](implementation/CURRENT_PHASE.md)及[接手Evidence](implementation/evidence/FORMATION_TERMINAL_CLOSURE_DIAGNOSIS_20261023.md)。
+
+2026-10-22最终历史验真收口：回收原子提交后退出的输入漂移已修，4类真实重启、Service648/29 skip、Linux18、Windows独立Host均通过。生产副本定位6c当前Catalog未入终态档案：沿用Frozen Catalog History精确归档120执行合同/1324 Schema，仅验真终态，不允许旧在途继续；历史证明与Owner/active/篡改负例71 PASS。16个未Commit Subject的限定Reset只在独立副本预览ready，生产未执行；原样全副本启动FAIL保留。最终固定Gate及平台/UI资格继续，三UAT尚未关闭或发布。详见UAT-328 Evidence §23。
+
+2026-10-22最终资格追加：328真实上架、补图重试、缺项维护、跨季复用与共享退出均已接通；5eaf具体版本UI负责人38/38、Web258、Linux17、Windows包及真实浏览器通过。新增回收原子提交后进程退出复现输入漂移，正在以原登记修订稳定投影修复并重新冻结最终Gate。完整旧生产副本Host启动未通过，结构前向/反向复制及224业务表保护通过；不将隔离legacy-shape维护测试冒充完整生产副本资格。三项UAT开放，未部署/未Reset/未补写生产。详见UAT-328设计Evidence §22。
+
+2026-10-22恢复与退出收口：326跨TTL真实进程恢复、327真实1081媒体/65包/2Run继续有效；328完整上架/原任务补图重试/当前收藏缺项维护、部分Assets来源失效复用及旧Workspace回收、命令受理后admission前进程退出、最后季维护失败退出及批量全季退出均有实际Host证据。Web256 PASS，核心12 PASS；ab5f UI审查CHANGES_REQUIRED已修，等待新候选复验。精确225→231逐表保护/有损回退拒绝工具已补。当前136/115/231/61、149 inputs；最终固定Gate/平台/UI继续，未关闭UAT或发布。生产只读新预览为659历史Entry/13 active Season，三根三项全缺、另三根缺fanart；未补写生产，旧ABF-153仍executing。详见既有UAT-328 Evidence §20。
+
+2026-10-21追加运行链检查点：原任务重试/双图上传/真实视频上架、当前收藏缺图重试/单图上传/健康的完整浏览器旅程通过；两类写文件后人工重试、旧已Commit Season隔离软件修复、合格原来源只读复制与别剧资料拒用均有定向证据。新增共享健康head失效与空Workspace来源重评继续验证，当前136/115/231/61。沿用三项工作项；未关闭UAT、未发布、未改生产历史文件，最终资格与Source物化后的失败恢复收口仍继续。详见既有UAT-328设计Evidence §18。
+
+2026-10-21继续实施（尚未完成最终资格）：UAT-326新增真实进程退出后跨60秒Handle TTL恢复同一Identity Event、一次上架及再次重启不重复Commit演练通过；UAT-327真实Host对4star分类目录1081媒体形成65个完整季包和2个Run，文件/成员不重不漏。UAT-328已接通共享Supporting Work/Provider资格/字节配方/正式Control与Ready原子提交、Accepted预留与On-deck版本引用、原任务重试及上传、健康缺项修复/维护补图和Workspace回收；初始S03、跨季复用、同季加集、Workspace/正式文件真实进程退出、来源无图人工补图及真实N:M最后一季退出均取得定向证据。最后引用退出纳入原确认范围的三项共享文件，以持久retirement围栏阻止竞争准入；其他引用/Accepted预留保护共享文件。当前136 Capability/115 Result family/231表/60事务。最新追加代码仍在回归；三项UAT未关闭、未发布，旧生产收藏补齐预览/正式恢复、来源祖先资料资格、显式刷新及最终平台/UI/完整Gate仍继续。
+
+
+2026-10-21三项UAT已进入开发，首批产品提交`85ab5c7e1`。326/327首批修复与定向回归通过；328基础文本Basis/Provider、共享持久组件和文件层已开发，Supporting Work、正式Control/Commit及原条目恢复等运行链路尚未接通。沿用唯一CURRENT_PHASE，继续完整旅程与具体版本UI验收；未发布，生产保持6c74939646，无生产Reset或既有剧根补文件授权。下方此前待审文字为历史记录。
+
 2026-10-21当前承接：UAT-326/327处理方向已获用户确认，继续保留实施授权；用户新增UAT-328完整设计，已确认剧根tvshow.nfo、poster、fanart三项均必需。完整设计草案覆盖Provider剧/季/集scope、首次任意季、跨季/同季复用、Arca共享责任建议、并发恢复、维护退出及既有收藏修复。该职责/Handoff/Commit扩展尚待设计确认，未回写SSOT或改产品/生产；见[设计草案](implementation/evidence/UAT-328_SERIES_SHARED_PRESENTATION_DESIGN_20261021.md)，沿用唯一CURRENT_PHASE。
 
 2026-10-21 UAT-326/327处理方案审视完成：326优先复用Arca已有“冻结来源资格、执行时签短期Handle”的模式，并单独落实旧在途纯查询的正式收束/恢复；327需讨论撤销第一层目录不可拆，以共享本地完整分组规则及确定性分批替代，保留1024原子上限。当前无产品/SSOT或生产修改，未将方案记为确认；实施范围和验收见既有生命周期Evidence。

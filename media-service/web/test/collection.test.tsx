@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import CollectionPage from '../src/helix/CollectionPage';
 import { helixAdminApi, type CollectionEntry } from '../src/helix/api';
@@ -42,6 +42,68 @@ function renderCollection(url='/collection') {
 
 describe('Arca collection poster wall', () => {
   afterEach(() => vi.restoreAllMocks());
+
+  it('shows whole-Series scope and conflict, then retries through the existing check action',async()=>{
+    const season={...entry,structureKind:'season' as const,series:{seasonNumber:1,episodeCount:0,physicalFileCount:0,episodes:[]}};
+    let moving=false;
+    vi.spyOn(helixAdminApi,'listCollection').mockResolvedValue({items:[season]} as never);
+    vi.spyOn(helixAdminApi,'listPerceptionRecords').mockResolvedValue({items:[],nextCursor:null,currentRating:null});
+    vi.spyOn(helixAdminApi,'getCare').mockImplementation(async()=>({shelfEntryId:season.shelfEntryId,
+      health:{state:moving?'repairing':'attention_required'},basis:{inventoryRevision:1,standardRevision:1,placementRevision:2,careBasisDigest:'d'},
+      history:{assessments:[],findings:[],cases:[],commits:[]},
+      seriesRelocation:{state:moving?'in_progress':'attention_required',seasonCount:2,reasonCode:moving?null:'ARCA_SERIES_RELOCATION_UNKNOWN_MEMBER'}} as never));
+    const check=vi.spyOn(helixAdminApi,'checkCare').mockImplementation(async()=>{moving=true;return {} as never;});
+    renderCollection();fireEvent.click(await screen.findByRole('button',{name:/查看 The Shawshank Redemption 详情/}));
+    expect(await screen.findByText(/整剧目录移动未完成 · 2 季/)).toHaveTextContent('剧集目录中有未登记的文件或文件夹');
+    expect(screen.getByRole('button',{name:'退出收藏',exact:true})).toBeDisabled();
+    screen.getByRole('button',{name:'立即检查健康'}).focus();
+    fireEvent.click(screen.getByRole('button',{name:'立即检查健康'}));
+    expect(screen.getByRole('heading',{name:'收藏健康'})).toHaveFocus();
+    expect(await screen.findByText('正在移动整剧目录 · 2 季')).toBeInTheDocument();
+    expect(check).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button',{name:'立即检查健康'})).toBeDisabled();
+    expect(screen.queryByText(/整剧目录移动未完成/)).not.toBeInTheDocument();
+  });
+
+  it('refreshes all Season badges when the polled relocation completes without reloading unchanged state',async()=>{
+    vi.useFakeTimers();
+    try {
+      let complete=false;
+      const seasons=[1,2].map(number=>({...entry,shelfEntryId:`season-${number}`,displayIdentity:`Series Season ${number}`}));
+      const list=vi.spyOn(helixAdminApi,'listCollection').mockImplementation(async()=>({items:seasons.map(season=>({...season,health:{state:complete?'healthy':'repairing'}}))} as never));
+      vi.spyOn(helixAdminApi,'listPerceptionRecords').mockResolvedValue({items:[],nextCursor:null,currentRating:null});
+      vi.spyOn(helixAdminApi,'getCare').mockImplementation(async()=>({shelfEntryId:'season-1',health:{state:complete?'healthy':'repairing'},
+        basis:{inventoryRevision:complete?2:1,standardRevision:1,placementRevision:2,careBasisDigest:'d'},
+        history:{assessments:[],findings:[],cases:[],commits:[]},
+        seriesRelocation:complete?null:{state:'in_progress',seasonCount:2,reasonCode:null}} as never));
+      const {container,unmount}=renderCollection();
+      await act(async()=>{});
+      fireEvent.click(screen.getByRole('button',{name:/查看 Series Season 1 详情/}));
+      await act(async()=>{});
+      expect(container.querySelectorAll('.health-seal.repairing')).toHaveLength(2);
+      await act(async()=>{await vi.advanceTimersByTimeAsync(2000);});
+      expect(list).toHaveBeenCalledTimes(1);
+      complete=true;
+      await act(async()=>{await vi.advanceTimersByTimeAsync(2000);});
+      expect(within(screen.getByRole('dialog')).getByText('健康')).toBeInTheDocument();
+      expect(container.querySelectorAll('.health-seal.healthy')).toHaveLength(2);
+      expect(list).toHaveBeenCalledTimes(2);
+      await act(async()=>{await vi.advanceTimersByTimeAsync(15000);});
+      expect(list).toHaveBeenCalledTimes(2);
+      unmount();
+    } finally {vi.useRealTimers();}
+  });
+
+  it('keeps the accepted shared retry when the actual collection wall reload fails',async()=>{
+    let failReads=false;
+    const season={...entry,shelfEntryId:'series-collection-parent',structureKind:'season' as const,series:{seasonNumber:1,episodeCount:0,physicalFileCount:0,episodes:[]}},
+      care={shelfEntryId:season.shelfEntryId,health:{state:'attention_required'},basis:{inventoryRevision:1,standardRevision:1,placementRevision:1,careBasisDigest:'d'},history:{assessments:[],findings:[],cases:[],commits:[]},sharedPresentation:{state:'attention_required',canRetry:true,canSupplyImages:false,reasonCode:'series_shared_preparation_failed'}};
+    vi.spyOn(helixAdminApi,'listCollection').mockImplementation(async()=>{if(failReads)throw new Error('GET failed');return {items:[season]};});vi.spyOn(helixAdminApi,'listPerceptionRecords').mockResolvedValue({items:[],nextCursor:null,currentRating:null});vi.spyOn(helixAdminApi,'getCare').mockResolvedValue(care as never);
+    const post=vi.spyOn(helixAdminApi,'checkCare').mockImplementation(async()=>{failReads=true;return {} as never;});renderCollection();fireEvent.click(await screen.findByRole('button',{name:/查看 The Shawshank Redemption 详情/}));
+    fireEvent.click(await screen.findByRole('button',{name:'重试上架',exact:true}));const retry=screen.getByRole('dialog',{name:'重试上架'});fireEvent.click(within(retry).getByRole('button',{name:'重试上架',exact:true}));
+    expect(await within(retry).findByRole('alert')).toHaveTextContent('任务已受理，状态读取失败');expect(post).toHaveBeenCalledTimes(1);failReads=false;
+    fireEvent.click(within(retry).getByRole('button',{name:'刷新状态',exact:true}));await waitFor(()=>expect(screen.queryByRole('dialog',{name:'重试上架'})).not.toBeInTheDocument());expect(post).toHaveBeenCalledTimes(1);
+  });
 
   it('updates the Actor dialog from the exact current Entry after refresh even when the wall no longer contains it',async()=>{
     const original={...entry,provider:'internal',identityKind:'internal_identity',displayIdentity:'Old Actor Original source'},
@@ -265,5 +327,30 @@ describe('Arca collection poster wall', () => {
     expect(within(dialog).queryByText('presentation:nfo_missing')).not.toBeInTheDocument();
     expect(within(dialog).queryByText('entry-1')).not.toBeInTheDocument();
     expect(within(dialog).queryByText('最近一次自动修复未完成')).not.toBeInTheDocument();
+  });
+
+  it('keeps the Owner image-supplement prohibition across the Collection retry transition', async () => {
+    const season={...entry,shelfEntryId:'series-collection-prohibited',structureKind:'season' as const,series:{seasonNumber:1,episodeCount:0,physicalFileCount:0,episodes:[]}},
+      care={shelfEntryId:season.shelfEntryId,health:{state:'attention_required'},basis:{inventoryRevision:1,standardRevision:1,placementRevision:1,careBasisDigest:'d'},history:{assessments:[],findings:[],cases:[],commits:[]},sharedPresentation:{state:'attention_required',canRetry:true,canSupplyImages:false,reasonCode:'series_shared_preparation_failed'}};
+    vi.spyOn(helixAdminApi,'listCollection').mockResolvedValue({items:[season]} as never);
+    vi.spyOn(helixAdminApi,'getCare').mockResolvedValue(care as never);
+    renderCollection();fireEvent.click(await screen.findByRole('button',{name:/查看 The Shawshank Redemption 详情/}));
+    fireEvent.click(await screen.findByRole('button',{name:'重试上架',exact:true}));
+    const retry=await screen.findByRole('dialog',{name:'重试上架'});
+    expect(within(retry).queryByLabelText(/剧集海报/)).not.toBeInTheDocument();
+    expect(within(retry).queryByLabelText(/剧集背景/)).not.toBeInTheDocument();
+    expect(within(retry).getByRole('button',{name:'重试上架',exact:true})).toBeEnabled();
+  });
+
+  it('keeps image supplementation when the Owner allows it', async () => {
+    const season={...entry,shelfEntryId:'series-collection-allowed',structureKind:'season' as const,series:{seasonNumber:1,episodeCount:0,physicalFileCount:0,episodes:[]}},
+      care={shelfEntryId:season.shelfEntryId,health:{state:'attention_required'},basis:{inventoryRevision:1,standardRevision:1,placementRevision:1,careBasisDigest:'d'},history:{assessments:[],findings:[],cases:[],commits:[]},sharedPresentation:{state:'attention_required',canRetry:true,canSupplyImages:true,reasonCode:'series_shared_preparation_failed'}};
+    vi.spyOn(helixAdminApi,'listCollection').mockResolvedValue({items:[season]} as never);
+    vi.spyOn(helixAdminApi,'getCare').mockResolvedValue(care as never);
+    renderCollection();fireEvent.click(await screen.findByRole('button',{name:/查看 The Shawshank Redemption 详情/}));
+    fireEvent.click(await screen.findByRole('button',{name:'重试上架',exact:true}));
+    const retry=await screen.findByRole('dialog',{name:'重试上架'});
+    expect(within(retry).getByLabelText(/剧集海报/)).toBeEnabled();
+    expect(within(retry).getByLabelText(/剧集背景/)).toBeEnabled();
   });
 });

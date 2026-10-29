@@ -1,6 +1,6 @@
 # UAT-328：Series 剧级公共资料完整生命周期设计
 
-状态：设计草案；不是已批准的架构 SSOT，也不是实施完成记录。归属唯一 CURRENT_PHASE 的 UAT-328，不建立平行开发计划。
+状态：2026-10-21用户确认本设计并授权与UAT-326/327一起开发；首批基础组件已开发，完整运行链路未接通，未验收、未发布。正式合同已回写唯一架构SSOT，归属唯一CURRENT_PHASE，不建立平行开发计划。开发证据见文末。
 
 ## 1. 已确认的用户目标与范围
 
@@ -8,7 +8,7 @@
 
 2026-10-21用户另行明确：剧级 tvshow.nfo、poster、fanart 三项均为必需项。默认文件名分别为 tvshow.nfo、poster.jpg、fanart.jpg；具体格式、命名和位置仍必须在 Arca Placement 合同中精确表达，不能只验三个 artifact kind 的任意目录文件。
 
-本设计覆盖首次建立、后续新季、同季新集、原目录资料利用、缺失修复、并发、崩溃恢复、资料刷新、退出、现有已入藏缺口与验收。用户本次要求设计，尚未授权本设计提出的新增职责合同或生产补文件。UAT-326/327此前已确认的处理方向继续有效。
+本设计覆盖首次建立、后续新季、同季新集、原目录资料利用、缺失修复、并发、崩溃恢复、资料刷新、退出、现有已入藏缺口与验收。用户已授权新增职责合同与开发；生产补文件仍需具体只读预览及对应写入授权。UAT-326/327此前已确认的处理方向继续有效。
 
 ## 2. 现状与真实缺口
 
@@ -51,7 +51,7 @@ Provider也有范围缺口：现有TMDB文字查询已读取整剧详情与季�
 
 Season仍是Subject和Shelf Entry主体；不新增用户可上架、取消、评分或退出的整剧Shelf Entry，也不引入全局媒体ID。
 
-## 4. 职责与新增合同：推荐方案，待确认
+## 4. 已确认的职责与新增合同
 
 建议让 Arca 管理剧级公共呈现这一份共享的正式成果。Libra继续负责身份确认、产品事实及季/集生产，并通过Handoff B提供已确认的剧级事实与素材依据；Arca负责共享成果建立、复用、正式位置、登记、健康、引用和退出。
 
@@ -281,3 +281,147 @@ UAT-326的凭据/冻结依据分离是同类原则的依赖，不能新引入另
 TMDB官方接口核对（2026-10-21）：[整剧详情](https://developer.themoviedb.org/reference/tv-series-details)、[整剧图片](https://developer.themoviedb.org/reference/tv-series-images)、[季详情](https://developer.themoviedb.org/reference/tv-season-details)、[季图片](https://developer.themoviedb.org/reference/tv-season-images)、[集详情](https://developer.themoviedb.org/reference/tv-episode-details)、[集图片](https://developer.themoviedb.org/reference/tv-episode-images)、[图片语言](https://developer.themoviedb.org/docs/image-languages)、[图片URL构成](https://developer.themoviedb.org/docs/image-basics)、[合并子请求](https://developer.themoviedb.org/docs/append-to-response)。接口事实与本设计的选图/复用政策分别记录；官方存在这些接口不代表当前Adapter或权限允许列表已接入。
 
 已经确认的是用户生命周期和三项必需。仍需用户审阅确认的是§4推荐的Arca共享呈现职责及其Handoff/Commit扩展；本设计也建议普通加季只补缺、已有合法文件不覆盖、显式刷新独立、共享删除遵循最后引用及明确授权。确认后再回写SSOT并传播机器合同；本文件本身不修改Owner权力或宣告所有建议已获批准。
+
+
+## 16. 首批开发证据与当前界限（2026-10-21）
+
+已回写SSOT并生成135 Capability / 114 Result family / 231 Table / 59 canonical transaction合同；数量是开发中的新结构，不是生产现状或实现覆盖率。新增四个剧级Capability当前尚未接入执行注册/Supporting Work，Series Presentation Commit合同尚未接入完整Control/Ready原子实现。
+
+已开发基础：
+
+1. Libra正式Metadata Observation持有精确整剧文本Source，包含原语言与来源配置；Draft/Product Fact携带Series Presentation Basis。非Episode的Series metadata准备不能仅凭Related NFO宣布资料已全。tvshow.nfo按剧事实确定渲染，不依赖第一季。
+2. TMDB请求明确剧/季/集scope；季poster查询对应Season images，剧图查询show images，Episode still仅按自身scope返回；Series缺失scope直接拒绝。图片选择规范化语言，剧poster可按原语言及无语言回退，fanart按背景形态选择；缓存key不含短期Handle expiry。根图Source观察和按精确locator重新取得是两个独立操作，后者不再重新选择图片。Episode图片目前只完成Adapter叶端验证，未据此声称生产图像旅程已启用。
+3. Arca共享scope、build、version、pending reservation、Season reference及历史Commit link组件，以及跨季固定根绑定查询。真实SQLite组件反例验证单builder、Version/head回滚、reference/link/reservation原子变化及旧Ready的版本围栏。尚未把这些participant接入真实Handoff B/On-deck/Off-deck事务。
+4. 有界文件IO验证NFO身份/层级、图像解码/JPEG格式/角色与完整SHA256；只写确切Workspace和根三项，拒绝覆盖不同现存字节、跨根/符号链接、别剧NFO与季NFO改名。部分发布后的Adapter重建沿冻结字节继续，完成的临时文件可精确清理。此为文件层恢复证明，不是完整Foundation进程恢复证明。
+
+仍需完成：Supporting Work/Planner及Effect reality observer接线；正式共享Control/Ready提交及Workspace回收；Accepted pending和On-deck Own的同事务引用/围栏；健康组合、跨季/新集复用、修复/刷新、退出和原任务恢复；本地祖先资料的范围资格及明确用户补充资料的入口；完整剧级描述/演员呈现规则；生产旧缺口只读修复清单；17情境完整旅程、跨平台及具体版本UI负责人验收。不得据基础组件测试关闭本项，也不得发布半接通功能或直接补生产文件。
+
+目前组合342项定向回归和两项隔离JAV Host通过；最后受影响范围77项通过，包含本项8项共享组件/真实文件验证及4项TMDB图片scope叶端验证。P2/Manifest/包边界/禁止语义静态检查通过。完整长时门禁STOPPED、未作本版本发布资格；无生产变更。
+
+首批产品提交：`85ab5c7e1`。对应唯一CURRENT_PHASE中的JAV-STABLE-SOURCE-RECOVERY、PROCUREMENT-COMPLETE-GROUP-SLICING、SERIES-SHARED-PRESENTATION；三项UAT均保持开放。本提交为本地开发检查点，未推送、合并或部署。
+
+## 17. 运行链路集成检查点（2026-10-21，持续实施）
+
+本轮接通实际Arca路径，不以首批基础组件代替完成：
+
+- 4阶段共享准备Work（Source、Assets、Publish、Ready）及独立Workspace Reclaim Work已注册；读写/网络/Control资源、执行围栏、Source/Assets Result及Effect现场观察均接运行。Source冻结精确图片locator/原始及转换字节摘要；恢复不重选已成功的来源。Provider短期Handle仍仅在执行阶段生成，独立图片资格不重写Libra文字Observation。
+- Accepted同事务创建pending reservation；共享Ready以canonical transaction同时建立三项正式Material Control/版本/head/Result/marker；Season Fulfillment记录精确共享版本及三项Control证明，Commit同事务追加/复用Season reference、固定历史Commit link。当前健康另读current共享版本。
+- 共享准备失败在原Formation条目标成需处理，动作仍是“重试任务”；纯查询终态且没有任何非纯Event Attempt才可新Scope重评来源，可能已有物理效果者继续原配方。上传通过原重试对话框提供至多poster/fanart两张8MiB图片，校验真实尺寸/可解码性/物理Identity/SHA，作为有界Arca user ingress来源；不用People人物上传或反向Handoff。
+- 新增持久协调覆盖Work admission容量defer后无回调、进程退出漏发的共享准备/Workspace回收，防止形成新钉子户。Source失败不会由协调器无限自动创建新尝试。
+- 现有共享版本的missing-only维护接原健康检查；来源已消失时可从当前收藏条目的重试补图，保留其他健康字节、历史Commit及Season Inventory，不伪造Aftercare Case。维护失败/进行中由Arca当前事实输出，不靠解释文案补入口。
+- Off-deck仅最后引用且无Accepted预留时把三项共享文件纳入原确认范围；授权同事务取得retirement_scope_id，每次物理Effect重验，终态原子释放Season引用、共享Control和retirement围栏；未知文件保留。普通Season Control与共享Control各用有界Authority Handle。原Season/Related的1024上限保持，闭合范围可额外表达固定三项公共文件。
+- Shelf注销释放共享引用和Control而不删除字节。共享引用/版本的SQLite断点验证覆盖pending保护、另一季保护、真实最后引用、授权后新Accepted/新builder拒绝及历史链接不变。
+
+本轮已取得的定向证据（OS TEMP内日志，不能当最终固定版本资格）：
+
+| 范围 | 结果 |
+| --- | --- |
+| JAV真实进程退出、超过原Handle有效期恢复、完整上架、再次重启 | 1 PASS，原Event恢复succeeded，恰1 Commit，无Input Drift；`shelfdeck-326-ttl-host.tap` |
+| 1081视频/22剧/65完整季组的真实Procurement Host | 1 PASS，65包、2 Run、1081唯一成员及来源保留；`shelfdeck-327-category-host.tap` |
+| 首个S03完整上架 | 1 PASS；`shelfdeck-328-s03.tap` |
+| 跨季与同季加集 | 各1 PASS；跨季首轮因人物后台等待时点未通过，相同Oracle单独复验通过，未删除原失败记录 |
+| 首次必需图片无来源，原任务人工重试 | 1 PASS；`shelfdeck-328-retry.tap` |
+| Provider完全无图，原任务上传两张图片后上架 | 1 PASS；`shelfdeck-328-supplement.tap` |
+| 实际浏览器失败行→重试→错误方向就地拒绝→上传→键盘提交→收藏结果，1920/390px | 1 PASS，图片在`shelfdeck-328-browser/`；后续取消可达性/清理校验及收藏维护UI增量仍需同版复验和UI负责人审核 |
+| 已上架fanart缺失且Provider已无来源，从原收藏维护补图 | 1 PASS；`shelfdeck-328-maintenance-supplement.tap` |
+| Workspace写入后真实进程退出并恢复 | 1 PASS；`shelfdeck-328-process.tap` |
+| 正式文件首次发布后真实进程退出并恢复 | 初轮FAIL（material_commit观察返回了workspace形状），修正为forward_required/rollbackDeclared后1 PASS；`shelfdeck-328-publish-recovery.tap` |
+| 真实N:M视频的最后季Off-deck，额外三项共享文件，未知sentinel保留 | 1 PASS；`shelfdeck-328-offdeck.tap`；后续Control分组/1027技术上限及完整字节证明增量须重验 |
+| Off-deck和大规模Shelf注销既有回归 | 25 PASS；`shelfdeck-328-exit-regressions.tap` |
+| 共享引用/retirement围栏及Off-deck组件组合 | 30 PASS；`shelfdeck-328-reference-guards.tap` |
+| 当前Contract/边界/语义静态检查检查点 | PASS；最终source-map/生成合同和完整门禁仍须固定后执行 |
+
+三项保持开放。仍需完成/核对：既有无shared登记的生产Season只读修复预览及正式软件路径（未获生产数据补写授权）；来源祖先资料有界资格；显式刷新与冲突/所有引用维护收口；最终完整回归、Windows/Linux相关覆盖和具体版本UI审核。当前未改生产，不把未跑或被停止的完整门禁改为PASS，不以任何Reset修复旧收藏。
+
+
+## 18. 完整运行链与追加反例（2026-10-21，继续实施）
+
+最新已验证：326/327与328两处进程退出组合4 PASS（JAV跨TTL、1081媒体/65包/2Run、Workspace及正式发布中断）；Service 648 PASS/29既有skip；Web 248 PASS。上述为测试运行时工作区，不冒充后续增量或固定发布版本资格。
+
+328真实视频浏览器旅程`shared-task-attention → 原任务双图补充 → 上架 → 我的收藏缺fanart → 原收藏重试单图 → 健康`通过，包含1920/390px、错误方向校验、清除就地错误、键盘提交及禁止Accepted后取消；截图在本机TEMP的`shelfdeck-328-browser-qualification/`。早期占位媒体走查不能达到整体健康的FAIL保留：Presentation已健康，但真实FFmpeg正确报告占位视频不能解码，后续换真实视频复验通过，没有放宽健康Oracle。
+
+工作区写入后失败、正式根首次文件写入后失败，原任务人工重试各1 PASS；修正了“仅看成功Result就推测未进入非纯Attempt”导致人工恢复也被错误拒绝的风险。Sources纯查询失败可重评；物化后继续原配方，不借新Provider输入摘要掩盖Effect。追加空Workspace强证明的来源重评事务仍在验证。
+
+既有无共享登记的Season本地Host修复1 PASS：按当前已Commit剧身份和唯一根形成Arca维护请求，Source只查精确整剧详情，三项补齐后登记当前引用；7组原Season/视频/身份/Inventory/入藏历史逐行摘要保持，不补造历史共享Commit link、不创建Aftercare Case。此为隔离legacy形状重建，不是生产副本实修资格。旧生产无登记项只能先报告缺口，须用户主动检查/已批准修复，不能在部署后借周期维护自动补写历史收藏。
+
+原来源资料已增加独立只读候选引用：最近明确Season目录的共同父剧根、Field内最多三项、真正tvshow NFO确认整剧ID、完整SHA及Physical Identity；不加入exclusive Related/Control转移或输入删除范围。匹配来源Host最终1 PASS，别剧来源Host1 PASS，原件保留；PNG→JPEG及失配/漂移边界叶端1 PASS。发现并修正Windows斜杠归一化比较误把文件当父目录的缺陷。
+
+健康新增共享head证据；Root准备/版本变化不会改Season Inventory或Care Case业务依据，但使旧共享健康检查失效，错过完成回调时可由正常协调重新检查。进行中/失败由Owner真实Work组合当前健康，不把后台健康通知当作用户主动重试。该最后增量尚须最终回归。当前136 Capability/115 Result family/231表/61 canonical transaction；三项UAT仍未关闭，尚无本轮生产变更。
+
+
+## 19. 来源重评与后续入藏补查（继续实施）
+
+强证明的空Workspace来源重评Host已通过：维护仅缺fanart，Source选定后Assets下载失败且没有字节/Material/Artifact；人工重试在固定Source Reassessment UoW结束旧空Registry并建立新build。新图片资格configRevision2、原Libra文字Source configRevision1均保持，最终共享version2及全部Workspace回收。首轮因Foundation Attempt实际终态为completed/outcome_kind=failed而非state=failed导致沿旧配方重试（6次而非7次）未通过，修正精确终态读取后复验1 PASS，原失败不改记成功。
+
+新增只读当前文件验证用于后续加季准入：共享登记的Ready不能永久代替实际文件存在。已有版本三项当前字节/Identity缺失或冲突，必须先进入同一共享准备/修复Work，不能让新季反复在Fulfillment失败。其跨季缺图反例正在验证。
+
+继续实施的来源恢复收口：Assets应先取得并验证本次全部字节再写Workspace，避免NFO先写导致图片暂时失效也变成“已有物理效果”。若已有Assets物化但从未开始正式Publish，人工重试可由Arca在Foundation终态/无Publish Attempt强围栏下建立新Source代际，保留/复用已成功产生的确切Workspace成果；新scope须明确supersedesBuildId和最多三项有完整Source/Identity/SHA的只读成果引用，不能伪造旧Assets成功Result、不能改旧Scope/Observation、不能丢弃未决Effect。旧Workspace在同一共享范围获得新Ready且不再有活跃引用后走正式回收；不新增“重新整理”或技术维护入口。正式Publish已开始时，完整Assets已持久化，继续原配方，不换已发布字节。此段是实施中的收口选择，尚未完成代码或验收，不能据此关闭UAT。
+
+当前最新本地检查点ab5f610ae已提交，UI负责人正在按同版审查；后续增量不自动继承其资格。未推送或部署。
+
+
+## 20. 2026-10-22 完整恢复与退出收口（最终资格继续）
+
+本轮继续完成运行链，不再停于基础组件：
+
+- Source/Assets重评：全部字节先取得并验证后再写Workspace；Assets已写NFO/海报、fanart来源永久失效时，原任务上传fanart，新Scope引用原成功Source recipe与实际完整成果，原始失败历史不改。真实Host 1 PASS，两个build、复用两项、旧登记一项，两个Workspace和全部Material/Artifact正式终结，恰一次入藏。日志`shelfdeck-328-closeout-partial-source.tap`。
+- 原任务/当前收藏重试命令按目标、幂等键和精确上传字节记录Owner Command Receipt；同一命令晚到重放先于当前状态和已回收输入检查。请求未知后不能换图片或键，成功POST后的GET失败只能刷新。当前收藏维护补图/回收后晚到重放1 PASS（`shelfdeck-328-maintenance-command-replay.tap`）；命令事务后、Work admission前真实进程退出及两次重启1 PASS（`shelfdeck-328-command-admission-restart.tap`）；Receipt回滚/键冲突单测PASS。
+- 原ab5f610ae具体版本UI负责人结论为CHANGES_REQUIRED，8/20通过，不能改记PASS。已补未知响应和成功后刷新失败两种写入保护、焦点/Tab/Escape/返回焦点、中文语义错误及样式。新增8项UI反例通过；最新Web 256 PASS/45文件，build通过。当前真实视频宽窄旅程再次通过（`shelfdeck-328-ui-recovery-real.tap`），新候选仍须负责人复验。
+- 无引用退出：两季在同一批次退出，原预览未包含共享三项，文件字节/inode全保留，Season引用和共享Control归零；实际Host 1 PASS（`shelfdeck-328-batch-retirement.tap`）。最后一季在共享维护Publish写出文件后失败时仍能正常Off-deck；Arca按terminal Work/settled Effect收束builder，保留未获删除授权根文件并正式回收私有Workspace，1 PASS（`shelfdeck-328-closeout-retirement.tap`）。retained-root head、Control和Command Receipt注入事务末尾失败全部回滚，不伪造Ready。
+- 新增closed `SeriesPresentationReclamationBasis`，上限128 KiB/至多三项登记，支持实际committed、superseded和retired三类；回收不伪造旧Assets成功、不删除正式根或外来文件。当前136 Capability/115 Result family/231 tables/61 canonical transactions/149 domain inputs。
+- 提供精确225→231离线结构复制工具`scripts/helix-series-presentation-schema-copy.js`，只添加六张共享表、三张表的五列及327的local_media_group CHECK取值。224原业务表逐列/逐行保护；未产生新事实时反向复制通过，有新共享、来源、健康或分组事实时拒绝旧版回退；两项测试PASS。它不清理旧Libra/Formation、不修改历史输入摘要，也不是生产apply。
+
+最新生产只读预览（2026-10-22 00:46前后本地时区，准确时间以TEMP日志为准）：生产仍225表，659条历史Entry、13条active Season、16个非终态Libra Run；原ABF-153 Event仍executing。三部新剧根三项全缺，另三部既有剧根仅缺fanart；因此不能继续沿用旧“10季/三部”数量或直接套旧修复名单。未写生产目录、未Reset、未停服/部署。完整缺口明细仅在本机TEMP`shelfdeck-328-production-root-preview.json`，正式补写仍先按精确预览取得生产数据授权。
+
+§10的显式换海报/语言/根目录/剧身份仍属于独立已有或后续维护意图；本次普通加季与重试不获得覆盖合法现存三项的权力。外部改写、别剧NFO、不可读/不合法现存文件保持明确冲突，须先修正资料或经对应明确纠正意图；不能借“重试”无条件覆盖用户字节。该边界与缺项修复不同，不把未来refresh能力列为本次已实现。
+
+仍在执行：固定候选全量Architecture Gate、适用Service/Windows/Linux、具体版本UI复核和完整生产副本资格。上述定向日志不冒充最终固定版本总体PASS，三项UAT未按开发提交直接关闭；未发布。
+
+
+## 21. 具体版本复验发现的追加问题（2026-10-22）
+
+Service全量2e000eb9e：677 total/647 PASS/29 skip/1 FAIL，失败为已完成Formation条目也查询当前Work，违反既有完成态保护测试。2631f4ee0修复：非in_progress条目只读其原committed reservation对应的历史sharedBuildId；既有保护测试复验PASS。不能将该首轮记为全绿。固定2e000和2631的长时Architecture运行因追加修复主动停止，均保留STOPPED、不作最终资格。
+
+UI负责人对2e000/2631的独立真实页面补测又发现两项遗漏：Formation父级load吞掉GET异常，导致已受理重试被弹窗清除；提交按钮disabled后浏览器焦点跌出modal。已改为原Series重试回调显式要求本轮读成功，Formation及Collection列表的失败/过期响应会向弹窗传播，其他普通刷新仍使用原错误处理；accepted命令保持，只允许刷新。busy阶段同步把焦点交给对话框，并阻止外层focusin夺焦点。新增两项真实页面组件测试（含工作区关闭重开仍为刷新、收藏Care读取成功但wall读取失败），加忙碌焦点反例通过；本轮专项27+13 PASS，Web build PASS，尚待负责人冻结新候选并复跑浏览器，不以单测代替该项。
+
+
+## 22. 回收原子提交后进程退出的恢复缺陷（2026-10-22）
+
+新增真实process.exit(78)边界：`arca_series_reclaimed_commit`事务完成，Workspace/Material reclaimed、Artifact deleted及Result/Commit Marker均已提交，但Event仍executing且Effect journal尚未结算。原5eaf代码在重启时复现`P4_EVENT_RECOVERY_INPUT_DRIFT`，日志`shelfdeck-328-reclaim-commit-restart.tap`；不能把此前workspace/publish/command三类进程演练视作已覆盖此边界。5eaf完整Gate因该新增已复现产品缺陷主动停止，记STOPPED，不能计最终PASS。
+
+根因为snapshot把回收后live Artifact revision 2投影进原revision 1的ReclamationBasis。修复保留原登记revision，同时强校验live修订等于原登记加唯一回收增量；登记两种Handle修订必须一致。不放宽Foundation输入摘要、不改变旧Attempt、不增加跨Owner事实。恢复worker现在等待全部共享Event成功，不能因Registry已reclaimed就提前通过。定向重启、完整Gate与平台增量复验继续。
+
+5eaf固定候选已有Service 648 PASS/29既有skip（src与2631相同）、Web 258 PASS/45文件、真实视频完整浏览器旅程1 PASS、UI负责人38/38宽窄页面PASS、独立Windows打包及打包Node Host smoke PASS、Linux 17/17 PASS；追加修复后的运行代码仍须重新绑定资格，不直接继承完整Gate。
+
+生产副本精确225→231结构复制及空新事实反向复制均PASS，224原业务表逐列逐行保护。真实旧三剧根全Host补齐演练未通过：原始namespace mount identity防护正确拒绝Aftercare Root冲突；只在隔离副本重新注册测试namespace根后，Startup Recovery仍拒绝正常供给，未发出共享修复Work。两轮FAIL保留，不能称完整生产Host升级PASS；未修改生产/原件，未Reset旧Formation历史、未放宽Root或Recovery fence。旧收藏原维护链的隔离legacy-shape Host测试PASS不替代本次完整副本结果。
+
+
+## 23. 已发布终态合同补齐与生产副本范围（2026-10-22）
+
+06d4回收修复的四类真实进程边界4/4 PASS；Service 648 PASS/29既有skip、Linux 18/18 PASS、Windows独立包与packaged Node Host PASS。UI负责人按169份Web输入、9个资产逐字节相等将38项浏览器/258项Web资格绑定06d4（owner-review目录uat328-ui-review-06d4c915a-20261022）。完整06d4 Gate随后因下面新增已定位的历史合同缺口及静态精确基线漏项停止，不计PASS。
+
+完整旧数据副本Startup Recovery分类为4339项PLAN_CATALOG_DRIFT，全部来自现生产6c74939646的Catalog b7e4d607f2684ef6e061e47215aea6607d408fdaf148be3c4b79e7eb0a7ec714（4323个终态Work的Plan与16个在途Plan）。已发布终态不能因新增能力失去历史验真资格。本次沿用既有Frozen Catalog History，只增加6c7493964674eea2d944e915654dc3c64abf8929精确终态数据档案；不挂旧Executor、不改记录、不授权在途Attempt继续。来源为已核对ID的生产镜像ad0f738f2969439d555e46833ad0e197f38b3e3babd265af66252fef622ca1fe，收集精确ENABLED的120份执行合同（去sourceLocator）及1324份Schema、原政策和三种full Result Evidence closure，重建Catalog完全相符；archive canonical digest 214b8cf2272f740034ae8fe68d3b18e493c720bb7fd6dac7d5b692d58db03ed6。补齐既有People Owner allowlist，仍要求Manifest Owner精确一致。71项历史验真及active/foreign Owner/篡改拒绝通过；原静态负例精确列表补充328已实际改变的presentation.observe、offdeck.deletion.verify和destruction_scope.verify三项，不改变旧witness或放行变更合同。
+
+原始全副本启动FAIL和namespace-profile重试FAIL均保留。进一步仅为旧收藏维护演练准备的隔离副本：既有Reset工具按16个明确未Commit Subject限定预览ready=true、无blocker；默认全库Reset预览因保留历史关联而被正确拒绝，未执行。可以对独立host-data执行该16项fixture Reset并通过Libra Owner配置席位0，然后验证既有Arca收藏的三剧根补齐。此结果只证明经显式测试清场后的旧收藏维护，不称原样全Host升级PASS；生产未Reset、未补图、未部署。生产原ABF-153仍未恢复，真实在途整理的处置需要独立明确授权，不能偷偷加旧Attempt兼容层。
+
+最终固定候选完整Gate、适用平台和同版UI收口继续。Windows初次打包因旧输出存在拒绝、独立smoke因临时Secret不足32字节拒绝，均为夹具设置错误；新目录及有效随机测试Secret后通过，不涉及生产密钥。
+
+
+## 24. 隔离副本Reset资格发现与修复（2026-10-22）
+
+限定16个未Commit Subject的旧工具预览ready，但apply在foreign_key_check发现US Adult分析/人工Actor选择四表遗漏，整笔回滚；补齐直接父关系后第二次又发现analysis的reference_pages子表遗漏，再次整笔回滚。完整FK依赖枚举最终确定五张Libra表（analysis_bases、reference_pages、match_completions、actor_choice_intents、actor_choice_heads），无People主档删除。失败日志分别shelfdeck-328-copy-reset.log和copy-reset-fixed.log；均为私有host-data，无生产操作，不能记PASS。
+
+修复以选定run集合发现并冻结analysis IDs、choice intent IDs和对应head Subject IDs，检查Subject/Workspace及completion均属于既定清场范围，子表先于父表删除。独立Frozen Manifest verifier按冻结ID逐表验证清零，不从已删除父对象重建Scope；范围外历史、共享人物和正式收藏保持。现有完整Reset40项PASS；含reference_pages的新增两项定向复验PASS（选定清零/另一Subject历史逐行保护、跨Subject伪归属拒绝、故意残留由独立verifier拒绝）。原第一轮38/40的失败为旧测试手写manifest缺新增必需冻结字段及新测试误写错误码，修正夹具后保留失败并复验，不放宽产品verifier。真实完整副本该16项精确清场及后续旧根维护还在验证。
+
+444230441固定Service仍648 PASS/29既有skip，完整Gate因上述工具缺陷追加修复而主动停止，不计最终资格。之后冻结新候选再做全量Gate及适用平台，不继续叠加无关功能。
+
+
+## 25. 真实旧收藏维护被整季视频检查阻塞（2026-10-22）
+
+47a212127已有Service 650 PASS/29既有skip、最终Linux129/129 PASS、Windows包及packaged Node Host PASS，UI负责人具体版本PASS。129包括三项UAT核心18、Frozen Catalog71和Reset40。原样生产副本仍不称升级PASS；其逐表结构保护有效，限定16个未Commit Subject的副本Reset已通过，七类原正式收藏事实完整hash保持、零FK问题，Original DB未改。此后原有Admin Secret Store只保存API Key摘要，演练脚本误读apiKey导致登录失败，属于夹具错误；改用已有Owner Session Token Service的issueAuthenticated测试会话，不能宣称本演练验证过API Key登录。
+
+实际三部旧剧根检查通过既有public care/check受理，但四分钟内未建立任何Series Work；三个普通health_assessment仍在检查整季视频，多项等待volume_read，Breaking Bad存在ARCA_AFTERCARE_MEDIA_TIMEOUT。根因确认：coordinator只有在全部普通健康评估完成后才会进入shared findings维护，独立必需的tvshow.nfo/poster/fanart因此受无关视频探测结果阻挡。不是Provider无图或Shared Capabilities未注册。该轮FAIL保留，shutdown已closed；不能用基础组件PASS掩盖。
+
+修复在Arca既有Owner内：明确手动检查、active Season尚无active共享引用时，直接进入共享维护Work；仍检查身份纠正、Shelf及修改预留，Source/正式发布继续全部原围栏；周期任务不自动改旧根。没有跨Owner写入、没有略过实际Source或改变原视频健康结果。初次build也携带原子Command Receipt，原目标/key/字节晚到重放先于当前状态。
+
+新增独立性/fence回归58项PASS；包括pending Rating不妨碍显式共享维护、周期请求保持原评估路径、修改/纠正围栏拒绝。真实legacy-shape Host在视频Probe禁止成功的条件下完成三项补齐，七类原Season事实保持，历史Commit link不补造，初次命令在Ready后重放replayed=true且build/version/Receipt不增加，1 PASS（shelfdeck-328-legacy-video-independent-command.tap）。47a212127长时Gate仍固定在独立checkout执行；其结果只属于旧版，不自动作为新行为资格。修复后的最终完整Gate、真实副本及具体版本UI复验继续。

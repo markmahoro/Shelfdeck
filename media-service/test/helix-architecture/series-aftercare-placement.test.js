@@ -6,7 +6,7 @@ const {canonicalDigest:D,canonicalJson}=require('../../src/helix/contracts/canon
 const {computeBoundedMaterialFingerprintSync:fingerprint}=require('../../src/helix/integrations/bounded-material-fingerprint');
 const {createCleanArcaInventoryPort}=require('../../src/clean-arca-inventory-port');
 const {buildAftercareInventoryRequest,placementMatchesInventory}=require('../../src/helix/domains/arca/model/aftercare-placement');
-function fixture(t) {
+function fixture(t, options = {}) {
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'series-care-placement-')),source=path.join(root,'source'),target=path.join(root,'target');
   fs.mkdirSync(source);fs.mkdirSync(target);
   t.after(()=>{assert.equal(path.dirname(root),fs.realpathSync(os.tmpdir()));fs.rmSync(root,{recursive:true,force:true});});
@@ -28,7 +28,7 @@ function fixture(t) {
     row.episode_claims_json=canonicalJson({items,episodeClaimSetDigest:row.episode_claim_set_digest});
   });
   const port=createCleanArcaInventoryPort({schemaManifest:require('../../src/helix/foundation/persistence/generated/clean-schema.manifest.json'),
-    unitOfWork:{execute(){throw new Error('Placement planning must not write a transaction.');}},workspaceRoot:path.join(root,'workspace')});
+    unitOfWork:{execute(){throw new Error('Placement planning must not write a transaction.');}},workspaceRoot:path.join(root,'workspace'),...options});
   return {c,port,root,target,request:()=>buildAftercareInventoryRequest(c,port,1,'case')};
 }
 test('Series Aftercare plans current Inventory across batches and shared Episode parts without Workspace Artifacts',t=>{
@@ -40,6 +40,15 @@ test('Series Aftercare plans current Inventory across batches and shared Episode
   assert.ok(r.onDeckProductPackage.productMaterialManifest.members.every(item=>!item.workspaceMaterialHandle));
   assert.deepEqual(fs.readdirSync(f.target),[]);
   assert.throws(()=>f.port.prepare({...r,aftercareCaseId:null}),{code:'CLEAN_ARCA_INVENTORY_INPUT'});
+});
+test('policy target observation exposes a changed Series root while normal intake keeps the durable binding',t=>{
+  let binding=null;
+  const f=fixture(t,{readSeriesRootBinding:()=>binding});
+  binding={rootLocation:path.join(f.target,'Previous Series Root'),endpointId:'endpoint',mountScopeId:'mount'};
+  const request=f.request();
+  assert.equal(f.port.resolveTargetLocation(request).targetDirectory,path.join(binding.rootLocation,'Season 02'));
+  assert.equal(f.port.resolvePolicyTargetLocation(request).targetDirectory,path.join(f.target,'Original Series','Season 02'));
+  assert.deepEqual(fs.readdirSync(f.target),[]);
 });
 for(const [name,mutate] of [
   ['missing title',c=>{c.raw.facts.filter(item=>item.fact_kind==='product_metadata').forEach(item=>{item.value.descriptiveFacts.entries=item.value.descriptiveFacts.entries.filter(entry=>entry.key!=='series_title');});}],

@@ -630,3 +630,13 @@ test('transcode input preflight encodes 24 frames with the production pipeline a
   await assert.rejects(port.verifyTranscodeInput({...request, abortSignal:controller.signal}),
     {code:'LIBRA_MEDIA_FFMPEG_CANCELLED'});
 });
+
+
+test('FFmpeg Event deadline uses the injected execution clock and keeps its local timeout', async () => {
+  const start = Date.now(), epoch = 1000, now = () => epoch + Date.now() - start;
+  const result = await runProcess(process.execPath, ['-e', 'setTimeout(() => process.exit(0), 100)'], 5000, null,
+    { now, deadlineAtMs: epoch + 5000 });
+  assert.equal(result.exitCode, 0);
+  await assert.rejects(runProcess(process.execPath, ['-e', 'setTimeout(() => {}, 10000)'], 5000, null,
+    { now, deadlineAtMs: now() + 150 }), error => error.code === 'LIBRA_MEDIA_FFMPEG_TIMEOUT' && error.details.reasonCode === 'event_deadline');
+});

@@ -39,8 +39,8 @@ function codes(result) {
 test('committed source map exactly matches live SSOT extraction', () => {
   const result = validateSsotSourceMap({ repositoryRoot, mapPath: actualMapPath });
   assert.equal(result.ok, true);
-  assert.deepEqual(result.counts, { capabilities: 131, resultFamilies: 110, tables:225, transactions: 58 });
-  assert.equal(result.shardCount, 28);
+  assert.deepEqual(result.counts, { capabilities: 138, resultFamilies: 117, tables:239, transactions: 62 });
+  assert.equal(result.shardCount, 29);
 });
 
 test('fails closed when a mapped item drifts', () => {

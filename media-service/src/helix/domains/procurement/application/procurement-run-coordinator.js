@@ -93,13 +93,22 @@ function createProcurementRunCoordinator(options){
         const digest=technicalEvidenceDigest(run,definition,status,member.material_key);
         if(digest)failures.set(member.material_key,digest);
       }
+      // Successful sealed history cannot contribute a technical Candidate failure.
+      // Inspect actual terminal execution before interpreting its old Structure rule.
+      const candidateFailures=new Map(options.workResultReader.listWorks({ownerDomain:'procurement',
+        processType:'procurement_run',processId:runId,workKind:'candidate_assembly'}).flatMap(work=>{
+        const current=options.workResultReader.status(work.work_id);
+        return ['failed','cancelled'].some(state=>current?.state===state||current?.latestAttempt?.state===state)
+          ? [[work.work_id,current]] : [];
+      }));
+      if(!candidateFailures.size)return failures;
       const index=options.evidenceIndex.read(definition.workId);
       let ordinal=0;
       const units=index.units||index.structureResults.flatMap(structure=>(structure.units||[])
         .map(unit=>({structure,unit,ordinal:ordinal++})));
       for(const [position,entry] of units.entries()){
-        const work=candidateWork(snapshot,entry.structure,entry.unit,position),current=options.workResultReader.status(work.workId);
-        if(!['failed','cancelled'].some(state=>current?.state===state||current?.latestAttempt?.state===state))continue;
+        const work=candidateWork(snapshot,entry.structure,entry.unit,position),current=candidateFailures.get(work.workId);
+        if(!current)continue;
         const digest=candidateFailureDigest(runId,work,entry.unit,current?.latestAttempt?.failure_code);
         for(const materialKey of unitMaterialKeys(entry.unit,basis))failures.set(materialKey,digest);
       }

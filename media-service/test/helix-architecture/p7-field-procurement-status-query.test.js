@@ -174,3 +174,20 @@ for (const [code,message] of [
   assert.equal(completed.state,'completed');assert.equal(completed.pageCount,1);
   assert.equal(completed.failureMessage,undefined);
 }));
+
+
+test('administratively retired Candidates stay in history but never count as waiting acceptance',()=>fixture(({store,kernel,query})=>{
+  store.registerMaterialField(registration());
+  kernel.runPrimitive(context=>{
+    for(const [index,state] of ['open','accepted','rejected','administratively_retired'].entries()){
+      const id='package-'+index;
+      context.prepare("INSERT INTO proc_procurement_runs(procurement_run_id,field_id,state) VALUES (?, 'field-1','sealed')").run(id);
+      context.prepare("INSERT INTO proc_candidate_packages(candidate_package_id,procurement_run_id,field_id,published_at_ms) VALUES (?,?,'field-1',?)").run(id,id,index+1);
+      context.prepare('INSERT INTO proc_candidate_deliveries(offer_id,candidate_package_id,state) VALUES (?,?,?)').run(id,id,state);
+    }
+  });
+  const result=query.read('field-1');
+  assert.equal(result.generatedPackageCount,4);assert.equal(result.acceptedPackageCount,1);assert.equal(result.rejectedPackageCount,1);
+  assert.equal(result.waitingAcceptanceCount,1);assert.equal(query.overviewWaitingCount(),1);
+  assert.equal(result.stage,'administratively_retired');assert.equal(result.delivery.state,'administratively_retired');
+}));

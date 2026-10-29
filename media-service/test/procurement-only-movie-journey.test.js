@@ -84,7 +84,7 @@ test('UAT-174 per-field pause and UAT-175 predeck tokens survive Host restart wi
   await new Promise(resolve=>setTimeout(resolve,1_500));
   assert.deepEqual(snapshot().works.map(work=>work.work_id),workIds);
   const formation=await request('GET','/v1/admin/formation?limit=25');
-  assert.equal(formation.items.length,2,'Only accepted Subjects holding a token belong to the workspace');
+  assert.equal(formation.items.length,2,'Accepted active Subjects belong to the workspace');
   await host.close();
   // Isolated historical-state fault injection: retain the formally accepted
   // Subject but remove only its token, as in the original UAT-175 incident.
@@ -100,8 +100,8 @@ test('UAT-174 per-field pause and UAT-175 predeck tokens survive Host restart wi
   assert.deepEqual(historical.tokens,final.tokens.filter(token=>token.subject_id!==historicalSubject));
   assert.deepEqual(historical.works.map(work=>work.work_id),workIds,'Zero seats must not recreate downstream Work for tokenless history');
   const filtered=await request('GET','/v1/admin/formation?limit=25');
-  assert.equal(filtered.items.length,1);
-  assert.equal(filtered.items.some(item=>item.subjectId===historicalSubject),false);
+  assert.equal(filtered.items.length,2,'A missing token must not conceal an active accepted Subject');
+  assert.equal(filtered.items.some(item=>item.subjectId===historicalSubject),true);
   assert.ifError(runtimeError);
   for(const sourceFile of sourceFiles)assert.equal(fs.readFileSync(sourceFile,'utf8'),'read-only-seats-fixture');
 });

@@ -1,6 +1,7 @@
 'use strict';
 
 const catalog = require('../../../contracts/ports/p7-procurement-public-contracts.json');
+const { createFreshResetFieldNormalization } = require('../persistence/fresh-reset-store');
 const { packageId } = require('./package.boundary.json');
 const { createFieldObservationCapabilityPorts } = require('../capabilities/field-observation-capability-ports');
 const { createTriageCapabilityPorts } = require('../capabilities/triage-capability-ports');
@@ -139,6 +140,10 @@ function createExecutionRegistration() {
 }
 
 module.exports = Object.freeze({
+  createFreshResetFieldNormalization,
+  retryCommandExecutionContract: require('../model/retry-command-execution-contract').executionContract,
+  createCandidateAcceptanceConsumer:require('../application/candidate-acceptance-consumer').createCandidateAcceptanceConsumer,
+  createCandidateRetirementStore:require('../persistence/candidate-retirement-store').createCandidateRetirementStore,
   PACKAGE_ID: packageId,
   ProcurementCommandFacade: (implementation) => bind('ProcurementCommandFacade', implementation),
   ProcurementQueryFacade: (implementation) => bind('ProcurementQueryFacade', implementation),

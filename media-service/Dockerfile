@@ -44,8 +44,9 @@ WORKDIR /app
 
 # Sharp's bundled text renderer still needs the system Fontconfig configuration
 # to discover the installed Latin and CJK fonts.
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends fontconfig \
+RUN sed -i 's|http://archive.ubuntu.com|https://archive.ubuntu.com|g' /etc/apt/sources.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends fontconfig 'ffmpeg=7:6.1.1-3ubuntu5' \
     && fc-cache -f \
     && rm -rf /var/lib/apt/lists/*
 ENV FONTCONFIG_FILE=/etc/fonts/fonts.conf
@@ -61,15 +62,66 @@ RUN rm -f /usr/bin/python /usr/bin/python3 /usr/bin/python3.* \
 COPY media-service/package.json media-service/package-lock.json ./
 COPY --from=service-dependencies /app/node_modules ./node_modules
 COPY --from=service-dependencies /app/resources/face-models ./resources/face-models
-# Use the lockfile-pinned service probe on both supported platforms. The base
-# FFprobe 8.1 omits HEVC VUI primaries/transfer that the pinned artifact observes.
-# Keep the configured executable path and preserve unknown-media rejection.
-RUN node -e "const fs=require('fs'),source=require('@ffprobe-installer/ffprobe').path,target='/usr/local/bin/ffprobe'; fs.unlinkSync(target); fs.copyFileSync(source,target); fs.chmodSync(target,0o755);"
+# The npm Linux static probe crashes on valid MPEG-TS. The base 8.1 probe loses
+# declared HEVC color facts. Use the qualified Ubuntu probe without replacing
+# the base FFmpeg encoder or changing the configured service executable path.
+RUN node -e "const fs=require('fs'),target='/usr/local/bin/ffprobe'; fs.unlinkSync(target); fs.symlinkSync('/usr/bin/ffprobe',target);"
 COPY media-service/src/server.js ./src/server.js
+COPY media-service/src/clean-poster-renderer.js ./src/clean-poster-renderer.js
+COPY media-service/scripts/formation-retirement-history.js ./scripts/formation-retirement-history.js
+COPY media-service/scripts/formation-retirement-journal.js ./scripts/formation-retirement-journal.js
+COPY media-service/scripts/formation-retirement-operator.js ./scripts/formation-retirement-operator.js
+COPY media-service/scripts/formation-retirement-plan.js ./scripts/formation-retirement-plan.js
+COPY media-service/scripts/formation-stopped-transcode.js ./scripts/formation-stopped-transcode.js
+COPY media-service/scripts/helix-formation-retirement-schema-copy.js ./scripts/helix-formation-retirement-schema-copy.js
+COPY media-service/scripts/helix-architecture/formation-retirement-schema-copy.js ./scripts/helix-architecture/formation-retirement-schema-copy.js
+COPY media-service/scripts/helix-plan-contract-schema-copy.js ./scripts/helix-plan-contract-schema-copy.js
+COPY media-service/scripts/helix-plan-contract-cutover.js ./scripts/helix-plan-contract-cutover.js
+COPY media-service/scripts/helix-import-plan-contracts.js ./scripts/helix-import-plan-contracts.js
+COPY media-service/scripts/helix-architecture/plan-contract-schema-copy.js ./scripts/helix-architecture/plan-contract-schema-copy.js
+COPY media-service/scripts/helix-architecture/plan-contract-import.js ./scripts/helix-architecture/plan-contract-import.js
+COPY media-service/scripts/helix-architecture/history-import-bundle.js ./scripts/helix-architecture/history-import-bundle.js
+COPY media-service/scripts/helix-architecture/history-evidence ./scripts/helix-architecture/history-evidence
 COPY media-service/src/admin-credential-secret-store.js ./src/admin-credential-secret-store.js
 COPY media-service/src/clean-service-host.js ./src/clean-service-host.js
 COPY media-service/src/clean-admin-static.js ./src/clean-admin-static.js
 COPY media-service/src/clean-runtime-operations.js ./src/clean-runtime-operations.js
+COPY media-service/src/clean-runtime-supervisor.js ./src/clean-runtime-supervisor.js
+COPY media-service/src/clean-generation-lease.js ./src/clean-generation-lease.js
+COPY media-service/src/clean-reset-bootstrap.js ./src/clean-reset-bootstrap.js
+COPY media-service/src/clean-reset-error-copy.js ./src/clean-reset-error-copy.js
+COPY media-service/src/clean-reset-generation-fence.js ./src/clean-reset-generation-fence.js
+COPY media-service/src/clean-reset-management-host.js ./src/clean-reset-management-host.js
+COPY media-service/src/clean-reset-workflow.js ./src/clean-reset-workflow.js
+COPY media-service/src/clean-session-cookies.js ./src/clean-session-cookies.js
+COPY media-service/scripts/formation-reset-backup.js ./scripts/formation-reset-backup.js
+COPY media-service/scripts/formation-reset-bootstrap.js ./scripts/formation-reset-bootstrap.js
+COPY media-service/scripts/formation-reset-cleanup.js ./scripts/formation-reset-cleanup.js
+COPY media-service/scripts/formation-reset-cold-backup.js ./scripts/formation-reset-cold-backup.js
+COPY media-service/scripts/formation-reset-deployment-backup.js ./scripts/formation-reset-deployment-backup.js
+COPY media-service/scripts/formation-reset-copy.js ./scripts/formation-reset-copy.js
+COPY media-service/scripts/formation-reset-generation.js ./scripts/formation-reset-generation.js
+COPY media-service/scripts/formation-reset-inspect.js ./scripts/formation-reset-inspect.js
+COPY media-service/scripts/formation-reset-normalize.js ./scripts/formation-reset-normalize.js
+COPY media-service/scripts/formation-reset-offline.js ./scripts/formation-reset-offline.js
+COPY media-service/scripts/formation-reset-operator-lease.js ./scripts/formation-reset-operator-lease.js
+COPY media-service/scripts/formation-reset-owner-policy.js ./scripts/formation-reset-owner-policy.js
+COPY media-service/scripts/formation-reset-people-references.js ./scripts/formation-reset-people-references.js
+COPY media-service/scripts/formation-reset-people-recovery.js ./scripts/formation-reset-people-recovery.js
+COPY media-service/scripts/formation-reset-people-recovery-run.js ./scripts/formation-reset-people-recovery-run.js
+COPY media-service/scripts/formation-reset-owner-retention.json ./scripts/formation-reset-owner-retention.json
+COPY media-service/scripts/formation-reset-owner-snapshot.js ./scripts/formation-reset-owner-snapshot.js
+COPY media-service/scripts/formation-reset-preflight.js ./scripts/formation-reset-preflight.js
+COPY media-service/scripts/formation-reset-process-child.js ./scripts/formation-reset-process-child.js
+COPY media-service/scripts/formation-reset-process.js ./scripts/formation-reset-process.js
+COPY media-service/scripts/formation-reset-responsibilities.js ./scripts/formation-reset-responsibilities.js
+COPY media-service/scripts/formation-reset-runtime-port.js ./scripts/formation-reset-runtime-port.js
+COPY media-service/scripts/formation-reset-schema.js ./scripts/formation-reset-schema.js
+COPY media-service/scripts/formation-reset-snapshot-digest.js ./scripts/formation-reset-snapshot-digest.js
+COPY media-service/scripts/formation-reset-stage.js ./scripts/formation-reset-stage.js
+COPY media-service/scripts/formation-reset-storage.js ./scripts/formation-reset-storage.js
+COPY media-service/scripts/formation-reset-verify.js ./scripts/formation-reset-verify.js
+COPY media-service/scripts/formation-reset-workspace-protection.js ./scripts/formation-reset-workspace-protection.js
 COPY media-service/src/clean-maintenance-window.js ./src/clean-maintenance-window.js
 COPY media-service/src/clean-people-image-port.js ./src/clean-people-image-port.js
 COPY media-service/src/clean-people-artifact-reclamation-port.js ./src/clean-people-artifact-reclamation-port.js
@@ -77,6 +129,7 @@ COPY media-service/src/clean-us-adult-frame-extractor.js ./src/clean-us-adult-fr
 COPY media-service/src/clean-us-adult-inventory-analysis-port.js ./src/clean-us-adult-inventory-analysis-port.js
 COPY media-service/src/clean-formation-reset-port.js ./src/clean-formation-reset-port.js
 COPY media-service/src/clean-arca-inventory-port.js ./src/clean-arca-inventory-port.js
+COPY media-service/src/clean-series-root-relocation-port.js ./src/clean-series-root-relocation-port.js
 COPY media-service/src/clean-arca-recycle-port.js ./src/clean-arca-recycle-port.js
 COPY media-service/src/clean-arca-target-commit-slot.js ./src/clean-arca-target-commit-slot.js
 COPY media-service/src/clean-compute-device-runtime.js ./src/clean-compute-device-runtime.js
@@ -100,6 +153,8 @@ COPY media-service/scripts/helix-jav-schema-copy.js ./scripts/helix-jav-schema-c
 COPY media-service/scripts/helix-libra-schema-copy.js ./scripts/helix-libra-schema-copy.js
 COPY media-service/scripts/helix-us-adult-schema-copy.js ./scripts/helix-us-adult-schema-copy.js
 COPY media-service/scripts/helix-lifecycle-schema-copy.js ./scripts/helix-lifecycle-schema-copy.js
+COPY media-service/scripts/helix-series-presentation-schema-copy.js ./scripts/helix-series-presentation-schema-copy.js
+COPY media-service/scripts/helix-architecture/series-presentation-schema-copy.js ./scripts/helix-architecture/series-presentation-schema-copy.js
 COPY media-service/scripts/helix-architecture/lifecycle-schema-copy.js ./scripts/helix-architecture/lifecycle-schema-copy.js
 COPY media-service/scripts/helix-architecture/us-adult-schema-copy.js ./scripts/helix-architecture/us-adult-schema-copy.js
 COPY media-service/scripts/helix-architecture/paused-release-batch-proof.js ./scripts/helix-architecture/paused-release-batch-proof.js

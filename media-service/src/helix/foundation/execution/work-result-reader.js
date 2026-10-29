@@ -1,6 +1,7 @@
 'use strict';
 
 const {createExecutionSummaryReader}=require('./execution-summary-reader');
+const {createExecutionStateReader}=require('../persistence/execution-state-reader');
 const { canonicalDigest } = require('../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../persistence/owner-repository');
 
@@ -31,7 +32,7 @@ function createWorkResultReader(options){if(!options?.schemaManifest||!options.u
   function executionSummary(){return summaryReader||(summaryReader=createExecutionSummaryReader(options));}
   return Object.freeze({
     readExecutionSummaryPage(...args){return executionSummary().readExecutionSummaryPage(...args);},
-    createExecutionStateReadParticipant(...args){return executionSummary().createExecutionStateReadParticipant(...args);},
+    createExecutionStateReadParticipant(...args){return createExecutionStateReader(options).createExecutionStateReadParticipant(...args);},
     scopedWorkStatus(scope){return options.unitOfWork.execute([{participantId:'work_scope_status',owner:'execution-foundation',repositories:[repository],execute(context){
       const repo=context.repository(repository.repositoryId);
       // The exact Process index keeps unrelated Owner history out of this read.

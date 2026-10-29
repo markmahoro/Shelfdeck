@@ -119,6 +119,11 @@
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
     },
+    "matchThreshold": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
     "clusterParameters": {
       "$ref": "helix://contracts/domain-types/ClusterParameters/v1"
     },

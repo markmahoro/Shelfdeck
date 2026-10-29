@@ -1,6 +1,7 @@
 'use strict';
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
+const { findResetBarrier, observationBelongsToGeneration } = require('../model/field-reset-barrier');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
 const { validateCommittedPage } = require('../model/field-observation-contracts');
 const {
@@ -18,6 +19,7 @@ function toNumber(value, field) { const number = Number(value); if (!Number.isSa
 
 function definition(schemaManifest) {
   return createRepositoryDefinition({ repositoryId:'field_observation_repository', owner:'procurement', schemaManifest, statements:{
+    find_reset_barrier: findResetBarrier,
     find_field:{ kind:'select-one', tableId:'proc_material_fields', columns:['field_id','status','current_access_revision','current_profile_hint_revision','current_observation_revision'], keyColumns:['field_id'] },
     find_profile_hint:{ kind:'select-one', tableId:'proc_field_profile_hint_revisions', columns:['field_id','revision','content_profile_hint','hint_schema_ref','hint_digest'], keyColumns:['field_id','revision'] },
     find_access:{ kind:'select-one', tableId:'proc_field_access_revisions', columns:['field_id','revision','endpoint_id','root_location','mount_scope_id','mount_scope_revision','access_digest'], keyColumns:['field_id','revision'] },
@@ -93,6 +95,8 @@ function createFieldObservationStore(options) {
     return { participantId:'procurement_field_observation', owner:'procurement', boundBusinessOwner:'procurement', repositories:[repository],
       execute(context) {
         const repo = context.repository(repository.repositoryId);
+        if (!observationBelongsToGeneration(page.fieldObservationWorkId, repo.invoke('find_reset_barrier', { field_id: page.fieldId })))
+          fail('P7_FIELD_OBSERVATION_RESET_BARRIER', 'A retired observation cannot write in this database generation.');
         const field = repo.invoke('find_field', { field_id:page.fieldId });
         if (!field || field.status !== 'active') fail('P7_FIELD_OBSERVATION_FIELD_INACTIVE', 'Material Field is absent or deregistered.');
         const currentRevision = field.current_observation_revision === null ? 0 : field.current_observation_revision;

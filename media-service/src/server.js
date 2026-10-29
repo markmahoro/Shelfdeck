@@ -1,7 +1,7 @@
 'use strict';
 
 const path = require('node:path');
-const { createCleanServiceHost } = require('./clean-service-host');
+const { createRuntimeSupervisor } = require('./clean-runtime-supervisor');
 
 function runtimeOptions(env = process.env) {
   return Object.freeze({
@@ -14,6 +14,8 @@ function runtimeOptions(env = process.env) {
     ffmpegPath: env.FFMPEG_PATH || undefined,
     ffprobePath: env.FFPROBE_PATH || undefined,
     secretRoot: env.SHELFDECK_SECRET_ROOT,
+    resetConfigFile: env.SHELFDECK_RESET_CONFIG_FILE || undefined,
+    resetBootstrapFile: env.SHELFDECK_RESET_BOOTSTRAP_FILE || undefined,
     onExecutionRuntimeError(error) {
       console.error('[shelfdeck] execution runtime error', {
         code: error?.code || 'EXECUTION_RUNTIME_ERROR',
@@ -25,7 +27,7 @@ function runtimeOptions(env = process.env) {
 }
 
 async function main(options = runtimeOptions()) {
-  const service = await createCleanServiceHost(options);
+  const service = createRuntimeSupervisor(options);
   let closing;
   const shutdown = (signal) => {
     if (!closing) {
@@ -44,7 +46,7 @@ async function main(options = runtimeOptions()) {
 
   process.once('SIGTERM', () => void shutdown('SIGTERM'));
   process.once('SIGINT', () => void shutdown('SIGINT'));
-  await service.listen({ port: options.port, host: options.host });
+  await service.start();
   console.log(`[shelfdeck] clean service listening on ${options.host}:${options.port}`);
   return Object.freeze({ service, shutdown });
 }

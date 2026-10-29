@@ -8,6 +8,7 @@ const {boundedSettlementContext}=require('./on-deck-context-reader');
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { createWorkAdmission } = require('../../../foundation/execution/work-admission');
 const { createAcceptanceRecoveryStore } = require('../persistence/acceptance-recovery-store');
+const { createArcaFormationRetirementStore } = require('../persistence/formation-retirement-store');
 
 const LIMITS = Object.freeze({ globalOpenWorks:256, ownerOpenWorks:256, openEvents:256 });
 
@@ -74,6 +75,15 @@ function exactOffer(message) {
 
 function createOnDeckProcessCoordinator(options) {
   const recovery = createAcceptanceRecoveryStore(options);
+  const retirement = createArcaFormationRetirementStore(options);
+  const retired = scope => Object.freeze({ kind:'administratively_retired', ...scope });
+  function isOfferRetired(offerId, current = recovery.read(offerId)) {
+    return current ? current.recoveryState === 'administratively_retired' : Boolean(retirement.readReceipt(offerId));
+  }
+  function assertOfferCurrent(offerId) {
+    if (isOfferRetired(offerId)) throw Object.assign(new Error('This Offer was administratively retired.'),
+      { code:'ARCA_FORMATION_RETIRED', statusCode:409 });
+  }
   const executionContractRevision = options.acceptanceExecutionContractRevision || 'arca.acceptance.executor@2';
   function recoveryTriggerDigest() {
     return canonicalDigest({ schema:'arca.acceptance-recovery-trigger@1', executionContractRevision,
@@ -171,6 +181,7 @@ function createOnDeckProcessCoordinator(options) {
     return Object.freeze({ workId:ref.objectId, executionBasisDigest:ref.digest });
   }
   function recordTerminalFailure(request) {
+    if (isOfferRetired(request.processId)) return retired({ processId:request.processId });
     const status = options.workResultReader.status(request.workId);
     const errorCode = request.errorCode || status?.latestAttempt?.failure_code || 'ARCA_ACCEPTANCE_EXECUTOR_FAILED';
     const incident=request.incidentRef||options.executorIncidentProjection?.projectionForWork({ownerDomain:'arca',processType:'arca_acceptance',
@@ -183,6 +194,7 @@ function createOnDeckProcessCoordinator(options) {
   function reconcileAcceptance(processId, dependencyRefs = null) {
     let refs = dependencyRefs;
     const recoveryCase = recovery.read(processId);
+    if (isOfferRetired(processId,recoveryCase)) return retired({ processId });
     let assessment = refs ? assessmentWork(processId, refs, recoveryCase?.recoveryGeneration || 1,
       recoveryCase?.recoveryTriggerDigest || recoveryTriggerDigest()) : null;
     if (!assessment) {
@@ -233,14 +245,35 @@ function createOnDeckProcessCoordinator(options) {
     if (responsibility.onDeckRunId !== frozen.onDeckRunId) {
       throw new Error('Accepted Handoff B Run no longer matches its frozen Decision.');
     }
+    if(options.series){
+      const shared=options.series.ensure(options.contextReader.readAccepted(responsibility.onDeckRunId,refs));
+      if(shared.kind!=='ready')return Object.freeze({...shared,kind:shared.kind==='attention_required'?'series_attention_required':'series_pending',
+        processId,onDeckRunId:responsibility.onDeckRunId});
+    }
     const onDeck = onDeckWork(responsibility.onDeckRunId, refs, commit);
     submit(onDeck);
     return Object.freeze({ kind:succeeded(options.workResultReader.status(onDeck.workId)) ? 'terminal' : 'on_deck_pending',
       processId, onDeckRunId:responsibility.onDeckRunId, workId:onDeck.workId });
   }
+  function continueAccepted(onDeckRunId,{retry=false,supplementalSources=[],command=null}={}) {
+    if (retirement.isRunRetired(onDeckRunId)) return retired({ onDeckRunId });
+    const responsibility=options.contextReader.acceptance.readRunResponsibility(onDeckRunId);
+    if(!responsibility)return {kind:'not_found',onDeckRunId};
+    const rows=options.workResultReader.listWorks({ownerDomain:'arca',processType:'arca_acceptance',processId:responsibility.offerId,workKind:'acceptance_commit'});
+    const accepted=rows.find(row=>row.state==='succeeded'&&options.workResultReader.read(row.work_id).some(item=>item.outcomeKind==='succeeded'&&item.result?.receiptKind==='handoff_b_accepted'));
+    if(!accepted)throw new Error('Shared preparation lost the actual successful Acceptance Work.');
+    const definition=options.workResultReader.readDefinition(accepted.work_id).definition,refs=refsFromWorkDefinition(accepted.work_id),context=options.contextReader.readAccepted(onDeckRunId,refs),
+      shared=options.series.ensure(context,{retry,supplementalSources,command});
+    if(shared.kind!=='ready')return {...shared,onDeckRunId,subjectId:context.offer.subjectId};
+    const work=onDeckWork(onDeckRunId,refs,definition);submit(work);
+    options.onFormationSubjectChanged?.(context.offer.subjectId);
+    return {kind:'on_deck_pending',onDeckRunId,workId:work.workId,subjectId:context.offer.subjectId};
+  }
   function recoverOnDeck(onDeckRunId, maxGenerations = 3, mode = 'automatic') {
     if (!['automatic','user'].includes(mode)) throw new TypeError('On-deck recovery mode is invalid.');
+    if (retirement.isRunRetired(onDeckRunId)) return retired({ onDeckRunId });
     const rows = orderedOnDeckWorks(onDeckRunId);
+    if (!rows.length && options.series && mode==='user')return continueAccepted(onDeckRunId,{retry:true});
     if (!rows.length) return Object.freeze({ kind:'not_found', onDeckRunId });
     const latest = rows.at(-1);
     if (!['failed','cancelled'].includes(latest.state)) {
@@ -336,6 +369,11 @@ function createOnDeckProcessCoordinator(options) {
   return Object.freeze({
     admitOffer(message) {
       const offer = exactOffer(message), refs = refsFromOffer(offer);
+      if (isOfferRetired(offer.offerId)) {
+        const closed=retirement.retiredAdmission(offer);
+        if(!closed)throw Object.assign(new Error('Retired Offer has no durable administrative receipt.'),{code:'ARCA_RETIREMENT_RECEIPT_CORRUPT'});
+        return closed;
+      }
       const triggerDigest = recoveryTriggerDigest();
       const provisional = assessmentWork(offer.offerId, refs, 1, triggerDigest);
       const recoveryCase = recovery.admit({ offerId:offer.offerId, onDeckPackageId:offer.onDeckPackageId,
@@ -355,7 +393,20 @@ function createOnDeckProcessCoordinator(options) {
       }
       return Object.freeze(results);
     },
+    async retryAcceptanceWithSupplements(offerId,body={}) {
+      assertOfferCurrent(offerId);
+      const command=options.series?.retryCommand('acceptance',offerId,body),replayed=options.series?.replayRetry(command);if(replayed)return replayed;
+      if(!body.supplementalImages?.length){const prior=recovery.read(offerId),existing=prior?.recoveryState==='resolved'&&options.contextReader.onDeck.findRunByOffer(offerId);
+        if(!existing||!options.series||orderedOnDeckWorks(existing.onDeckRunId).length)return this.retryAcceptance(offerId);}
+      const item=recovery.read(offerId),run=options.contextReader.onDeck.findRunByOffer(offerId);
+      if(item?.recoveryState!=='resolved'||!run||!options.series)throw new TypeError('Only an accepted show task can receive supplemental images.');
+      const refs=refsFromWorkDefinition(item.activeWorkId),context=options.contextReader.readAccepted(run.onDeckRunId,refs);
+      if(context.packageValue.productStructureSnapshot?.structureKind!=='season')return this.retryAcceptance(offerId);
+      const sources=body.supplementalImages?.length?await options.series.prepareSupplements(context,body):[];
+      return continueAccepted(run.onDeckRunId,{retry:true,supplementalSources:sources,command});
+    },
     retryAcceptance(offerId) {
+      assertOfferCurrent(offerId);
       const item = recovery.read(offerId);
       if (!item) throw Object.assign(new Error('Acceptance Recovery Case was not found.'), { code:'ARCA_ACCEPTANCE_RECOVERY_NOT_FOUND' });
       if (item.recoveryState === 'resolved') {
@@ -372,7 +423,16 @@ function createOnDeckProcessCoordinator(options) {
     listAcceptanceAttention: recovery.listAttention,
     listRecoverableOnDeck, listPendingSettlementApprovals, reconcileSettlementApprovals,
     reconcileAcceptance,
+    reconcileSeriesScope(scopeId){return options.series.seriesStore.read('reservations',{scope_id:scopeId}).filter(row=>row.state==='pending').map(row=>continueAccepted(row.on_deck_run_id));},
+    reconcileSeries(buildId){
+      const scope=options.series.seriesStore.build(buildId);if(!scope)return [];
+      return options.series.seriesStore.read('reservations',{scope_id:scope.scopeId}).filter(row=>row.state==='pending').map(row=>{
+        const responsibility=options.contextReader.acceptance.readRunResponsibility(row.on_deck_run_id);
+        const result=continueAccepted(row.on_deck_run_id);if(result.subjectId)options.onFormationSubjectChanged?.(result.subjectId);return result;
+      });
+    },
     reconcileOnDeck(onDeckRunId) {
+      if (retirement.isRunRetired(onDeckRunId)) return retired({ onDeckRunId });
       const rows = orderedOnDeckWorks(onDeckRunId);
       if (!rows.length) return Object.freeze({ kind:'not_found', onDeckRunId });
       const row = rows.slice().reverse().find((item)=>succeeded(options.workResultReader.status(item.work_id)));
@@ -385,6 +445,7 @@ function createOnDeckProcessCoordinator(options) {
       return Object.freeze({ kind:'terminal', onDeckRunId, subjectId:context.offer.subjectId, result:commit.result });
     },
     blockOnDeck(onDeckRunId) {
+      if (retirement.isRunRetired(onDeckRunId)) return retired({ onDeckRunId });
       const rows = orderedOnDeckWorks(onDeckRunId);
       if (!rows.length) return Object.freeze({ kind:'not_found', onDeckRunId });
       const latest = rows.at(-1), refs = refsFromWorkDefinition(latest.work_id);

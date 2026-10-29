@@ -8,6 +8,21 @@ const PROCESS_FAILURE_CLASSES = new Set([...RESOURCE_FAILURE_CLASSES,'executor',
 
 function definitions(schemaManifest) {
   return Object.freeze({
+    works:createRepositoryDefinition({repositoryId:'incident_observer_works',owner:'execution-foundation',schemaManifest,statements:{
+      page:{kind:'select-page-after',tableId:'fx_supporting_works',columns:['work_id','state'],
+        fixedKeyColumns:['owner_domain','process_type','work_kind'],keyColumn:'work_id',maxItems:500},
+      process_page:{kind:'select-page-after',tableId:'fx_supporting_works',columns:['work_id','state'],
+        fixedKeyColumns:['owner_domain','process_type','work_kind','process_id'],keyColumn:'work_id',maxItems:500},
+    }}),
+    workAttempts:createRepositoryDefinition({repositoryId:'incident_observer_work_attempts',owner:'execution-foundation',schemaManifest,statements:{
+      list:{kind:'select-all',tableId:'fx_work_attempts',columns:['attempt_id','state'],keyColumns:['work_id']},
+    }}),
+    effects:createRepositoryDefinition({repositoryId:'incident_observer_effects',owner:'execution-foundation',schemaManifest,statements:{
+      list:{kind:'select-all',tableId:'fx_effect_journal',columns:['state'],keyColumns:['event_attempt_id']},
+    }}),
+    defers:createRepositoryDefinition({repositoryId:'incident_observer_defers',owner:'execution-foundation',schemaManifest,statements:{
+      list:{kind:'select-all',tableId:'fx_resource_defer',columns:['state'],keyColumns:['event_id','state']},
+    }}),
     events:createRepositoryDefinition({repositoryId:'incident_observer_events',owner:'execution-foundation',schemaManifest,statements:{
       list:{kind:'select-all',tableId:'fx_workflow_events',columns:['event_id','work_id','attempt_id','capability_ref','state'],keyColumns:['work_id']},
     }}),
@@ -55,7 +70,53 @@ function createExecutorIncidentObserver(options) {
     for(const scope of successfulScopes(request))resolvedScopes+=options.registry.resolveScope(scope,evidenceDigest).length;
     return Object.freeze({incidentRefs:Object.freeze([]),resolvedScopes});
   }
+  function findReservationOwner(reservation, scope) {
+    let cursor = null;
+    while (true) {
+      const page = options.unitOfWork.execute([{participantId:'incident_reservation_owner',owner:'execution-foundation',
+        repositories:[repositories.works],execute(context){
+          return context.repository(repositories.works.repositoryId).invoke(scope?.processId ? 'process_page' : 'page', {
+            owner_domain:reservation.ownerDomain,process_type:reservation.processType,work_kind:reservation.workKind,
+            ...(scope?.processId ? {process_id:scope.processId} : {}),cursor,limit:500,
+          });
+        }}]).incident_reservation_owner;
+      for (const work of page) if (canonicalDigest({schema:'foundation.executor-incident-recovery-work@1',
+        circuitKey:reservation.circuitKey,workId:work.work_id}) === reservation.evidenceDigest) return work;
+      if (page.length < 500) return null;
+      cursor = page.at(-1).work_id;
+    }
+  }
+  function isExecutionClosed(work) {
+    if (!work || !['succeeded','failed','cancelled'].includes(work.state)) return false;
+    return options.unitOfWork.execute([{participantId:'incident_reservation_closure',owner:'execution-foundation',
+      repositories:Object.values(repositories),execute(context){
+        const list=(name,parameters)=>context.repository(repositories[name].repositoryId).invoke('list',parameters);
+        if (list('workAttempts',{work_id:work.work_id}).some(row=>!['succeeded','failed','cancelled'].includes(row.state))) return false;
+        for (const event of list('events',{work_id:work.work_id})) {
+          if (!['succeeded','failed','cancelled','skipped'].includes(event.state)) return false;
+          if (list('defers',{event_id:event.event_id,state:'waiting'}).length) return false;
+          for (const attempt of list('attempts',{event_id:event.event_id})) {
+            if (attempt.state !== 'completed') return false;
+            if (list('effects',{event_attempt_id:attempt.event_attempt_id}).some(row=>!['committed','failed'].includes(row.state))) return false;
+          }
+        }
+        return true;
+      }}]).incident_reservation_closure;
+  }
+  function reconcileRecoveryReservations(scope) {
+    const reservations=options.registry.recoveryReservations().filter(row=>!scope ||
+      (row.ownerDomain===scope.ownerDomain && row.processType===scope.processType));
+    let reopened=0;
+    for (const reservation of reservations) {
+      const work=findReservationOwner(reservation,scope);
+      // Terminal Work alone is insufficient: unclosed Effects still hold responsibility.
+      // Reopen the Circuit, never assert success or erase its failure evidence here.
+      if (isExecutionClosed(work)) reopened+=options.registry.abandonExecution(work.work_id);
+    }
+    return Object.freeze({examined:reservations.length,reopened});
+  }
   return Object.freeze({
+    reconcileRecoveryReservations,
     observeTerminalWork,
     prepareExecution(request){const scopes=[{ownerDomain:request.ownerDomain,processType:request.processType,workKind:request.workKind},
       ...request.resourceKeys.map((resourceKey)=>({ownerDomain:request.ownerDomain,processType:request.processType,workKind:request.workKind,resourceKey}))];

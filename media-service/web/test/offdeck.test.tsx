@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from '../src/App';
+import {mockRunningRuntime} from './fixtures/runtime';
 import OffdeckPage from '../src/helix/OffdeckPage';
 import { helixAdminApi, type CollectionEntry, type OffdeckCase, type OffdeckPolicy, type OffdeckReview } from '../src/helix/api';
 import { SessionProvider } from '../src/helix/session';
@@ -320,6 +321,7 @@ describe('Off-deck rules live in settings', () => {
   afterEach(() => vi.restoreAllMocks());
 
   it('edits rules on the settings tab, not the off-deck page', async () => {
+    mockRunningRuntime();
     vi.spyOn(helixAdminApi, 'getIntegration').mockResolvedValue({
       kind: 'douban', supported: true, configured: false, state: 'idle', configRevision: 0,
       endpoint: null, configDigest: null, capabilityCodes: [], lastTestSummary: null, landingBinding: null,

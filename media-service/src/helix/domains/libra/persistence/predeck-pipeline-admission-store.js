@@ -1,6 +1,8 @@
 'use strict';
 const { deliveryScopeStatements,readDeliveryScopes } = require('./series-delivery-scope-reader');
 
+const { createIntakeRetirementStore } = require('./intake-retirement-store');
+
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
 
 const DEFAULT_PREDECK_PIPELINE_SEATS = 3;
@@ -36,7 +38,7 @@ function createPredeckPipelineAdmissionStore(options) {
       find_secondary: {kind:'select-one',tableId:'libra_workshop_placements',columns:['subject_id','transferred_at_ms','readiness_digest'],keyColumns:['subject_id']},
       insert_secondary: {kind:'insert',tableId:'libra_workshop_placements',columns:['subject_id','transferred_at_ms','readiness_digest']},
       delete_secondary: {kind:'delete',tableId:'libra_workshop_placements',keyColumns:['subject_id']},
-      scope_subject:{kind:'select-one',tableId:'libra_subjects',columns:['structure_kind'],keyColumns:['subject_id']},
+      scope_subject:{kind:'select-one',tableId:'libra_subjects',columns:['structure_kind','status'],keyColumns:['subject_id']},
       pending_bindings:{kind:'select-all',tableId:'libra_material_bindings',columns:['material_key','authority_kind','current'],keyColumns:['subject_id']},
       find_policy: {
         kind: 'select-one',
@@ -86,8 +88,10 @@ function createPredeckPipelineAdmissionStore(options) {
     },
   });
 
-  function execute(participantId, body) {
-    return options.unitOfWork.execute([{
+  const retirement = createIntakeRetirementStore(options);
+
+  function execute(participantId, body, guards = []) {
+    return options.unitOfWork.execute([...guards, {
       participantId,
       owner: 'libra',
       repositories: [repository],
@@ -257,6 +261,10 @@ function createPredeckPipelineAdmissionStore(options) {
       }
       return execute('libra_predeck_pipeline_token_acquire', (context) => {
         const repo = context.repository(repository.repositoryId);
+        const subject = repo.invoke('scope_subject', { subject_id: subjectId });
+        if (subject && subject.status !== 'active') {
+          fail('LIBRA_SUBJECT_TERMINAL', 'A terminal Subject cannot reacquire a pipeline token.', { subjectId });
+        }
         if (repo.invoke('find_token', { subject_id: subjectId })) {
           return Object.freeze({ acquired: true, replayed: true, subjectId, fieldId });
         }
@@ -275,13 +283,15 @@ function createPredeckPipelineAdmissionStore(options) {
           acquired_at_ms: options.now(),
         });
         return Object.freeze({ acquired: true, replayed: false, subjectId, fieldId });
-      });
+      }, [retirement.activeAdmissionGuard(sourceProcessId)]);
     },
-    release(subjectId) {
+    release(subjectId, expectedSourceProcessId = null) {
       return execute('libra_predeck_pipeline_token_release', (context) => {
         const repo = context.repository(repository.repositoryId);
         const existing = repo.invoke('find_token', { subject_id: subjectId });
         if (!existing) return Object.freeze({ released: false, subjectId });
+        if (expectedSourceProcessId !== null && existing.source_process_id !== expectedSourceProcessId)
+          return Object.freeze({ released: false, subjectId, reasonCode: 'intake_process_changed' });
         if(repo.invoke('scope_subject',{subject_id:subjectId})?.structure_kind==='season'){
           const scopes=readDeliveryScopes(repo,subjectId),assigned=new Set(scopes.flatMap(scope=>scope.materialKeys));
           const active=scopes.some(scope=>!scope.accepted&&['active','suspended','frozen'].includes(scope.state));

@@ -71,6 +71,8 @@ function validateFactValue(kind, value) {
       westernAnalysisVariantDigest:value.westernAnalysisVariantDigest,fieldProvenance:value.fieldProvenance,
       descriptiveFacts:value.descriptiveFacts,providerIdentities:value.providerIdentities,mediaCastFactRef:value.mediaCastFactRef,
       verifiedArtifactManifestDigest:value.verifiedArtifactManifestDigest};
+    if(value.seriesPresentationBasis)body.seriesPresentationBasis=require('../../../contracts/series-presentation-basis').assertSeriesPresentationBasis(
+      value.seriesPresentationBasis,value.providerIdentities.find(item=>item.namespace==='tmdb_series'));
     if(value.javSelectedSource)body.javSelectedSource=require('../../../contracts/jav-selected-source').assertJavSelectedSource(value.javSelectedSource);
     if(value.episodeMetadata){
       validateEpisodeMetadata(value.episodeMetadata,value.providerIdentities);

@@ -7,7 +7,6 @@ const { formationProjectionDigest } = require('../model/formation-projection-con
 const { buildFormationProcessDetail, currentPlanSummary } = require('./formation-process-projection');
 
 const { createMovieProductionReader } = require('../persistence/movie-production-reader');
-const { frozenSeriesSeasonNumber } = require('../model/series-identity-contracts');
 const { routingPreparationReadiness } = require('../model/routing-readiness');
 
 const PAGE_SIZE = 100;
@@ -478,10 +477,7 @@ function createFormationProjectionSource(options) {
   function seriesDelivery(subject, run) {
     if (subject.content_profile !== 'series' || !run) return null;
     productionReader ||= createMovieProductionReader(options);
-    const snapshot = productionReader.readRunSnapshot(run.libra_run_id);
-    return Object.freeze({ libraRunId:run.libra_run_id, seasonNumber:frozenSeriesSeasonNumber(snapshot),
-      episodeKeys:Object.freeze(snapshot.episodeClaims.map(claim=>claim.episodeKey)),
-      physicalFileCount:snapshot.members.filter(member=>member.role === 'primary_payload').length });
+    return productionReader.readDeliveryPresentation(run.libra_run_id);
   }
   const repository = createRepositoryDefinition({ repositoryId: 'libra_formation_query', owner: 'libra', schemaManifest: options.schemaManifest, statements: {
     find_cancellations:{kind:'select-in',tableId:'libra_task_cancellations',keyColumn:'subject_id',maxItems:PAGE_SIZE,columns:['subject_id','state']},
@@ -572,6 +568,7 @@ function createFormationProjectionSource(options) {
     const arcaStatuses = new Map(offerIds.length ? chunks(offerIds, 100).flatMap((ids) =>
       [...(options.readArcaFormationStatuses?.(ids) || new Map()).entries()]) : []);
     const onDeckRunIds = unique([...arcaStatuses.values()].map((item) => item.onDeckRunId).filter(Boolean));
+    const sharedBuildIds=unique([...arcaStatuses.values()].map(item=>item.sharedBuildId).filter(Boolean));
     const recoveries = new Map(offerIds.length ? chunks(offerIds, 100).flatMap((ids) =>
       [...(options.readAcceptanceRecoveries?.(ids) || new Map()).entries()]) : []);
     const prepared = subjects.map((subject) => {
@@ -589,7 +586,10 @@ function createFormationProjectionSource(options) {
       }
       return { subject, decisions, displayIdentity, snapshot, sourceFieldId: anchor?.source_field_id || null };
     });
-    const ratings = options.readPerceptionRatings?.(subjects.map((item) => item.subject_id)) || new Map();
+    // A cancelled Subject is no longer an accepted rating target. Asking Perception for it
+    // throws in the routing context reader and would fail the whole Formation page.
+    const ratedSubjectIds = subjects.filter((item) => item.status === 'active').map((item) => item.subject_id);
+    const ratings = ratedSubjectIds.length ? (options.readPerceptionRatings?.(ratedSubjectIds) || new Map()) : new Map();
     const shelfNames = new Map((options.readShelfTargets?.() || []).map((item) => [item.shelfId, item.name]));
     const externalIntegrationReady = typeof options.isExternalMaterialIntegrationReady === 'function'
       ? options.isExternalMaterialIntegrationReady() === true : null;
@@ -600,7 +600,7 @@ function createFormationProjectionSource(options) {
     const actualPlanProcessIds = includeActualPlans ? unique([
       ...(buildOptions.includeProcessDetail === true ? prepared.map((item)=>item.snapshot?.candidatePackage?.procurementRunId) : []),
       ...value.decisions.map((item)=>item.intake_decision_id), ...subjects.map((item)=>item.subject_id),
-      ...runIds, ...offerIds, ...onDeckRunIds,
+      ...runIds, ...offerIds, ...onDeckRunIds, ...sharedBuildIds,
     ]) : [];
     const actualPlanWorks = actualPlanProcessIds.length
       ? chunks(actualPlanProcessIds).flatMap((ids)=>options.progressProjectionReader?.read(ids, { includePlans:true, ...resultReadOptions }) || []) : [];
@@ -686,6 +686,7 @@ function createFormationProjectionSource(options) {
         arcaScopes:[
           ...(pkg ? [{ processType:'arca_acceptance', processId:pkg.offer_id }] : []),
           ...(arcaStatus?.onDeckRunId ? [{ processType:'arca_ondeck_run', processId:arcaStatus.onDeckRunId }] : []),
+          ...(arcaStatus?.sharedBuildId?[{processType:'arca_series_presentation',processId:arcaStatus.sharedBuildId}]:[]),
         ],
       }) : undefined;
       return Object.freeze({ formationViewId: subject.subject_id, subjectId: subject.subject_id, displayIdentity, contentProfile: subject.content_profile, structureKind: subject.structure_kind, status: subject.status, classification, myRating: rating?.rating ?? null, myRatingSource: rating?.sourceKind || null, myRatingRevision: (rating?.expectedRevision || 0) > 0 ? rating.expectedRevision : null, ratingState:rating?.state || 'pending', ratingResolutionStatus:rating?.resolutionStatus || null, ratingReasonCode:rating?.reasonCode || null, productIdentityIssue: issue, acceptanceRecovery: recovery, arcaStatus,
@@ -719,10 +720,10 @@ function createFormationProjectionSource(options) {
 }
 
 function isIdleAfterUserAbandon(item) {
-  return item.status==='abandoned'||!item.currentRun && item.nextAction?.label === '等待重新入库';
+  return ['abandoned','administratively_retired','ended'].includes(item.status);
 }
 function isIdleAfterUserAbandonRow(row) {
-  return row.subject_status==='abandoned'||!row.current_libra_run_id && row.next_action_label === '等待重新入库';
+  return ['abandoned','administratively_retired','ended'].includes(row.subject_status);
 }
 function attentionFor(item) {
   if (item.classification === 'attention_required') {
@@ -861,12 +862,24 @@ function createFormationQuery(options) {
       processType:arca?'arca_ondeck_run':'libra_run',processId,workKind})).slice(0,16):[];
     if(failures.length)item={...item,failureDiagnostics:failures};
     const value = item.handoffB?.offerId ? options.readAcceptanceRecovery?.(item.handoffB.offerId) : null;
+    if(item.handoffB?.offerId&&item.arcaStatus?.retryAvailable===true&&item.arcaStatus.blockedPhase==='series_presentation'){
+      return Object.freeze({...item,classification:'attention_required',nextAction:Object.freeze({label:'剧集资料准备失败',state:'attention_required',progress:null}),
+        executorIssue:Object.freeze({phase:'series_presentation',canSupplyImages:item.arcaStatus.canSupplyImages===true,errorCode:item.arcaStatus.reasonCode,attemptCount:null,owner:'arca',recoveryState:'attention_required',
+          recoveryGeneration:null,automaticRecoveryUsed:true,canRetry:true,offerId:item.handoffB.offerId,onDeckRunId:item.arcaStatus.onDeckRunId})});
+    }
     if (item.handoffB?.offerId && item.arcaStatus?.reasonCode === 'ARCA_ONDECK_BLOCKED' && item.arcaStatus.onDeckRunId) {
+      const failureCode = item.arcaStatus.failureCode || 'ARCA_ONDECK_BLOCKED',
+        canRetry = item.arcaStatus.retryAvailable !== false,
+        canRecheck = item.arcaStatus.canRecheck === true,
+        label = failureCode === 'CLEAN_ARCA_STAGE_TARGET_OCCUPIED' ? '目标位置存在冲突，已停止上架'
+          : failureCode === 'CLEAN_ARCA_TARGET_OCCUPIED' ? '目标位置已被占用，已停止上架'
+            : '上架自动恢复已停止，需要处理';
       return Object.freeze({ ...item, classification:'attention_required',
-        nextAction:Object.freeze({label:'上架自动恢复已停止，需要处理',state:'attention_required',progress:null}),
-        executorIssue:Object.freeze({phase:'on_deck_execution',errorCode:'ARCA_ONDECK_BLOCKED',
+        nextAction:Object.freeze({label,state:'attention_required',progress:null}),
+        executorIssue:Object.freeze({phase:'on_deck_execution',errorCode:failureCode,canRetry,canRecheck,
+          details:item.arcaStatus.diagnostics || null,
           attemptCount:null,owner:'arca',recoveryState:'attention_required',recoveryGeneration:null,
-          automaticRecoveryUsed:true,canRetry:true,offerId:item.handoffB.offerId,onDeckRunId:item.arcaStatus.onDeckRunId})});
+          automaticRecoveryUsed:true,offerId:item.handoffB.offerId,onDeckRunId:item.arcaStatus.onDeckRunId})});
     }
     if (!value || value.recoveryState !== 'attention_required') return Object.freeze({ ...item, executorIssue:null });
     return Object.freeze({ ...item, classification:'attention_required',
@@ -912,7 +925,7 @@ function createFormationQuery(options) {
     }
     return hidden;
   }
-  function summary(changes = [], activeChanges = null) {
+  function summaryBase() {
     const result = { totalCount: 0, inProgressCount: 0, attentionRequiredCount: 0, completedCount: 0,endedCount:options.historyStore?.count?.()||0 };
     for (const row of options.store.counts()) {
       const count = Number(row.row_count);
@@ -923,9 +936,16 @@ function createFormationQuery(options) {
     const hidden = countHiddenActive();
     result.inProgressCount = Math.max(0, result.inProgressCount - hidden.in_progress);
     result.attentionRequiredCount = Math.max(0, result.attentionRequiredCount - hidden.attention_required);
+    return Object.freeze(result);
+  }
+  function intakeTasksFor(readScope) {
+    return readScope ? (readScope.intakeTasks ||= options.readIntakeTasks?.() || []) : options.readIntakeTasks?.() || [];
+  }
+  function summary(changes = [], activeChanges = null, readScope = null) {
+    const result = { ...(readScope ? (readScope.summaryBase ||= summaryBase()) : summaryBase()) };
     // Every section reports the same current active population. Page-local
     // overlays must not resurrect terminal Runs when another section loads.
-    const currentChanges = activeChanges || activeSnapshot([], false).changes;
+    const currentChanges = activeChanges || readScope?.active?.changes || activeSnapshot([], false).changes;
     const mergedChanges = new Map([...currentChanges, ...changes].map((change)=>[change.subjectId,change]));
     for (const change of mergedChanges.values()) {
       if (!change || change.from === change.to) continue;
@@ -936,7 +956,7 @@ function createFormationQuery(options) {
       else if (change.to === 'attention_required') result.attentionRequiredCount += 1;
       else if (change.to === 'completed') result.completedCount += 1;
     }
-    for(const item of options.readIntakeTasks?.()||[]){
+    for(const item of intakeTasksFor(readScope)){
       if(item.classification==='attention_required')result.attentionRequiredCount++;
       else result.inProgressCount++;
     }
@@ -982,7 +1002,7 @@ function createFormationQuery(options) {
   function isVisibleActiveItem(item, admitted) {
     if (item.status==='abandoned'||isIdleAfterUserAbandon(item)) return false;
     if (admitted.has(item.subjectId)) return true;
-    return Boolean(item.currentRun || item.handoffB);
+    return item.status==='active' || Boolean(item.currentRun || item.handoffB);
   }
   function matchesActiveItem(item, filters) {
     if (filters.classification && item.classification !== filters.classification) return false;
@@ -1028,7 +1048,7 @@ function createFormationQuery(options) {
       return Object.freeze({ items:Object.freeze(selected.map((item) => {
         const subject = options.store.find(item.subjectId);
         return Object.freeze({ ...item, displayIdentity:subject?.display_identity || item.subjectId });
-      })), summary:summary(), nextCursor:hasMore ? cursorFor(offset + limit) : null,
+      })), summary:summary([], null, readScope), nextCursor:hasMore ? cursorFor(offset + limit) : null,
       projection:Object.freeze({ status:state.status, asOfMs:state.asOfMs }) });
     }
     const readAttention=()=> (options.listAcceptanceAttention?.(100) || []).map((item)=>options.store.findByOffer?.(item.offerId)).filter(Boolean);
@@ -1045,7 +1065,7 @@ function createFormationQuery(options) {
           changes.push(Object.freeze({subjectId:row.subject_id,from:row.classification,to:'attention_required'}));
         }
       }
-      return Object.freeze({ items: Object.freeze(currentProcessFacts(fresh.filter((item)=>item.classification === 'completed'))), summary: summary(changes),
+      return Object.freeze({ items: Object.freeze(currentProcessFacts(fresh.filter((item)=>item.classification === 'completed'))), summary: summary(changes, null, readScope),
         nextCursor: hasMore ? cursorFor(offset + limit) : null, projection: Object.freeze({ status: state.status, asOfMs: state.asOfMs }) });
     }
     const filters = activeFilters(query);
@@ -1062,7 +1082,7 @@ function createFormationQuery(options) {
       const rows = options.store.listActive(offset, limit + 1);
       items = rows.map(projectionItem).map(technicalIssue).filter((item) => !isIdleAfterUserAbandon(item));
     }
-    const intakeTasks=options.readIntakeTasks?.()||[];
+    const intakeTasks=intakeTasksFor(readScope);
     if(intakeTasks.length){
       items=[...items,...intakeTasks.filter(item=>matchesActiveItem(item,filters))].sort((a,b)=>
         b.addedAtMs-a.addedAtMs||String(a.formationViewId||a.subjectId).localeCompare(String(b.formationViewId||b.subjectId)));
@@ -1071,7 +1091,7 @@ function createFormationQuery(options) {
     const hasMore = windowed.length > limit, selected = hasMore ? windowed.slice(0, limit) : windowed;
     const selectedSubjects=selected.filter(item=>item.kind!=='intake');
     const selectedWithCurrentFacts=requiresFullScan ? selectedSubjects : currentFacts(selectedSubjects);
-    return Object.freeze({ items: Object.freeze(currentProcessFacts(selectedWithCurrentFacts)), summary: summary(changes, requiresFullScan ? changes : null),
+    return Object.freeze({ items: Object.freeze(currentProcessFacts(selectedWithCurrentFacts)), summary: summary(changes, requiresFullScan ? changes : null, readScope),
       intakeItems:Object.freeze(selected.filter(item=>item.kind==='intake')),
       nextCursor: hasMore ? cursorFor(offset + limit) : null, projection: Object.freeze({ status: state.status, asOfMs: state.asOfMs }) });
   }

@@ -1,8 +1,9 @@
 'use strict';
 const {canonicalDigest,canonicalJson}=require('../../../contracts/canonical-json');
-const {faceModelReference}=require('../../../contracts/us-adult-face-model');
+const {faceModelReference,CURRENT_MATCH_THRESHOLD,LEGACY_MATCH_THRESHOLD}=require('../../../contracts/us-adult-face-model');
 const SCHEMA='helix://contracts/domain-types/UsAdultAnalysisBasis/v1';
 const fail=message=>{throw Object.assign(new Error(message),{code:'US_ADULT_ANALYSIS_BASIS_INVALID'});};
+function matchThresholdFor(basis){return basis?.matchThreshold===undefined?LEGACY_MATCH_THRESHOLD:basis.matchThreshold;}
 function parameters(values){return Object.keys(values).sort().map(parameter=>{
   const value={parameter,valueType:Number.isSafeInteger(values[parameter])?'integer':typeof values[parameter],value:values[parameter]};
   return Object.freeze({...value,valueDigest:canonicalDigest(value)});
@@ -52,17 +53,19 @@ function buildUsAdultAnalysisBasis({snapshot,sourceHandle,sourceProbeRecord,work
     value={schemaRef:SCHEMA,schemaVersion:1,contentProfile:'western_adult',libraRunId:snapshot.run.libraRunId,subjectId:snapshot.run.subjectId,
       expectedRunStateRevision:snapshot.run.stateRevision,runExecutionBasisDigest:snapshot.run.executionBasisDigest,resolvedIdentityDigest:snapshot.resolvedIdentityDigest,
       workspaceId,sourceHandle,sourceProbeRef,durationMs:probe.durationMs,faceModelRef:model,referenceModelRefDigest:faceModelReference('single_reference_face').digest,
-      clusterParameters:clusterParameters(model),samplingPlan:samplingPlan(probe.durationMs),...referencePageSet(referencePages)},basisDigest=canonicalDigest(value),
+      matchThreshold:CURRENT_MATCH_THRESHOLD,clusterParameters:clusterParameters(model),samplingPlan:samplingPlan(probe.durationMs),...referencePageSet(referencePages)},basisDigest=canonicalDigest(value),
     analysisId=canonicalDigest({schema:'libra.us-adult-analysis-basis-id@1',libraRunId:value.libraRunId,basisDigest});
   return Object.freeze({...value,analysisId,basisDigest});
 }
 function assertUsAdultAnalysisBasis(basis,pages){
-  const {analysisId,basisDigest,...value}=basis||{},expectedId=canonicalDigest({schema:'libra.us-adult-analysis-basis-id@1',libraRunId:value.libraRunId,basisDigest});
+  const {analysisId,basisDigest,...value}=basis||{},expectedId=canonicalDigest({schema:'libra.us-adult-analysis-basis-id@1',libraRunId:value.libraRunId,basisDigest}),
+    threshold=matchThresholdFor(value);
   if(basis?.schemaRef!==SCHEMA||basis.schemaVersion!==1||value.contentProfile!=='western_adult'||canonicalDigest(value)!==basisDigest||analysisId!==expectedId||
+    typeof threshold!=='number'||!Number.isFinite(threshold)||threshold<0||threshold>1||
     Buffer.byteLength(canonicalJson(basis),'utf8')>32*1024||canonicalDigest(basis.faceModelRef)!==canonicalDigest(faceModelReference('western_frame_set'))||
     basis.referenceModelRefDigest!==faceModelReference('single_reference_face').digest||canonicalDigest(basis.clusterParameters)!==canonicalDigest(clusterParameters(basis.faceModelRef))||
     canonicalDigest(basis.samplingPlan)!==canonicalDigest(samplingPlan(basis.durationMs)))fail('US Adult analysis Basis digest, model or sampling parameters changed.');
   if(pages){const expected=referencePageSet(pages);for(const key of Object.keys(expected))if(expected[key]!==basis[key])fail('US Adult analysis pages differ from the frozen Basis.');}
   return basis;
 }
-module.exports=Object.freeze({SCHEMA,buildUsAdultAnalysisBasis,assertUsAdultAnalysisBasis,referencePageSet,samplingPlan,clusterParameters});
+module.exports=Object.freeze({SCHEMA,buildUsAdultAnalysisBasis,assertUsAdultAnalysisBasis,matchThresholdFor,referencePageSet,samplingPlan,clusterParameters});

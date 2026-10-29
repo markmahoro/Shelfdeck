@@ -283,7 +283,8 @@ function createProductIdentityProjections(options) {
     return Object.freeze({intentId,...body,intentDigest});
   }
   function identitySource(intent) {
-    if(intent.contentProfile==='jav')return options.productIdentitySelection.resolveJavSourceHandle(intent.sourceSnapshot.sources[intent.sourceOrdinal]);
+    if(intent.contentProfile==='jav')return require('../../../contracts/jav-source-qualification').buildJavSourceQualification(
+      intent.sourceSnapshot.sources[intent.sourceOrdinal],IDENTITY_EVIDENCE);
     const handle=options.resolveRoutingIntegrationHandle({...intent,providerKind:intent.provider,
       operationId:IDENTITY_EVIDENCE});
     if(!handle)throw executionInputUnavailable(
@@ -440,6 +441,8 @@ function createProductMetadataObservationProjections(options) {
       project:({ownerScope,parameters}) => {
         const frozenIntent = intent(parameters);
         if (frozenIntent.sourceKind === 'provider') {
+          if(frozenIntent.contentProfile==='jav')return require('../../../contracts/jav-source-qualification').buildJavSourceQualification(
+            frozenIntent.javSelectedSource,METADATA);
           return options.productProductionPort.resolveIntegrationHandle({
             intent:frozenIntent, operationId:METADATA });
         }
@@ -470,9 +473,10 @@ function createProductMetadataObservationProjections(options) {
 function resolvedMetadataInputs(options, source, snapshot, sourceResult=null) {
   if(source.intent.contentProfile==='jav') {
     const handle=sourceResult?.sourceIntegrationHandle;
-    const valid=options.productIdentitySelection.validateJavSourceHandleEvidence(handle,source.intent.javSelectedSource,sourceResult?.observedAtMs,METADATA);
+    const valid=options.productIdentitySelection.validateJavSourceHandleEvidence(handle,source.intent.javSelectedSource,sourceResult?.sourceAuthorizedAtMs,METADATA);
     if(!valid)throw new Error('JAV metadata lacks its exact historical source Handle provenance.');
-    return Object.freeze({metadataFetchIntent:source.intent,physicalMaterialReadHandleOrIntegrationHandle:handle});
+    return Object.freeze({metadataFetchIntent:source.intent,physicalMaterialReadHandleOrIntegrationHandle:
+      require('../../../contracts/jav-source-qualification').buildJavSourceQualification(source.intent.javSelectedSource,METADATA)});
   }
   if(source.kind==='provider')return Object.freeze({metadataFetchIntent:source.intent,
     physicalMaterialReadHandleOrIntegrationHandle:options.productProductionPort.resolveIntegrationHandle({
@@ -868,8 +872,11 @@ function createArtifactProductionProjections(options) {
     Object.freeze({projectionRef:ARTIFACT_REQUIREMENT,projection:Object.freeze({project:({ownerScope,parameters})=>requirement(ownerScope,parameters)})}),
     Object.freeze({projectionRef:ARTIFACT_INTEGRATION,projection:Object.freeze({project:({ownerScope,parameters})=>{
       const value=context(ownerScope);
+      const intent=artifactProviderIntent(options,value,parameters.artifactKind);
+      if(intent.contentProfile==='jav')return require('../../../contracts/jav-source-qualification').buildJavSourceQualification(
+        intent.javSelectedSource,ARTIFACT_ACQUIRE,parameters.artifactKind);
       return options.productProductionPort.resolveIntegrationHandle({
-        intent:artifactProviderIntent(options,value,parameters.artifactKind),operationId:ARTIFACT_ACQUIRE,
+        intent,operationId:ARTIFACT_ACQUIRE,
         artifactKind:parameters.artifactKind});
     }})}),
     Object.freeze({projectionRef:ARTIFACT_HANDLE_LIST,projection:Object.freeze({project:({sourceResult,parameters})=>{

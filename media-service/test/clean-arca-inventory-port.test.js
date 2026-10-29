@@ -194,6 +194,22 @@ test('source edition tags distinguish same title-year inventory folders without 
   assert.equal(editionFromSourceDisplay('养蜂人 (2024) - 2160p HEVC Atmos TrueHD5.1', '养蜂人', 2024),
     '2160p HEVC Atmos TrueHD5.1');
   assert.equal(editionFromSourceDisplay('养蜂人 (2024)', '养蜂人', 2024), null);
+  assert.equal(editionFromSourceDisplay('Movie (2015)', 'Movie', 2015, {sourceLocations:[
+    '/media/Film/Movie (2015)/Movie (2015) - 1080p DTS.mkv']}), '1080p DTS');
+  assert.equal(editionFromSourceDisplay('Movie (2015)', 'Movie', 2015, {sourceLocations:[
+    '/media/Film/Movie (2015) [1080p FLAC]/Movie (2015).mkv']}), '1080p FLAC');
+  assert.equal(editionFromSourceDisplay('Movie (2015)', 'Movie', 2015, {sourceLocations:[
+    '/media/Film/Movie (2015) - GROUP/Movie (2015).mkv']}), 'GROUP');
+  assert.equal(editionFromSourceDisplay('Movie (2015)', 'Movie', 2015, {sourceLocations:[
+    '/media/Film/Movie (2015)/Movie (2015).mkv']}), null);
+  assert.equal(editionFromSourceDisplay('Movie (2015)', 'Movie', 2015, {sourceLocations:[
+    '/media/Film/Movie (2015) - GROUP (1)/Movie (2015).mkv']}), null);
+  assert.equal(editionFromSourceDisplay('Movie (2015)', 'Movie', 2015, {sourceLocations:[
+    '/media/Film/Movie (2015) - ' + 'a'.repeat(64) + '/Movie (2015).mkv']}), null);
+  const firstEdition=editionFromSourceDisplay('Movie (2015)', 'Movie', 2015, {sourceLocations:[
+    '/media/Film/Movie (2015) - 1080p DTS/Movie.mkv']});
+  assert.equal(firstEdition,editionFromSourceDisplay('Movie (2015)', 'Movie', 2015, {sourceLocations:[
+    '/media/Film/Movie (2015) - 1080p DTS/Movie.mkv']}));
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-edition-folder-'));
   try {
     const port = createCleanArcaInventoryPort({
@@ -785,15 +801,15 @@ test('staged NFO presentation differences do not block Placement', async () => {
   }
 });
 
-test('same-root Stage/Switch replaces managed source bytes occupying the final name', async () => {
+for (const series of [false, true]) test(`same-root Stage/Switch replaces managed source bytes occupying the final name (${series ? 'Season' : 'Movie'})`, async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-same-root-replace-'));
   try {
-    const targetDirectory = path.join(root, 'Example Movie');
+    const targetDirectory = series ? path.join(root, 'Example Movie', 'Season 01') : path.join(root, 'Example Movie');
     const workspaceRoot = path.join(root, '.workspace');
     const workspaceId = 'run-workspace';
     fs.mkdirSync(path.join(workspaceRoot, workspaceId, 'product'), { recursive:true });
     fs.mkdirSync(targetDirectory, { recursive:true });
-    const primary = path.join(targetDirectory, 'Example Movie.mkv');
+    const primary = path.join(targetDirectory, series ? 'Example Movie - S01E01.mkv' : 'Example Movie.mkv');
     const oldPoster = path.join(targetDirectory, 'poster.jpg');
     const productPoster = path.join(workspaceRoot, workspaceId, 'product', 'poster.jpg');
     fs.writeFileSync(primary, Buffer.from('movie-bytes'));
@@ -801,15 +817,26 @@ test('same-root Stage/Switch replaces managed source bytes occupying the final n
     const oldPosterIdentity = identity(oldPoster, 'canary-mount');
     fs.writeFileSync(productPoster, Buffer.from('new-poster-bytes'));
     const mountScopeId = 'canary-mount';
+    const seasonClaimDigest = canonicalDigest({seasonNumber:1});
+    const episodeClaims = [{episodeKey:'E001',seasonClaimDigest,
+      claimDigest:canonicalDigest({schema:'libra.production-material-episode-claim@1',episodeKey:'E001',seasonClaimDigest})}];
     const productMembers = [
-      member(primary, 'primary_payload', mountScopeId),
+      { ...member(primary, 'primary_payload', mountScopeId),
+        ...(series ? { episodeClaims,episodeClaimSetDigest:canonicalDigest({
+          schema:'libra.production-material-episode-claims@1',items:episodeClaims,
+        }) } : {}) },
       member(productPoster, 'poster', mountScopeId,
         { workspaceId, relativePath:'product/poster.jpg' }),
     ];
     const packageValue = Object.freeze({
       onDeckPackageId:'package-1', shelfId:'shelf-1',
-      resolvedIdentitySnapshot:{ factValue:{contentProfile:'movie',structureKind:'single',identityKind:'tmdb_movie', title:'Example Movie' } },
-      productStructureSnapshot:{ structureKind:'single' },
+      resolvedIdentitySnapshot:{ factValue:{contentProfile:series ? 'series' : 'movie',structureKind:series ? 'season' : 'single',
+        identityKind:series ? 'tmdb_series_season' : 'tmdb_movie', title:'Example Movie',
+        ...(series ? {providerIdentities:[{namespace:'tmdb_series',providerKey:'test-series',seasonNumber:1}]} : {}) } },
+      productStructureSnapshot:{ structureKind:series ? 'season' : 'single' },
+      ...(series ? {productFactManifest:{items:[{factKind:'product_metadata',factValue:{
+        episodeMetadata:[{episodeScope:{episodeKey:'E001',seasonNumber:1,episodeNumber:1}}],
+      }}]}} : {}),
       productMaterialManifest:{ members:Object.freeze(productMembers), manifestDigest:'manifest-1' },
       offloadContextManifest:{ manifestDigest:'offload-1', members:Object.freeze([
         Object.freeze({ materialKey:identity(oldPoster, mountScopeId).materialKey, location:oldPoster }),
@@ -837,6 +864,7 @@ test('same-root Stage/Switch replaces managed source bytes occupying the final n
       onDeckProductPackage:packageValue, observedAtMs:1, replayCommitted:false,
     };
     const finalInventoryDecision = port.prepare(request);
+    assert.equal(finalInventoryDecision.members.find(item=>item.role==='poster').targetLocation, oldPoster);
     const targetCommitSlotHandle = port.prepareSlot({ ...request, finalInventoryDecision });
     await assert.rejects(
       port.stage({ ...request, finalInventoryDecision, targetCommitSlotHandle }),
@@ -1749,6 +1777,8 @@ test('Stage target preflight produces a typed terminal outcome before any copy o
     assert.equal(result.kind, 'failed'); assert.equal(result.code, 'CLEAN_ARCA_STAGE_TARGET_OCCUPIED');
     assert.equal(result.retryDirective, 'never'); assert.equal(result.failureClass, 'stage_precondition');
     assert.deepEqual(result.evidence.diagnostics.unknownNames, [path.basename(fixture.finalMember.targetLocation)]);
+    assert.equal(result.evidence.diagnostics.conflictCount, 1);
+    assert.deepEqual(result.evidence.diagnostics.conflicts, [{target:fixture.finalMember.targetLocation,name:path.basename(fixture.finalMember.targetLocation)}]);
     assert.equal(fs.existsSync(slot.slotDirectory), false);
     assert.equal(fs.readFileSync(fixture.finalMember.targetLocation, 'utf8'), 'unrelated occupied target');
     assert.equal(fs.existsSync(fixture.source), true);

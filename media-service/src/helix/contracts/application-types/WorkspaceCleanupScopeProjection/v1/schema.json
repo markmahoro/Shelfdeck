@@ -24,7 +24,8 @@
       "enum": [
         "offload_completed",
         "run_superseded",
-        "run_discarded"
+        "run_discarded",
+        "run_administratively_retired"
       ]
     },
     "state": {

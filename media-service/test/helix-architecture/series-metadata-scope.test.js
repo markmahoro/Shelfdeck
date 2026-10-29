@@ -164,7 +164,11 @@ test('Reconcile selects E01 then E02 from frozen delivery and cannot let E01 clo
   assert.equal(first.source.intent.episodeScope,undefined);
   assert.deepEqual(first.source.intent.requestedFields,['season_number','series_title']);
   records.push(buildMetadataObservation({intent:first.source.intent,descriptiveEntries:[
-    {key:'series_title',value:'Show'},{key:'season_number',value:1}],providerIdentities:[identity],observedAtMs:10}));
+    {key:'series_title',value:'Show'},{key:'season_number',value:1}],providerIdentities:[identity],observedAtMs:10,
+    seriesPresentationSource:require('../../src/helix/contracts/series-presentation-basis').buildSeriesPresentationSource({
+      provider:'tmdb',namespace:'tmdb_series',providerKey:identity.providerKey,seasonIdentityAnchorDigest:identity.identityAnchorDigest,
+      integrationId:first.source.intent.integrationId,configRevision:first.source.intent.configRevision,language:'zh-CN',
+      sourceRef:'tmdb:tv:'+identity.providerKey,title:'Show',originalTitle:'Show',firstAirDate:'2024-01-01',plot:'Series plot',genres:[]})}));
   const second=nextMetadataStage(options,snapshot,resolved);
   assert.deepEqual(second.source.intent.episodeScope,scope(1));
   records.push(buildMetadataObservation({intent:second.source.intent,descriptiveEntries:episodeEntries(1),providerIdentities:[identity],observedAtMs:10}));
@@ -208,6 +212,41 @@ function productionFixture() {
     policyRegistry:{digest:D('policy'),bindingFor:()=>({retryPolicyRef:'fixture-retry',timeoutPolicyRef:'fixture-timeout'})}};
   return {options,snapshot,records};
 }
+
+test('complete Episode NFO without cast still requests a representative Episode source', () => {
+  const f=productionFixture();
+  f.snapshot.spec.requirements.metadata.requiredFieldCodes.push('actor');
+  f.snapshot.run.subjectId='series-subject';
+  const globalIntent=buildMetadataFetchIntent({libraRunId:'series-run',runExecutionBasisDigest:D('basis'),sourceKind:'provider',
+    sourcePriority:0,contentProfile:'series',resolvedIdentityDigest:D('identity'),requestedFields:['season_number','series_title'],
+    providerKind:'tmdb',resolvedProviderIdentity:identity,integrationId:'tmdb-main',configRevision:2});
+  const records=[buildMetadataObservation({intent:globalIntent,descriptiveEntries:[{key:'season_number',value:1},{key:'series_title',value:'Show'}],
+    providerIdentities:[identity],peopleHints:[{role:'actor',displayName:'Show-only Actor',providerIdentities:[]}],observedAtMs:10,
+    seriesPresentationSource:require('../../src/helix/contracts/series-presentation-basis').buildSeriesPresentationSource({
+      provider:'tmdb',namespace:'tmdb_series',providerKey:identity.providerKey,seasonIdentityAnchorDigest:identity.identityAnchorDigest,
+      integrationId:'tmdb-main',configRevision:2,language:'zh-CN',sourceRef:'tmdb:tv:'+identity.providerKey,
+      title:'Show',originalTitle:'Show',firstAirDate:'2024-01-01',plot:'Series plot',genres:[]})})];
+  for(const n of [1,2])records.push(buildMetadataObservation({intent:buildMetadataFetchIntent({
+    libraRunId:'series-run',runExecutionBasisDigest:D('basis'),sourceKind:'related_nfo',sourcePriority:n,contentProfile:'series',
+    resolvedIdentityDigest:D('identity'),requestedFields:['episode_number','episode_plot','episode_title','season_number'],
+    episodeScope:scope(n),relatedReferenceId:'nfo-'+n,relatedReferenceDigest:D('nfo-'+n),expectedChecksum:D('bytes-'+n)}),
+    descriptiveEntries:episodeEntries(n),peopleHints:[],observedAtMs:10}));
+  const options={workResultReader:{listWorks:()=>records.map((_,index)=>({work_id:String(index)})),
+    read:id=>[{outcomeKind:'succeeded',capabilityRef:'libra.product_metadata.fetch@1',result:records[Number(id)]}]},
+    productProductionPort:{resolveCurrentIntegrationHandle:()=>({integrationId:'tmdb-main',configRevision:2})}};
+  const resolved={factValue:{identityDigest:D('identity'),providerIdentities:[identity]}};
+  const first=nextMetadataStage(options,f.snapshot,resolved);
+  assert.equal(first.kind,'source'); assert.deepEqual(first.source.intent.episodeScope,scope(1));
+  assert.deepEqual(first.source.intent.requestedFields,[]);
+  records.push(buildMetadataObservation({intent:first.source.intent,descriptiveEntries:[],peopleHints:[],observedAtMs:10}));
+  const second=nextMetadataStage(options,f.snapshot,resolved);
+  assert.equal(second.kind,'source'); assert.deepEqual(second.source.intent.episodeScope,scope(2));
+  records.push(buildMetadataObservation({intent:second.source.intent,descriptiveEntries:[],peopleHints:[],observedAtMs:10}));
+  assert.equal(nextMetadataStage(options,f.snapshot,resolved).reasonCode,'product_metadata_required_cast_missing');
+  records[4]=buildMetadataObservation({intent:second.source.intent,descriptiveEntries:[],
+    peopleHints:[{role:'actor',displayName:'Episode Actor',providerIdentities:[]}],observedAtMs:10});
+  assert.equal(nextMetadataStage(options,f.snapshot,resolved).kind,'ready');
+});
 
 test('Artifact input projection builds only the selected Episode with identical frozen values', () => {
   const {options}=productionFixture();

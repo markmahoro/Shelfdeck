@@ -11,13 +11,13 @@ const { readFrozenTableContracts } = require('../../scripts/helix-architecture/p
 const contractsRoot = path.resolve(__dirname, '../../src/helix/contracts');
 const contracts = readFrozenTableContracts(contractsRoot);
 
-test('compiles all 225 frozen contracts deterministically without legacy schema artifacts', () => {
+test('compiles all 239 frozen contracts deterministically without legacy schema artifacts', () => {
   const first = compileSchema(contracts);
   const second = compileSchema([...contracts].reverse());
-  assert.equal(first.manifest.tableCount, 225);
+  assert.equal(first.manifest.tableCount, 239);
   assert.equal(first.ddl, second.ddl);
   assert.equal(first.manifest.ddlDigest, second.manifest.ddlDigest);
-  assert.equal((first.ddl.match(/CREATE TABLE/g) || []).length, 225);
+  assert.equal((first.ddl.match(/CREATE TABLE/g) || []).length, 239);
   assert.doesNotMatch(first.ddl, /\b(?:nexora_|kairox_|CREATE\s+(?:VIEW|TRIGGER)|MIGRAT)/i);
 });
 
@@ -27,7 +27,7 @@ test('retains the exact P2 contract digest for every generated table trace', () 
     JSON.parse(fs.readFileSync(path.join(contractsRoot, 'manifests', relativePath), 'utf8')).entries
   ).map((entry) => [entry.id, entry.contract.contractDigest]));
   const actual = compileSchema(contracts).manifest.tables;
-  assert.equal(expected.size, 225);
+  assert.equal(expected.size, 239);
   for (const table of actual) assert.equal(table.contractDigest, expected.get(table.tableId), table.tableId);
 });
 
@@ -53,13 +53,13 @@ test('unconditional Event result uniqueness supports indexed lookups without a t
 test('maps every P2 partial-unique rule and only cross-table predicates use support guards', () => {
   const expected = contracts.reduce((count, contract) => count + contract.partialUniqueRules.length, 0);
   const actual = Object.values(PARTIAL_UNIQUE).reduce((count, rules) => count + rules.length, 0);
-  assert.equal(expected, 23);
+  assert.equal(expected, 24);
   assert.equal(actual, expected);
   assert.deepEqual(Object.keys(SUPPORT_COLUMNS).sort(), [
     'arca_inventory_materials', 'libra_intake_decisions', 'people_provider_identities'
   ]);
   const compiled = compileSchema(contracts);
-  assert.equal(compiled.manifest.tables.flatMap((table) => table.indexes).filter((index) => index.kind === 'partial-unique').length, 23);
+  assert.equal(compiled.manifest.tables.flatMap((table) => table.indexes).filter((index) => index.kind === 'partial-unique').length, 24);
   assert.equal(compiled.manifest.tables.flatMap((table) => table.supportColumns).length, 7);
   assert.deepEqual(compiled.manifest.tables.find((table) => table.tableId === 'libra_intake_decisions').supportColumns
     .map((column) => column.name), [

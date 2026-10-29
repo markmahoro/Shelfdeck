@@ -287,6 +287,8 @@ async function observeProductIdentity(options, intent, handle) {
   if(intent.contentProfile==='jav') {
     const {javIdentityObservation}=require('../model/jav-product-identity');
     const source=intent.sourceSnapshot.sources[intent.sourceOrdinal];
+    handle=require('../../../contracts/jav-source-qualification').resolveJavQualifiedHandle(handle,source,
+      IDENTITY_EVIDENCE_REF,options.resolveJavSourceHandle);
     const observed=await options.observeJavSource({siteRef:source.siteRef,integrationHandle:handle,
       operationId:IDENTITY_EVIDENCE_REF,input:{queryAnchor:intent.sourceSnapshot.queryAnchor,...(intent.resourceKey?{resourceKey:intent.resourceKey}:{})}});
     return javIdentityObservation(intent,observed);

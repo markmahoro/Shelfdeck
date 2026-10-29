@@ -95,6 +95,8 @@ function createAdminCredentialRuntime(options) {
   return Object.freeze({
     inspectReadiness,
     readActiveCredential: () => readCredential(options.repository, options.secretStore),
+    captureResetManagementCredential: generationId => require('./reset-management-credential')
+      .captureResetManagementCredential(readCredential(options.repository, options.secretStore), generationId),
   });
 }
 
@@ -103,4 +105,10 @@ module.exports = Object.freeze({
   CREDENTIAL_ID,
   SECRET_REF,
   createAdminCredentialRuntime,
+  captureColdResetManagementCredential({ snapshot, secretStore, generationId }) {
+    // The cold Operator supplies a qualified read-only snapshot of Platform's
+    // own credential rows. No business Kernel or old execution is opened.
+    return require('./reset-management-credential').captureResetManagementCredential(
+      readCredential({ readActiveSnapshot: () => snapshot }, secretStore), generationId);
+  },
 });

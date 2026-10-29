@@ -95,6 +95,7 @@ function fixture(options = {}) {
     unitOfWork,
     contextReader:Object.freeze({ read:context, store, healthProjectionInputs:() => [],inventoryMaterials:() => [] }),
     workResultReader,
+    ...(options.refreshPersonRecords?{refreshPersonRecords:options.refreshPersonRecords}:{}),
     ...(options.refreshInventoryRecords?{refreshInventoryRecords:options.refreshInventoryRecords}:{}),
     ...(options.progressProjectionReader?{progressProjectionReader:options.progressProjectionReader}:{}),
     executorIncidentProjection:Object.freeze({projectionForWork:(request)=>incidentObserver.projectionForWork(request)}),
@@ -110,6 +111,24 @@ function fixture(options = {}) {
     close() { database.close(); kernel.close(); fs.rmSync(root, { recursive:true, force:true }); },
   };
 }
+
+test('one manual check continues on the new Inventory after a person relation refresh', () => {
+  let refreshCount=0;
+  const updated=basis('person-refreshed',2),value=fixture({refreshPersonRecords:()=>{
+    refreshCount++;
+    value.setCurrentBasis(updated);
+    return {kind:'inventory_records_refreshed'};
+  }});
+  try {
+    value.history.cases=[];
+    const result=value.coordinator.requestCheck('entry-1','manual-person-refresh');
+    assert.equal(result.kind,'assessment_pending');
+    assert.equal(refreshCount,1);
+    const work=value.database.prepare('SELECT work_kind,basis_digest FROM fx_supporting_works').get();
+    assert.equal(work.work_kind,'health_assessment');
+    assert.equal(work.basis_digest,updated.digest);
+  } finally {value.close();}
+});
 
 test('normal callbacks do not initiate periodic assessment and a maintenance callback never progresses an active Case', () => {
   const value = fixture();

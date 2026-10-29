@@ -858,6 +858,253 @@
     },
     "sourceIntegrationHandle": {
       "$ref": "helix://contracts/types/IntegrationHandle/v1"
+    },
+    "sourceAuthorizedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "seriesQualifiedLocalSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema": {
+          "const": "shelfdeck.series-qualified-local-source@1"
+        },
+        "providerKey": {
+          "type": "string",
+          "pattern": "^[0-9]+$"
+        },
+        "referenceSet": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "schema": {
+              "const": "shelfdeck.series-source-references@1"
+            },
+            "fieldId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "accessRevision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "fieldRoot": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "sourceRoot": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "observationDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "references": {
+              "type": "array",
+              "maxItems": 3,
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "artifactKind": {
+                    "enum": [
+                      "nfo",
+                      "poster",
+                      "fanart"
+                    ]
+                  },
+                  "endpointId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "location": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "physicalIdentity": {
+                    "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v2"
+                  },
+                  "entryDigest": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "artifactKind",
+                  "endpointId",
+                  "location",
+                  "physicalIdentity",
+                  "entryDigest"
+                ]
+              }
+            },
+            "sourceSetDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "schema",
+            "fieldId",
+            "accessRevision",
+            "fieldRoot",
+            "sourceRoot",
+            "observationDigest",
+            "references",
+            "sourceSetDigest"
+          ]
+        },
+        "nfoByteDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "qualificationDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "schema",
+        "providerKey",
+        "referenceSet",
+        "nfoByteDigest",
+        "qualificationDigest"
+      ]
+    },
+    "seriesPresentationSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema": {
+          "const": "shelfdeck.series-presentation-source@1"
+        },
+        "provider": {
+          "const": "tmdb"
+        },
+        "namespace": {
+          "const": "tmdb_series"
+        },
+        "providerKey": {
+          "type": "string",
+          "pattern": "^[0-9]+$"
+        },
+        "seasonIdentityAnchorDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "integrationId": {
+          "type": "string",
+          "maxLength": 256,
+          "minLength": 1
+        },
+        "configRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "language": {
+          "type": "string",
+          "maxLength": 32,
+          "minLength": 1
+        },
+        "sourceRef": {
+          "type": "string",
+          "maxLength": 256,
+          "minLength": 1
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 1024,
+          "minLength": 1
+        },
+        "originalTitle": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "originalLanguage": {
+          "type": "string",
+          "maxLength": 16
+        },
+        "firstAirDate": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "plot": {
+          "type": "string",
+          "maxLength": 16384
+        },
+        "genres": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "maxItems": 64
+        },
+        "cast": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "providerKey": {
+                "type": "string",
+                "pattern": "^[0-9]+$"
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 256,
+                "minLength": 1
+              },
+              "role": {
+                "type": "string",
+                "maxLength": 256
+              },
+              "order": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "providerKey",
+              "name",
+              "role",
+              "order"
+            ]
+          }
+        },
+        "sourceDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "schema",
+        "provider",
+        "namespace",
+        "providerKey",
+        "seasonIdentityAnchorDigest",
+        "integrationId",
+        "configRevision",
+        "language",
+        "sourceRef",
+        "title",
+        "originalTitle",
+        "originalLanguage",
+        "firstAirDate",
+        "plot",
+        "genres",
+        "cast",
+        "sourceDigest"
+      ]
     }
   },
   "required": [
@@ -897,7 +1144,8 @@
       "then": {
         "required": [
           "javSelectedSource",
-          "sourceIntegrationHandle"
+          "sourceIntegrationHandle",
+          "sourceAuthorizedAtMs"
         ]
       },
       "else": {
@@ -911,6 +1159,11 @@
             {
               "required": [
                 "sourceIntegrationHandle"
+              ]
+            },
+            {
+              "required": [
+                "sourceAuthorizedAtMs"
               ]
             }
           ]

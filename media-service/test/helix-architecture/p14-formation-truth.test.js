@@ -131,3 +131,20 @@ test('Accepted On-deck attention exposes retry for the same Arca Run', () => {
     offerId:item.executorIssue.offerId,onDeckRunId:item.executorIssue.onDeckRunId},
   {canRetry:true,owner:'arca',offerId:'offer-ondeck',onDeckRunId:'ondeck-same-run'});
 });
+test('Stage target conflict is not retryable but exposes every conflict location for recheck', () => {
+  const query = createFormationQuery({
+    store:{},
+    detailSource:{ get:()=>({ subjectId:'subject-stage-conflict', classification:'attention_required',
+      handoffB:{offerId:'offer-conflict'}, arcaStatus:{stage:'attention_required',reasonCode:'ARCA_ONDECK_BLOCKED',
+        onDeckRunId:'ondeck-conflict',failureCode:'CLEAN_ARCA_STAGE_TARGET_OCCUPIED',retryAvailable:false,canRecheck:true,
+        diagnostics:{conflicts:[{target:'/media/Film/A (2024)/A.mkv',name:'A.mkv'},{target:'/media/Film/A (2024)/A.nfo',name:'A.nfo'}],conflictCount:2}},
+      processDetail:{stages:[{key:'acceptance_shelving',state:'attention'}]},
+      nextAction:{label:'收藏架接纳或上架需要处理',state:'attention_required',progress:null} }) },
+    readAcceptanceRecovery:()=>({ recoveryState:'resolved', offerId:'offer-conflict' }),
+  });
+  const item=query.get('subject-stage-conflict');
+  assert.equal(item.nextAction.label,'目标位置存在冲突，已停止上架');
+  assert.equal(item.executorIssue.canRetry,false);assert.equal(item.executorIssue.canRecheck,true);
+  assert.equal(item.executorIssue.errorCode,'CLEAN_ARCA_STAGE_TARGET_OCCUPIED');
+  assert.equal(item.executorIssue.details.conflicts.length,2);assert.equal(item.executorIssue.details.conflictCount,2);
+});

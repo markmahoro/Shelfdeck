@@ -3,6 +3,15 @@
 const { canonicalDigest } = require('./canonical-json');
 const pack = require('./us-adult-face-model-pack.json');
 
+// `matchThreshold` is the legacy threshold frozen into FaceModelRef so existing
+// reference faces and analysis bases stay valid. New analyses freeze their own
+// matching policy in the analysis basis instead of changing the embedding model.
+const LEGACY_MATCH_THRESHOLD = pack.matchThreshold;
+const CURRENT_MATCH_THRESHOLD = pack.analysisMatchThreshold;
+if (![LEGACY_MATCH_THRESHOLD, CURRENT_MATCH_THRESHOLD].every(value => typeof value === 'number' && value >= 0 && value <= 1)) {
+  throw new TypeError('US Adult match thresholds must be explicit numbers in [0, 1].');
+}
+
 function faceModelReference(mode) {
   if (!['single_reference_face', 'western_frame_set'].includes(mode)) throw new TypeError('Face Model mode must be explicit.');
   const modelDigest = canonicalDigest(pack.models.map(({ role, sha256, size }) => ({ role, sha256, size })));
@@ -28,4 +37,4 @@ function referenceFeatureCacheKey({ personId, referenceRevision, artifactDigest,
   return canonicalDigest({ schema: 'people.reference-feature-cache@1', personId, referenceRevision, artifactDigest, modelRefDigest: modelRef.digest });
 }
 
-module.exports = Object.freeze({ faceModelReference, referenceFeatureCacheKey });
+module.exports = Object.freeze({ faceModelReference, referenceFeatureCacheKey, LEGACY_MATCH_THRESHOLD, CURRENT_MATCH_THRESHOLD });

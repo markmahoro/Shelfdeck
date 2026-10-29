@@ -34,6 +34,8 @@ function bind(exportName, implementation) {
 }
 
 module.exports = Object.freeze({
+  freshResetReferenceArtifactDependencies: require('../model/fresh-reset-reference-retention').freshResetReferenceArtifactDependencies,
+  describeFreshResetReferenceRetention: require('../model/fresh-reset-reference-retention').describeFreshResetReferenceRetention,
   PACKAGE_ID: packageId,
   PeopleCommandFacade: (implementation) => bind('PeopleCommandFacade', implementation),
   PersonReferenceQueryFacade: (implementation) => bind('PersonReferenceQueryFacade', implementation),

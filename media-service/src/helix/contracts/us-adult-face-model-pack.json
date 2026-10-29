@@ -9,6 +9,7 @@
   "dimension": 128,
   "detectionThreshold": 0.8,
   "matchThreshold": 0.363,
+  "analysisMatchThreshold": 0.42,
   "licenses": [
     { "file": "LICENSE-YUNET", "sha256": "c83b8120c50ccbd4c4f96edf53141bdd566ebb8f8e9227e415326aa1b1aba958" },
     { "file": "LICENSE-SFACE", "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30" }
