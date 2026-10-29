@@ -8,7 +8,7 @@
 历史叙述全文（stub 前）保留在 git：
 
 ```bash
-git show 249515421fe2f51d9594f79c046dd15441fcfae7:docs/helix/CURRENT_STATUS.md
+git show f096af1b40cf71a4ce26f0441c686f7f36e707bc:docs/helix/CURRENT_STATUS.md
 ```
 
 活工作台账 = GitHub PR。可选产品/发布目标一行写在 [`CURRENT_PLAN.md`](CURRENT_PLAN.md)。

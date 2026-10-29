@@ -6,7 +6,7 @@
 历史 Master Plan 叙述全文（stub 前）保留在 git：
 
 ```bash
-git show 249515421fe2f51d9594f79c046dd15441fcfae7:docs/helix/CURRENT_PLAN.md
+git show f096af1b40cf71a4ce26f0441c686f7f36e707bc:docs/helix/CURRENT_PLAN.md
 ```
 
 ## 产品 / 发布目标（一行）
