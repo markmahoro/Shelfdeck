@@ -32,6 +32,50 @@
 
 本任务没有连接 NAS、访问生产数据或更改主整合工作树。真实 CIFS 原 8 项失败、Host 中断、完整发布门禁及七条线上恢复验收均保持开放。
 
+## 诊断副本路径校正与空快照验证
+
+先前建议将 `/app` 直接传给生成器是错误的：生成器参数必须是含 `media-service/test` 的仓库根，而测试镜像 `/app` 自身是 Service 根、没有 `/app/test`。撤回该旧模板。现用精确 `27a0f68af3599a3422b21853632fc8a01878b750` 的只读 Git 快照复制全部 `media-service/test` 到新建空 scratch 的 `harness/media-service/test`；生成器接收 `harness`，测试从 `harness/media-service` 执行。`src`、`scripts`、`dist`、`resources`、`node_modules` 与 package 文件只链接到镜像 `/app`，容器根强制 `--read-only`，业务源码仍由精确镜像提供且不可写。
+
+这个布局在两个空挂载上实际执行：本地卷作 Workspace、tmpfs 作目标，两者 `stat.dev` 不同；1 CPU/768 MiB、无故障注入、三项 SHA 硬校验，目标用例 1 PASS / 0 FAIL、29 skip，约 38.9 秒；自然错误 0、1723 条 stat、Shared version 1、On-deck Receipt 1。测试副本约 9.2 MiB，运行数据约 9.8 MiB。该本机目标是 tmpfs，容器停止后目标不持久；真实 CIFS 必须使用独立持久 bind 目录，不能拿本机结果冒充真实 CIFS 资格。
+
+验证输入/输出：原 `series-routing-run.test.js` SHA256 为 `f51c783bf6beadf5ca77d43aecf335cdbd21249c1d942a98cefe471be2251d53`；生成器 SHA256 为 `aabf51edf1455a292c90f368344029c5e7c04fc033fec3d0ec9ead0fc480a9fc`；生成的 `series-cifs-observed-diagnostic.test.js` SHA256 为 `e958fab1f5f28e90af7c301a67c60d583f12ccf987d8c1674c4be23fe06c339c`。完整原测试树应以 `find . -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum` 校验为 `b7c5fb19fbe858f6a02b54eaea4bee53420d645bb79ed859cb61b5334ea1fb5a`；不得把先前生成的副本混入输入树。完整日志 `linux-empty-snapshot-v3.log` SHA256 为 `b3986763dbd3e91ee980a6005bbe053ebbe7652ec293596747554261de3ddbf8`。
+
+真实隔离运行模板如下：`IMAGE` 为精确测试镜像，`TEST_SNAPSHOT` 为上述精确提交的 `media-service/test` 只读目录，`GEN` 为校验过的生成器，`LOCAL` 和 `CIFS` 为不同设备上本次独占的新建空目录，`LOG` 为独占日志。运行前先核对完整测试树 SHA；若候选源码变化，必须重新生成与验证，不复用这些摘要。
+
+```sh
+RUN_SCRIPT=$(cat <<'SH'
+set -eu
+test -z "$(ls -A /scratch-local)"
+test -z "$(ls -A /cifs-scratch)"
+test "$(sha256sum /snapshot-test/helix-architecture/series-routing-run.test.js | cut -d ' ' -f 1)" = f51c783bf6beadf5ca77d43aecf335cdbd21249c1d942a98cefe471be2251d53
+test "$(sha256sum /diagnostics/generate.cjs | cut -d ' ' -f 1)" = aabf51edf1455a292c90f368344029c5e7c04fc033fec3d0ec9ead0fc480a9fc
+mkdir -p /scratch-local/harness/media-service /scratch-local/runtime
+cp -a /snapshot-test /scratch-local/harness/media-service/test
+for name in src scripts dist resources node_modules package.json package-lock.json; do
+  ln -s "/app/$name" "/scratch-local/harness/media-service/$name"
+done
+sha256sum /snapshot-test/helix-architecture/series-routing-run.test.js /diagnostics/generate.cjs
+node /diagnostics/generate.cjs /scratch-local/harness
+test "$(sha256sum /scratch-local/harness/media-service/test/helix-architecture/series-cifs-observed-diagnostic.test.js | cut -d ' ' -f 1)" = e958fab1f5f28e90af7c301a67c60d583f12ccf987d8c1674c4be23fe06c339c
+sha256sum /scratch-local/harness/media-service/test/helix-architecture/series-cifs-observed-diagnostic.test.js
+cd /scratch-local/harness/media-service
+node --test --test-name-pattern '^Isolated Host schedules 2 Episodes through metadata and Direct On-deck Commit$' test/helix-architecture/series-cifs-observed-diagnostic.test.js
+SH
+)
+docker run --name shelfdeck-cifs-observation-UNIQUE --read-only --network none \
+  --cpus 1 --memory 768m --memory-swap 768m \
+  --mount "type=bind,source=$TEST_SNAPSHOT,target=/snapshot-test,readonly" \
+  --mount "type=bind,source=$GEN,target=/diagnostics/generate.cjs,readonly" \
+  --mount "type=bind,source=$LOCAL,target=/scratch-local" \
+  --mount "type=bind,source=$CIFS,target=/cifs-scratch" \
+  -e TMPDIR=/scratch-local/runtime -e NODE_PATH=/app/node_modules \
+  -e HELIX_SERIES_CROSS_DEVICE=1 -e HELIX_SERIES_CIFS_SCRATCH=/cifs-scratch \
+  -e HELIX_SERIES_RETAIN_FIXTURE=1 --workdir /app --entrypoint sh "$IMAGE" \
+  -c "$RUN_SCRIPT" >"$LOG" 2>&1
+```
+
+真实运行不挂载生产 DB、源片或收藏；两处测试根、SQLite/WAL、临时文件、日志和容器均保留至主线程取证结束。原 16 项直接 IO 仍须使用原测试文件独立复验。
+
 ## 本机原始输出
 
 日志与诊断生成器位于独立工作树的忽略目录 `.codex/continuity-evidence-20261029/`，可由主整合线程只读复制；关键 SHA256：
