@@ -9,12 +9,12 @@ const { deriveTitleEvidence, normalizeAlias, titleAssociationAliases } = require
 const { createPerceptionAcquisitionAutomation } = require('./perception-acquisition-automation');
 const { proveLegacyPeriodicAcquisition } = require('../model/legacy-acquisition-origin');
 const {assertJavPerceptionContinuity,DIRECT_POLICY}=require('../../../contracts/jav-perception-continuity');
+const {resolutionBasis,matchesResolutionBasis,RESOLUTION_INPUT_CONTRACT_REPAIR_BASIS}=require('../model/perception-resolution-fence');
 
 const LIMITS = Object.freeze({ globalOpenWorks:256, ownerOpenWorks:256, openEvents:256 });
 const ACQUISITION_RESULT = 'helix://contracts/types/PerceptionRecordCommitResult/v1';
 const RESOLUTION_RESULT = 'helix://contracts/types/PerceptionResolutionRevision/v1';
 const RESOLUTION_INPUT_CONTRACT_REPAIR_CODE = 'P4_CAPABILITY_SCHEMA_REJECTED';
-const RESOLUTION_INPUT_CONTRACT_REPAIR_BASIS = 'perception-resolution-input-contract-repair@1';
 
 function stable(prefix,value){return prefix+canonicalDigest(value).slice(0,40);}
 function directSourceId(targetType,targetId,factKind='rating'){return stable('perception-direct-source-',factKind==='rating'?{targetType,targetId}:{targetType,targetId,factKind});}
@@ -28,8 +28,6 @@ function definition(kind,processType,processId,basisDigest,outputContractRef){re
   executionBasisDigest:basisDigest,dependencyRefs:Object.freeze([]),priorityClass:'normal_foreground',priorityRevision:1,
   capabilityCatalogScope:'perception',workspaceMaterialScope:Object.freeze([]),idempotencyKey:stable('perception-'+kind+'-key-',{processId,basisDigest}),
   concurrencyScope:processId+'/'+kind,outputContractRef});}
-function resolutionBasis(context){return {queryInputDigest:context.query.queryInputDigest,recordSetDigest:context.recordSet.recordSetDigest,ruleDigest:context.ruleSnapshot.ruleDigest};}
-function matchesResolutionBasis(base,digest){return digest===canonicalDigest(base)||digest===canonicalDigest({...base,recoveryBasis:RESOLUTION_INPUT_CONTRACT_REPAIR_BASIS});}
 function queryFor(target,factKind='rating'){if(!['rating','watched'].includes(factKind))throw new TypeError('Perception query fact kind is invalid.');const evidence=[];const add=(anchorKind,anchorValue,confidenceClass)=>{if(!anchorValue)return;evidence.push({anchorKind,anchorValue:String(anchorValue),confidenceClass,
   evidenceDigest:canonicalDigest({targetType:target.targetType,targetId:target.targetId,targetRevision:target.targetRevision,anchorKind,anchorValue:String(anchorValue)})});};
   add(target.targetType==='shelf_entry'?'shelf_entry_id':'subject_id',target.targetId,'exact');

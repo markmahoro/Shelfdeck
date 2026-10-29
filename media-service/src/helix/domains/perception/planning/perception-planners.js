@@ -3,8 +3,7 @@
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { executionCatalogDigest } = require('../../../foundation/execution/workflow-plan');
 const { executionInputSuperseded, executionInputUnavailable } = require('../../../foundation/execution/execution-input-readiness');
-const { resolutionBasis, matchesResolutionBasis } = require('../application/perception-process-services');
-const { validateResolutionCommit } = require('../persistence/perception-store');
+const { resolutionBasis, matchesResolutionBasis, validateResolutionCommit } = require('../model/perception-resolution-fence');
 
 const ACQUIRE='perception.source.acquire@1',NORMALIZE='perception.record.normalize@1',COMMIT='perception.record.commit@1',RESOLVE='perception.dedup.resolve@1',RESOLUTION_COMMIT='perception.resolution.commit@1';
 const P=Object.freeze({source:'helix://perception/input-projections/SourceSnapshot/v1',integration:'helix://perception/input-projections/IntegrationHandle/v1',cursor:'helix://perception/input-projections/AcquisitionCursor/v1',

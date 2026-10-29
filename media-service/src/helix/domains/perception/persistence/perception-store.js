@@ -5,14 +5,10 @@ const { normalizeAlias, splitTitleYear, titleAliases, titleAssociationAliases } 
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { createAcquisition, createCursor, createRecord, createRelation, createResolution, createSource } = require('../model/perception-store-contracts');
+const { PerceptionStoreError, RESOLUTION_RESULT_SCHEMA, validateResolutionCommit } = require('../model/perception-resolution-fence');
 
 const RECORD_COMMIT_RESULT_SCHEMA = 'helix://contracts/types/PerceptionRecordCommitResult/v1';
-const RESOLUTION_DRAFT_SCHEMA = 'helix://contracts/types/PerceptionResolutionDraft/v1';
-const RESOLUTION_RESULT_SCHEMA = 'helix://contracts/types/PerceptionResolutionRevision/v1';
 
-class PerceptionStoreError extends Error {
-  constructor(code, message, details = {}) { super(message); this.name = 'PerceptionStoreError'; this.code = code; this.details = details; }
-}
 function fail(code, message, details) { throw new PerceptionStoreError(code, message, details); }
 function exact(value, keys, code) { if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).length !== keys.length || keys.some((key) => !Object.hasOwn(value, key))) fail(code, 'Perception Store input does not match its closed contract.'); }
 function readChunks(repo, statement, values, parameters = {}) {
@@ -366,39 +362,6 @@ function createPerceptionStore(options) {
     },
     getResolution(queryContract, queryInputDigest) { return execute([resolutions], (context) => { const repo = context.repository(resolutions.repositoryId); const head = repo.invoke('find_head', { query_contract: queryContract, query_input_digest: queryInputDigest }); return head ? mapResolution(repo.invoke('find_resolution', { resolution_id: head.current_resolution_id })) : undefined; }); }
   });
-}
-
-function validateResolutionCommit(handle, draft) {
-  const requiredKeys = ['schemaRef','schemaVersion','draftId','draftKind','basisDigest','draftDigest','producedAtMs',
-    'queryContract','querySchemaRef','queryInputDigest','factKind','recordSetDigest','ruleRevision','ruleDigest',
-    'resultKind','duplicateRelationDrafts'];
-  const optionalKeys = ['winningPerceptionId','resolvedValue','resolvedProvenance','reasonCode'];
-  const body = draft && Object.fromEntries(Object.entries(draft).filter(([key]) => !['schemaRef','schemaVersion','draftId','draftKind','basisDigest','draftDigest','producedAtMs'].includes(key)));
-  const found = draft?.resultKind === 'found';
-  const foundFields = draft && ['winningPerceptionId','resolvedValue','resolvedProvenance'].every((key) => Object.hasOwn(draft,key));
-  const notFoundFields = draft && Object.hasOwn(draft,'reasonCode');
-  if (!handle || handle.ownerDomain !== 'perception' || handle.aggregateType !== 'perception-resolution' ||
-      handle.factType !== 'PerceptionResolutionDraft' || handle.factSchemaRef !== RESOLUTION_DRAFT_SCHEMA ||
-      handle.resultSchemaRef !== RESOLUTION_RESULT_SCHEMA || !draft || draft.schemaRef !== RESOLUTION_DRAFT_SCHEMA ||
-      draft.schemaVersion !== 1 || draft.draftKind !== 'perception_resolution' ||
-      requiredKeys.some((key) => !Object.hasOwn(draft, key)) || Object.keys(draft).some((key) => !requiredKeys.includes(key) && !optionalKeys.includes(key)) ||
-      draft.draftDigest !== canonicalDigest(body) ||
-      handle.aggregateId !== 'perception-resolution:' + canonicalDigest({
-        queryContract:draft.queryContract, queryInputDigest:draft.queryInputDigest
-      }) || handle.payloadDigest !== canonicalDigest(draft) || !Array.isArray(draft.duplicateRelationDrafts) ||
-      draft.duplicateRelationDrafts.length > 1024 || !Number.isSafeInteger(draft.ruleRevision) || draft.ruleRevision < 1 ||
-      !['rating','watched'].includes(draft.factKind) || !['found','not_found'].includes(draft.resultKind) ||
-      (found ? (!foundFields || notFoundFields) : (foundFields || !notFoundFields || !['no_matching_record','requested_fact_absent','strongest_value_conflict'].includes(draft.reasonCode))) ||
-      (found && (draft.resolvedValue?.factKind !== draft.factKind || draft.resolvedProvenance?.winningPerceptionId !== draft.winningPerceptionId))) {
-    fail('P6_PERCEPTION_RESOLUTION_COMMIT_MISMATCH', 'Resolution Commit Handle does not fence the exact typed Resolution Draft.');
-  }
-  for (const relation of draft.duplicateRelationDrafts) {
-    if (!relation || Object.keys(relation).length !== 4 ||
-        ['sourcePerceptionId','targetPerceptionId','ruleRevision','evidenceDigest'].some((key) => !Object.hasOwn(relation, key)) ||
-        relation.sourcePerceptionId >= relation.targetPerceptionId || relation.ruleRevision !== draft.ruleRevision) {
-      fail('P6_PERCEPTION_DUPLICATE_RELATION_INVALID', 'Duplicate relation pairs must be normalized and use the frozen Resolution rule revision.');
-    }
-  }
 }
 
 function commitResolution(recordRepo, resolutionRepo, result, draft, expectedRevision, now) {
