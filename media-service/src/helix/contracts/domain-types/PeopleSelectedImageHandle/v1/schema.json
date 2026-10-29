@@ -48,7 +48,8 @@
           "type": "string",
           "enum": [
             "user_upload",
-            "stashbox"
+            "stashbox",
+            "catalogue_frame"
           ]
         },
         "sourceObjectId": {

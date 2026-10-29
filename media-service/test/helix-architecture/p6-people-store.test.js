@@ -293,7 +293,7 @@ function mergeDraft(id, left, right, overrides = {}) {
   };
 }
 
-test('binds the thirteen canonical Person and Candidate tables to their two Owner repositories', () => {
+test('binds canonical Person, Candidate and catalogue registration tables to their People Owner repositories', () => {
   fixture(({ store }) => assert.deepEqual(store.repositoryManifest.components, [
     {
       component: 'PersonRegistryRepository', repositoryId: 'person_registry_repository',
@@ -304,6 +304,10 @@ test('binds the thirteen canonical Person and Candidate tables to their two Owne
       component: 'PeopleCandidateRepository', repositoryId: 'people_candidate_repository',
       tableIds: ['people_merge_candidate_revisions', 'people_merge_candidates',
         'people_registration_candidate_revisions', 'people_registration_candidates']
+    },
+    {
+      component: 'PeopleCatalogueRegistrationRepository', repositoryId: 'people_catalogue_registration_repository',
+      tableIds: ['people_image_operations', 'people_us_adult_catalogue_registration_origins']
     }
   ]));
 });

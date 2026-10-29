@@ -2,7 +2,7 @@
 
 const {canonicalDigest,canonicalJson}=require('../../../contracts/canonical-json');
 const {compare,normalizeName:name,queryNames,bestNameMatch,bestCandidates}=require('./us-adult-name-matching');
-const POLICY='people.us-adult-name-resolution@1';
+const {POLICY}=require('../../../contracts/us-adult-name-query');
 function fail(code,message){throw Object.assign(new Error(message),{code});}
 function freeze(value){if(value&&typeof value==='object'){Object.values(value).forEach(freeze);Object.freeze(value);}return value;}
 function resolveUsAdultName({name:queryName,aliases=[],people}){

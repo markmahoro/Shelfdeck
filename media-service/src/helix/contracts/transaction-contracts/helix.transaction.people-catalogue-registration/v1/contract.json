@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.people-catalogue-registration/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.people-catalogue-registration",
+    "displayName": "People Catalogue Registration",
+    "ownerScope": "people",
+    "commitClass": "domain_unit_of_work",
+    "atomicFactSet": "People按当前完整US演员姓名快照重新验证未匹配，验证Libra公开资格fence及精确图片/向量Evidence后，以system命令原子发布catalogue_auto Person、Alias、Provider资料、初始Reference、完整Observation副本、receipt、marker、audit和outbox；任何竞争或证据失败全回滚",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "people",
+        "access": "write",
+        "tables": [
+          "people_persons",
+          "people_person_revisions",
+          "people_aliases",
+          "people_provider_identities",
+          "people_reference_assets",
+          "people_reference_faces",
+          "people_reference_revisions",
+          "people_image_operations",
+          "people_us_adult_catalogue_registration_origins"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_command_receipts",
+          "fx_commit_markers",
+          "fx_audit_records",
+          "fx_outbox"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "read",
+        "tables": [
+          "fx_artifact_registry",
+          "fx_supporting_works",
+          "fx_event_result_bindings"
+        ]
+      }
+    ],
+    "writeTables": [
+      "people_persons",
+      "people_person_revisions",
+      "people_aliases",
+      "people_provider_identities",
+      "people_reference_assets",
+      "people_reference_faces",
+      "people_reference_revisions",
+      "people_image_operations",
+      "people_us_adult_catalogue_registration_origins",
+      "fx_command_receipts",
+      "fx_commit_markers",
+      "fx_audit_records",
+      "fx_outbox"
+    ],
+    "readTables": [
+      "people_persons",
+      "people_person_revisions",
+      "people_aliases",
+      "people_provider_identities",
+      "people_image_operations",
+      "people_us_adult_catalogue_registration_origins",
+      "fx_artifact_registry",
+      "fx_supporting_works",
+      "fx_event_result_bindings"
+    ],
+    "variants": [],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": true,
+      "outboxRequired": true
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "people-catalogue-registration",
+        "faultInjectionPoints": "Current complete name resolution and Libra opaque fence; Person, Reference, evidence, operation terminal, receipt, marker, system audit and Outbox before COMMIT",
+        "requiredInvariant": "A competing same-name registration or changed manual Choice leaves no duplicate or partial Person; exact replay returns the same system result; unrelated Subject state is not retained",
+        "source": {
+          "section": "8.9.7",
+          "line": 12701
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 8860,
+      "lineDigest": "2f2908cebafcb8c116fb470fa776e095b4534e9367c42996a8d5491a69f39f9c"
+    }
+  }
+}

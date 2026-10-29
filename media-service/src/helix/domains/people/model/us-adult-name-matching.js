@@ -1,13 +1,7 @@
 'use strict';
 // The same bounded name comparison is used for internal People and external
 // provider candidates. A match alone is neither a Person nor merge authority.
-const compare=(a,b)=>Buffer.compare(Buffer.from(a),Buffer.from(b));
-function fail(code,message){throw Object.assign(new Error(message),{code});}
-function normalizeName(value){
-  if(typeof value!=='string'||!value.trim()||value.length>256)fail('PEOPLE_NAME_QUERY_INVALID','A bounded non-empty actor name is required.');
-  const normalized=value.normalize('NFKC').normalize('NFD').replace(/\p{M}/gu,'').toLowerCase().replace(/[^\p{L}\p{N}]/gu,'');
-  if(!normalized)fail('PEOPLE_NAME_QUERY_INVALID','Actor names must contain letters or numbers.');return normalized;
-}
+const {compare,normalizeName,queryNames}=require('../../../contracts/us-adult-name-query');
 function editDistance(a,b,limit,consume){
   function visit(i,j,remaining){
     consume();
@@ -20,7 +14,6 @@ function editDistance(a,b,limit,consume){
   }
   return visit(0,0,limit);
 }
-function queryNames(name,aliases){return [...new Set([name,...aliases].map(normalizeName))].sort(compare);}
 function bestNameMatch(names,displays,consume){
   let best=null;
   for(const display of displays)for(const queryValue of names){

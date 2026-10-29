@@ -56,6 +56,7 @@ function createUsAdultCatalogueDecisionInput(options){
         runExecutionBasisDigest:basis.runExecutionBasisDigest,resolvedIdentityDigest:basis.resolvedIdentityDigest,
         catalogueBasisDigest:basis.basisDigest,observationResultRef:Object.fromEntries(RESULT_FIELDS.map(key=>[key,record[key]])),
         observationHandle:record.result,assessmentPolicyDigest:basis.selectionPolicy.policyDigest,assessmentDigest:assessment.assessmentDigest,
+        representativeImagePolicyDigest:basis.representativeImagePolicy.policyDigest,
         winner,expectedChoiceHead:null};
     if(Buffer.byteLength(canonicalJson(input),'utf8')>256*1024)fail('The complete catalogue decision input exceeds its bound.');
     return freeze({kind:'qualified',input:JSON.parse(canonicalJson(input)),inputDigest:canonicalDigest(input)});

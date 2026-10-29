@@ -278,11 +278,14 @@ const dtoContracts = {
   ReferenceEvidence: 'references,referenceSetDigest',
   PeopleCandidateAcceptanceDecision: '',
   DirectPersonRegistrationDecision: '',
+  PeopleCatalogueRegistrationDecision: '',
   PeopleProfileUpdateDecision: '',
   UsAdultPersonSnapshot:'',
   UsAdultAnalysisBasis:'',
   UsAdultCatalogueAnalysisBasis:'',
   UsAdultCatalogueCompletedBatchSet:'',
+  UsAdultCatalogueActorDecision:'',
+  UsAdultActorSelectionCurrent:'',
   UsAdultActorChoiceRecord:'',
   UsAdultActorChoiceDecision:'',
   UsAdultActorChoiceReceipt:'',
@@ -347,6 +350,8 @@ function buildSchema(name, role, fields) {
   if(name==='FaceCatalogueGeneration')return require('../../src/helix/contracts/face-catalogue-generation').schema();
   if(name==='UsAdultCatalogueCompletedBatchSet')return require('../../src/helix/contracts/us-adult-catalogue-work-types').completedBatchSetSchema();
   if(name==='UsAdultCatalogueAnalysisBasis')return require('../../src/helix/domains/libra/model/us-adult-catalogue-analysis-basis').schema();
+  if(name==='UsAdultCatalogueActorDecision')return require('../../src/helix/domains/libra/model/us-adult-catalogue-actor-decision').schema();
+  if(name==='UsAdultActorSelectionCurrent')return require('../../src/helix/domains/libra/model/us-adult-actor-selection-current').schema();
   if(name==='SeriesRootRelocationReference')return exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},revision:{const:1},digest:digest(),relocationId:id(),scopeId:id(),planDigest:digest()});
   if(['SeriesPresentationScope','SeriesPresentationManifest','SeriesPresentationReclamationBasis'].includes(name)){
     const value=require('../../src/helix/contracts/series-presentation-schemas')[name==='SeriesPresentationScope'?'scopeSchema':name==='SeriesPresentationManifest'?'manifestSchema':'reclamationSchema']();
@@ -425,11 +430,12 @@ function buildSchema(name, role, fields) {
   if (name === 'PeopleProfileUpdateDecision') return exactDomainSchema(name, {decisionId:id(),personId:id(),expectedPersonRevision:positiveInteger(),canonicalName:text({maxLength:200}),aliases:arrayOf(aliasSchema(),33),actorId:id(),requestDigest:digest(),decisionDigest:digest()});
   if (name === 'PerceptionAcquisitionResumeDecision') return exactDomainSchema(name, {decisionId:id(),acquisitionId:id(),expectedScopeDigest:digest(),actorId:id(),idempotencyKey:text({maxLength:128}),requestDigest:digest(),decisionDigest:digest()});
   if (name === 'DirectPersonRegistrationDecision') return directPersonRegistrationDecisionSchema();
+  if (name === 'PeopleCatalogueRegistrationDecision') return require('../../src/helix/domains/people/model/us-adult-catalogue-registration').schema();
   if (name === 'PeopleReferenceMaintenanceDecision') return peopleReferenceMaintenanceDecisionSchema();
   if (name === 'PeopleSelectedImageHandle') return { ...exactDomainSchema(name, {
     schemaRef: { const: domainTypeId(name) }, schemaVersion: { const: 1 }, uploadId: digest(), digestHex: digest(),
     sizeBytes: { type: 'integer', minimum: 1, maximum: 10 * 1024 * 1024 }, mediaType: enumText('image/jpeg', 'image/png', 'image/webp'),
-    provenance: object({ source: enumText('user_upload', 'stashbox'), sourceObjectId: text({ maxLength: 512 }),
+    provenance: object({ source: enumText('user_upload', 'stashbox', 'catalogue_frame'), sourceObjectId: text({ maxLength: 512 }),
       sourcePageUrl: text({ maxLength: 4096 }), attribution: text({ maxLength: 512 }), selectedAtMs: nonNegativeInteger(), configRevision: positiveInteger() }, ['source']),
     handleDigest: digest(),
   }), 'x-helix-role': 'bounded-contract', 'x-helix-maxCanonicalBytes': 16384 };
@@ -1246,7 +1252,7 @@ function libraMediaCastSourceBasisSchema(name) {
     object({ sourceBasisKind: { const: 'metadata_observation' }, selection: metadataObservationSelectionValue(),
       observationSet: metadataObservationSetValue(), sourceBasisDigest: digest() }),
     object({ sourceBasisKind: { const: 'western_match' }, westernBasis: westernMediaCastBasisValue(), sourceBasisDigest: digest() }),
-    object({sourceBasisKind:{const:'us_adult_actor'},actorSelection:domainRef('UsAdultActorSelectionBasis'),sourceBasisDigest:digest()})
+    object({sourceBasisKind:{const:'us_adult_actor'},actorSelection:{anyOf:[domainRef('UsAdultActorSelectionBasis'),domainRef('UsAdultActorSelectionCurrent')]},sourceBasisDigest:digest()})
   ], 8 * 1024 * 1024);
 }
 
