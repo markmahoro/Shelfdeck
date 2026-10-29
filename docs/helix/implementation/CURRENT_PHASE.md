@@ -26,6 +26,7 @@
 | CUSTOM-TARGET-RESET-RETENTION | 隔离模拟证实仅作dependent表分类会遗漏已保留Custom Spec的精确Intent/Preview；Libra按实际保留Spec提供Owner依赖闭包，验证同Subject多版本、未入藏、缺失/篡改与中断恢复。原开发Schema因声明不匹配保持fail-closed；不能仅靠FK通过放行Reset。 |
 | JAV-AFTERCARE-REPLACEMENT-IDENTITY | 基线及候选在可控相同inode/同字节替换时复现Effect已提交、inventory no-change及后继冲突；首次全架构现场已失，不声称其根因已确定。初版c2修复仍会把首次执行前的同字节外部目标及外部构造的Stage/目标硬链接当作自身成果，Windows/Linux各2负例失败，故不可入候选；现有Effect intent/continue_forward本身不证明文件归属。继续在Arca Owner和恢复合同内核查持久归属证据、正确重放/拒绝、真实CIFS hard link资格。 |
 | SERIES-RESOLUTION-COMMIT-FENCE | 精确27a并发Series Host自然复现：Draft冻结后当前Query变化导致Commit Handle不匹配，Effect已reconcile_required但无Marker/Result；生产基线的受控输入亦复现。150秒持续版本变化的合成观察未收敛，不能外推首次门禁或线上状态。独立实现须保全同一Effect责任、冻结Query/Record Set/Rule、后继Work与冲突负例，不得放宽fence。[隔离调查](evidence/SERIES_RESOLUTION_COMMIT_FENCE_INVESTIGATION_20261029.md) |
+| P13-BACKUP-DIGEST-CONSISTENCY | 27a完整架构第二轮中哈希时文件改变未拒绝；Linux tmpfs受控复现stat时间戳相同且接受混合摘要。独立修复须覆盖原负例、时间戳不变、正常文件/有限内存及Windows/Linux；仍须真实停止、独占与完整冷备，不能把单次复验或双读称为原子快照。[Evidence](evidence/SERIES_INTEGRATION_GATE_20261029.md) |
 
 2026-10-29固定Series候选：`1d8a45843f9c8982c91bb0a367eb0adfa1c5c310`，基于a2bf2d6fd，三个Schema与既有Linux验证副本字节一致、239表/62事务不变。本机合同13项通过；标准镜像首次下载既有模型失败，核验本机生产基线模型SHA后重建成功并上传校验，tar SHA256 `b57b0de41449109adbeb39f4d12ca6ab81a66d1a9ca6062c5d964b4b3271ca8d`。首个固定检出因Windows路径过长失败，第二个因换行不一致不合格，第三个与构建输入4541文件逐字节一致；独立Linux完整架构门禁仍在执行。
 
@@ -35,7 +36,7 @@ UI修复提交`60f123a71`、浏览器回归`567ad89ca`及专属Evidence `7265d4b
 
 continuity合法重规划门禁测试`92df7fa5e`挑入后，当前候选更新为`27a0f68af3599a3422b21853632fc8a01878b750`，标准镜像tar SHA256 `e87f6628edc20732df35889aa7195bd7de1e52ba6753984635a7e39f95a3166e`。4547个跟踪文件与构建工作区逐字节一致；该版本Linux Service 846通过/28 skip/0失败、Web 274通过，UI负责人对具体镜像适用验收PASS。完整架构和真实CIFS待完成，未部署。上述bc4为前一候选。
 
-前候选1d8a完整架构3402通过/5失败/27跳过，四项缺少依赖路径后定向通过；1081视频Host并发收敛核查见专项Evidence。bc4完整架构3410通过/3失败/27跳过：两项缺历史Git对象，精确27a相同测试补只读对象后6项通过；另一JAV Aftercare海报失败已找到可复现的相同现象，首跑因果仍未证实。精确27a首轮3411通过/3失败/27跳过：两项同样缺历史对象，第三项Series Resolution Commit Handle异常仍在查；带完整历史的复验运行中，不能用定向结果冒充全量通过。
+前候选1d8a完整架构3402通过/5失败/27跳过，四项缺少依赖路径后定向通过；1081视频Host并发收敛核查见专项Evidence。bc4完整架构3410通过/3失败/27跳过：两项缺历史Git对象，精确27a相同测试补只读对象后6项通过；另一JAV Aftercare海报失败已找到可复现的相同现象，首跑因果仍未证实。精确27a首轮3411通过/3失败/27跳过：两项同样缺历史对象，第三项Series Resolution Commit Handle异常已在隔离Host调查；带完整历史的第二轮3413通过/1失败/27跳过，唯一失败为上述P13备份摘要缺口。两次原失败均保留，不能用定向结果冒充全量通过。
 
 普通发布只做安全停止与完整校验备份，不默认执行Reset。Fresh-generation Reset的预检须停止、冻结精确范围并核验保留依赖，可能清除在线未入藏任务和系统工作区，不能仅据工作台34条推算范围；当前无Reset授权。[只读分诊和Reset影响](evidence/PRODUCTION_TRIAGE_INTEGRATION_20261029.md)。
 

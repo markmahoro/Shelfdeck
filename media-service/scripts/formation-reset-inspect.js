@@ -124,7 +124,7 @@ function inspectFreshReset({ Database, spec, privateRoot }) {
       storageManifest, backupPlanDigest,
       volumeBudget, protectedSummary: { collectionCount: verified.protections.find(row => row.table === 'arca_shelf_entries').count,
         protections: verified.protections, ownershipDigest: verified.ownershipDigest, packageReadDigest: verified.packageReadDigest,
-        shared: verified.shared, peopleReferences: verified.peopleReferences, workspaceProtection } });
+        shared: verified.shared, customTargets: verified.customTargets, peopleReferences: verified.peopleReferences, workspaceProtection } });
     completed = true; return preview;
   } finally {
     // A failed preflight remains evidence. A successful disposable copy is not

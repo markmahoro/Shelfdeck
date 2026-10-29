@@ -1,5 +1,9 @@
 # ShelfDeck 当前状态
 
+2026-10-29精确27a补历史Git对象后完整Linux架构3413通过/1失败/27跳过；唯一失败为旧P13备份工具在哈希期间文件变化未拒绝。隔离tmpfs 60次受控复现中51次stat时间戳相同且接受混合摘要，修复进行中。普通部署的专用冷备在对应隔离变化下由后续源清单复核拒绝且未发布目标，但真实Stop、完整备份/回退和稳定窗口仍待验证。前轮Series Resolution竞态仍开放，第二轮未复现不构成关闭；未部署或Reset。[Evidence](implementation/evidence/SERIES_INTEGRATION_GATE_20261029.md)。
+
+电影Custom Target Reset闭包与历史标准Spec读取叠加演员Basis后，Windows/Linux各34项隔离测试通过；另以进程内模拟新表分类验证人物Reference保护各12项通过。正式239表保留声明不变，244表继续拒绝未审查Reset，真实旧库转换及生产授权未完成。电影开发版修复的提交中弹窗焦点问题已交UI负责人独立复核，尚非最终版本验收。[Evidence](implementation/evidence/SERIES_INTEGRATION_GATE_20261029.md)。
+
 2026-10-29自定义标准未来版本的Reset保护缺口已在隔离库复现：仅将Intent/Preview表标为dependent时，已保留Custom Spec所需Intent会遗漏。当前未证明生产受影响，原开发分支因声明与结构不符本已拒绝Reset；主整合中的新结构亦继续保留该fail-closed保护，Libra线程正在实现精确依赖与负例。演员目录Observe共享基准`97c4913b96cbe6509c65a2c42ae5ee106905eb17`已在固定树完成Windows/Linux各52项及Linux静态合同检查；正式Host/真实模型、包含该缺口的完整Reset和Actor功能仍未获得发布资格。[Evidence](implementation/evidence/BUFFALO_CATALOGUE_OBSERVATION_CONTRACT_20261029.md)。
 
 精确27a首轮完整Linux架构为3411通过/3失败/27跳过；两项为前述缺历史Git对象，第三项是Series并发Host中的`Resolution Commit Handle does not fence the exact typed Resolution Draft`，原因及后继状态正在独立核查。带历史对象的完整复验仍在运行；不能把该轮记为PASS。[Evidence](implementation/evidence/SERIES_INTEGRATION_GATE_20261029.md)。

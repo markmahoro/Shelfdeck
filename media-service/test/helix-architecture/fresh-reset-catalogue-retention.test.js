@@ -6,6 +6,7 @@ const {buildOwnerRetentionPolicy}=require('../../scripts/formation-reset-owner-p
 const {createRetainedDatabase}=require('../../scripts/formation-reset-copy');
 const {canonicalJson}=require('../../src/helix/contracts/canonical-json');
 const declaration=require('../../scripts/formation-reset-owner-retention.json');
+const {fixture:specFixture}=require('./fixtures/custom-acceptance-spec-harness');
 
 function simulatedPolicy(){
   const before={schemaDigest:declaration.schemaDigest,tables:declaration.tables};
@@ -27,6 +28,20 @@ test('unreviewed combined schema cannot authorize a production Reset',()=>{
 });
 test('the exact retained Run carries its catalogue Basis while unselected task state leaves the online copy',t=>{
   const f=fixture(t);createUsAdultCatalogueStore(f.options).freeze(f.basis);
+  // Model the immutable standard Spec that an actually retained Run carries.
+  // The general catalogue fixture intentionally omits this unrelated fact.
+  const spec=specFixture('western_adult').baseSpec;
+  f.db.prepare('INSERT INTO arca_shelves(shelf_id,status) VALUES(?,?)').run(spec.targetShelfId,'active');
+  f.db.prepare('INSERT INTO libra_decision_basis_revisions(decision_basis_id,subject_id,basis_kind,basis_revision,status) VALUES(?,?,?,?,?)')
+    .run(spec.decisionBasisId,spec.subjectId,'acceptance_spec',1,'ready');
+  f.db.prepare('INSERT INTO libra_acceptance_specs(acceptance_spec_id,subject_id,shelf_id,decision_basis_id,product_scope_digest,spec_revision,spec_schema_ref,spec_json,spec_digest,record_digest,structure_kind,content_profile,published_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)')
+    .run(spec.acceptanceSpecId,spec.subjectId,spec.targetShelfId,spec.decisionBasisId,spec.productScope.scopeDigest,spec.specRevision,
+      spec.schemaRef,canonicalJson(spec),spec.specDigest,spec.recordDigest,spec.structureKind,spec.contentProfile,spec.publishedAtMs);
+  const basis={subjectSnapshot:{subjectId:spec.subjectId},executionBasisDigest:f.args.snapshot.run.executionBasisDigest,
+    acceptanceSpec:{acceptanceSpecId:spec.acceptanceSpecId,specDigest:spec.specDigest,recordDigest:spec.recordDigest,
+      specRevision:spec.specRevision,productScopeDigest:spec.productScope.scopeDigest,shelfId:spec.targetShelfId}};
+  f.db.prepare("UPDATE libra_runs SET acceptance_spec_id=?,execution_basis_record_json=?,state='completed' WHERE libra_run_id='run'")
+    .run(spec.acceptanceSpecId,canonicalJson(basis));
   const before=canonicalJson(f.db.prepare('SELECT * FROM libra_us_adult_catalogue_bases').all()),policy=simulatedPolicy();
   assert.equal(policy.tables.libra_us_adult_catalogue_bases.disposition,'dependent');
   assert.ok(policy.edges.some(edge=>edge.parent==='libra_runs'&&edge.child==='libra_us_adult_catalogue_bases'));

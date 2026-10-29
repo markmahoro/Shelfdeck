@@ -77,3 +77,19 @@ Series线程随后在基线a2bf和bc4隔离环境以同inode/同字节重建复�
 普通停机升级入口的本机预演：对27a标准tar和SHA调用`deploy-nas.js` dry-run，携带现有Runtime Reset配置及初步双卷容量计划，输出包含SHA核验与普通readiness，不包含冷态Reset或apply；日志`deploy-dry-run-27a-preliminary.log` SHA256 `967c088be0083202696143c165e624c6874fe769a12db6e80dddfab892b755d4`。此预演未连接NAS、未上传或校验远端tar，容量为16:06的初步估算，不替代发布前重新测量。`--runtime-reset-config`本身不会执行停机完整冷备，且普通apply会先发布配置；必须先独立完成Runtime Stop、`prepareNasStoppedBackup`关闭证明和全量备份验真，再运行标准发布。现有历史作业目录不可复用成新备份目标，须先按安全目录规则准备本次独占作业位置。真实副本/回退、CIFS与完整版本门禁仍开放，不执行生产发布。
 
 已在本机ignored目录准备27a专属独立冷备作业配置（原Runtime配置单独保留），仅引用`/app/data`和`/transcode`来源；配置`backup-job-27a0f68af.json` SHA256 `0b4d654b4b19bf14f4a455a04fedaffc970b9927884f659ab248c5f90598c67f`，远端目录尚未创建，若候选变化须重新冻结。闭合证明和冷备实现/测试在主树与27a相同；Windows和基于27a实际镜像的禁网Linux各9项通过/0跳过，覆盖未完成Stop、共享挂载、原配置及中断工作区备份、容量不足和备份中断重试；分别保留`deployment-backup-windows.log` SHA256 `4996c21d3b5ae3643ac4350fcb44a7a45554e0c6b6dd15ca539532a2635756dd`及`deployment-backup-linux-27a.log` `28df5fffa22a9ce3f83aa4afb0fbc081a0b124d2f986e5018ce9b43206ec195c`。这些为隔离夹具，普通升级仍需编排实际已停止容器、完整备份及独立回执，不能将冷态管理测试当作生产备份。
+
+## 完整历史对象的第二次架构与备份摘要调查
+
+精确27a补只读历史Git对象后的完整Linux架构为3441项：3413通过、1失败、27跳过；dependency、semantic、manifests及contracts均通过。唯一失败是`p13-operational-cutover.test.js`中备份哈希期间修改文件的负例未抛错，不能记为全量通过。原JSON日志`linux-architecture-27a-with-history.log` SHA256 `629129e7d9e8ccd6a7eb2dfde88551f92255f33bb973e53addd797f2c5debd4d`；单独重跑通过只能说明一次未复现，不能消除原失败。前一轮真实Resolution Effect错误及其独立重现仍保留，不能因本轮未触发关闭。
+
+相同27a只读源码和gate镜像的本机Linux tmpfs上，`p13-hash-timestamp-probe.cjs`对2 MiB隔离测试文件在读取首块后覆写，60次中9次正确拒绝、51次前后mtime/ctime相同而误接受，51次接受的摘要均不等于最终完整文件摘要，属于实质哈希一致性缺口，而非仅测试断言过严。输出`p13-hash-timestamp-probe.log` SHA256 `3e8fd894257bd7e252d328734ff69f0b8ae37e8f218eea1c137241bc1c535cf8`。该旧P13工具依赖stat前后比较，真实停止和独占仍是任何一致快照的必要前提；修复须保留原失败及时间戳不变负例。
+
+普通部署使用的`formation-reset-backup.js`另有重复源清单、复制前源摘要、目标摘要和最终源清单/目标验证。在同一隔离受控变化下，其第一次清单也出现一次同时间戳混合摘要，但`createVerifiedBackup`在再核对源清单时报`RESET_BACKUP_SOURCE_CHANGED`，目标备份目录未创建；`reset-backup-hash-probe.log` SHA256 `7bbab3cc5ba4a6b7553f9f3c3621c3dc77cf33886d5a0f4ca933432c26043260`。测试的Stop callback为合成桩，不能证明真实停机、任意并发写入安全或生产备份已完成。
+
+## 跨电影与演员Reset依赖的隔离整合
+
+主整合叠加电影`24a199ee0`的Libra精确Custom Spec/Intent/Preview闭包及`9a472d6b3`对既有已入藏历史标准Spec的只读校验；历史行不改写，未入藏旧Run不恢复。演员模拟已保留Run的测试夹具原无标准Spec，在新增校验下被拒绝；本整合测试补齐真实western_adult标准Spec与Run引用，未放宽产品校验。历史测试最初仅模拟243表，因Actor新增表触发正式未审查拒绝；仅在各测试进程模拟五张新表的分类后复验。正式239表声明未改，244表继续`RESET_RETENTION_SCHEMA_UNREVIEWED`。
+
+固定index tree `ef032e7cf1d9179f4980c91bf17d2d34f48f780d`的4662个跟踪文件在Linux隔离卷逐个Git blob核验一致；Windows/Linux各34项通过，覆盖自定义目标依赖、历史/当前标准、篡改拒绝、演员Basis及正式未审查拒绝。日志`reset-combined-windows.log` SHA256 `1f4bc2f14e7d290cb0a8e8377e62433a3294451692e116126e306ff3244544a0`，`reset-combined-linux.log` `40ea4a0f9f2e203aa512fc5921788347f3897e06c21cb959e27173ce3ea71863`。人物Reference保护另在进程内临时模拟表分类下Windows/Linux各12项通过；`reset-people-simulated-windows.log` `95a4e0493b24640bff52e376a8f06870f60dffa09f6cf6e46796df943e66ba8b`，`reset-people-simulated-linux.log` `29915ce048ef7b2ec465bf79b209e1ffd742e6ea2ea2ad1b687db934f57577ff`。直接运行People测试先因正式声明未审查而拒绝，属于保护动作；模拟结果不构成正式分类审查、真实旧库到新Schema转换、完整Reset资格或生产授权。
+
+同一固定源码的Linux包边界、禁止语义、Manifest和P2静态检查通过，P2 digest `003aa5741300d9fbc2804601132a55db9f97dbfe169dd8e815ef7e17b4ac840f`；完整历史对象只读挂载后的`reset-combined-static-linux-retry.log` SHA256 `e3447bbfc9c4b932e5aa46b61955b8f07e1240451e3a40badda514c09b2c07eb`。首次静态容器未启动，原因是只读源码卷缺少`.git`挂载点；日志`reset-combined-static-linux.log` SHA256 `383db1c2aed6b9373b7e2a1833b8168c49e91aec817dd462708bf38b84ea167e`保留，补空挂载点后未修改源码或历史对象。

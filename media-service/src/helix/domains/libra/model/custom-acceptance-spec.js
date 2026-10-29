@@ -71,4 +71,4 @@ function assertCustomAcceptanceSpec({spec,baseSpec,preview,intent}){
   return rebuilt;
 }
 
-module.exports=Object.freeze({buildCustomAcceptanceSpec,assertCustomAcceptanceSpec});
+module.exports=Object.freeze({buildCustomAcceptanceSpec,assertCustomAcceptanceSpec,assertStandardAcceptanceSpec:checkStandardSpec});

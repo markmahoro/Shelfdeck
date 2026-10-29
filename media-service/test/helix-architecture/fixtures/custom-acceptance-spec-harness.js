@@ -17,7 +17,8 @@ function fixture(profile='movie',libraRunId='old-run',basisOverrides={}){
   function head(revision=0,routingId=null,basisId=null){const value={subjectId:'subject',headState:revision?'present':'absent',headRevision:revision,
     headDigest:revision?decisionHeadDigest('subject',revision,routingId,basisId,null):null,currentRoutingDecisionId:routingId,
     currentDecisionBasisId:basisId,currentAcceptanceSpecId:null};return {...value,snapshotDigest:D({schema:'libra.subject-decision-head-snapshot@1',...value})};}
-  const requirements=BETA_RECOMMENDED_RULES.profileRuleSets.find(row=>row.contentProfile===profile).decisionBranches.find(row=>row.rating===5).requirements,
+  const ruleSet=BETA_RECOMMENDED_RULES.profileRuleSets.find(row=>row.contentProfile===profile),
+    requirements=profile==='western_adult'?ruleSet.baseRequirements:ruleSet.decisionBranches.find(row=>row.rating===5).requirements,
     standard=signed({shelfId:'shelf',standardRevision:1,ruleTemplateId:'template',ruleTemplateRevision:1,profileRuleSets:[
       signed({contentProfile:profile,decisionInputKinds:[],baseRequirements:requirements,decisionBranches:[]},'profileRuleSetDigest')]},'standardDigest'),
     routeBase={shelfId:'shelf',status:'active',routingProjectionRevision:1,currentStandardRevision:1,currentStandardDigest:standard.standardDigest},
