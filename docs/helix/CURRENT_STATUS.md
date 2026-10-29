@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-29分诊新增两个隔离风险：On-deck Stage可能把预先放入的同字节外来文件记入Manifest，实验发布随后误认并移动，尚未证明真实Host的Control/Commit受影响；Withdrawal Receipt不能仅因Offer未Accepted就判定可清除，保留责任及迟到投递闭包仍待证明。正式Reset声明不变、生产未处置。[目标排他](implementation/evidence/ARCA_TARGET_EXCLUSION_RECOVERY_20261029.md) / [Withdrawal审计](implementation/evidence/ARCA_WITHDRAWN_OFFER_RESET_AUDIT_20261029.md)。
+
 2026-10-29 UI负责人对4774具体版本给出FAIL：受控评分Resolution重试耗尽后决策已失败，评分读取仍为pending、页面误示正在匹配；未证明生产发生或真实调度链已复现。Perception独立修复进行中，4774不可发布。Linux Web 49文件/274项在为隔离依赖缓存提供临时可写目录后通过；完整架构和Service继续留证。
 
 2026-10-29后继Series固定版本`4774a7e9056f644c29b8034ea07baeb4f578c4f6`在27a上加入Resolution恢复及P13稳定摘要修复，标准本机镜像tar SHA256 `1a280a3efea6f67b97019552d8fd76ed7c8fe655bf5aa52998686c559b6b3023`；源码4550文件Git blob一致、镜像七个变更运行文件与源码一致、测试服务依赖与镜像目录逐字节一致。Linux完整架构和Service/Web重验及具体版本UI核验进行中，未上传、部署或Reset。Series Aftercare独立原型仍因同inode/同字节/同stat重建误认而失败，未入本候选，不得把原型结果记为资格。

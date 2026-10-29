@@ -25,6 +25,8 @@
 | 七条恢复 | 假如…？、真探、亿万、越狱、继承之战、当你沉睡时、飞天大盗：逐项冻结原Offer/build/Scope、失败/Effect、Control和文件基线，经原重试入口核验唯一Commit与历史保护；真实冲突继续attention。 |
 | CUSTOM-TARGET-RESET-RETENTION | 隔离模拟证实仅作dependent表分类会遗漏已保留Custom Spec的精确Intent/Preview；Libra按实际保留Spec提供Owner依赖闭包，验证同Subject多版本、未入藏、缺失/篡改与中断恢复。原开发Schema因声明不匹配保持fail-closed；不能仅靠FK通过放行Reset。 |
 | JAV-AFTERCARE-REPLACEMENT-IDENTITY | 基线及候选在可控相同inode/同字节替换时复现Effect已提交、inventory no-change及后继冲突；首次全架构现场已失，不声称其根因已确定。初版c2修复仍会把首次执行前的同字节外部目标及外部构造的Stage/目标硬链接当作自身成果，Windows/Linux各2负例失败，故不可入候选；现有Effect intent/continue_forward本身不证明文件归属。继续在Arca Owner和恢复合同内核查持久归属证据、正确重放/拒绝、真实CIFS hard link资格。 |
+| ON-DECK-FOREIGN-STAGE-OWNERSHIP | 独立分诊在实际Stage执行前放入同字节外部文件，现有Stage将其记入Manifest，隔离实验发布随后误认并移动该inode；尚未证明真实Host发生Control或Commit。继续验证正式Host、目标Slot与七条Series是否使用同一组件，不可将事后Manifest/相同inode当创建归属。[Evidence](evidence/ARCA_TARGET_EXCLUSION_RECOVERY_20261029.md) |
+| WITHDRAWN-OFFER-RESET-DEPENDENCY | 未Accepted Offer的Withdrawal是永久否决证据；目前尚未证明所有保留Producer/Work/Outbox/Delivery均不能重投或重建精确旧Offer。测试中模拟clear不代表正式分类，须以停止态同一快照的Owner闭包和迟到投递负例收口；239与244两道Schema围栏继续关闭。[Audit](evidence/ARCA_WITHDRAWN_OFFER_RESET_AUDIT_20261029.md) |
 | SERIES-RESOLUTION-COMMIT-FENCE | 精确27a并发Series Host自然复现：Draft冻结后当前Query变化导致Commit Handle不匹配，Effect已reconcile_required但无Marker/Result；生产基线的受控输入亦复现。150秒持续版本变化的合成观察未收敛，不能外推首次门禁或线上状态。独立实现须保全同一Effect责任、冻结Query/Record Set/Rule、后继Work与冲突负例，不得放宽fence。[隔离调查](evidence/SERIES_RESOLUTION_COMMIT_FENCE_INVESTIGATION_20261029.md) |
 | P13-BACKUP-DIGEST-CONSISTENCY | 27a完整架构第二轮中哈希时文件改变未拒绝；Linux tmpfs受控复现stat时间戳相同且接受混合摘要。独立修复须覆盖原负例、时间戳不变、正常文件/有限内存及Windows/Linux；仍须真实停止、独占与完整冷备，不能把单次复验或双读称为原子快照。[Evidence](evidence/SERIES_INTEGRATION_GATE_20261029.md) |
 
