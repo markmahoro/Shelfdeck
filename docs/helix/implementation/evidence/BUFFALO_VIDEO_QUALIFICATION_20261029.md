@@ -248,3 +248,11 @@ Work ID/幂等键绑定完整不可变 Basis/producer Result 集。读取支持 
 - 最终补齐结束时path与fd的size/mtimeNs/ctimeNs一致性及path大小上限检查后，Linux完整39项再次39 PASS/0skip/0FAIL，65.388秒；catalogue-bounded-read-linux-3.log SHA256 2677178df942c38f1d860ef23847eef0a8d8542c4d4c7b2d23210e2bc9124fc1。Package/Semantic/Manifest/P2复验均通过，计数及类型引用不变。此前日志与失败对照全部保持，不以最终结果覆盖。
 
 没有NAS、生产或模型共载副作用；完整Runtime/Permit/Service Host及People链仍按前节保持开放。
+
+### Development fixture portability follow-up
+
+主整合本机逻辑组合首跑41 PASS/1FAIL保留：非Linux开发文件系统在原句柄打开时rename替换返回EPERM，测试未到应用的物理关联拒绝。此为夹具执行条件，不能当作Artifact安全保证，也不增加Windows产品/发布验收。
+
+- Linux真实同字节rename负例保持必须执行、不得因EPERM放宽。非Linux只有实际命中EPERM时，对这一物理负例记录diagnostic并明确skip；其他错误仍失败。
+- 新增独立于rename支持的受控path/fd inode不一致注入，所有开发环境均须验证应用拒绝，不能随物理案例一起skip。生产代码无变化。
+- 97c独立快照实际Linux Docker9 PASS/0skip/0FAIL，66.337秒；catalogue-read-portable-linux-1.log SHA256 f4d02e6191d6372c5ab049ed6cacd975bd72b06744904807c5ff26dd0e319d26。本机原生逻辑8 PASS/1明确EPERM skip/0FAIL，4.043秒；catalogue-read-portable-native-1.log SHA256 f5acc6752f4183acd8044469f490cf1f2ef173598bd905d993d4398d45644cdf。原生结果不是Windows运行/发布资格，Linux才是本项目交付验证。

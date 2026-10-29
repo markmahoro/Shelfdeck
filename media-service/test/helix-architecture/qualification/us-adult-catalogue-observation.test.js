@@ -123,8 +123,25 @@ test('path replacement after size stat cannot make recovery read an oversized re
 test('same-byte path replacement after opening the descriptor still invalidates its physical association',async t=>{
   const f=await fixture(t),result=await f.port.execute(f.context),handle=result.result.observationArtifactHandle,
     root=path.resolve(f.root,'workspace-root'),file=path.resolve(root,handle.storageRef.slice('workspace://'.length));
-  assert.ok(file.startsWith(root+path.sep));const fstat=fs.fstatSync.bind(fs);let replaced=false;
+  assert.ok(file.startsWith(root+path.sep));const fstat=fs.fstatSync.bind(fs);let replaced=false,unsupported=null;
   t.mock.method(fs,'fstatSync',(fd,options)=>{const value=fstat(fd,options);
-    if(!replaced){replaced=true;const replacement=file+'.replacement';fs.copyFileSync(file,replacement);fs.renameSync(replacement,file);}return value;});
-  assert.throws(()=>f.workspace.readArtifactBytes(handle),{code:'CLEAN_WORKSPACE_ARTIFACT_REALITY_DRIFT'});assert.equal(replaced,true);
+    if(!replaced){replaced=true;const replacement=file+'.replacement';fs.copyFileSync(file,replacement);
+      try{fs.renameSync(replacement,file);}catch(error){if(process.platform!=='linux'&&error.code==='EPERM')unsupported=error.code;else throw error;}
+    }return value;});
+  let error;try{f.workspace.readArtifactBytes(handle);}catch(value){error=value;}
+  if(unsupported){
+    t.diagnostic('This non-Linux development filesystem denies replacement of an open file with EPERM; this is not an Artifact protection guarantee.');
+    t.skip('Physical open-file replacement requires the Linux Docker qualification; the independent identity-mismatch test remains required.');return;
+  }
+  assert.equal(error?.code,'CLEAN_WORKSPACE_ARTIFACT_REALITY_DRIFT');assert.equal(replaced,true);
+});
+
+test('controlled path/fd identity mismatch is rejected independently of open-file rename support',async t=>{
+  const f=await fixture(t),result=await f.port.execute(f.context),handle=result.result.observationArtifactHandle,
+    root=path.resolve(f.root,'workspace-root'),file=path.resolve(root,handle.storageRef.slice('workspace://'.length));
+  assert.ok(file.startsWith(root+path.sep));const lstat=fs.lstatSync.bind(fs);let injected=false;
+  t.mock.method(fs,'lstatSync',(target,...args)=>{const value=lstat(target,...args);
+    if(target===file&&typeof value.ino==='bigint'){injected=true;return Object.assign(Object.create(Object.getPrototypeOf(value)),value,{ino:value.ino+1n});}
+    return value;});
+  assert.throws(()=>f.workspace.readArtifactBytes(handle),{code:'CLEAN_WORKSPACE_ARTIFACT_REALITY_DRIFT'});assert.equal(injected,true);
 });
