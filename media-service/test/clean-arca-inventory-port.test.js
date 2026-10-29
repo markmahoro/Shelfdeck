@@ -122,6 +122,28 @@ test('exclusive JAV publication refuses same-byte Stage substitution with a diff
   }finally{fs.rmSync(f.root,{recursive:true,force:true});}
 });
 
+test('existing Stage can record a foreign same-byte file before the experimental publisher sees it',async()=>{
+  const f=componentBudgetFixture('IPX-178 Sample',null);
+  try{
+    const decision=f.port.prepare(f.request),request={...f.request,finalInventoryDecision:decision};
+    const slot=f.port.prepareSlot(request),primary=decision.members.find(item=>item.role==='primary_payload');
+    const foreignStage=path.join(slot.slotDirectory,primary.finalName);
+    fs.copyFileSync(f.files.primary,foreignStage);
+    const foreignInode=fs.statSync(foreignStage,{bigint:true}).ino;
+    assert.notEqual(foreignInode,fs.statSync(f.files.primary,{bigint:true}).ino);
+    const stagedManifest=await f.port.stage({...request,targetCommitSlotHandle:slot});
+    const recorded=stagedManifest.stagedMembers.find(item=>item.sourceMaterialKey===primary.sourceMaterialKey);
+    assert.equal(recorded.physicalIdentity.inode,String(foreignInode));
+    const verification=await f.port.verifyStaged({...request,stagedInventoryManifest:stagedManifest});
+    // This is an intentionally unsafe physical-Port counterexample, not an
+    // assertion that a Foundation Effect or Arca Control was committed.
+    await publishJavShortTarget({decision,slot,stagedManifest,verification,
+      productManifestDigest:f.packageValue.productMaterialManifest.manifestDigest,shouldContinue:()=>true});
+    assert.equal(fs.statSync(primary.targetLocation,{bigint:true}).ino,foreignInode);
+    assert.equal(fs.existsSync(foreignStage),false);
+  }finally{fs.rmSync(f.root,{recursive:true,force:true});}
+});
+
 test('exclusive JAV publication continues a partial Effect only with the same staged physical identities',async()=>{
   const f=componentBudgetFixture('IPX-178 Sample',2026);
   try{

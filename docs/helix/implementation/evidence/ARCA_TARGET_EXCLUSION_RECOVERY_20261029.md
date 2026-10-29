@@ -23,6 +23,8 @@ SSOT §6.5.3 的所有 On-deck Run 仍执行唯一固定 Off-load 阶段：Resol
 
 当前 On-deck `targetAvailability` 只按 `target_endpoint_id` 和 `target_location` 字符串相等筛选 `ready/offloading/blocked` Run；`target_reserved_at_ms` 在进入 offloading 的 Arca 事务中写入，blocked 持有，committed 后不再阻挡。它没有统一约束上述其他写入者或证明文件系统等价。当前 `resolveStageSlotDirectory` 依据 legacy sibling 是否存在选 Slot；存在本身不证明由当前 Run/Effect 创建。现有 Stage 还可能以相同 fingerprint 使用已有 final 文件，Placement 之后有路径式 `renameSync`。这些事实不能作为不同 Entry 的目标归属证据。
 
+主整合 `bc88955b6` 的 `AFTERCARE_ARTIFACT_STAGE_OWNERSHIP_REVIEW_20261029.md` 已用真实 Host 与文件反例证明：在首轮执行前外部预放同字节 Stage、或预先构造同字节 Stage/target hardlink 时，仅有相同 inode、原 Effect Intent 和 `continue_forward` 仍无法证明创建者。该文是未批准的 Aftercare 证据设计候选，不能直接把 Aftercare Artifact 伪装为 On-deck Product member，也不能将两者权限合并。On-deck 的 Stage 创建者证明需按其现有独立 Slot、Product、Work/Event/Effect 和 Arca Owner 合同闭合；中断发生在独占创建之后、创建 Evidence 持久化之前时，未知文件仍须保留。
+
 ## 候选的路径等价与排他合同
 
 1. **先证明物理命名空间。** 以 Platform 已登记的 Endpoint/Mount Scope revision、稳定挂载证据和当前 Shelf root Binding 为输入，要求只读的、版本化 Endpoint 现实证据回答路径关系 `same / disjoint / unknown`，并覆盖现有父目录、最终不存在的组件及目录祖先/后代关系。不同 Endpoint ID、不同路径字符串、`path.resolve`、统一小写、NFC/NFD 转换或单个 `stat` 值，均不足以独立证明两个路径不相交；不同挂载名/绑定仍可能指向同一实际目录。大小写及 Unicode 行为可能随 Endpoint 或目录变化，不能把 Linux/Windows 的本机规则套到 CIFS。需要比较的 namespace 或父目录关系为 `unknown` 时，按可能相交处理或明确阻断，不能假定无冲突。
@@ -48,7 +50,7 @@ SSOT §6.5.3 的所有 On-deck Run 仍执行唯一固定 Off-load 阶段：Resol
 | --- | --- | --- |
 | 首次派发、任何本 Effect 写入前发现确定外来占用 | 有当前 Owner/Reservation、真实目录观察和 `effectWriteStarted=false / before_publication` 的精确失败，可按所属 Capability 合同终止该次 Effect | 不能由本次无写入断定之前 Slot/Stage 或其他 generation 完全零副作用；失败映射也不能覆盖之后已写入的异常。 |
 | 仅创建目标目录后崩溃，缺少可核验的原 Effect 与归属记录 | 保留空目录及 Stage，标记现实未知并请求处理；若未来有经合同允许且能够确证创建者的持久证据，才可按该证据分类 | 空目录存在、inode 或名字与预期相同，不证明由当前 Effect 创建。 |
-| 成员已部分切换、Receipt 未提交 | 只在原 Intent/Attempt、完整 Stage Record、原 Reservation 和 Owner/Control fence 与当前物理身份均可证明时，按**专属**观察结果继续；有外来、未知、重复或替换成员即停止保留 | 通用 `forward_required`、缺少 marker、相同大小/有界 fingerprint、相同番号或一个现有文件，都不能单独证明归属。不同 generation 未结算的 Effect 不能被忽略。 |
+| 成员已部分切换、Receipt 未提交 | 只在原 Intent/Attempt、Stage 的独占创建来源与完整 Record、原 Reservation 和 Owner/Control fence 与当前物理身份均可证明时，按**专属**观察结果继续；有外来、未知、重复或替换成员即停止保留 | 通用 `forward_required`、缺少 marker、仅含现状身份的 Stage Manifest、相同大小/有界 fingerprint、相同番号或一个现有文件，都不能单独证明归属。不同 generation 未结算的 Effect 不能被忽略。 |
 | 所有最终成员出现但 Result/Receipt 尚未提交 | 重验完整成员、原 Slot 和 Owner 责任，按原 Effect 与实际持久证据判定；无法证明则仍是 unknown | 不能以“看起来齐全”写成功 Result、Inventory 或 Control。 |
 | Effect 已提交 | 精确匹配原 Effect/Scope、immutable Receipt/Result 与 marker 后重建相同结果；验证当前现实若有需要须独立读取当前 Inventory/Control | 重放不能重发文件、覆盖缺失文件或顺带清理 Stage。后续合法 Aftercare 已改变当前材料时，历史 Receipt 仍是历史；不能靠原 Stage 把当前收藏改回旧样。 |
 | Stage、retained alias 或旧目录需清理 | 依原合同建立独立、限定 Scope 的 Effect/Authorization 与 Receipt，逐项验证当前归属、未知成员和其他活跃 Claim | 不能把已提交 Placement 的重放当成清理许可，也不能递归删除未知文件。 |
@@ -58,12 +60,13 @@ SSOT §6.5.3 的所有 On-deck Run 仍执行唯一固定 Off-load 阶段：Resol
 ## 本次隔离测试与可说明的范围
 
 - 两个独立进程竞争一个实验目标时仅一个成功创建目标；不同 Owner 的同字节已有 final、同字节不同 inode 的 Stage 替换均拒绝，原文件保留。实验原语及测试 guard 尚未绑定正式 Reservation。
+- **Stage 预先被外来材料占用的反例**：在隔离 Slot 已创建但 Stage 首次执行前放入与 Product 相同字节、不同 inode 的外来 primary；现有 Stage 将该 inode 记录进 Manifest，实验原语随后接受该 Manifest、将外来 inode 链接到目标并 unlink Stage。Windows/Linux 均复现；这是实验路径的安全失败证据，不是 Control、Effect Receipt 或 On-deck Commit 成功，也不是允许清理外来文件的行为。单纯事后比对 Stage Manifest、文件身份和 Owner guard 不能补上它，必须先证明 Stage 的创建来源；因此原语继续禁止正式接线。
 - 一个实验写入者在首个成员后中断，旧 On-deck Port 的另一个写入者也在实际 `renameSync` 第一份成员后中断；目标出现两个不同 Stage 物理身份，原实验写入者的 `continue_forward` 停止，两个 Slot 的剩余文件和目标均保持。此测试只证明实际隔离物理 Port 竞争及实验原语拒绝，不证明第二个 Run 获得 Control 或提交。
 - 部分发布后注入未知文件、未知目录和目录内文件，恢复拒绝且保留。首次建空目录后中断不能证明归属；无已提交证据时不能伪装 `already_committed` 补文件。
 - Linux 隔离 SQLite 使用真实 Foundation Effect Journal 的 `intend`、`settle` 和持久 marker；测试自带物理 verifier/Owner guard 记录提交，再验证精确重放没有新的物理 Effect、保留仍存在的 Stage，错误 Owner scope 被 Journal 拒绝，final 被同字节不同 inode 替换后实验原语拒绝并保留。该夹具不是实际 Arca Host 的 Reservation、Result 投影或恢复 observer，也不是生产 Receipt。
 - 实验原语已调整：`already_committed` 只验证并返回，不再顺带 unlink Stage；Stage 清理必须有独立 Scope/Effect。该原语仍未接入正式流程，而且它要求当前 final 身份与原 Stage 相同，不能直接当作合法后续 Aftercare 之后的历史 Receipt 重建实现。
 - Windows 本机和 Linux 隔离文件系统均在真实操作中区分本测试的 NFC `é` 与 NFD `e + ◌́`，两条不同路径各可物理创建；Windows 大小写等价竞争另有一胜一拒绝测试。同一实际 Shelf root 经 symlink/junction 和不同 Endpoint 标签访问时，实验原语拒绝该别名根并保留两方文件；这不覆盖 bind mount、UNC 或 CIFS 多挂载别名。每个结果只适用于被测目录，不证明 CIFS、其他目录或所有 Unicode 等价规则。
 
-本次最终定向集合：禁网 Linux Docker、源码及 docs 只读挂载的 25 个文件 **440 PASS / 0 FAIL / 1 SKIP**，跳过的是大小写等价实测（该 Linux 临时目录大小写敏感）；Windows 名称和文件定向 **26 PASS / 0 FAIL / 3 SKIP**，跳过 Linux symlink 负例及两项本机未装 `better-sqlite3` 的 Journal 夹具，前者和后两者均在 Linux 通过。第一次 26 文件扩展运行中，`series-root-relocation-recovery.test.js` 启动的嵌套真实进程长时间未结束，主动停止本任务自有容器，该轮不计通过；后续集合明确排除该文件。第一次 25 文件运行为 **439 PASS / 1 FAIL / 1 SKIP**，失败是容器未挂载 `/docs` 导致 US Adult 测试启动时 `ENOENT`；补只读 docs 挂载后该测试单独通过，并得到上述完整 25 文件复验。以上均不替代完整 Host 或发布资格。
+本次最终定向集合：禁网 Linux Docker、源码及 docs 只读挂载的 25 个文件 **441 PASS / 0 FAIL / 1 SKIP**，跳过的是大小写等价实测（该 Linux 临时目录大小写敏感）；Windows 名称和文件定向 **27 PASS / 0 FAIL / 3 SKIP**，跳过 Linux symlink 负例及两项本机未装 `better-sqlite3` 的 Journal 夹具，前者和后两者均在 Linux 通过。上述 PASS 包含按预期**复现不安全行为**的 Stage 预占反例，不代表该反例已修复。第一次 26 文件扩展运行中，`series-root-relocation-recovery.test.js` 启动的嵌套真实进程长时间未结束，主动停止本任务自有容器，该轮不计通过；后续集合明确排除该文件。第一次 25 文件运行为 **439 PASS / 1 FAIL / 1 SKIP**，失败是容器未挂载 `/docs` 导致 US Adult 测试启动时 `ENOENT`；补只读 docs 挂载后该测试单独通过，并得到上述完整 25 文件复验。以上均不替代完整 Host 或发布资格。
 
 最终资格还包括：真实 Host 从新事实到 Acceptance/Decision/Stage/Verify/Placement/Control/Commit 的完整路径；与所有上述写入/删除路径的并发和跨进程中断；原 Owner 隔离及未知 Effect 拒绝；真实 CIFS 上实际组件上限、目录等价、稳定 Identity、独占创建/不覆盖切换及重启；新旧 Decision 和其他 Profile 的合同回归；准确冲突与失败处理的具体版本 UI 和用户指定 UI 负责人审查。实验原语不应直接接入或部署。生产未连接、未更改、未重试。
