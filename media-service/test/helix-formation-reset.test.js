@@ -1369,6 +1369,132 @@ test('Formation Reset removes a new unfinished Intake and Run without deleting t
   } finally { close(value); }
 });
 
+test('full safe Formation Reset preserves retained Subject routing-anchor Intake referenced by uncommitted Run materials', () => {
+  const value = fixture('helix-formation-reset-retained-routing-anchor');
+  try {
+    const kept = seedSubjectRun(value.database, 'anchor-kept', 'completed');
+    const foundingIntake = 'intake-anchor-founding';
+    const extensionIntake = 'intake-anchor-extension';
+    const keptPackage = 'package-anchor-kept', keptCustody = 'custody-anchor-kept';
+    const keptOnDeck = 'on-deck-anchor-kept';
+    const newRunId = 'run-anchor-new';
+    const newManifestId = 'manifest-anchor-new';
+    const oldContinuity = DIGEST;
+    const newContinuity = 'd'.repeat(64), newEpisode = 'e'.repeat(64);
+
+    value.database.transaction(() => {
+      value.database.pragma('defer_foreign_keys = ON');
+      value.database.prepare(`INSERT INTO libra_intake_decisions
+        (intake_decision_id,decision_revision,decision_kind,offer_id,candidate_package_id,package_revision,
+         package_digest,target_subject_id,accepted_result,decision_digest,decided_at_ms,
+         candidate_delivery_snapshot_schema_ref,candidate_delivery_snapshot_json,
+         decision_identity_evidence_schema_ref,decision_identity_evidence_json,decision_identity_evidence_digest)
+        VALUES (?,1,'accepted_resolution','offer-anchor-founding','candidate-anchor-founding',1,?,?,'new_subject',?,1,
+          'snapshot','{}','identity','{}',?)`)
+        .run(foundingIntake,DIGEST,kept.subjectId,DIGEST,DIGEST);
+      value.database.prepare('UPDATE libra_subjects SET routing_anchor_intake_decision_id=? WHERE subject_id=?')
+        .run(foundingIntake,kept.subjectId);
+      value.database.prepare(`INSERT INTO libra_handoff_a_receipts
+        (receipt_id,intake_decision_id,outcome,offer_id,candidate_package_id,package_revision,package_digest,
+         subject_id,subject_intake_revision,subject_continuity_head_revision,committed_at_ms)
+        VALUES ('receipt-anchor-founding',?,'accepted','offer-anchor-founding','candidate-anchor-founding',1,?,?,1,1,1)`)
+        .run(foundingIntake,DIGEST,kept.subjectId);
+      value.database.prepare(`INSERT INTO libra_material_bindings
+        (subject_id,material_key,role,authority_kind,binding_revision,health_state,origin_intake_decision_id,current)
+        VALUES (?,?,'primary_payload','primary_control',1,'active',?,1)`)
+        .run(kept.subjectId,'material-anchor-founding',foundingIntake);
+    })();
+
+    value.database.prepare(`INSERT INTO libra_product_packages
+      (on_deck_package_id,offer_id,package_revision,libra_run_id,run_state_revision,subject_id,
+       product_structure_json,production_provenance_json,attestation_json,package_digest,state,published_at_ms)
+      VALUES (?,'offer-anchor-kept',1,?,1,?,'{}','{}','{}',?,'published',1)`)
+      .run(keptPackage,kept.runId,kept.subjectId,DIGEST);
+    value.database.prepare(`INSERT INTO arca_ondeck_custodies
+      (custody_id,on_deck_package_id,package_digest,state,accepted_at_ms)
+      VALUES (?,?,?,'committed',1)`).run(keptCustody,keptPackage,DIGEST);
+    value.database.prepare(`INSERT INTO arca_ondeck_runs(on_deck_run_id,custody_id,state,created_at_ms,terminal_at_ms)
+      VALUES (?,?,'committed',1,2)`).run(keptOnDeck,keptCustody);
+    value.database.prepare(`INSERT INTO arca_shelf_entries(shelf_entry_id,status,created_at_ms)
+      VALUES ('entry-anchor-kept','active',1)`).run();
+    value.database.prepare(`INSERT INTO arca_ondeck_commit_receipts
+      (receipt_id,on_deck_run_id,shelf_entry_id,inventory_revision,deck_fact_revision,commit_digest,committed_at_ms)
+      VALUES ('commit-anchor-kept',?,'entry-anchor-kept',1,1,?,2)`).run(keptOnDeck,DIGEST);
+
+    value.database.prepare(`INSERT INTO libra_intake_decisions
+      (intake_decision_id,decision_revision,decision_kind,offer_id,candidate_package_id,package_revision,
+       package_digest,target_subject_id,accepted_result,expected_target_status,expected_target_intake_revision,
+       expected_target_continuity_set_digest,expected_target_episode_scope_digest,committed_target_intake_revision,
+       committed_subject_continuity_set_digest,committed_subject_episode_scope_digest,decision_digest,decided_at_ms,
+       candidate_delivery_snapshot_schema_ref,candidate_delivery_snapshot_json,
+       decision_identity_evidence_schema_ref,decision_identity_evidence_json,decision_identity_evidence_digest)
+      VALUES (?,1,'accepted_resolution','offer-anchor-extension','candidate-anchor-extension',1,?,?,'season_extension',
+       'active',1,?,?,2,?,?,?,3,'snapshot','{}','identity','{}',?)`)
+      .run(extensionIntake,DIGEST,kept.subjectId,oldContinuity,DIGEST,newContinuity,newEpisode,DIGEST,DIGEST);
+    value.database.prepare(`UPDATE libra_subjects SET intake_revision=2,current_continuity_set_digest=?,
+      current_episode_scope_digest=? WHERE subject_id=?`).run(newContinuity,newEpisode,kept.subjectId);
+    value.database.prepare(`INSERT INTO libra_handoff_a_receipts
+      (receipt_id,intake_decision_id,outcome,offer_id,candidate_package_id,package_revision,package_digest,
+       subject_id,subject_intake_revision,subject_continuity_head_revision,committed_at_ms)
+      VALUES ('receipt-anchor-extension',?,'accepted','offer-anchor-extension','candidate-anchor-extension',1,?,?,2,2,3)`)
+      .run(extensionIntake,DIGEST,kept.subjectId);
+
+    const newState = { libraRunId:newRunId,stateRevision:1,state:'active',acceptanceSpecId:null,
+      executionBasisDigest:DIGEST,runScopeDigest:DIGEST,priorityClass:'normal',priorityIntentDigest:DIGEST,
+      transitionKind:'admitted',transitionEvidenceDigest:DIGEST };
+    value.database.prepare(`INSERT INTO libra_runs
+      (libra_run_id,subject_id,admission_revision,execution_basis_record_json,execution_basis_digest,
+       run_scope_digest,state,state_revision,state_digest,priority_class,priority_intent_digest,recovery_attempt_ordinal,created_at_ms)
+      VALUES (?,?,2,'{}',?,?,'active',1,?,'normal',?,0,3)`)
+      .run(newRunId,kept.subjectId,DIGEST,DIGEST,runStateDigest(newState),DIGEST);
+    value.database.prepare(`INSERT INTO libra_run_material_manifests
+      (run_material_manifest_id,libra_run_id,manifest_role,scope_kind,manifest_revision,member_count,
+       member_set_digest,manifest_digest,published_at_ms)
+      VALUES (?,?,'run_input','single',1,2,?,?,3)`).run(newManifestId,newRunId,DIGEST,DIGEST);
+    value.database.prepare('UPDATE libra_runs SET run_material_manifest_id=? WHERE libra_run_id=?')
+      .run(newManifestId,newRunId);
+    value.database.prepare(`INSERT INTO libra_run_material_members
+      (run_material_manifest_id,ordinal,material_key,role,size_bytes,member_digest,origin_intake_decision_id)
+      VALUES (?,0,'material-anchor-founding','primary_payload',1,?,?),
+             (?,1,'material-anchor-extension','primary_payload',1,?,?)`)
+      .run(newManifestId,DIGEST,foundingIntake,newManifestId,DIGEST,extensionIntake);
+    value.database.prepare(`INSERT INTO libra_predeck_pipeline_tokens
+      (subject_id,source_field_id,source_process_id,acquired_at_ms)
+      VALUES (?,'field-anchor-new',?,3)`).run(kept.subjectId,foundingIntake);
+    seedExecution(value.database, 'libra', 'libra_run', newRunId, 'anchor-new');
+
+    const plan = inspectPlan(value.database);
+    assert.equal(plan.ready, true);
+    assert.equal(plan.blockers.some((row) => row.code === 'RETAINED_SUBJECT_ROUTING_ANCHOR_IN_RESET'), false);
+    assert.deepEqual(plan.scope.preservedRoutingAnchorIntakeIds, [foundingIntake]);
+    assert.equal(plan.counts.preservedRoutingAnchorIntakes, 1);
+    assert.equal(plan.scope.intakeDecisionIds.includes(foundingIntake), false);
+    assert.equal(plan.scope.intakeDecisionIds.includes(extensionIntake), true);
+    assert.deepEqual(plan.scope.runIds, [newRunId]);
+    assert.equal(plan.scope.disposableSubjectIds.includes(kept.subjectId), false);
+    assert.equal(plan.scope.resetSubjectIds.includes(kept.subjectId), true);
+
+    applyReset({ database:value.database, dataDir:value.dataDir, transcodeDir:value.transcodeDir, nowMs:5400 });
+    assert.equal(value.database.prepare('SELECT COUNT(*) count FROM libra_runs WHERE libra_run_id=?').get(newRunId).count, 0);
+    assert.equal(value.database.prepare('SELECT COUNT(*) count FROM libra_intake_decisions WHERE intake_decision_id=?')
+      .get(extensionIntake).count, 0);
+    assert.equal(value.database.prepare('SELECT COUNT(*) count FROM libra_intake_decisions WHERE intake_decision_id=?')
+      .get(foundingIntake).count, 1);
+    assert.deepEqual(value.database.prepare(`SELECT subject_id,routing_anchor_intake_decision_id,intake_revision,
+      current_continuity_set_digest,current_episode_scope_digest FROM libra_subjects WHERE subject_id=?`)
+      .get(kept.subjectId), {
+      subject_id:kept.subjectId, routing_anchor_intake_decision_id:foundingIntake, intake_revision:1,
+      current_continuity_set_digest:oldContinuity, current_episode_scope_digest:DIGEST,
+    });
+    assert.equal(value.database.prepare('SELECT COUNT(*) count FROM libra_material_bindings WHERE subject_id=? AND origin_intake_decision_id=?')
+      .get(kept.subjectId,foundingIntake).count, 1);
+    assert.equal(value.database.prepare('SELECT COUNT(*) count FROM arca_ondeck_commit_receipts WHERE on_deck_run_id=?')
+      .get(keptOnDeck).count, 1);
+    assert.equal(value.database.prepare('SELECT COUNT(*) count FROM libra_predeck_pipeline_tokens WHERE subject_id=?')
+      .get(kept.subjectId).count, 0);
+  } finally { close(value); }
+});
+
 test('Formation Reset process scoping does not delete a Work with a colliding ID in another typed scope', () => {
   const value = fixture('helix-formation-reset-typed-collision');
   try {
