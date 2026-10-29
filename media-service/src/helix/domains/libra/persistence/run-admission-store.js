@@ -232,9 +232,16 @@ function libraDefinition(schemaManifest) {
           "state_digest",
           "priority_class",
           "priority_intent_digest",
+          "supersedes_run_id",
           "superseded_by_run_id",
         ],
         keyColumns: ["subject_id"],
+      },
+      find_initial_revision: {
+        kind: "select-one", tableId: "libra_run_revisions",
+        columns: ["libra_run_id", "state_revision", "transition_kind", "transition_decision_id", "transition_decision_digest",
+          "transition_evidence_schema_ref", "transition_evidence_json", "transition_evidence_digest"],
+        keyColumns: ["libra_run_id", "state_revision"],
       },
       find_manifest: {
         kind: "select-one",
@@ -721,6 +728,77 @@ function createRunAdmissionStore(options) {
       libraTableIds: libra.tableIds,
       foundationTableIds: foundation.tableIds,
     }),
+    readConfirmedTargetReplacement({intent,preview,baseSpec}) {
+      const subjectId=intent.subjectId,oldId=intent.basis.libraRunId;
+      let candidate=null;
+      const participants=[{
+        participantId:'run_admission_replay_domain',owner:'libra',repositories:[libra],execute(context){
+          const repo=context.repository(libra.repositoryId),runs=repo.invoke('list_runs',{subject_id:subjectId}),
+            old=runs.find(row=>row.libra_run_id===oldId);
+          if(!old?.superseded_by_run_id)return null;
+          const run=runs.find(row=>row.libra_run_id===old.superseded_by_run_id);
+          if(!run||old.state!=='superseded'||run.supersedes_run_id!==oldId)
+            fail('P9_RUN_REPLAY_CORRUPT','Replacement Run relation is inconsistent.');
+          const row=repo.invoke('find_spec',{acceptance_spec_id:run.acceptance_spec_id});
+          let spec,basis;
+          try{spec=JSON.parse(row?.spec_json);basis=JSON.parse(run.execution_basis_record_json);}catch{
+            fail('P9_RUN_REPLAY_CORRUPT','Replacement Run or Spec is unreadable.');
+          }
+          if(spec?.targetKind!=='user_custom'||spec.customTargetRef?.intentId!==intent.intentId)return null;
+          try{require('../model/custom-acceptance-spec').assertCustomAcceptanceSpec({spec,baseSpec,preview,intent});}catch{
+            fail('P9_RUN_REPLAY_CORRUPT','Replacement Run Spec does not reconstruct from its confirmed target.');
+          }
+          const ref=basis.collectionTargetRef,revision=repo.invoke('find_initial_revision',{libra_run_id:run.libra_run_id,state_revision:1});
+          let decision;
+          try{
+            const recorded=JSON.parse(revision?.transition_evidence_json);
+            decision=buildRunAdmissionDecision(recorded);
+            if(canonicalJson(recorded)!==canonicalJson(decision)||
+                canonicalJson(buildRunExecutionBasisRecord(decision.runExecutionBasis))!==canonicalJson(basis))
+              throw new Error('Admission decision or compact Run basis differs.');
+          }catch{
+            fail('P9_RUN_REPLAY_CORRUPT','Replacement Run admission decision cannot be reconstructed.');
+          }
+          if(row.subject_id!==subjectId||row.record_digest!==spec.recordDigest||row.spec_digest!==spec.specDigest||
+              spec.customTargetRef.intentDigest!==intent.intentDigest||spec.customTargetRef.targetRevision!==intent.revision||
+              ref?.schemaRef!=='libra.collection-target-reference@1'||ref.targetKind!=='user_custom'||
+              ref.intentId!==intent.intentId||ref.intentDigest!==intent.intentDigest||ref.targetRevision!==intent.revision||
+              basis.subjectSnapshot?.subjectId!==subjectId||basis.acceptanceSpec?.acceptanceSpecId!==run.acceptance_spec_id||
+              basis.acceptanceSpec?.recordDigest!==row.record_digest||basis.executionBasisDigest!==run.execution_basis_digest||
+              !revision||revision.libra_run_id!==run.libra_run_id||Number(revision.state_revision)!==1||revision.transition_kind!=='admitted'||
+              revision.transition_evidence_schema_ref!==DECISION_SCHEMA||revision.transition_evidence_digest!==decision.decisionDigest||
+              revision.transition_decision_digest!==decision.decisionDigest||revision.transition_decision_id!==decision.decisionId)
+            fail('P9_RUN_REPLAY_CORRUPT','Replacement Run target evidence is inconsistent.');
+          candidate={run,revision,decision};return null;
+        }
+      },{
+        participantId:'run_admission_replay_foundation',owner:'execution-foundation',boundBusinessOwner:'libra',repositories:[foundation],execute(context){
+          if(!candidate)return null;
+          const {run,revision,decision}=candidate,identity={subjectId,decisionDigest:revision.transition_decision_digest},
+            marker='libra-run-admission-marker-'+canonicalDigest(identity).slice(0,40),
+            repo=context.repository(foundation.repositoryId),found=repo.invoke('find_marker',{commit_marker:marker}),
+            stored=found&&repo.invoke('find_result',{result_id:found.result_id});
+          if(!found||found.owner_domain!=='libra'||found.scope_type!=='libra_run'||found.scope_id!==run.libra_run_id||
+              found.commit_digest!==revision.transition_decision_digest||found.result_schema_ref!==RESULT_SCHEMA||
+              !stored||stored.result_digest!==found.result_digest||stored.evidence_schema_ref!==DECISION_RECORD_SCHEMA)
+            fail('P9_RUN_REPLAY_CORRUPT','Replacement Run admission receipt is absent or inconsistent.');
+          let result,evidence;try{result=JSON.parse(stored.result_json);evidence=JSON.parse(stored.evidence_json);}catch{
+            fail('P9_RUN_REPLAY_CORRUPT','Replacement Run admission receipt is unreadable.');
+          }
+          if(canonicalDigest(result)!==stored.result_digest||canonicalDigest(evidence)!==stored.evidence_digest||
+              result.resultDigest!==canonicalDigest(Object.fromEntries(Object.entries(result).filter(([key])=>key!=='resultDigest')))||
+              canonicalJson(evidence)!==canonicalJson(buildRunAdmissionDecisionRecord(decision))||
+              result.libraRunId!==run.libra_run_id||result.supersededRunRef?.libraRunId!==oldId||
+              result.executionBasisDigest!==run.execution_basis_digest||evidence.decisionDigest!==revision.transition_decision_digest||
+              evidence.decisionId!==revision.transition_decision_id||evidence.subjectId!==subjectId||evidence.admissionKind!=='replacement'||
+              evidence.libraRunId!==run.libra_run_id||evidence.replacementOfRunRef?.libraRunId!==oldId||
+              evidence.runExecutionBasisRef?.libraRunId!==run.libra_run_id||evidence.runExecutionBasisRef?.executionBasisDigest!==run.execution_basis_digest)
+            fail('P9_RUN_REPLAY_CORRUPT','Replacement Run admission receipt digest is inconsistent.');
+          return Object.freeze(result);
+        }
+      }];
+      return options.unitOfWork.execute(participants).run_admission_replay_foundation;
+    },
     admit(request) {
       const decision = buildRunAdmissionDecision(request?.decision),
         marker = request?.commitMarker,
@@ -737,6 +815,9 @@ function createRunAdmissionStore(options) {
         );
       const commitDigest = decision.decisionDigest;
       let authorizedEpisodeMapping = null;
+      let authorizedCustomTarget = null;
+      const targetValidation=require('./custom-target-store').createCustomTargetStore(options).admissionValidation(
+        decision.runExecutionBasis,decision.replacementOfRunRef?.libraRunId,record=>{authorizedCustomTarget=record;});
       const mappingValidation = decision.runExecutionBasis.episodeMetadataMappingRef
         ? require('./episode-metadata-mapping-store').createEpisodeMetadataMappingStore(options).admissionValidation(
           decision.runExecutionBasis, decision.replacementOfRunRef?.libraRunId, record => { authorizedEpisodeMapping = record; }) : null;
@@ -751,7 +832,14 @@ function createRunAdmissionStore(options) {
         execute(context) {
           const repo = context.repository(foundation.repositoryId),
             found = repo.invoke("find_marker", { commit_marker: marker });
-          if (!found) return;
+          if (!found) {
+            if(decision.runExecutionBasis.collectionTargetRef){
+              if(!request.readFence||typeof options.unitOfWork.assertReadFence!=='function')
+                fail('P9_RUN_TARGET_READ_FENCE_REQUIRED','A confirmed target Run requires a fresh public input read fence.');
+              options.unitOfWork.assertReadFence(request.readFence);
+            }
+            return;
+          }
           if (
             found.owner_domain !== "libra" ||
             found.scope_type !== "libra_run" ||
@@ -841,7 +929,8 @@ function createRunAdmissionStore(options) {
             );
             if (
               !old ||
-              !(["active", "suspended"].includes(old.state) || old.state === 'frozen' && authorizedEpisodeMapping?.libraRunId === old.libra_run_id) ||
+              !(["active", "suspended"].includes(old.state) || old.state === 'frozen' &&
+                (authorizedEpisodeMapping?.libraRunId === old.libra_run_id||authorizedCustomTarget?.basis.libraRunId===old.libra_run_id)) ||
               number(old.state_revision) !==
                 decision.replacementOfRunRef.stateRevision ||
               old.state_digest !== decision.replacementOfRunRef.stateDigest ||
@@ -1179,7 +1268,7 @@ function createRunAdmissionStore(options) {
         },
       };
       try {
-        options.unitOfWork.execute([preflight, ...(mappingValidation ? [mappingValidation] : []), control, apply, finish]);
+        options.unitOfWork.execute([preflight, targetValidation, ...(mappingValidation ? [mappingValidation] : []), control, apply, finish]);
       } catch (error) {
         if (error instanceof Replay)
           return Object.freeze({ result: error.result, replayed: true });

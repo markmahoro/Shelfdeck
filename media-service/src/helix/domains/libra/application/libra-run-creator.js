@@ -1,6 +1,6 @@
 'use strict';
 
-const { canonicalDigest } = require('../../../contracts/canonical-json');
+const { canonicalDigest,canonicalJson } = require('../../../contracts/canonical-json');
 const { createMaterialControlProjectionPort } = require('../../../foundation/persistence/material-control');
 const { buildProductionMaterialManifest,buildRunAdmissionDecision,buildRunExecutionBasis } = require('../model/run-admission-contracts');
 const { createRunAdmissionStore } = require('../persistence/run-admission-store');
@@ -64,7 +64,7 @@ function createLibraRunCreator(options){
     if(computed!==relatedDispositionScopeDigest)throw new Error('Libra Related Binding scope differs from its Handoff A origin.');
     return Object.freeze({relatedReferenceSetDigest,relatedDispositionScopeDigest,items:Object.freeze(related)});
   }
-  function reconcileInternal(subjectId,forceReplacementOf=null,confirmedEpisodeMapping=null){
+  function reconcileInternal(subjectId,forceReplacementOf=null,confirmedEpisodeMapping=null,confirmedCustomTarget=null,readFence=null){
     if(options.taskCancellations?.get(subjectId)?.state==='pending')return {kind:'cancelling',subjectId};
     const context=options.contextReader.read(subjectId);if(context.kind!=='ready')return context;
     const eligible=context.runs.filter((run)=>['active','suspended','frozen'].includes(run.state)&&
@@ -88,13 +88,22 @@ function createLibraRunCreator(options){
     }
     if(forceReplacementOf&&current?.libra_run_id!==forceReplacementOf)
       throw new Error('Forced replacement no longer targets the current commit-eligible Libra Run.');
-    if(current?.state==='frozen'&&!confirmedEpisodeMapping)return Object.freeze({kind:'frozen',subjectId,libraRunId:current.libra_run_id});
+    if(confirmedCustomTarget){
+      const target=options.customTargetStore?.current({subjectId,productScopeDigest:context.spec.productScopeDigest}),ref=context.spec.customTargetRef;
+      if(!readFence||!target||context.spec.targetKind!=='user_custom'||target.intentId!==confirmedCustomTarget.intentId||
+          target.intentDigest!==confirmedCustomTarget.intentDigest||target.basis.libraRunId!==forceReplacementOf||
+          ref?.intentId!==target.intentId||ref.intentDigest!==target.intentDigest||ref.targetRevision!==target.revision)
+        throw Object.assign(new Error('Confirmed collection target is stale or has not published its Spec.'),{code:'LIBRA_COLLECTION_TARGET_NOT_CURRENT'});
+    }
+    if(current?.state==='frozen'&&!confirmedEpisodeMapping&&!confirmedCustomTarget)return Object.freeze({kind:'frozen',subjectId,libraRunId:current.libra_run_id});
     if(!forceReplacementOf&&current&&current.acceptance_spec_id===context.spec.acceptanceSpecId)return Object.freeze({kind:'current',subjectId,
       libraRunId:current.libra_run_id,state:current.state,executionBasisDigest:current.execution_basis_digest});
     if(!forceReplacementOf&&current&&typeof options.contextReader.readAcceptanceSpec==='function'){const currentSpec=options.contextReader.readAcceptanceSpec(current.acceptance_spec_id);
       if(currentSpec?.specDigest===context.spec.specDigest)return Object.freeze({kind:'current',subjectId,
         libraRunId:current.libra_run_id,state:current.state,executionBasisDigest:current.execution_basis_digest,
         semanticSpecReplay:true,currentAcceptanceSpecId:context.spec.acceptanceSpecId});}
+    if(context.spec.targetKind==='user_custom'&&!confirmedCustomTarget)return Object.freeze({kind:'custom_target_resolution_required',subjectId,
+      intentId:context.spec.customTargetRef.intentId});
     if(!current&&!forceReplacementOf&&options.pipelineAdmission&&!options.pipelineAdmission.hasToken(subjectId)){
       return Object.freeze({kind:'pipeline_token_required',subjectId,reasonCode:'PREDECK_PIPELINE_TOKEN_REQUIRED'});
     }
@@ -105,6 +114,9 @@ function createLibraRunCreator(options){
       continuitySetDigest:context.subject.current_continuity_set_digest,episodeScopeDigest:context.subject.current_episode_scope_digest},
       decisionHeadSnapshot:options.contextReader.decisionHeadSnapshot(subjectId,context.decisionHead),acceptanceSpec:context.spec,
       shelfProjection:context.shelfProjection,productionMaterialManifest,relatedDispositionScope:relatedDispositionScope(context),
+      ...(confirmedCustomTarget?{collectionTargetRef:{schemaRef:'libra.collection-target-reference@1',targetKind:'user_custom',
+        intentId:context.spec.customTargetRef.intentId,intentDigest:context.spec.customTargetRef.intentDigest,
+        targetRevision:context.spec.customTargetRef.targetRevision}}:{}),
       ...(confirmedEpisodeMapping ? {episodeMetadataMappingRef:confirmedEpisodeMapping} : current?.execution_basis_record_json &&
         JSON.parse(current.execution_basis_record_json).episodeMetadataMappingRef ?
           {episodeMetadataMappingRef:JSON.parse(current.execution_basis_record_json).episodeMetadataMappingRef} : {})});
@@ -114,7 +126,7 @@ function createLibraRunCreator(options){
       priorityIntentDigest:canonicalDigest({schema:'libra.priority-intent-empty@1'})};
     const decision=buildRunAdmissionDecision({admissionKind:current?'replacement':'initial',subjectId,expectedRunAdmissionHead:head,
       runExecutionBasis:basis,...(replacement?{replacementOfRunRef:replacement}:{}),initialPriority:priority});
-    const identity={subjectId,decisionDigest:decision.decisionDigest},admitted=store.admit({decision,
+    const identity={subjectId,decisionDigest:decision.decisionDigest},admitted=store.admit({decision,...(confirmedCustomTarget?{readFence}:{}),
       commitMarker:stable('libra-run-admission-marker-',identity),resultId:stable('libra-run-admission-result-',identity)});
     if(replacement&&typeof options.cancelProcessWorks==='function')options.cancelProcessWorks(Object.freeze({ownerDomain:'libra',
       processType:'libra_run',processId:replacement.libraRunId,reasonCode:'LIBRA_RUN_SUPERSEDED'}));
@@ -123,6 +135,20 @@ function createLibraRunCreator(options){
   return Object.freeze({
     reconcile(subjectId){return reconcileInternal(subjectId);},
     replace(subjectId,libraRunId){return reconcileInternal(subjectId,libraRunId);},
+    replaceConfirmedCustomTarget(record,readFence){
+      if(!options.customTargetStore||typeof options.cancelProcessWorks!=='function')
+        throw new TypeError('Confirmed target replacement requires the Target Store and Process Work cancellation port.');
+      const evidence=options.customTargetStore.intentEvidence(record?.intentId),persisted=evidence.intent;
+      if(canonicalJson(persisted)!==canonicalJson(record))
+        throw Object.assign(new Error('Confirmed collection target does not match its durable Intent.'),{code:'LIBRA_COLLECTION_TARGET_NOT_CURRENT'});
+      const replay=store.readConfirmedTargetReplacement(evidence);
+      if(replay){
+        options.cancelProcessWorks(Object.freeze({ownerDomain:'libra',processType:'libra_run',
+          processId:persisted.basis.libraRunId,reasonCode:'LIBRA_RUN_SUPERSEDED'}));
+        return Object.freeze({kind:'admitted',subjectId:persisted.subjectId,libraRunId:replay.libraRunId,replayed:true,result:replay});
+      }
+      return reconcileInternal(record.subjectId,record.basis.libraRunId,null,record,readFence);
+    },
     replaceConfirmedEpisodeMetadata(record){
       const current=options.episodeMetadataMappingStore?.current(record.subjectId);
       if(!current||current.recordId!==record.recordId||current.recordDigest!==record.recordDigest)

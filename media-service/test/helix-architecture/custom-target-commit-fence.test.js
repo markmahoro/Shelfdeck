@@ -6,11 +6,17 @@ const {currentTargetMatches}=require('../../src/helix/domains/libra/model/custom
 function fixture(){const customTargetRef={schemaRef:'libra.custom-target-reference@1',intentId:D('intent'),intentDigest:D('record'),targetRevision:1,
   previewDigest:D('preview'),targetRequirementsDigest:D('requirements')},head={subject_id:'subject',product_scope_digest:D('scope'),current_revision:1,
     intent_id:customTargetRef.intentId,record_digest:customTargetRef.intentDigest};
-  return {subjectId:'subject',productScopeDigest:D('scope'),targetKind:'user_custom',customTargetRef,head};}
+  const collectionTargetRef={schemaRef:'libra.collection-target-reference@1',targetKind:'user_custom',intentId:customTargetRef.intentId,
+    intentDigest:customTargetRef.intentDigest,targetRevision:customTargetRef.targetRevision};
+  return {subjectId:'subject',productScopeDigest:D('scope'),targetKind:'user_custom',customTargetRef,collectionTargetRef,head};}
 test('a confirmed head immediately fences the old standard and permits only its exact custom target',()=>{
-  const value=fixture();assert.equal(currentTargetMatches({...value,targetKind:undefined,customTargetRef:undefined,head:null}),true);
+  const value=fixture();assert.equal(currentTargetMatches({...value,targetKind:undefined,customTargetRef:undefined,collectionTargetRef:undefined,head:null}),true);
   assert.equal(currentTargetMatches({...value,targetKind:undefined,customTargetRef:undefined}),false);
   assert.equal(currentTargetMatches(value),true);
+  assert.equal(currentTargetMatches({...value,collectionTargetRef:undefined}),false);
+  for(const collectionTargetRef of [{...value.collectionTargetRef,targetRevision:2},
+    {...value.collectionTargetRef,intentId:D('another-goal')},{...value.collectionTargetRef,targetKind:'standard'}])
+    assert.equal(currentTargetMatches({...value,collectionTargetRef}),false);
   for(const head of [{...value.head,current_revision:2},{...value.head,intent_id:D('another')},{...value.head,record_digest:D('other-record')}])
     assert.equal(currentTargetMatches({...value,head}),false);
 });

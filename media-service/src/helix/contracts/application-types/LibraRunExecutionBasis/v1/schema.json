@@ -246,6 +246,41 @@
           "maximum": 9007199254740991
         }
       }
+    },
+    "collectionTargetRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaRef",
+        "targetKind",
+        "intentId",
+        "intentDigest",
+        "targetRevision"
+      ],
+      "properties": {
+        "schemaRef": {
+          "const": "libra.collection-target-reference@1"
+        },
+        "targetKind": {
+          "enum": [
+            "user_custom",
+            "standard"
+          ]
+        },
+        "intentId": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "intentDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "targetRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      }
     }
   },
   "required": [
