@@ -36,7 +36,7 @@ UI修复提交`60f123a71`、浏览器回归`567ad89ca`及专属Evidence `7265d4b
 
 continuity合法重规划门禁测试`92df7fa5e`挑入后，当前候选更新为`27a0f68af3599a3422b21853632fc8a01878b750`，标准镜像tar SHA256 `e87f6628edc20732df35889aa7195bd7de1e52ba6753984635a7e39f95a3166e`。4547个跟踪文件与构建工作区逐字节一致；该版本Linux Service 846通过/28 skip/0失败、Web 274通过，UI负责人对具体镜像适用验收PASS。完整架构和真实CIFS待完成，未部署。上述bc4为前一候选。
 
-后继Series修复在独立工作区`C:/Users/markm/.codex/worktrees/shelfdeck-series-fenced-20261029/emby_third_party-helix`的`codex/series-fenced-20261029`准备：在27a上按序挑入Foundation原Effect/Marker/Result恢复、Perception冻结依据和Owner后继Work、以及提交窗口验证；当前HEAD `f0fab9a91`仍缺P13摘要修复和固定版本完整门禁，不是新发布候选。实现线程正对其来源提交进行双平台定向和真实Host复验；真实CIFS、实际生产副本/冷备和七条恢复仍开放。
+后继Series修复在独立工作区`C:/Users/markm/.codex/worktrees/shelfdeck-series-fenced-20261029/emby_third_party-helix`的`codex/series-fenced-20261029`准备：在27a上按序挑入Foundation原Effect/Marker/Result恢复、Perception冻结依据和Owner后继Work、提交窗口验证及P13摘要修复；固定HEAD `4774a7e9056f644c29b8034ea07baeb4f578c4f6`已完成标准本机镜像构建，tar SHA256 `1a280a3efea6f67b97019552d8fd76ed7c8fe655bf5aa52998686c559b6b3023`。完整架构、Service、Web和具体版本UI在执行，真实CIFS、实际生产副本/冷备和七条恢复仍开放，未上传或部署。
 
 前候选1d8a完整架构3402通过/5失败/27跳过，四项缺少依赖路径后定向通过；1081视频Host并发收敛核查见专项Evidence。bc4完整架构3410通过/3失败/27跳过：两项缺历史Git对象，精确27a相同测试补只读对象后6项通过；另一JAV Aftercare海报失败已找到可复现的相同现象，首跑因果仍未证实。精确27a首轮3411通过/3失败/27跳过：两项同样缺历史对象，第三项Series Resolution Commit Handle异常已在隔离Host调查；带完整历史的第二轮3413通过/1失败/27跳过，唯一失败为上述P13备份摘要缺口。两次原失败均保留，不能用定向结果冒充全量通过。
 
