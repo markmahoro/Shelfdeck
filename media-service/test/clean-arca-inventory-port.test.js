@@ -124,7 +124,7 @@ for(const [code,title] of [
     f.packageValue.resolvedIdentitySnapshot.factValue.providerIdentities=[{provider:'jav',namespace:'jav_code',providerKey:code}];
     const before=JSON.stringify(f.packageValue),preview=f.port.previewJavTitle(f.request);
     assert.equal(preview.shortened,true);assert.equal(preview.rule,'arca.jav-title-prefix@1');
-    assert.equal(preview.targetCollisionChecked,false);
+    assert.equal(preview.targetCollisionChecked,false);assert.equal(preview.endpointComponentLimitVerified,false);
     assert.ok(path.basename(preview.targetDirectory).startsWith(code+' '));
     assert.ok(Buffer.byteLength(path.basename(preview.targetDirectory)+'.shelfdeck-stage-'+'0'.repeat(16))<=255);
     const primary=preview.members.find(item=>item.role==='primary_payload').finalName;

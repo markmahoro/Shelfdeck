@@ -680,7 +680,7 @@ function createCleanArcaInventoryPort(options) {
     }
     const rendered = renderCandidate(choice.title);
     return Object.freeze({ ...rendered, shortened:choice.shortened, rule:choice.rule || null,
-      targetCollisionChecked:false });
+      targetCollisionChecked:false, endpointComponentLimitVerified:false });
   }
 
   function buildPlan(request) {
