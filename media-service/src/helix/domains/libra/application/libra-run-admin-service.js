@@ -1,7 +1,7 @@
 'use strict';
 const { requirementGapValueDigest } = require('../../../contracts/requirement-gap-values');
 
-const { canonicalDigest } = require('../../../contracts/canonical-json');
+const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
 const { buildRunLifecycleDecision } = require('../model/run-lifecycle-contracts');
 const { buildRunDiscardCommand } = require('../model/run-discard-contracts');
@@ -16,6 +16,9 @@ const { createDefectAuthorizationStore } = require('../persistence/defect-author
 const { createRunOutcomeStore } = require('../persistence/run-outcome-store');
 const { createWorkResultReader } = require('../../../foundation/execution/work-result-reader');
 const {metadataResultItems,observedFieldKeys,observedMediaCastRoles}=require('../planning/product-metadata-work');
+const {createMovieProductionReader}=require('../persistence/movie-production-reader');
+const {buildProductConformanceFactSnapshot}=require('../model/product-conformance');
+const {hasRequiredUsAdultActor}=require('../../../contracts/us-adult-actor-package');
 const {WAIVABLE_MEDIA_CODES}=require('../model/defect-admission-contracts');
 const {createStrategyAvailabilityStore}=require('../persistence/strategy-availability-store');
 const {createTaskCancellationStore}=require('../persistence/task-cancellation-store');
@@ -207,6 +210,37 @@ function createLibraRunAdminService(options) {
     });
   }
 
+  function westernAdultMissingFields(libraRunId,snapshot) {
+    const reader=options.movieProductionReader||createMovieProductionReader(options),
+      values=['resolved_identity','product_metadata','media_cast'].map(kind=>reader.readFact(libraRunId,kind,1));
+    if(values.some(value=>!value))fail('P9_DEFECT_ADMISSION_EVIDENCE_PENDING','The current Product Facts are not complete.');
+    const [identity,metadata,cast]=values.map(buildProductConformanceFactSnapshot),resolved=identity.factValue,
+      product=metadata.factValue,mediaCast=cast.factValue,ref=product.mediaCastFactRef,
+      anchors=resolved.providerIdentities,expectedKind=snapshot.spec.requirements?.identity?.identityKind;
+    if(snapshot.spec.subjectId!==snapshot.run.subject_id||snapshot.spec.acceptanceSpecId!==snapshot.run.acceptance_spec_id||
+        snapshot.spec.structureKind!=='single'||resolved.subjectId!==snapshot.run.subject_id||resolved.contentProfile!=='western_adult'||resolved.structureKind!=='single'||
+        resolved.identityKind!=='internal_identity'||expectedKind!=='internal_identity'||!Array.isArray(anchors)||anchors.length!==1||
+        anchors[0].provider!=='internal'||anchors[0].namespace!=='internal_identity'||
+        typeof anchors[0].providerKey!=='string'||!anchors[0].providerKey.trim()||
+        product.subjectId!==snapshot.run.subject_id||product.resolvedIdentityDigest!==resolved.identityDigest||
+        product.sourceBasisKind!=='western_analysis'||mediaCast.subjectId!==snapshot.run.subject_id||
+        !ref||ref.productFactId!==cast.productFactId||ref.factRevision!==cast.factRevision||ref.factDigest!==cast.factDigest||
+        !hasRequiredUsAdultActor({resolvedIdentitySnapshot:identity,mediaCastSnapshot:{mediaCastFactId:cast.productFactId,
+          mediaCastFactRevision:cast.factRevision,factDigest:cast.factDigest,factValue:mediaCast,relations:mediaCast.relations,
+          relationsDigest:mediaCast.relationsDigest},productFactManifest:{items:[cast]}}))
+      fail('P9_DEFECT_ADMISSION_NONWAIVABLE','The exact Product Identity, Metadata or Actor Fact is not eligible.');
+    const entries=product.descriptiveFacts?.entries;
+    if(!Array.isArray(entries))fail('P9_DEFECT_ADMISSION_EVIDENCE_PENDING','Product Metadata fields are incomplete.');
+    const fields=new Map(entries.map(item=>[item.key,item.value])),present=value=>value!==null&&value!==undefined&&
+      (typeof value!=='string'||value.length>0);
+    return (snapshot.spec.requirements.metadata.requiredFieldCodes||[]).filter(code=>{
+      if(code==='internal_identity')return false;
+      if(code==='actor')return !mediaCast.relations.length;
+      if(['tmdb_movie_id','tmdb_series_id','jav_code','season_number','episode_number','episode_title','episode_plot'].includes(code))return true;
+      return !present(fields.get(code));
+    });
+  }
+
   function defectCandidate(libraRunId, snapshot = current(libraRunId)) {
     if (snapshot.run.state !== 'frozen') {
       fail('LIBRA_DEFECT_ADMISSION_STATE', 'Only a frozen Libra Run can accept defects.');
@@ -234,8 +268,8 @@ function createLibraRunAdminService(options) {
     }
     const metadata=metadataResultItems({workResultReader},libraRunId);
     const fields=observedFieldKeys(metadata),roles=observedMediaCastRoles(metadata);
-    const missingMetadataFields=(snapshot.spec?.requirements?.metadata?.requiredFieldCodes || [])
-      .filter(code=>code==='actor'?!roles.has('actor'):!fields.has(code));
+    const missingMetadataFields=snapshot.spec?.contentProfile==='western_adult'?westernAdultMissingFields(libraRunId,snapshot):
+      (snapshot.spec?.requirements?.metadata?.requiredFieldCodes || []).filter(code=>code==='actor'?!roles.has('actor'):!fields.has(code));
     // The Work's owner-defined production objective locates the affected product
     // dimension. Capability names and failure classifications are provenance,
     // never authorization to waive a requirement.
@@ -305,6 +339,18 @@ function createLibraRunAdminService(options) {
     }
     if(verification.libraRunId!==libraRunId)
       fail('P9_DEFECT_ADMISSION_INELIGIBLE','Product verification belongs to another Run.');
+    if(snapshot.spec.contentProfile==='western_adult'&&input.sizeCapVerification){
+      const decode=verification.decodeSummary,space=verification.spaceSummary,expectedPoints=[5,50,95],
+        expectedLimit=snapshot.spec.requirements?.space?.maxSizeBytes;
+      if(!decode||canonicalJson(decode.samplePointsPercent)!==canonicalJson(expectedPoints)||
+          !Array.isArray(decode.passedSamplePointsPercent)||!/^[a-f0-9]{64}$/.test(decode.decodeDigest||'')||
+          !space||!Number.isSafeInteger(space.actualSizeBytes)||!Number.isSafeInteger(space.maxSizeBytes)||space.maxSizeBytes<1)
+        fail('P9_DEFECT_ADMISSION_EVIDENCE_PENDING','Complete playback and measured size evidence is required.');
+      if(canonicalJson(decode.passedSamplePointsPercent)!==canonicalJson(expectedPoints))
+        fail('P9_DEFECT_ADMISSION_NONWAIVABLE','The produced media did not pass every playback sample.');
+      if(space.unit!=='product'||space.maxSizeBytes!==expectedLimit||space.withinLimit!==false||space.actualSizeBytes<=space.maxSizeBytes)
+        fail('P9_DEFECT_ADMISSION_INELIGIBLE','Measured size evidence does not match the frozen Product requirement.');
+    }
     if((verification.reasonCodes || []).some(code=>!WAIVABLE_MEDIA_CODES.has(code)))
       fail('P9_DEFECT_ADMISSION_NONWAIVABLE','Product evidence contains a non-waivable safety or identity failure.', {
         productEvidence: {libraRunId,runStateRevision:Number(snapshot.run.state_revision),
@@ -410,8 +456,9 @@ function createLibraRunAdminService(options) {
     },
     reconcileFrozen(libraRunId) {
       const authorization = defectAuthorizations.current();
+      const initialSnapshot=current(libraRunId);
       let candidate;
-      try { candidate = defectCandidate(libraRunId); }
+      try { candidate = defectCandidate(libraRunId,initialSnapshot); }
       catch (error) {
         if(error.code==='P9_DEFECT_ADMISSION_EVIDENCE_PENDING')return Object.freeze({kind:'evidence_pending',libraRunId});
         if (['P9_DEFECT_ADMISSION_INELIGIBLE','P9_DEFECT_ADMISSION_NONWAIVABLE'].includes(error.code)) {
@@ -440,7 +487,8 @@ function createLibraRunAdminService(options) {
         }
         throw error;
       }
-      if (authorization?.state !== 'enabled') return Object.freeze({kind:'awaiting_defect_decision',libraRunId});
+      if (authorization?.state !== 'enabled'||initialSnapshot.spec?.contentProfile!=='movie')
+        return Object.freeze({kind:'awaiting_defect_decision',libraRunId});
       const result = service.admitWithDefects(libraRunId, {
         expectedRunStateRevision: candidate.frozenRunStateRevision,
         expectedRunStateDigest: candidate.frozenRunStateDigest,
@@ -626,6 +674,8 @@ function createLibraRunAdminService(options) {
       if (snapshot.run.state !== 'frozen') {
         fail('LIBRA_DEFECT_ADMISSION_STATE', 'Only a frozen Libra Run can accept defects.');
       }
+      if(standingAuthorization&&snapshot.spec?.contentProfile!=='movie')
+        fail('LIBRA_DEFECT_AUTHORIZATION_SCOPE','Standing defect authorization applies only to Movie.');
       if (Number(snapshot.run.state_revision) !== body.expectedRunStateRevision ||
           snapshot.run.state_digest !== body.expectedRunStateDigest) {
         fail('LIBRA_DEFECT_ADMISSION_STALE', 'Libra Run changed before defect admission.');

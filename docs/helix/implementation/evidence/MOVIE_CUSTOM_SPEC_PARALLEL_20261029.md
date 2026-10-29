@@ -45,6 +45,18 @@
 3. **真实用户与 Arca 路径**：仍缺从 Owner 当前完整材料、Probe/验证、真实外部搜索与路径结果构造最小差距建议和完整服务端 View，并接入上述内部 Preview/确认；未取得足够证据时显示待补证，不能把候选的 unavailable 当成无资源。尚缺 API/UI、当前版本 UI 负责人验收、实际新 Run 生产/Conformance/NFO、Handoff B 原标准与 custom 精确引用、Arca 独立验收、唯一 Commit、Inventory/Aftercare 和精确保留闭包。登堂入室建议只取消 4K，不能附带降低已具备的 DTS-HD MA 或 50 GiB 上限；黑水/三峡好人的本地建议与实际生产通过仍是两件事。
 4. **验证整合**：需要实际 Linux Docker 下的完整隔离 Host、真实可处理媒体、Arca Accepted 前后并发、用户评分改变/恢复标准、迟到旧结果和 Aftercare 旅程；再由主线程安排整体镜像与生产验收。本次不依赖或复制主线程未提交的 Catalogue Basis/244 表/66 事务生成物。
 
+## US-SIZE-DEFECT-PREVIEW 独立修复（2026-10-29）
+
+主线程只读分诊提供 TTIA-026、Roxy Raye 两条现象；本线程没有读取、重试或修改生产。隔离复现证实，既有瑕疵候选从 `product_metadata_observation` 推导字段，US 的正式产品事实经 `us_adult_product` 形成，故同 Run 已有 identity/title 时仍可能误报不可豁免。此项修复第二层既有瑕疵路径，不创建第三层自定义目标，也不修改旧 Run、Spec、Product Fact 或已授权 Manifest。
+
+US 候选现在读取同一 Run 的 `resolved_identity`、`product_metadata` 和 `media_cast` 正式事实，并复用 Product Conformance Fact 验证及现有 US 单演员资格检查；校验 Subject、Spec、internal Anchor、Metadata→Identity 与 Metadata→Cast 的精确引用。缺事实返回待补证，跨 Subject、错误引用、缺标题或缺合格演员不可接纳。体积候选仍要求现有精确 Workspace 验证、已验证附件和仅 `max_size_exceeded`；额外核验三点播放结果与冻结规格下的实际体积，缺证据不能成为通过，失败样本或不一致体积不能成为可接纳差距。用户确认仍复算候选，必须使用精确摘要及显式确认；该确认不代表 Arca 接纳或入藏。
+
+实施时发现既有持续自动瑕疵授权的 SSOT 范围仅为 Movie，而原协调代码没有内容类型门槛。为避免修复 US 预览后扩大既有授权，在 Libra 协调和生命周期事务内均强制 Movie 范围；US 有合格候选时仍等待用户手动决定。Movie 已授权路径继续生效，已提交命令在授权撤销后仍按原回执重放。该范围是执行已有合同，不新增授权；不影响历史已提交事实。
+
+最终本机 Node 和本机 Linux Docker 各运行相同 5 个测试文件：**78 PASS / 0 skip**。覆盖同 Run 事实、手动确认与重放、Movie 自动授权、US 自动授权拒绝及绕过协调层的事务拒绝、Movie 演员缺失、身份/引用/标题/演员/附件/播放/体积负例；SQLite 是临时数据库，Artifact/媒体 Result 为受控夹具，不证明真实文件生产或 Arca 接纳。Linux 容器使用下节所述只读源码和已有运行时镜像，依赖锁文件与本分支存在已披露差异。首次新增定向测试为 11 项中 4 项失败，分别为 US 有事实仍不可接纳、自动协调未到待用户决定、缺身份及缺资料错误判为不可接纳；修复后上述最终范围通过。
+
+此改动改变用户可见的预览资格，属于后端联动 UI；按 Playbook §12.3 仍需用户指定 UI 负责人核验整合后的确切版本和受影响页面。没有执行 NAS 重测、生产确认、自动或手动接纳，不能据此关闭生产问题。
+
 ## 验证与保留的失败
 
 - 本机 Node 逻辑/真实 SQLite 定向：最终 16 个相关文件 133 PASS / 0 skip，包含 Preview/确认、Publication、Run Admission、Promotion、Delivery 与 Provider；此前 14 个文件 99 PASS / 0 skip。覆盖的评分/Accepted 是受控投影，不是实际 Perception 修改或 Arca 提交。
