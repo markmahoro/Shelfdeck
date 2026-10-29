@@ -40,7 +40,7 @@ UI负责人对前一固定候选的独立走查发现两项阻断：文件状态
 
 ## 生产分诊新增阻断
 
-- ARCA-PATH-COMPONENT-BUDGET：HALT-094和EMLB-094的Arca路径及temporary后缀超出实际CIFS组件字节限制；六次Stage均在复制前失败，旧Final Decision不可静默改写。用户已明确授权主动截断超长名称；分诊线程在隔离分支针对新JAV Decision实现并提交精确SSOT建议，完整番号/扩展名、字节预算和真实碰撞保护保持。旧条目重试或清理仍无授权。
+- ARCA-PATH-COMPONENT-BUDGET：HALT-094和EMLB-094的Arca路径及temporary后缀超出实际CIFS组件字节限制；六次Stage均在复制前失败，旧Final Decision不可静默改写。用户已明确授权主动截断超长名称；主整合已同步SSOT和相关来源定位生成物，本机P2通过。分诊线程在隔离分支针对新JAV Decision实现完整番号/扩展名、字节预算和真实碰撞保护；该合同不等于实现或资格通过。旧条目重试或清理仍无授权。
 - US-SIZE-DEFECT-PREVIEW：两条US瑕疵预览未读取已有产品事实；电影/自定义标准线程提交d37bc4272，Linux 78通过/0跳过但依赖镜像与分支锁文件不完全一致。UI负责人提前走查发现证据变化错误在弹窗背后、实测体积误标预计、瑕疵序号重复三项问题，电影线程承接修复；精确依赖、真实媒体及最终版本UI验收仍开放，未进行生产接受。
 - SERIES-PRESENTATION-EXPANSION：13个build/15个Season Subject是13:36快照；后续新增条目不自动纳入七条线上操作授权。其他网络/协议/来源错误和正常人工待决分别承接。
 

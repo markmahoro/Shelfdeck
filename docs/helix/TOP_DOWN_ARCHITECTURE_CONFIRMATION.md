@@ -16304,7 +16304,13 @@ Libra-owned不可变Selection Intent只用于正式JAV身份尚未确认时的�
 
 **封面派生与交付。** 封面来源绑定已验证resource、locator、字节digest与来源attempt。Libra通用Artifact production只写本Run Workspace；输入为源Artifact Handle、closed derivation spec及Workspace Output Target，不藏入Provider transport、不借Western分析链。deterministic crop高/宽=71/50，EXIF归一后取最大不扩大的矩形，右对齐、垂直居中：h*50<w*71时宽=floor(h*50/71)、高=h；否则宽=w、高=floor(w*71/50)；left=w-cropWidth，top=floor((h-cropHeight)/2)。零尺寸、越界或超过32 Mi-pixel拒绝，不拉伸。原图digest、归一化尺寸、crop rect、renderer/version及输出digest组成Evidence；新typed I/O/Capability必须先完成机器传播与negative fixture才接Planner。
 
-推荐Placement为“番号 + 标题”目录、同stem Primary/NFO及固定poster/fanart名，jav_code是独立typed token。渲染只消费冻结正式身份及selected source资料，保存前确定预览；路径非法/过长/碰撞使用现有错误合同。Arca继续独立验收、落位、来源结算、Control transfer及唯一On-deck Commit；来源策略不授权媒体下载/升级、删除或已入藏身份重写。本段不宣称Runtime、全部source或UI已实现，分工作项达到Ready后实施。
+推荐Placement为“番号 + 标题”目录、同stem Primary/NFO及固定poster/fanart名，jav_code是独立typed token。渲染只消费冻结正式身份及selected source资料，保存前确定预览；路径非法、无法按下述规则安全缩短的过长及碰撞使用现有错误合同。Arca继续独立验收、落位、来源结算、Control transfer及唯一On-deck Commit；来源策略不授权媒体下载/升级、删除或已入藏身份重写。本段不宣称Runtime、全部source或UI已实现，分工作项达到Ready后实施。
+
+**JAV新入藏超长名称（2026-10-29，用户授权；实施与资格另行验收）。** 对首次JAV single On-deck尚未冻结的Final Inventory Decision，完整名称不能满足路径组件预算时，Arca主动缩短标题，不增加另一个用户启用开关；原名可容纳时继续精确沿冻结Placement渲染。番号只取冻结正式身份中唯一的`provider=jav, namespace=jav_code, providerKey`并核验其完整规范形式，不从标题、文件名或目录猜测；展示标题恰以该完整番号及一个空格开头时只移除这一精确前缀，再由Arca保留完整番号并附标题前缀，其他情况保留整段标题。标题、番号、Metadata及来源事实本身不改写。目录和所有使用stem的成员共用同一标题前缀；Primary与NFO的实际最终stem必须一致，Primary保留实际容器扩展名，字幕限定词、edition、年份及其他必要字段不截短，固定名称和应保留原名的成员不借此改名。现有Shelf Placement Policy不新增开关或静默发布revision；模板及成员不能满足这些条件时明确阻断。
+
+缩短规则`arca.jav-title-prefix@1`使用固定版本`unicode-segmenter@0.17.3`的Unicode 17.0/UAX #29 revision 47 extended grapheme cluster分段，不切开code point或该版本的组合字形；选择满足完整渲染结果的最长非空标题前缀，不按UTF-16长度截取。依赖及规则版本冻结，升级不能改变既有Decision的解释。预算逐项包含目录、每个实际文件名及其所有可能使用的Stage/临时/恢复后缀：按当前保守255 UTF-8 bytes上限，目录预留33 bytes、文件预留25 bytes；更小或未知的Endpoint实际限制不得被当作已证明可用，必须由Endpoint能力及现实检查安全收口。若完整番号、固定字段、实际扩展名及至少一个完整标题字形无法容纳，或原样保留的成员本身超限，则明确失败，不进入确定性无效重试。
+
+截短产生的同目标、同号不同Entry、现有外来目录或文件、大小写/Unicode等价和并发目标竞争，必须由Arca结合Inventory/Control、目标Reservation和实际Endpoint等价语义安全区分；不能证明唯一与当前责任时拒绝并保留原内容，不能以番号、短名前缀或相同文件字节推定同一Entry，不自动加hash、数字或其他永久后缀。中断恢复须凭原Decision与Effect/Receipt证明继续，不凭目标存在推断成功。用户界面应呈现实际命名及可执行的冲突或失败处理，不展示恒定无效的重试为解决办法。Movie、Series、Western Adult、JAV Correction、Aftercare、既有Accepted/Decision及正式收藏保持各自现行合同；既有冻结Decision不得静默改写，本授权不包含生产部署、重试、清理或迁移。
 
 ### JAV身份纠正范围（2026-10-13，用户确认纳入首版）
 

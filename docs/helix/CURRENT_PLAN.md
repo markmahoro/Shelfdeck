@@ -29,7 +29,7 @@
 
 | 工作项 | 责任与当前状态 |
 | --- | --- |
-| ARCA-PATH-COMPONENT-BUDGET | HALT-094、EMLB-094的UTF-8目录/正式名/临时后缀超限；用户已明确授权主动截断，分诊线程正在Arca的新JAV Decision内实现带完整番号/扩展名及碰撞保护的预算命名，合同由主整合统一同步。两条旧冻结Decision及生产处置另按精确合同和授权处理。 |
+| ARCA-PATH-COMPONENT-BUDGET | HALT-094、EMLB-094的UTF-8目录/正式名/临时后缀超限；用户已明确授权主动截断，主整合已写入SSOT并更新来源定位生成物，本机P2通过。分诊线程正在Arca的新JAV Decision内实现带完整番号/扩展名及碰撞保护的预算命名；两条旧冻结Decision及生产处置另按精确合同和授权处理。 |
 | US-SIZE-DEFECT-PREVIEW | TTIA-026、Roxy Raye的Libra瑕疵预览遗漏US已提交产品字段；电影线程提交d37bc4272后UI负责人提前发现三项界面问题，已要求修复。精确依赖/真实媒体和最终具体版本UI资格仍开放，不扩大接纳权限。 |
 | SERIES-PRESENTATION-EXPANSION | 13个共享build、15个Season Subject有同类故障，含原7条和后续新增；先完成已授权七条线上验收，新增条目不自动扩大人工处置范围。 |
 
