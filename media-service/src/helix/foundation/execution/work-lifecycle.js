@@ -137,12 +137,21 @@ function createWorkLifecycle(options) {
     execute: body,
   }],{readFence})[participantId];
 
-  function ensurePlanningAttempt(workId, {readFence=null}={}) {
+  function ensurePlanningAttempt(workId, {readFence=null,expectedScope=null}={}) {
     return execute('work_lifecycle_ensure_attempt', (context) => {
       const works = context.repository('work_lifecycle_works');
       const attempts = context.repository('work_lifecycle_attempts');
       const storedWork = works.invoke('find', { work_id: workId });
       const work = storedWork ? materializeWork(storedWork) : null;
+      if(expectedScope!==null){
+        if(!expectedScope||typeof expectedScope!=='object'||Array.isArray(expectedScope)||
+            Object.keys(expectedScope).sort().join(',')!=='ownerDomain,processId,processType,workKind'||
+            Object.values(expectedScope).some(value=>typeof value!=='string'||!value))
+          fail('P4_WORK_OWNER_SCOPE_INVALID','Guarded Work requires an exact Owner scope.');
+        if(!work||work.owner_domain!==expectedScope.ownerDomain||work.process_type!==expectedScope.processType||
+            work.process_id!==expectedScope.processId||work.work_kind!==expectedScope.workKind)
+          fail('P4_WORK_OWNER_SCOPE_CHANGED','Guarded Owner scope differs from the current Work.');
+      }
       if (!work || !['admitted', 'ready'].includes(work.state)) {
         fail('P4_WORK_NOT_PLANNABLE', 'Scheduler lease no longer identifies an admitted or ready Work.', { workId });
       }

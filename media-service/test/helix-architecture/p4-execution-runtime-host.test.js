@@ -209,6 +209,73 @@ test('an Owner-deferred Event is not aggregated or reported as completed Work',a
   assert.equal(aggregations,0);assert.equal(reconciliations,0);assert.equal(errors,0);
 });
 
+async function guardedWorkCase(decisions,{staleAt=null}={}){
+  const calls=[],errors=[],scope={ownerDomain:'libra',processType:'libra_run',processId:'run',workKind:'test_work'},
+    lease={targetType:'work',targetId:'guarded-work',leaseId:'guarded-lease'},fences=[];
+  let available=false;
+  const host=createExecutionRuntimeHost({tickIntervalMs:60000,
+    startupRecovery:{async recover(){return {normalSupplyAllowed:true};}},
+    scheduler:{acquire({targetType}){if(targetType==='work'&&available){available=false;return {kind:'leased',lease,executionScope:scope};}
+      return {kind:'idle'};},noteDispatchOutcome(_lease,outcome){calls.push(outcome.kind);},release(){calls.push('release');}},
+    workDispatchGuard:{check(value){assert.deepEqual(value,{...scope,workId:'guarded-work'});calls.push('check');
+      const decision=decisions.shift();if(decision instanceof Error)throw decision;return decision;}},
+    plannerRegistry:{resolve(){return {plannerContractRef:'planner@1',plannerVersion:1,planner:{async plan(){calls.push('plan');return {planId:'plan',resolution:'planned'};}}};}},
+    planPublisher:{publish(plan,options){calls.push('publish');fences.push(options?.readFence);if(staleAt==='publish')throw Object.assign(new Error('stale'),{code:'P3_UOW_READ_FENCE_CHANGED'});return plan;}},
+    workLifecycle:{ensurePlanningAttempt(_id,options){calls.push('activate');fences.push(options?.readFence);
+        if(staleAt==='activate')throw Object.assign(new Error('stale'),{code:'P3_UOW_READ_FENCE_CHANGED'});
+        return {work:withDefinition({work_id:'guarded-work',owner_domain:'libra',process_type:'libra_run',process_id:'run',
+          work_kind:'test_work',basis_digest:'a'.repeat(64),priority_class:'normal_foreground'}),attempt:{attempt_id:'attempt'}};},
+      startPlanned(_work,_attempt,_diagnostic,options){calls.push('start');fences.push(options?.readFence);
+        if(staleAt==='start')throw Object.assign(new Error('stale'),{code:'P3_UOW_READ_FENCE_CHANGED'});
+        return {state:'running',attemptState:'running'};},aggregateEvent(){},settleWork(){}},
+    eventRuntime:{async run(){}},domainReconciler:{async reconcile(){}},fallbackReconciler:{async start(){},async stop(){}},onError:error=>errors.push(error),
+  });
+  try{await host.start();await new Promise(resolve=>setImmediate(resolve));available=true;const outcome=await host.drainOnce();
+    return {outcome,calls,fences,errors};}finally{await host.stop();}
+}
+
+test('Work planning holds one Owner view from before planning through publication and refreshes before start',async()=>{
+  const first=Object.freeze({fence:1}),planning=Object.freeze({fence:2}),start=Object.freeze({fence:3}),
+    result=await guardedWorkCase([{kind:'ready',readFence:first},{kind:'ready',readFence:planning},{kind:'ready',readFence:start}]);
+  assert.equal(result.outcome.work.kind,'work_planned');assert.deepEqual(result.fences,[first,planning,start]);
+  assert.deepEqual(result.calls,['check','activate','check','plan','publish','check','start','started','release']);assert.deepEqual(result.errors,[]);
+});
+
+for(const stage of ['before_activation','before_planning','before_start'])test('Owner pending '+stage+' defers Work without falsely completing it',async()=>{
+  const ready=()=>({kind:'ready',readFence:Object.freeze({})}),pending={kind:'pending',reasonCode:'target_not_current'},
+    decisions=stage==='before_activation'?[pending]:stage==='before_planning'?[ready(),pending]:[ready(),ready(),pending],
+    result=await guardedWorkCase(decisions);
+  assert.deepEqual(result.outcome.work,{kind:'work_owner_deferred',workId:'guarded-work',reasonCode:'target_not_current'});
+  assert.equal(result.outcome.kind,'advanced');
+  assert.equal(result.calls.includes('activate'),stage!=='before_activation');assert.equal(result.calls.includes('plan'),stage==='before_start');
+  assert.equal(result.calls.includes('publish'),stage==='before_start');assert.equal(result.calls.includes('start'),false);
+  assert.equal(result.calls.at(-2),'owner_wait');assert.equal(result.calls.at(-1),'release');assert.deepEqual(result.errors,[]);
+});
+
+for(const stage of ['activate','publish','start'])test('a stale Owner fence at Work '+stage+' defers rather than records a fault',async()=>{
+  const ready=()=>({kind:'ready',readFence:Object.freeze({})}),result=await guardedWorkCase([ready(),ready(),ready()],{staleAt:stage});
+  assert.deepEqual(result.outcome.work,{kind:'work_owner_deferred',workId:'guarded-work',reasonCode:'owner_view_changed'});
+  assert.equal(result.calls.includes('start'),stage==='start');assert.equal(result.calls.at(-2),'owner_wait');assert.equal(result.calls.at(-1),'release');
+  assert.deepEqual(result.errors,[]);
+});
+
+test('an explicit not-applicable Owner guard preserves ordinary Work planning',async()=>{
+  const result=await guardedWorkCase([{kind:'not_applicable'},{kind:'not_applicable'},{kind:'not_applicable'}]);
+  assert.equal(result.outcome.work.kind,'work_planned');assert.deepEqual(result.fences,[null,undefined,undefined]);assert.deepEqual(result.errors,[]);
+});
+
+test('a malformed Owner Work decision cannot create a planning Attempt',async()=>{
+  const result=await guardedWorkCase([{kind:'ready',readFence:null}]);
+  assert.equal(result.outcome.work.kind,'work_faulted');assert.equal(result.errors[0].code,'P4_WORK_OWNER_GUARD_INVALID');
+  assert.equal(result.calls.includes('activate'),false);assert.equal(result.calls.at(-1),'release');
+});
+
+test('an Owner projection that races its own read is deferred without creating an Attempt',async()=>{
+  const result=await guardedWorkCase([Object.assign(new Error('stale'),{code:'P3_UOW_READ_FENCE_CHANGED'})]);
+  assert.deepEqual(result.outcome.work,{kind:'work_owner_deferred',workId:'guarded-work',reasonCode:'owner_view_changed'});
+  assert.equal(result.calls.includes('activate'),false);assert.equal(result.calls.at(-2),'owner_wait');assert.deepEqual(result.errors,[]);
+});
+
 test('Execution Runtime Host repairs classified cancelled-Work Attempt residuals before normal supply', async () => {
   const calls=[];
   let pass=0;

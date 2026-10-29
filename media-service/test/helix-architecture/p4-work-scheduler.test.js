@@ -112,6 +112,40 @@ test('Scheduler selects only admitted Work by strict class, local aging, and FIF
   });
 });
 
+test('an Owner-deferred Work yields the scheduling round to another Work',()=>{
+  fixture(({scheduler,seedRows,projections})=>{
+    seedRows(repository=>{addWork(repository,projections,'owner-blocked',{createdAtMs:100000,localPriority:10});
+      addWork(repository,projections,'healthy-peer',{createdAtMs:130000});});
+    const first=scheduler.acquire({targetType:'work'});assert.equal(first.lease.targetId,'work-owner-blocked');
+    scheduler.noteDispatchOutcome(first.lease,{kind:'owner_wait'});scheduler.release(first.lease);
+    const peer=scheduler.acquire({targetType:'work'});assert.equal(peer.lease.targetId,'work-healthy-peer');scheduler.release(peer.lease);
+  });
+});
+
+test('an exhausted Owner-deferred Work round ends before retrying it',()=>{
+  fixture(({scheduler,seedRows,projections})=>{
+    seedRows(repository=>addWork(repository,projections,'owner-wait'));
+    const first=scheduler.acquire({targetType:'work'}).lease;scheduler.noteDispatchOutcome(first,{kind:'owner_wait'});scheduler.release(first);
+    assert.deepEqual(scheduler.acquire({targetType:'work'}),{kind:'idle',reasonCode:'OWNER_WAIT_ROUND_EXHAUSTED'});
+    const next=scheduler.acquire({targetType:'work'}).lease;assert.equal(next.targetId,'work-owner-wait');scheduler.release(next);
+  });
+});
+
+test('Owner waits for Work and Event with the same ID remain independent',()=>{
+  fixture(({scheduler,seedRows,projections})=>{
+    seedRows(repository=>{addEventGraph(repository,projections,'shared');
+      repository.invoke('work',{work_id:'event-shared',owner_domain:'libra',process_type:'libra_run',process_id:'process-collision',
+        work_kind:'fixture_work',priority_class:'normal_foreground',state:'admitted',idempotency_key:'collision',created_at_ms:100000});
+      projections.set('process-collision',Object.freeze({priorityClass:'normal_foreground',localPriority:0,priorityRevision:1,supplyRole:'expansion'}));});
+    const work=scheduler.acquire({targetType:'work'}).lease;assert.equal(work.targetId,'event-shared');
+    scheduler.noteDispatchOutcome(work,{kind:'owner_wait'});scheduler.release(work);
+    const event=scheduler.acquire({targetType:'event'}).lease;assert.equal(event.targetId,'event-shared');
+    scheduler.noteDispatchOutcome(event,{kind:'owner_wait'});scheduler.release(event);
+    assert.deepEqual(scheduler.acquire({targetType:'work'}),{kind:'idle',reasonCode:'OWNER_WAIT_ROUND_EXHAUSTED'});
+    assert.deepEqual(scheduler.acquire({targetType:'event'}),{kind:'idle',reasonCode:'OWNER_WAIT_ROUND_EXHAUSTED'});
+  });
+});
+
 test('same effective local priority uses durable FIFO timestamp then identity', () => {
   fixture(({ scheduler, seedRows, projections }) => {
     seedRows((repository) => {

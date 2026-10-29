@@ -43,6 +43,8 @@ function createExecutionRuntimeHost(options) {
       typeof options.workLifecycle.ensurePlanningAttempt !== 'function' || typeof options.workLifecycle.startPlanned !== 'function' ||
       typeof options.workLifecycle.aggregateEvent !== 'function' || typeof options.workLifecycle.settleWork !== 'function' ||
       typeof options.eventRuntime.run !== 'function' ||
+      (options.workDispatchGuard && (typeof options.workDispatchGuard.check !== 'function' ||
+        typeof options.scheduler.noteDispatchOutcome !== 'function')) ||
       (options.incidentObserver && typeof options.incidentObserver.observeTerminalWork !== 'function') ||
       typeof options.domainReconciler.reconcile !== 'function'||typeof options.fallbackReconciler.start!=='function'||
       typeof options.fallbackReconciler.stop!=='function') {
@@ -158,7 +160,51 @@ function createExecutionRuntimeHost(options) {
     try {
       finishScope = options.onExecutionScopeStarted?.(scheduled.executionScope);
       return await withWorkLeaseHeartbeat(scheduled.lease, async () => {
-        const activation = options.workLifecycle.ensurePlanningAttempt(scheduled.lease.targetId);
+        const scope=scheduled.executionScope;
+        if(options.workDispatchGuard&&(!scope||['ownerDomain','processType','processId','workKind'].some(key=>typeof scope[key]!=='string'||!scope[key])))
+          fail('P4_WORK_OWNER_GUARD_INVALID','Owner Work scope must be exact.');
+        const expectedScope=options.workDispatchGuard?Object.freeze({ownerDomain:scope.ownerDomain,processType:scope.processType,
+          processId:scope.processId,workKind:scope.workKind}):null;
+        function checkOwner(){
+          if(!options.workDispatchGuard)return {kind:'not_applicable',readFence:null};
+          let decision;
+          try{decision=options.workDispatchGuard.check(Object.freeze({...expectedScope,workId:scheduled.lease.targetId}));}
+          catch(error){if(error?.code==='P3_UOW_READ_FENCE_CHANGED')return {kind:'pending',reasonCode:'owner_view_changed'};throw error;}
+          if(!decision||typeof decision!=='object'||Array.isArray(decision)||!['ready','pending','not_applicable'].includes(decision.kind))
+            fail('P4_WORK_OWNER_GUARD_INVALID','Owner Work guard returned an invalid decision.');
+          const keys=Object.keys(decision).sort().join(',');
+          if(decision.kind==='pending'){
+            if(keys!=='kind,reasonCode'||typeof decision.reasonCode!=='string'||!/^[-a-zA-Z0-9_.]{1,128}$/.test(decision.reasonCode))
+              fail('P4_WORK_OWNER_GUARD_INVALID','Owner Work deferral requires a bounded reason.');
+            return decision;
+          }
+          if(decision.kind==='ready'){
+            if(keys!=='kind,readFence'||!decision.readFence||typeof decision.readFence!=='object'||Array.isArray(decision.readFence))
+              fail('P4_WORK_OWNER_GUARD_INVALID','Ready Owner Work requires an opaque read fence.');
+            return decision;
+          }
+          if(keys!=='kind')fail('P4_WORK_OWNER_GUARD_INVALID','Unscoped Owner Work must be explicit.');
+          return {kind:'not_applicable',readFence:null};
+        }
+        function ownerWait(reasonCode){
+          options.scheduler.noteDispatchOutcome(scheduled.lease,Object.freeze({kind:'owner_wait'}));
+          return Object.freeze({kind:'work_owner_deferred',workId:scheduled.lease.targetId,reasonCode});
+        }
+        function guardedWrite(decision,write){
+          if(decision.kind==='pending')return {deferred:true,result:ownerWait(decision.reasonCode)};
+          try{return {deferred:false,result:write(decision.readFence)};}
+          catch(error){
+            if(decision.readFence&&error?.code==='P3_UOW_READ_FENCE_CHANGED')
+              return {deferred:true,result:ownerWait('owner_view_changed')};
+            throw error;
+          }
+        }
+        const admission=guardedWrite(checkOwner(),readFence=>options.workDispatchGuard
+          ?options.workLifecycle.ensurePlanningAttempt(scheduled.lease.targetId,{readFence,expectedScope})
+          :options.workLifecycle.ensurePlanningAttempt(scheduled.lease.targetId));
+        if(admission.deferred)return admission.result;
+        const activation=admission.result,planningView=checkOwner();
+        if(planningView.kind==='pending')return ownerWait(planningView.reasonCode);
         const registration = options.plannerRegistry.resolve(activation.work.owner_domain, activation.work.work_kind);
         const definition = activation.work.definition;
         const plan = await registration.planner.plan(Object.freeze({
@@ -184,9 +230,15 @@ function createExecutionRuntimeHost(options) {
           plannerContractRef: registration.plannerContractRef,
           plannerVersion: registration.plannerVersion,
         }));
-        const published = options.planPublisher.publish(plan);
-        const started = options.workLifecycle.startPlanned(activation.work.work_id, activation.attempt.attempt_id,
-          plan.diagnosticClassification);
+        const publication=guardedWrite(planningView,readFence=>readFence
+          ?options.planPublisher.publish(plan,{readFence}):options.planPublisher.publish(plan));
+        if(publication.deferred)return publication.result;
+        const published=publication.result,start=guardedWrite(checkOwner(),readFence=>readFence
+          ?options.workLifecycle.startPlanned(activation.work.work_id,activation.attempt.attempt_id,plan.diagnosticClassification,{readFence})
+          :options.workLifecycle.startPlanned(activation.work.work_id,activation.attempt.attempt_id,plan.diagnosticClassification));
+        if(start.deferred)return start.result;
+        const started=start.result;
+        if(options.workDispatchGuard)options.scheduler.noteDispatchOutcome(scheduled.lease,Object.freeze({kind:'started'}));
         await reconcileTerminal({ attemptTerminal: ['succeeded', 'failed', 'cancelled'].includes(started.attemptState),
           replayed: started.replayed, attemptId: activation.attempt.attempt_id, attemptState: started.attemptState,
           attemptFailureCode: started.attemptFailureCode || null,
@@ -395,7 +447,7 @@ function createExecutionRuntimeHost(options) {
       if (typeof options.onError === 'function') options.onError(error);
       owner = Object.freeze({ kind: 'owner_faulted', error });
     }
-    const advanced=recovery.kind==='recovery_launched'||work.kind==='work_planned'||event.kind==='event_launched'||
+    const advanced=recovery.kind==='recovery_launched'||['work_planned','work_owner_deferred'].includes(work.kind)||event.kind==='event_launched'||
       ['owner_reconciled','terminal_event_aggregated'].includes(owner.kind);
     return Object.freeze({ kind:advanced?'advanced':'idle',
       recovery, work, event, owner });
