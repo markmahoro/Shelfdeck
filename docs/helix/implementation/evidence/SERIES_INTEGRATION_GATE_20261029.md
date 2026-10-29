@@ -95,3 +95,11 @@ Series线程随后在基线a2bf和bc4隔离环境以同inode/同字节重建复�
 同一固定源码的Linux包边界、禁止语义、Manifest和P2静态检查通过，P2 digest `003aa5741300d9fbc2804601132a55db9f97dbfe169dd8e815ef7e17b4ac840f`；完整历史对象只读挂载后的`reset-combined-static-linux-retry.log` SHA256 `e3447bbfc9c4b932e5aa46b61955b8f07e1240451e3a40badda514c09b2c07eb`。首次静态容器未启动，原因是只读源码卷缺少`.git`挂载点；日志`reset-combined-static-linux.log` SHA256 `383db1c2aed6b9373b7e2a1833b8168c49e91aec817dd462708bf38b84ea167e`保留，补空挂载点后未修改源码或历史对象。
 
 另用Git固定27a的239表Schema在本机创建空隔离源库，与当前244表目标Schema逐对象比较：旧对象定义无变更，新增`arca_offer_withdrawal_receipts`、三张Libra Custom Target表及`libra_us_adult_catalogue_bases`。以真实`initializeResetTarget`对该源/目标进行冷转换预检返回`RESET_SOURCE_SCHEMA_UNREVIEWED`；这是独立于239表保留声明的第二道fail-closed围栏。`reset-239-to-244-probe.log` SHA256 `9b95f3c042a2888761c3e55e4bbe992fb6d62d859ff9f3a01f783be9e6845bf2`；空隔离库不代表已验证生产数据、真实版本回退或五张表各自保留合同。
+
+## 后继4774候选与UI失败
+
+在独立27a候选工作区依序挑入Foundation/Perception恢复、提交窗口测试和P13稳定摘要修复，形成固定`4774a7e9056f644c29b8034ea07baeb4f578c4f6`；标准`build-image.js`生成本机tar SHA256 `1a280a3efea6f67b97019552d8fd76ed7c8fe655bf5aa52998686c559b6b3023`，构建日志`image-build-4774a7e905.log` SHA256 `0c999a2891e2949fcb39d8ab44e795bc8978062292e2c5639a3b501dfe90190c`。4550跟踪文件在Linux源码卷逐个Git blob一致；七个变更后的运行文件与实际镜像逐字节一致，测试用Service依赖目录与镜像`/app/node_modules`递归字节一致。Linux完整架构以该固定源码、同依赖、只读完整历史对象及27a gate工具镜像执行中；具体版本Service用4774镜像执行。
+
+该源码Linux Web首跑因只读`node_modules/.vite-temp`无法写入而未启动，日志`linux-web-4774a7e90.log` SHA256 `f085026fb4a9eb3a66796527aa0828dad6f4dfdc7bf5c68ff325b8b50b015488`；用临时可写缓存覆盖目录后49文件/274项通过，`linux-web-4774a7e90-retry.log` `2ecccfefbb1d9e495350c8b69a16b01175a5bc36e82eb84203d40e5c6b93fa11`。Service首轮828通过/25失败/28跳过，25失败均在未设置`HELIX_TEST_ISOLATED_TRANSCODE=1`时要求专用转码挂载；已同时挂载一次性`/transcode`但遗漏开关，日志`linux-service-4774a7e90.log` `9c1115cead5f9e6ba277e99b9886028222ec10ec8f777be7b7d5da847902d09a`保留，补开关后的完整重跑进行中。
+
+UI负责人对精确4774报告**FAIL**：受控注入同basis评分Resolution重试耗尽后，Decision为failed，单条/批量评分投影仍为pending，实际镜像Web显示“正在匹配豆瓣评分”。报告`E:/my_project/helix-git-consolidation-20261008/series-ui-review-4774a7e905-20261029/owner-review.json`；该注入不证明真实Host自然到达该终态或生产受影响。Perception修复线程正在补真实Host、评分投影与Decision当前性一致性及性能保护；后继版本须重新接受具体版本UI核验，4774不得发布。电影`db824ddb3`返焦开发版经UI负责人独立复核通过，报告`E:/my_project/helix-git-consolidation-20261008/movie-ui-precheck-db824ddb3-20261029/owner-review.json`，不等于最终镜像验收。
