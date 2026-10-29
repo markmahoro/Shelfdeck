@@ -191,3 +191,11 @@ UI 负责人独立复核 `db824ddb3b7f1204bff5c965a9490e672bd6b542` 的开发版
 受控 SQLite 测试使用实际 Host、Work Lifecycle、Plan Publisher 和 UoW：规划中或发布后启动前并发写入会阻断相应事务；停止 Host、关闭并重新打开 SQLite 后，重用同一 Attempt，已发布 Plan 按原证据重放。此为可控并发和正常重开，不宣称进程崩溃或实际媒体端到端恢复。九个相关文件在 Windows 和隔离 Linux 各 **273 PASS / 0 skip**，包括既有实际 Arca Withdrawal/Outbox/Inbox 的同代际迟到重投与 ACK 场景；这些测试不证明 Fresh-generation Reset 可以清除 Withdrawal 证据后保留重投责任。包边界和禁止语义扫描仍只有既有 2 + 1 finding；Linux 镜像与依赖限制同前。
 
 该 Host 口目前只有测试注入，没有连接实际 Libra Guard，也没有开放 Custom 用户入口；依赖既有 Attempt 围栏 `d46eb73e1`、Plan/Start 围栏 `a708064a7` 和 Scheduler Owner 等待基础 `6698071f6`。Libra Work/Workspace 的准入、真实 Owner 组合、其它 Scheduler/Resource Governor 边界与实际 Offer 未 ACK/重发责任仍待整合验证。主线程只读审计 `71a0540c8` 明确指出测试进程对 Withdrawal 表模拟 `clear` 不等于旧 Producer/Outbox/Delivery/Work 的责任已证明终结；正式 239→244、244→244 Reset 仍须 fail-closed，不据此变更声明或执行生产 Reset。
+
+## 带围栏的 Work Admission 并发回执（2026-10-29）
+
+原 Work Admission 在首次精确回执检查之后、写事务之前若有其他调用提交同键命令，陈旧 fence 会先拒绝，无法返回已提交的相同结果；同键不同 Definition 也会失去明确的幂等冲突。若提交发生在资格读取期间且资格结果随后变为不通过，同样可能漏掉已提交结果。四项定向竞态中三项先失败；独立提交 `4b426f30354d42a4700a0c91a91db6e8e3024527` 只在上述拒绝分支重新读取精确回执，相同 Definition 返回原结果，不同 Definition 明确冲突，无相应回执的陈旧 fence 仍拒绝且不写 Work。
+
+重放同时核对已存结果摘要及完整结果形状、目标类型和 ID、调用范围与结果 schema；四项受控损坏测试先复现旧逻辑接受不一致回执，修复后连同新增目标类型负例共五项均拒绝，即使篡改结果并重算其摘要也不例外。这些校验不依赖继续存在的 Work 行，不扩大旧未入藏条目的兼容范围。Work Admission、Lifecycle、Plan、Scheduler、Host、Event、Replacement、Withdrawal、Arca 责任与 Material Control 十文件在 Windows 与隔离 Linux Docker 各 **294 PASS / 0 skip**。包边界和禁止语义扫描仍仅有既有 2 + 1 finding；Linux 仍使用先前说明的非精确依赖镜像。
+
+这只完善已有 Foundation 原子准入与精确重放能力，实际 Libra Run/Workspace 编排仍未传入完整 Owner Guard；不证明 Fresh-generation Reset 可清除 Withdrawal 后继续履行旧 Offer 的未 ACK 重投责任，也未启用 Custom 入口或访问生产。
