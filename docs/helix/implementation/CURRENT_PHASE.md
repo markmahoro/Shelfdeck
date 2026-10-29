@@ -7,7 +7,7 @@
 | 线程 / ID | 本轮交付与先后 | 整合边界 |
 | --- | --- | --- |
 | 本轮整合线程 | 计划追踪、共享合同/生成物、独立Series候选及最终门禁/发布 | 自有主整合目录；不改写演员/电影worktree，不携带未完成内容进入Series候选 |
-| 演员线程 01a164c5-1b9a-7312-a8ec-701ea6032526 | 继续Catalogue Basis/Work/Artifact/补采恢复及Phase 4→5闭环 | 244表/66事务Store切片本地通过；Linux首轮失败待排查，完整门禁未完成，不作为Series发布基线 |
+| 演员线程 01a164c5-1b9a-7312-a8ec-701ea6032526 | 继续Catalogue Basis/Work/Artifact/补采恢复及Phase 4→5闭环 | Store检查点2f9fc0702；固定Linux本机19项及本地223项通过，NAS首轮仍incomplete，正式Host/完整门禁未完成，不作为Series发布基线 |
 | ShelfDeck 生产待处理条目分诊 01a18626-520c-79a0-8240-066bd0a777a3 | 当前一次快照、逐条分诊与新增机制故障，给生产补丁排序 | 只读生产，不改源码/状态；首个快照33 attention/5进行中，仍在核对，不等于33个bug |
 | ShelfDeck 剧集上架与自愈修复 01a18627-6d8b-7d72-aa5a-bcb7cbf6ed0f | 7条Series恢复、季poster复用和精确剧情切片已提交 | a4989adf9、878d814d3、f442a6f2f基于a2bf2d6fd；三个资料Schema及登记摘要由本线程集成，固定候选/生产验收未完成 |
 | ShelfDeck 电影寻源与自定义标准 01a18628-b31a-70c3-abbc-bd29b688cbce | 电影候选身份可靠性独立排查；继续三层目标、新Run、Arca/Aftercare闭环 | 自f24164ae0的独立worktree；18文件SHA交接完成、原件保留，主线程不并行编辑此范围 |
@@ -23,6 +23,16 @@
 | 真实CIFS | 使用隔离范围验证正常与冲突/不可观察行为及来源、正式文件保护；不修改生产材料。 |
 | 标准发布 | 复核生产身份、容量、备份与回退；使用build-image、upload-nas-image和deploy-nas，dry run与SHA通过后按既有用户请求执行。 |
 | 七条恢复 | 假如…？、真探、亿万、越狱、继承之战、当你沉睡时、飞天大盗：逐项冻结原Offer/build/Scope、失败/Effect、Control和文件基线，经原重试入口核验唯一Commit与历史保护；真实冲突继续attention。 |
+
+2026-10-29固定Series候选：`1d8a45843f9c8982c91bb0a367eb0adfa1c5c310`，基于a2bf2d6fd，三个Schema与既有Linux验证副本字节一致、239表/62事务不变。本机合同13项通过；标准镜像首次下载既有模型失败，核验本机生产基线模型SHA后重建成功并上传校验，tar SHA256 `b57b0de41449109adbeb39f4d12ca6ab81a66d1a9ca6062c5d964b4b3271ca8d`。首个固定检出因Windows路径过长失败，第二个因换行不一致不合格，第三个与构建输入4541文件逐字节一致；独立Linux完整架构门禁仍在执行。
+
+真实CIFS首轮将Workspace/SQLite错误放到共享盘而失败；按生产布局重跑后8项直接文件调用仍遇 `PHYSICAL_MATERIAL_STAT_FENCE_CHANGED`。隔离探针发现首次路径stat与文件描述符时间戳不一致、后续收敛；真实Host已定位同一Series publish Effect进入reconcile_required，最初测试把该预期恢复通知视为异常而提前退出。正在验证实际原Effect恢复至唯一Commit，不能以局部结果认定CIFS门禁通过。生产仍为a2bf2d6fd，候选仅已加载供隔离测试，未部署或线上重试。
+
+## 生产分诊新增阻断
+
+- ARCA-PATH-COMPONENT-BUDGET：HALT-094和EMLB-094的Arca路径及temporary后缀超出实际CIFS组件字节限制；六次Stage均在复制前失败，旧Final Decision不可静默改写。建议单独开发线，按Owner与证据确认设计，禁止重试或清理生产现场。
+- US-SIZE-DEFECT-PREVIEW：两条US瑕疵预览未读取已有产品事实；现由电影/自定义标准线程核对范围重叠，尚未修复或接受。
+- SERIES-PRESENTATION-EXPANSION：13个build/15个Season Subject是13:36快照；后续新增条目不自动纳入七条线上操作授权。其他网络/协议/来源错误和正常人工待决分别承接。
 
 以上均未因局部Linux PASS而自动完成。
 

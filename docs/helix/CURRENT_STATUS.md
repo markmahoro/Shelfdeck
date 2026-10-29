@@ -1,5 +1,9 @@
 # ShelfDeck 当前状态
 
+2026-10-29整合进展：Series独立候选1d8a45843f已补齐三个Schema，固定镜像构建、上传和SHA校验完成；生产仍运行a2bf2d6fd，未部署或线上重试。真实CIFS直接文件测试8项失败，探针确认新文件路径stat与fd stat时间戳短暂不一致；真实Host的同一Series publish Effect进入reconcile_required，正在验证保留围栏的自动恢复。完整Linux架构/Service/Web、具体版本UI、生产副本及七条线上验收仍开放；首次构建、检出及测试失败保留。演员Store 2f9fc0702的本机Linux19项通过，正式Host/Phase 4未完成。
+
+生产只读分诊13:36快照为33 attention、5进行中：共享剧资料15条/13个build；HALT-094/EMLB-094确定为Arca UTF-8路径超限且均未复制；两条US瑕疵预览未读已有产品字段。新增事项及责任见[分诊整合Evidence](implementation/evidence/PRODUCTION_TRIAGE_INTEGRATION_20261029.md)和唯一Master/Phase；不把新增条目自动加入七条重试范围。
+
 2026-10-29主整合职责已转入本线程：统一追踪各线、固定候选门禁及生产交付；原演员线程继续Phase 4→5，电影线程继续Phase 2/3。Series恢复与资料切片已分别提交a4989adf9、878d814d3，f442a6f2f冻结证据；Linux局部与Host结果不等于最终发布资格。候选须从生产a2bf2d6fd隔离、补齐三个已确认Schema及登记摘要，完成固定镜像/架构/Service/Web/UI、真实CIFS和七条指定线上验收；截至本记录尚未部署或重试。无新UAT编号，不新建活动计划、不恢复取消的自动观察。以下较早并行职责与“当前不部署”均为旧时点记录，以本段及唯一Master/Phase为准。
 
 2026-10-29用户要求本轮多线程并行，已创建并启动“ShelfDeck 生产待处理条目分诊”“ShelfDeck 剧集上架与自愈修复”“ShelfDeck 电影寻源与自定义标准”；本线程继续Phase 4→5并负责统一合同/生成物、重门禁和整合。Series分支从生产a2bf2d6fd隔离，电影/目标分支从f24164ae0承接18个原未提交文件，逐字节SHA一致、原件保留。首次新API分诊快照33 attention/5进行中，原因仍在逐条核验，不能把全数当系统bug。可独立的生产补丁不再等待新演员功能；当前没有新增部署/Reset/重试/取消授权，监控不恢复。主线程Catalogue Basis Store已补原子冻结/历史与执行资格分离、244表/66事务及Reset保留边，6项本地测试通过；首轮生成器/Fixture失败和其他门禁仍未收口，变更未作为生产候选。最新并行分工/线程ID见唯一CURRENT_PLAN/CURRENT_PHASE，下方串行安排为旧时点记录。
