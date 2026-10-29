@@ -18,6 +18,18 @@ Thumbs.db
 
 .env
 .env.*
+!.env.example
+!.env.*.example
+
+# Local / NAS secret material (never commit)
+secret.env
+**/secret.env
+*.pem
+*.ppk
+id_rsa
+id_rsa.*
+id_ed25519
+id_ed25519.*
 
 media-desktop/node_modules/
 media-desktop/dist/
