@@ -30,6 +30,8 @@ archive/
 .claude/
 
 # Architecture archives listed below are committed project history, not local scratch.
+!docs/archive/
+!docs/archive/**
 !docs/v3/archive/
 !docs/v3/archive/**
 !docs/nexora/archive/
@@ -38,6 +40,12 @@ archive/
 docs/helix/archive/*
 !docs/helix/archive/pre-top-down-2026-07-14/
 !docs/helix/archive/pre-top-down-2026-07-14/**
+!docs/helix/archive/issue-logs/
+!docs/helix/archive/issue-logs/**
+!docs/helix/archive/reviews/
+!docs/helix/archive/reviews/**
+!docs/helix/archive/acceptance-early/
+!docs/helix/archive/acceptance-early/**
 !docs/helix/archive/BETA_FEATURE_ACCEPTANCE_BASELINE_FOUR_PROFILE_2026-07-23.md
 !docs/helix/nexora/archive/
 docs/helix/nexora/archive/*

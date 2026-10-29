@@ -27,7 +27,10 @@
 
 - [Movie 收尾快照](implementation/archive/20260930_BETA_MOVIE_CLOSEOUT/SNAPSHOT.md)冻结旧活动文档，不能继续指导当前实施。
 - [implementation/archive 索引](implementation/archive/README.md)记录已结束Phase与稳定化包；`implementation/evidence/`保存验收及发布证据。
-- `LEVEL7_BUSINESS_DECISIONS.md`、`ARCHITECTURE_REVIEW.md`是非Canonical已关闭审查Evidence。
-- `PRODUCTION_DEPLOY_ISSUE_LOG.md`、`USER_ACCEPTANCE_TEST_ISSUE_LOG.md`、`ADMIN_WEB_UX_ISSUE_LOG.md`及`archive/`为历史。新增上线后问题进入UAT总表；大版本准备与开发进入Master Plan及唯一Phase，不使用UAT编号。
+- 已关闭审查：[`archive/reviews/LEVEL7_BUSINESS_DECISIONS.md`](archive/reviews/LEVEL7_BUSINESS_DECISIONS.md)、[`archive/reviews/ARCHITECTURE_REVIEW.md`](archive/reviews/ARCHITECTURE_REVIEW.md)（根目录仅留指针 stub）。
+- 历史 issue log：[`archive/issue-logs/`](archive/issue-logs/)（`PRODUCTION_DEPLOY_*` / `USER_ACCEPTANCE_*` / `ADMIN_WEB_UX_*`；根目录仅留指针 stub）。
+- 早期 canary / 手测材料：[`archive/acceptance-early/`](archive/acceptance-early/)。
+- 其余 `archive/`（含 pre-top-down）为历史。新增上线后问题进入UAT总表；大版本准备与开发进入Master Plan及唯一Phase，不使用UAT编号。
+- 产品版本与 Changelog：[`../v3/VERSIONING.md`](../v3/VERSIONING.md)、根 [`../../CHANGELOG.md`](../../CHANGELOG.md)。
 
 阶段接受不批量关闭残余UAT，不新增技术资格总体PASS；JAV必须独立完成真实链路与Movie/Series回归。生产、Formation Reset和真实媒体副作用继续按明确授权及精确范围执行。

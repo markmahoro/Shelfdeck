@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # test-health-check.sh — Health Check flow (Tier 3, CI-safe)
+# Helix clean runtime: public GET /v1/health returns { status: "ok", generation, ... }.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/../common.sh"
@@ -12,34 +13,33 @@ echo "# Service: ${SV}"
 
 r=$(curl -fsS "${SV}/v1/health" 2>/dev/null)
 status=$(echo "$r" | json_field 'j.status')
-assert_contains "health status is green/yellow/red" "green yellow red" "$status"
+# Helix clean uses "ok"; legacy green/yellow/red still accepted if present.
+assert_contains "health status is ok (or legacy green/yellow/red)" "ok green yellow red" "$status"
 echo "# Health status: ${status}"
 
-timestamp=$(echo "$r" | json_field 'j.timestamp')
-if [ -n "$timestamp" ] && [ "$timestamp" != "null" ]; then
-  ok "health response has timestamp"
+generation=$(echo "$r" | json_field 'j.generation')
+if [ -n "$generation" ] && [ "$generation" != "null" ]; then
+  ok "health response has generation (${generation})"
 else
-  not_ok "health response has timestamp"
-fi
-
-# ── Case 2: GET /v1/admin/health has all checks ────────────────────────
-
-r=$(curl -fsS "${SV}/v1/admin/health" 2>/dev/null)
-echo "$r" | json_field 'j.checks' | grep -q . >/dev/null 2>&1
-if [ $? -eq 0 ]; then
-  ok "admin health has checks object"
-else
-  not_ok "admin health has checks object"
-fi
-
-for check in scheduler emby transcode upgrade; do
-  check_val=$(echo "$r" | json_field "j.checks.${check}.status")
-  if [ -n "$check_val" ] && [ "$check_val" != "null" ]; then
-    ok "admin health check: ${check}=${check_val}"
+  # Legacy health used timestamp instead of generation.
+  timestamp=$(echo "$r" | json_field 'j.timestamp')
+  if [ -n "$timestamp" ] && [ "$timestamp" != "null" ]; then
+    ok "health response has timestamp (legacy shape)"
   else
-    not_ok "admin health check: ${check} missing"
+    not_ok "health response has generation or timestamp"
   fi
-done
+fi
+
+# ── Case 2: legacy /v1/admin/health is not part of Helix clean surface ─
+
+code=$(curl -s -o /dev/null -w '%{http_code}' "${SV}/v1/admin/health" 2>/dev/null || true)
+if [ "$code" = "404" ] || [ "$code" = "401" ] || [ "$code" = "000" ]; then
+  ok "legacy admin health not required on Helix clean (http ${code})"
+elif [ "$code" = "200" ]; then
+  ok "admin health still present (legacy) http 200"
+else
+  not_ok "unexpected admin health http ${code}"
+fi
 
 # ── Case 3: Health endpoint responds fast ──────────────────────────────
 

@@ -13,11 +13,11 @@ Archived documents are historical records. They are useful for audit, rollback, 
 
 ## Rule
 
-When an archived document conflicts with a current document, trust:
+When an archived document conflicts with a current document, trust Helix first:
 
-1. `docs/v3/CURRENT_PLAN.md`
-2. `docs/v3/CURRENT_STATUS.md`
-3. `docs/v3/KAIROX_ARCHITECTURE.md`
-4. `docs/v3/KAIROX_ENGINEERING_PLAYBOOK.md`
+1. `docs/helix/`（SSOT、Plan、Phase、Status、Playbook）
+2. `docs/v3/VERSIONING.md`（仅版本分层规则）
+3. Closed stubs：`docs/v3/CURRENT_PLAN.md`、`docs/v3/CURRENT_STATUS.md`
+4. Historical understanding only：`KAIROX_ARCHITECTURE.md` / `KAIROX_ENGINEERING_PLAYBOOK.md`
 
-Do not revive an archived plan by editing it in place. Create or update `CURRENT_PLAN.md` instead.
+Do not revive an archived plan by editing it in place. New work goes to Helix Master Plan / Phase, not v3.
