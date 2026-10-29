@@ -266,7 +266,8 @@ function createWorkspaceAdmissionStore(options) {
     admit(request) {
       const decision = buildWorkspaceAdmissionDecision(request?.decision),
         marker = request?.commitMarker,
-        resultId = request?.resultId;
+        resultId = request?.resultId,
+        readFence = request?.readFence ?? null;
       if (
         typeof marker !== "string" ||
         !marker ||
@@ -557,10 +558,22 @@ function createWorkspaceAdmissionStore(options) {
         },
       };
       try {
-        options.unitOfWork.execute([preflight, platformRead, apply, finish]);
+        // A committed exact admission remains replayable after later Owner
+        // changes. A new admission must validate its view in the write UoW.
+        if (readFence !== null) options.unitOfWork.execute([preflight]);
+        options.unitOfWork.execute([preflight, platformRead, apply, finish], { readFence });
       } catch (error) {
         if (error instanceof Replay)
           return Object.freeze({ result: error.result, replayed: true });
+        // A concurrent exact commit can win after the initial replay read.
+        if (readFence !== null && error?.code === "P3_UOW_READ_FENCE_CHANGED") {
+          try { options.unitOfWork.execute([preflight]); }
+          catch (replay) {
+            if (replay instanceof Replay)
+              return Object.freeze({ result: replay.result, replayed: true });
+            throw replay;
+          }
+        }
         throw error;
       }
       return Object.freeze({ result, replayed: false });

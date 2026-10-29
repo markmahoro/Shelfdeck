@@ -139,3 +139,9 @@ Windows 和隔离 Linux Docker 的 Work Lifecycle、Work Admission、Replacement
 Foundation Plan Publication 和 Work `startPlanned` 分别增加可选 opaque read fence，在写 Plan/Node/Event 或将 Work/Attempt 置 running 的同一事务验证；计划计算、发布和启动之间如发生 Owner 变化，须重新读取并取得新的 fence。Plan 的既有精确重用也会继续执行流程，因此同样不能使用陈旧 view。先添加竞态负例分别复现原实现忽略 fence；修复后陈旧读取不写 Plan/Contract/Event、不进入 running，fresh view 仍可使用既有合法重用。
 
 Windows 与隔离 Linux Docker 运行 Plan、Work Lifecycle、Work Admission、Execution Runtime Host 与 Replacement Admission 五文件各 **104 PASS / 0 skip**。目前是未接线的事务能力；Host/Planner/Scheduler 必须在每个边界取得正确 Owner view 与 fresh fence，Event 实际开始及 Workspace 等其他边界仍未覆盖。不能据此宣称全局屏障已完成或开放 Custom Target。
+
+## Workspace 准入的读取围栏与精确重放（2026-10-29）
+
+Libra Workspace Admission 接受可选 opaque read fence，并在写 Workspace、Registry、Revision、Result 和 Marker 的同一 UoW 验证；读取后发生变化时新准入零写入。已提交的精确命令先核验原 Marker/Result，Owner 后续变化不妨碍重放；若精确提交发生在第一次重放检查之后、写事务之前，stale fence 被拒绝后重新核验原回执并返回同一结果，不产生第二套记录。新增测试先复现原入口忽略 fence；最终 Windows 与隔离 Linux Docker 的 Workspace Admission、Work Admission、Work Lifecycle、Replacement Admission 四文件各 **69 PASS / 0 skip**。
+
+这是供协调层使用的可选事务原语，尚未从 Runtime 的 Workspace 创建路径传入当前目标及排空证明，不能单独形成屏障、释放材料或启用 Custom Target。真实 Owner/Arca 变化、完整 Event 调度和 UI/用户旅程仍待整合验收。

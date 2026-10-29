@@ -61,5 +61,37 @@ function fixture(run) {
   }
 }
 test('admits one pathless Workspace, Registry, revision, Result, and marker atomically with replay',()=>fixture((input)=>{const store=createWorkspaceAdmissionStore({schemaManifest,unitOfWork:input.unitOfWork}),request={decision:input.decision,commitMarker:'workspace-marker',resultId:'workspace-result'},first=store.admit(request),replay=store.admit(request);assert.equal(first.replayed,false);assert.equal(replay.replayed,true);assert.deepEqual(replay.result,first.result);const db=new Database(input.databasePath,{readonly:true}),workspace=db.prepare('SELECT * FROM libra_workspaces').get();assert.equal(workspace.workspace_id,input.id);assert.equal(workspace.current_revision,1);assert.equal(db.prepare('SELECT COUNT(*) n FROM libra_workspace_revisions').get().n,1);assert.equal(db.prepare('SELECT COUNT(*) n FROM fx_workspace_registry').get().n,1);assert.equal(db.prepare('SELECT COUNT(*) n FROM fx_event_result_bindings').get().n,1);assert.equal(db.prepare('SELECT COUNT(*) n FROM fx_commit_markers').get().n,1);assert.equal(workspace.space_admission_evidence_json.includes('internal-only'),false);db.close();}));
+test('stale Owner view rejects new Workspace writes while an exact committed replay still succeeds',()=>fixture(input=>{
+  const store=createWorkspaceAdmissionStore({schemaManifest,unitOfWork:input.unitOfWork}),base={decision:input.decision,
+    commitMarker:'fenced-workspace-marker',resultId:'fenced-workspace-result'},stale=input.unitOfWork.captureReadFence(),
+    db=new Database(input.databasePath);
+  try{
+    db.prepare('UPDATE platform_workspace_roots SET updated_at_ms=updated_at_ms+1').run();
+    assert.throws(()=>store.admit({...base,readFence:stale}),{code:'P3_UOW_READ_FENCE_CHANGED'});
+    for(const table of ['libra_workspaces','libra_workspace_revisions','fx_workspace_registry','fx_event_result_bindings','fx_commit_markers'])
+      assert.equal(db.prepare('SELECT count(*) n FROM '+table).get().n,0,table);
+    const committed=store.admit({...base,readFence:input.unitOfWork.captureReadFence()});assert.equal(committed.replayed,false);
+    db.prepare("UPDATE platform_workspace_roots SET state='inactive'").run();
+    const replay=store.admit({...base,readFence:stale});assert.equal(replay.replayed,true);assert.deepEqual(replay.result,committed.result);
+  }finally{db.close();}
+}));
+test('an exact Workspace commit racing the replay read is discovered without a second write',()=>fixture(input=>{
+  const base={decision:input.decision,commitMarker:'racing-workspace-marker',resultId:'racing-workspace-result'},
+    direct=createWorkspaceAdmissionStore({schemaManifest,unitOfWork:input.unitOfWork}),fence=input.unitOfWork.captureReadFence();
+  let injected=false;
+  const wrapped={...input.unitOfWork,execute(participants,options){
+    const result=input.unitOfWork.execute(participants,options);
+    if(!injected&&participants.length===1&&participants[0].participantId==='workspace_admission_preflight'){
+      injected=true;assert.equal(direct.admit(base).replayed,false);
+    }
+    return result;
+  }};
+  const raced=createWorkspaceAdmissionStore({schemaManifest,unitOfWork:wrapped}).admit({...base,readFence:fence});
+  assert.equal(raced.replayed,true);
+  const db=new Database(input.databasePath,{readonly:true});try{
+    assert.equal(db.prepare('SELECT count(*) n FROM libra_workspaces').get().n,1);
+    assert.equal(db.prepare('SELECT count(*) n FROM fx_commit_markers').get().n,1);
+  }finally{db.close();}
+}));
 test('rolls every Workspace admission row back when the Foundation participant crashes',()=>fixture((input)=>{const crashing={execute(participants){return input.unitOfWork.execute(participants.map((participant)=>participant.participantId!=='workspace_admission_foundation'?participant:{...participant,execute(context){participant.execute(context);throw new Error('fixture-crash');}}));}},store=createWorkspaceAdmissionStore({schemaManifest,unitOfWork:crashing});assert.throws(()=>store.admit({decision:input.decision,commitMarker:'workspace-crash-marker',resultId:'workspace-crash-result'}),/fixture-crash/);const db=new Database(input.databasePath,{readonly:true});for(const table of ['libra_workspaces','libra_workspace_revisions','fx_workspace_registry','fx_event_result_bindings','fx_commit_markers'])assert.equal(db.prepare(`SELECT COUNT(*) n FROM ${table}`).get().n,0,table);db.close();}));
 test('rejects expired Evidence and stale Platform root without partial writes',()=>fixture((input)=>{const expired={...input.decision,spaceAdmissionEvidence:{...input.decision.spaceAdmissionEvidence,expiresAtMs:1}},store=createWorkspaceAdmissionStore({schemaManifest,unitOfWork:input.unitOfWork});expired.spaceAdmissionEvidence.evidenceDigest=canonicalDigest(Object.fromEntries(Object.entries(expired.spaceAdmissionEvidence).filter(([key])=>key!=='evidenceDigest')));const rebuilt=buildWorkspaceAdmissionDecision({...expired,decisionId:undefined,workspaceScopeDigest:undefined,decisionDigest:undefined});assert.throws(()=>store.admit({decision:rebuilt,commitMarker:'expired-marker',resultId:'expired-result'}),(error)=>error.code==='P9_WORKSPACE_SPACE_NOT_ADMITTED');const db=new Database(input.databasePath);db.prepare("UPDATE platform_workspace_roots SET state='inactive'").run();db.close();assert.throws(()=>store.admit({decision:input.decision,commitMarker:'stale-marker',resultId:'stale-result'}),(error)=>error.code==='P9_WORKSPACE_ROOT_SCOPE'||error.code==='P9_WORKSPACE_ROOT_STALE');}));
