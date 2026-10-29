@@ -102,4 +102,6 @@ Series线程随后在基线a2bf和bc4隔离环境以同inode/同字节重建复�
 
 该源码Linux Web首跑因只读`node_modules/.vite-temp`无法写入而未启动，日志`linux-web-4774a7e90.log` SHA256 `f085026fb4a9eb3a66796527aa0828dad6f4dfdc7bf5c68ff325b8b50b015488`；用临时可写缓存覆盖目录后49文件/274项通过，`linux-web-4774a7e90-retry.log` `2ecccfefbb1d9e495350c8b69a16b01175a5bc36e82eb84203d40e5c6b93fa11`。Service首轮828通过/25失败/28跳过，25失败均在未设置`HELIX_TEST_ISOLATED_TRANSCODE=1`时要求专用转码挂载；已同时挂载一次性`/transcode`但遗漏开关，日志`linux-service-4774a7e90.log` `9c1115cead5f9e6ba277e99b9886028222ec10ec8f777be7b7d5da847902d09a`保留，补开关后的完整重跑进行中。
 
+补齐一次性tmpfs与隔离开关后，4774实际镜像Linux Service完整重跑853通过/0失败/28跳过；跳过的真实媒体或专用夹具不作为通过。日志`linux-service-4774a7e90-retry.log` SHA256 `fc582d72882409ac747a43086093095a71d762edb2cf4f239cd6685e3231e0a5`。这不覆盖完整架构、CIFS或UI失败，也不推翻首轮记录。
+
 UI负责人对精确4774报告**FAIL**：受控注入同basis评分Resolution重试耗尽后，Decision为failed，单条/批量评分投影仍为pending，实际镜像Web显示“正在匹配豆瓣评分”。报告`E:/my_project/helix-git-consolidation-20261008/series-ui-review-4774a7e905-20261029/owner-review.json`；该注入不证明真实Host自然到达该终态或生产受影响。Perception修复线程正在补真实Host、评分投影与Decision当前性一致性及性能保护；后继版本须重新接受具体版本UI核验，4774不得发布。电影`db824ddb3`返焦开发版经UI负责人独立复核通过，报告`E:/my_project/helix-git-consolidation-20261008/movie-ui-precheck-db824ddb3-20261029/owner-review.json`，不等于最终镜像验收。
