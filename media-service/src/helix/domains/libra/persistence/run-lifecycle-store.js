@@ -1928,6 +1928,12 @@ function createRunLifecycleStore(options) {
           const repo = context.repository(libra.repositoryId);
           run = repo.invoke("find_run", { libra_run_id: decision.libraRunId });
           if (!run) fail("P9_RUN_LIFECYCLE_RUN", "Run is absent.");
+          if(decision.transitionKind==='defect_admit'&&decision.transitionEvidence.standingAuthorization){
+            const spec=repo.invoke('find_spec',{acceptance_spec_id:run.acceptance_spec_id}),
+              subject=repo.invoke('find_subject',{subject_id:run.subject_id});
+            if(!spec||!subject||spec.subject_id!==run.subject_id||spec.content_profile!=='movie'||subject.content_profile!=='movie')
+              fail('LIBRA_DEFECT_AUTHORIZATION_SCOPE','Standing defect authorization applies only to Movie.');
+          }
           if(decision.transitionEvidence.availabilityId) {
             const evidence=decision.transitionEvidence;
             const observation=repo.invoke('strategy_observation',{libra_run_id:run.libra_run_id,strategy_kind:evidence.strategyKind,
