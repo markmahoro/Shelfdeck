@@ -1,8 +1,8 @@
 # ShelfDeck Clean Helix Engineering Playbook
 
-Status: active non-Canonical engineering governance；适用于版本开发与上线后问题处理，具体范围以用户授权和CURRENT_PLAN为准。
+Status: active non-Canonical engineering governance；适用于版本开发与上线后问题处理，具体范围以用户授权为准；活工作以 GitHub PR 为台账（见根 `AGENTS.md` PR-ledger 指针）。
 
-Last updated: 2026-09-30
+Last updated: 2026-10-29
 
 ## 1. Purpose and authority
 
@@ -12,11 +12,13 @@ Policy、Capability、Schema、API或产品旅程；这些内容只由`TOP_DOWN_
 权威顺序固定为：
 
 1. `TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`：唯一架构SSOT；
-2. `CURRENT_PLAN.md`：唯一Master Plan；
-3. 本Playbook：长期工程过程规则；
-4. `implementation/CURRENT_PHASE.md`：唯一活动Phase执行包，从属于Master Plan和Playbook；
-5. `CURRENT_STATUS.md`：当前事实和Evidence指针，不产生授权；
-6. implementation Evidence和历史归档。
+2. 本Playbook：长期工程过程规则；
+3. GitHub PRs：活工作台账（`open` / `merged` / `closed-wontfix`）；根 `AGENTS.md` 仅作 PR-ledger 指针；
+4. `CURRENT_PLAN.md`：可选一行产品/发布目标与依赖说明（非工作项列表；**非默认通读**）；
+5. `CURRENT_STATUS.md`：授权部署后的生产身份 stub（长叙事已归档；**非默认通读**，不产生授权）；
+6. implementation Evidence和历史归档（含 legacy `CURRENT_PHASE` 包归档）。
+
+`implementation/CURRENT_PHASE.md` 现为 legacy stub，**不是**默认阅读，也不是排期/backlog 来源。
 
 本文与SSOT冲突时立即以SSOT为准，并修正文档或实现。Playbook不能把工程便利升级为业务合同。
 
@@ -28,11 +30,11 @@ Policy、Capability、Schema、API或产品旅程；这些内容只由`TOP_DOWN_
 
 ## 2. Operating model
 
-按2026-09-30用户明确纠正，UAT-NNN只用于上线后的测试、验收问题，唯一编号入口为UAT_ITERATION_REGISTER.md。大版本准备与功能开发由CURRENT_PLAN及唯一CURRENT_PHASE管理，使用Phase内有名称的工作项、里程碑和验收条件，不分配UAT编号，也不建立另一套全局编号台账。开发过程中的缺口与失败归入所属工作项。
+按2026-09-30用户明确纠正及后续 PR-ledger 决定：历史 register 编号（旧文档中的 `UAT-NNN`）只作 Evidence 追溯键，**不是**排期/backlog 语言。活增量以 GitHub PR 标题与链接管理；可选一行产品/发布目标可写在 `CURRENT_PLAN` 或薄 `CURRENT_STATUS` stub。不建立第二套全局编号台账，也不把 legacy `CURRENT_PHASE` 当活工作队列。
 
-已有UAT编号及历史记录全部保留，不重排或复用；UAT-279为Series开发准备误登记，转入Phase后不再按UAT推进或验收，278/280保留已完成的历史收尾/清理事实，不作为新增开发编号的先例。新增上线后问题接续最高已登记编号；一个可独立验收的问题一个编号，重复发现关联既有项，复发保留历史关闭并建立新项。PROD/UX/AC/BR只作为历史别名，不再新增。
+已有 register 编号及历史记录全部保留，不重排或复用；历史误登记项保持原事实，不作为新增开发编号先例。PROD/UX/AC/BR只作为历史别名，不再新增。
 
-CURRENT_PLAN只维护顺序、依赖、授权和工作区归属；CURRENT_PHASE只维护当前验收要求及交付链接；CURRENT_STATUS只报告最新部署与未完成事实。流水放Evidence，完成批次归档，不建立平行活动计划。进度区分待实施、本地验证、已部署、验收关闭，不以测试通过冒充用户结果完成。
+`CURRENT_PLAN` 至多维护一行目标与依赖说明；`CURRENT_STATUS` 只在授权部署后写生产身份；流水放 Evidence，完成批次归档，不建立平行活动计划。进度以 PR 状态为准（open / merged / closed-wontfix），不以测试通过冒充用户结果完成。
 
 ## 3. Authorization and environment boundaries
 
@@ -42,7 +44,7 @@ CURRENT_PLAN只维护顺序、依赖、授权和工作区归属；CURRENT_PHASE�
 
 ### 3.2 Protected environments
 
-NAS 192.168.12.230:18080是生产。标准发布使用build-image.js、upload-nas-image.js、deploy-nas.js及统一nas-ssh-config.js，验证checksum和dry-run后apply；保留回滚资料。破坏性验证使用本地临时目录/隔离数据库。media-desktop按任务相关性纳入影响审查，不因历史Phase范围被永久排除。真实媒体/生产数据处置必须有精确范围、当前证据和授权，不用旧preflight替代正式流程。
+NAS 192.168.12.230:18080是生产。标准发布使用build-image.js、upload-nas-image.js、deploy-nas.js及统一nas-ssh-config.js，验证checksum和dry-run后apply；保留回滚资料。破坏性验证使用本地临时目录/隔离数据库。media-desktop为历史树，不在当前交付范围。真实媒体/生产数据处置必须有精确范围、当前证据和授权，不用旧preflight替代正式流程。
 
 ### 3.3 SSOT change control
 
@@ -92,7 +94,7 @@ PROD-065 执行失败诊断使用 Foundation 已有 Attempt `evidence_digest` �
 
 ## 4. Workspace, branch and change isolation
 
-先检查工作区与用户修改。存在冲突或需要并行隔离时使用独立worktree；已有干净且归属明确的任务工作区可继续使用。**新分支禁止使用 `codex/` 前缀**（既有 `codex/*` 仅为历史残留，逐步合并或退役）；推荐 `sd/<topic>-YYYYMMDD`（人工/本机）或平台默认 `cursor/<topic>-…`（Cloud Agent）。不强制Program→Phase→Work Package三级分支；版本开发提交关联Phase工作项及Evidence，上线后问题修复关联对应UAT，不为编号重命名现有目录。产品版本与 Changelog 口径见 `docs/v3/VERSIONING.md` 与根 `CHANGELOG.md`；生产部署身份只写 `docs/helix/CURRENT_STATUS.md`。
+先检查工作区与用户修改。存在冲突或需要并行隔离时使用独立worktree；已有干净且归属明确的任务工作区可继续使用。**新分支禁止使用 `codex/` 前缀**（既有 `codex/*` 仅为历史残留，逐步合并或退役）；推荐 `sd/<topic>-YYYYMMDD`（人工/本机）或平台默认 `cursor/<topic>-…`（Cloud Agent）。不强制多级计划分支；开发提交关联对应 GitHub PR 与所需 Evidence；历史 register 编号仅作可选追溯键，不为编号重命名现有目录。产品版本与 Changelog 口径见 `docs/v3/VERSIONING.md` 与根 `CHANGELOG.md`；生产部署身份只写薄 `docs/helix/CURRENT_STATUS.md` stub。
 
 同一批次可整合有关联的迭代项，但每项结果独立追溯。并行任务须明确文件归属和统一整合者；不覆盖用户修改，不使用破坏性reset/checkout。清理前核对worktree、临时数据和回滚资料的用途；不按“旧”或“未跟踪”直接删除。代码隔离不授权业务双读写或旧Runtime回流。
 
