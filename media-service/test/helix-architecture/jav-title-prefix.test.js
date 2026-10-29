@@ -55,6 +55,19 @@ test('different complete titles can yield the same short name and therefore requ
   assert.equal(first.title, code + ' ' + '題'.repeat(71));
 });
 
+test('different shortened names can be equal under filesystem case or Unicode normalization', () => {
+  const code = 'IPX-178';
+  const choose = fragment => chooseJavTitlePrefix({
+    title:code + ' ' + fragment + '題'.repeat(100), providerIdentities:identities(code), fits:fits(),
+  }).title;
+  const upper = choose('A'), lower = choose('a');
+  assert.notEqual(upper, lower);
+  assert.equal(upper.toLowerCase(), lower.toLowerCase());
+  const composed = choose('é'), decomposed = choose('e\u0301');
+  assert.notEqual(composed, decomposed);
+  assert.equal(composed.normalize('NFC'), decomposed.normalize('NFC'));
+});
+
 test('shortening requires one exact canonical typed code and a fitting title grapheme', () => {
   const title = 'A'.repeat(300), check = fits();
   for (const providerIdentities of [[], identities('ipx-178'), identities('IPX178'),

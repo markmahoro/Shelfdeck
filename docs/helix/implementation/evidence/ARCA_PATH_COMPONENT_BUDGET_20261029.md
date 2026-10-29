@@ -89,6 +89,8 @@ SSOT §6.5.3、§10.5.3 由 Arca 冻结 Final Inventory Decision 并持有 Place
 
 隔离分支新增纯 `jav-title-prefix` 计算草案、固定依赖，以及复用现有 Arca 命名渲染的内部只读 `previewJavTitle`；它尚未接入 Acceptance、Decision、Stage 或 UI，不能据此声称系统已经主动截短。预览明确返回 `targetCollisionChecked=false`、`endpointComponentLimitVerified=false`，不授予 Reservation/写入权限，也不声称已验证真实文件系统限制；仅在确需截短时从唯一 canonical typed `jav_code` 提取完整番号，不更改原事实。Windows Node 25 与隔离 Linux Node 20 各 9 项纯计算测试通过，Windows 另有 4 项实际渲染预览测试通过；Linux 14 个相关测试文件合计 237 PASS（含现有拒绝长标题行为、Stage/Placement、JAV Correction、Series Reservation 及 US Adult 回归）。两组 HALT/EMLB 已验证实际渲染预览中的目录、扩展名、Primary/NFO stem 和后缀预算，源事实与目标目录保持原样；尚未以截短结果贯通正式 Stage→Verify→Placement。碰撞同前缀、组合字符、ZWJ、非法 Unicode、号码前导零与后缀、固定字段不足、字幕限定词和原名成员过长有单元覆盖；完整并发归属、真实 Endpoint 等价、崩溃证明、实际 UI/Owner 审核、真实 CIFS 与完整发布 Gate 仍未完成。
 
+后续增量：预览增加真实 Endpoint 字节限制未验证标记后，Windows 4 项、隔离 Linux 5 项实际预览复验通过；另新增同短名已有相同字节目标仍不得宣称归属的本机/隔离 Linux 测试各 1 PASS。新增的大小写和 NFC/NFD 路径等价反例与其余纯算法测试在 Windows、隔离 Linux 各 10 PASS；这些是字符串和只读预览测试，不代表实际 CIFS 等价规则或竞争控制已实现。上方 237 项为增量前的完整定向集合，不把增量测试与其混写成同一轮固定版本全量结果。
+
 合同传播记录：本分支曾临时物化自己的 SSOT 源定位，P2 因四个既有表合同的引用行号变化报 `TABLE_CONTRACT_DRIFT`；已撤回本分支的临时 SSOT/全局生成物，原分支 P2 复验通过（138/117/239/62，unresolved 0）。主整合反馈其 `3e707a033` 已统一更新四份相关表合同及生成物并通过 P2；本分支不会提交或覆盖主整合的全局生成物。两次结果分开记录，不以子分支基线通过冒充整合候选验证。
 
 ## 2026-10-29 旧两条、停机与 Reset 的只读核对
