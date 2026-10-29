@@ -37,9 +37,9 @@
       "manifestId": "helix.inventory.routes",
       "kind": "route-inventory",
       "relativePath": "route-inventory.json",
-      "targetCount": 168,
+      "targetCount": 164,
       "targetSegments": {
-        "admin": 167,
+        "admin": 163,
         "publicHealth": 1
       }
     },

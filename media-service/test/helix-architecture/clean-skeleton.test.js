@@ -49,7 +49,7 @@ test('clean package IDs exactly match the accepted P1 physical skeleton', () => 
 test('each Domain exposes one frozen public package identity', () => {
   const expectedExports = {
     procurement: ['PACKAGE_ID', 'CandidateDeliveryPort', 'ProcurementCommandFacade', 'ProcurementExecutionRegistration', 'ProcurementQueryFacade', 'createCandidateAcceptanceConsumer', 'createCandidateRetirementStore', 'createFreshResetFieldNormalization', 'retryCommandExecutionContract'],
-    libra: ['PACKAGE_ID', 'LibraExecutionRegistration', 'LibraIntakeFacade', 'ProductDeliveryPort', 'WorkspaceReclamationPort', 'UsAdultRecommendationQueryFacade', 'UsAdultRecommendationCommandFacade', 'createLibraArtifactAuditSource', 'createFormationRetirementStore', 'createIntakeRetirementStore', 'createProductDeliveryReader', 'describeFreshResetMetadataRetention', 'describeFreshResetWorkspaceRetention', 'createFreshResetWorkspaceArchive'],
+    libra: ['PACKAGE_ID', 'LibraExecutionRegistration', 'LibraIntakeFacade', 'ProductDeliveryPort', 'WorkspaceReclamationPort', 'createLibraArtifactAuditSource', 'createFormationRetirementStore', 'createIntakeRetirementStore', 'createProductDeliveryReader', 'describeFreshResetMetadataRetention', 'describeFreshResetWorkspaceRetention', 'createFreshResetWorkspaceArchive'],
     arca: ['PACKAGE_ID', 'ArcaExecutionRegistration', 'createArcaArtifactAuditSource', 'createSeriesPresentationQuery', 'createArcaFormationRetirementStore', 'createFormationSharedRetirement', 'describeFreshResetSeriesRetention', 'describeFreshResetWorkspaceRetention', 'createFreshResetSeriesNormalization'],
     perception: ['PACKAGE_ID', 'PerceptionCommandFacade', 'PerceptionExecutionRegistration', 'PerceptionResolutionFacade'],
     people: ['PACKAGE_ID', 'PeopleCommandFacade', 'PersonReferenceQueryFacade', 'createPeopleImageExecutionRegistration', 'createPeopleProcessServices', 'describeFreshResetReferenceRetention', 'freshResetReferenceArtifactDependencies']
@@ -101,7 +101,7 @@ test('composition root import is side-effect free and factory requires exact cle
     facades,
     sessionTokens:{ authenticate:() => ({}), verifyApiKey:() => ({}) },
   });
-  assert.equal(app.routeCount, 168);
+  assert.equal(app.routeCount, 164);
   assert.deepEqual(await app.start(), { state:'ready', normalSupplyAllowed:true });
   assert.equal(app.readiness().generation, 'helix-clean-v3');
   await assert.rejects(app.start(), (error) => error.code === 'HELIX_LIFECYCLE_CONFLICT');
