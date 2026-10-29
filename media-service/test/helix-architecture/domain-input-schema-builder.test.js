@@ -39,6 +39,10 @@ test('freezes bounded Shelf Acceptance source and Product read authority', () =>
   assert.equal(snapshot.additionalProperties, false);
   assert.deepEqual(Object.keys(snapshot.properties.requirements.properties),
     ['identity', 'structure', 'metadata', 'mandatoryMedia', 'space', 'inventory']);
+  assert.equal(snapshot.required.includes('customAcceptanceHandoff'), false);
+  assert.equal(snapshot.properties.customAcceptanceHandoff.additionalProperties, false);
+  assert.deepEqual(snapshot.properties.customAcceptanceHandoff.required,
+    ['schemaRef','subjectId','productScopeDigest','originalSpec','customSpec','customTargetRef','referenceDigest']);
   assert.equal(snapshot['x-helix-maxCanonicalBytes'], 64 * 1024);
 });
 

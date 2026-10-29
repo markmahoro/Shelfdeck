@@ -2,6 +2,7 @@
 
 const {canonicalDigest,canonicalJson}=require('../../../contracts/canonical-json');
 const {applyCustomRequirementChanges}=require('../../../contracts/custom-acceptance-requirements');
+const {assertCustomAcceptanceHandoff,buildCustomAcceptanceHandoff}=require('../../../contracts/custom-acceptance-handoff');
 const {packageContentProfile}=require('./product-content-profile');
 const SHA=/^[a-f0-9]{64}$/;
 const DRAFT_SCHEMA='helix://contracts/types/AcceptanceSpecDraft/v1';
@@ -67,7 +68,7 @@ function verifyArcaCustomAcceptanceTarget({packageValue,shelf,confirmation}){
       snapshot.acceptanceSpecId!==spec.acceptanceSpecId||snapshot.acceptanceSpecRecordDigest!==spec.recordDigest||
       snapshot.targetShelfId!==spec.targetShelfId||snapshot.contentProfile!=='movie'||snapshot.structureKind!=='single'||
       snapshot.shelfStandardRevision!==spec.shelfStandardRevision||snapshot.shelfStandardDigest!==spec.shelfStandardDigest||
-      !same(snapshot.requirements,spec.requirements))fail();
+      !same(snapshot.requirements,spec.requirements)||!same(snapshot.customAcceptanceHandoff,buildCustomAcceptanceHandoff(spec)))fail();
   const basis=preview.basis,ref=spec.customTargetRef;
   if(!basis||!same(basis,intent.basis)||basis.subjectId!==spec.subjectId||basis.productScopeDigest!==spec.productScope.scopeDigest||
       basis.baseAcceptanceSpecId!==baseSpec.acceptanceSpecId||basis.baseSpecRecordDigest!==baseSpec.recordDigest||
@@ -128,4 +129,24 @@ function verifyArcaCustomAcceptanceTarget({packageValue,shelf,confirmation}){
   return Object.freeze({...body,basisDigest:canonicalDigest(body)});
 }
 
-module.exports=Object.freeze({verifyArcaCustomAcceptanceTarget});
+function assertArcaCustomAcceptanceBasis({packageValue,shelf,basis}){
+  const snapshot=packageValue?.productionProvenance?.acceptanceRequirementSnapshot,ref=snapshot?.customAcceptanceHandoff;
+  try{assertCustomAcceptanceHandoff(ref);}catch{fail();}
+  if(!ref||!exact(basis,['schemaRef','subjectId','shelfId','shelfStandardRevision','shelfStandardDigest','productScopeDigest',
+      'acceptanceSpecId','acceptanceSpecRecordDigest','originalSpecId','originalSpecRecordDigest','intentId','intentDigest',
+      'confirmationEvidenceDigest','targetRequirementsDigest','originalRequirements','customRequirements','basisDigest'])||
+      !digestRecord(basis,'basisDigest')||basis.schemaRef!=='arca.custom-acceptance-target-basis@1'||
+      basis.subjectId!==packageValue.subjectId||basis.shelfId!==packageValue.shelfId||basis.shelfId!==shelf?.shelfId||
+      basis.shelfStandardRevision!==snapshot.shelfStandardRevision||basis.shelfStandardDigest!==snapshot.shelfStandardDigest||
+      !digestRecord(snapshot,'snapshotDigest')||basis.productScopeDigest!==ref.productScopeDigest||
+      basis.productScopeDigest!==packageValue.productStructureSnapshot?.productScopeDigest||
+      basis.acceptanceSpecId!==snapshot.acceptanceSpecId||basis.acceptanceSpecId!==ref.customSpec?.acceptanceSpecId||
+      basis.acceptanceSpecRecordDigest!==snapshot.acceptanceSpecRecordDigest||basis.originalSpecId!==ref.originalSpec?.acceptanceSpecId||
+      basis.acceptanceSpecRecordDigest!==ref.customSpec?.recordDigest||
+      basis.originalSpecRecordDigest!==ref.originalSpec?.recordDigest||basis.intentId!==ref.customTargetRef?.intentId||
+      basis.intentDigest!==ref.customTargetRef?.intentDigest||basis.targetRequirementsDigest!==ref.customTargetRef?.targetRequirementsDigest||
+      !SHA.test(basis.confirmationEvidenceDigest||'')||!same(basis.customRequirements,snapshot.requirements))fail();
+  return basis;
+}
+
+module.exports=Object.freeze({verifyArcaCustomAcceptanceTarget,assertArcaCustomAcceptanceBasis});

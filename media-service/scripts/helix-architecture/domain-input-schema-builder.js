@@ -2,6 +2,7 @@
 
 const { boundSeriesNfoProvenance } = require('./series-nfo-provenance-schema');
 const { javPartSetSchema } = require('../../src/helix/contracts/jav-part-set');
+const { customAcceptanceHandoffSchema } = require('../../src/helix/contracts/custom-acceptance-handoff');
 
 const crypto = require('crypto');
 const { selectedCandidateSelectedValueSchema } = require('./result-type-schema-builder');
@@ -1909,7 +1910,7 @@ function shelfAcceptancePrimaryReadSetSchema() {
 
 function acceptanceRequirementSnapshotSchema() {
   return {
-    ...exactDomainSchema('AcceptanceRequirementSnapshot', {
+    ...optionalProperty(exactDomainSchema('AcceptanceRequirementSnapshot', {
       schemaRef: { const: domainTypeId('AcceptanceRequirementSnapshot') },
       schemaVersion: { const: 1 },
       acceptanceSpecId: id(),
@@ -1920,8 +1921,9 @@ function acceptanceRequirementSnapshotSchema() {
       shelfStandardRevision: positiveInteger(),
       shelfStandardDigest: digest(),
       requirements: acceptanceRequirementSetSchema(),
+      customAcceptanceHandoff: customAcceptanceHandoffSchema(),
       snapshotDigest: digest(),
-    }),
+    }), 'customAcceptanceHandoff'),
     'x-helix-maxCanonicalBytes': 64 * 1024,
   };
 }

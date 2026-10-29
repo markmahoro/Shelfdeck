@@ -9,6 +9,8 @@ const { createShelfQueryStore } = require('../persistence/shelf-query-store');
 const { createHandoffBAcceptanceStore } = require('../persistence/handoff-b-acceptance-store');
 const { createOnDeckStore } = require('../persistence/on-deck-store');
 const { requiresInputSettlement } = require('../model/offload-settlement');
+const {assertCustomAcceptanceHandoff}=require('../../../contracts/custom-acceptance-handoff');
+const {verifyArcaCustomAcceptanceTarget,assertArcaCustomAcceptanceBasis}=require('../model/custom-acceptance-target');
 
 function stable(schema, value) { return canonicalDigest({ schema, ...value }); }
 
@@ -137,7 +139,7 @@ function acceptedRunBasis(current, onDeckRunId, acceptance, shelves, { boundedSe
     throw new Error('Arca On-deck Run identity is unavailable or stale.');
   }
   const shelf = shelves.getShelfAtBasis(recorded.shelfId, recorded);
-  const context = Object.freeze({ ...current, shelf });
+  let context = Object.freeze({ ...current, shelf });
   const assessmentId = stable('arca.acceptance-attempt-id@1', {
     offerId: current.offer.offerId,
     onDeckPackageId: current.offer.onDeckPackageId,
@@ -169,6 +171,12 @@ function acceptedRunBasis(current, onDeckRunId, acceptance, shelves, { boundedSe
       responsibility.custodyId !== recorded.custodyId ||
       accepted.finalInventoryDecision.decisionDigest !== recorded.finalInventoryDecision.decisionDigest) {
     throw new Error('Arca On-deck Run accepted history is unavailable or stale.');
+  }
+  if (requirement.customAcceptanceHandoff) {
+    assertArcaCustomAcceptanceBasis({packageValue:current.packageValue,shelf,basis:accepted.decision.customAcceptanceBasis});
+    context=Object.freeze({...context,customAcceptanceBasis:accepted.decision.customAcceptanceBasis});
+  } else if(accepted.decision.customAcceptanceBasis) {
+    throw new Error('Accepted custom target basis has no matching Handoff reference.');
   }
   return Object.freeze({ context, assessment, responsibility, accepted, recorded });
 }
@@ -204,13 +212,29 @@ function createOnDeckContextReader(options) {
     const packageValue = delivery.onDeckProductPackage;
     return Object.freeze({ offer, packageValue, deliveryFence:delivery.deliveryFence });
   }
-  function readOffer(dependencyRefs, { allowDeregistering = false } = {}) {
+  function readOffer(dependencyRefs, { allowDeregistering = false, acceptedResponsibility = false, readFence = null } = {}) {
+    const fence=readFence||(typeof options.unitOfWork?.captureReadFence==='function'?options.unitOfWork.captureReadFence():null);
     const {offer,packageValue,deliveryFence}=readOfferDelivery(dependencyRefs);
     const shelf = shelves.getShelf(offer.shelfId);
     if (!shelf || (shelf.status !== 'active' && !(allowDeregistering && shelf.status === 'deregistering'))) {
       const error = new Error('Handoff B target Shelf is unavailable.');
       error.code = 'ARCA_TARGET_SHELF_UNAVAILABLE';
       throw error;
+    }
+    const handoff=packageValue.productionProvenance?.acceptanceRequirementSnapshot?.customAcceptanceHandoff;
+    if(handoff&&!acceptedResponsibility){
+      assertCustomAcceptanceHandoff(handoff);
+      if(typeof options.readLibraCustomTargetConfirmation!=='function')
+        throw Object.assign(new Error('Custom Acceptance confirmation reader is unavailable.'),{code:'ARCA_CUSTOM_TARGET_EVIDENCE_UNAVAILABLE'});
+      if(!fence)throw Object.assign(new Error('Custom Acceptance requires a read fence.'),{code:'ARCA_CUSTOM_TARGET_FENCE_INVALID'});
+      const ref=handoff.customTargetRef;
+      const confirmation=options.readLibraCustomTargetConfirmation({subjectId:handoff.subjectId,productScopeDigest:handoff.productScopeDigest,
+        acceptanceSpecId:handoff.customSpec.acceptanceSpecId,acceptanceSpecRecordDigest:handoff.customSpec.recordDigest,
+        intentId:ref.intentId,intentDigest:ref.intentDigest,previewDigest:ref.previewDigest},{readFence:fence});
+      if(confirmation?.readFence!==fence)throw Object.assign(new Error('Custom Acceptance evidence is not bound to the read fence.'),
+        {code:'ARCA_CUSTOM_TARGET_FENCE_INVALID'});
+      const customAcceptanceBasis=verifyArcaCustomAcceptanceTarget({packageValue,shelf,confirmation});
+      return Object.freeze({offer,packageValue,shelf,deliveryFence,customAcceptanceBasis,customTargetConfirmation:confirmation});
     }
     return Object.freeze({ offer, packageValue, shelf, deliveryFence });
   }
@@ -219,7 +243,7 @@ function createOnDeckContextReader(options) {
     // A new Acceptance may only target an active Shelf.  An already Accepted
     // On-deck Run, however, owns an immutable responsibility fence and must be
     // allowed to finish while Shelf Deregistration drains that responsibility.
-    const current = readOffer(dependencyRefs, { allowDeregistering: true });
+    const current = readOffer(dependencyRefs, { allowDeregistering: true, acceptedResponsibility:true });
     const { context, assessment, responsibility, accepted } =
       acceptedRunBasis(current, onDeckRunId, acceptance, shelves);
     const finalMember = accepted.finalInventoryDecision.members?.[0];
@@ -247,7 +271,7 @@ function createOnDeckContextReader(options) {
   }
 
   function readSettlement(onDeckRunId, dependencyRefs, materialKey) {
-    const current = readOffer(dependencyRefs, { allowDeregistering:true });
+    const current = readOffer(dependencyRefs, { allowDeregistering:true, acceptedResponsibility:true });
     const { context, recorded:responsibility } =
       acceptedRunBasis(current, onDeckRunId, acceptance, shelves, { boundedSettlement:true });
     const firstFinalMember = responsibility.finalInventoryDecision.members?.[0];

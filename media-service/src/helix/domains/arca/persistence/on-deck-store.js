@@ -862,6 +862,10 @@ function createOnDeckStore(options) {
 
   function commit(request) {
     const packageValue = request.package;
+    // A custom target must be installed as an Arca collection intent in this
+    // same commit. Keep direct calls fenced until that participant is wired.
+    if(packageValue?.productionProvenance?.acceptanceRequirementSnapshot?.customAcceptanceHandoff)
+      fail('ARCA_CUSTOM_TARGET_COLLECTION_UNAVAILABLE','Custom collection target continuity is not yet available.');
     assertRequiredUsAdultActor(packageValue);
     const verificationRecord = request.fulfillmentVerificationRecord;
     if (verificationRecord?.schemaRef !== 'helix://contracts/types/FulfillmentVerificationRecord/v1' ||

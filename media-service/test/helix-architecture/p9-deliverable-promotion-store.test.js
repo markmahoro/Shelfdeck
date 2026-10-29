@@ -982,7 +982,7 @@ test('a confirmed custom target blocks old Run promotion before Package, Control
   }finally{db.close();}
 }));
 
-test('a current custom target cannot publish a lower requirement snapshot before the formal Arca acceptance handoff exists',()=>withDatabase(value=>{
+test('a current custom target cannot publish a lower requirement snapshot without its exact Handoff reference',()=>withDatabase(value=>{
   const intent=seedCommittedCustomTarget(value),db=new Database(value.databasePath);
   try{
     const run=db.prepare('SELECT * FROM libra_runs').get(),row=db.prepare('SELECT * FROM libra_acceptance_specs').get(),
@@ -996,7 +996,7 @@ test('a current custom target cannot publish a lower requirement snapshot before
     const before=db.prepare('SELECT * FROM fx_material_controls').all(),tables=['libra_product_packages','fx_outbox','fx_commit_markers'],
       snapshots=tables.map(table=>db.prepare('SELECT * FROM '+table+' ORDER BY rowid').all());
     assert.throws(()=>createDeliverablePromotionStore({schemaManifest,unitOfWork:value.unitOfWork}).publish(request(value)),
-      {code:'P9_PROMOTION_CUSTOM_ACCEPTANCE_UNAVAILABLE'});
+      {code:'P9_PROMOTION_CUSTOM_SNAPSHOT_MISMATCH'});
     assert.deepEqual(db.prepare('SELECT * FROM fx_material_controls').all(),before);
     for(let index=0;index<tables.length;index++)assert.deepEqual(db.prepare('SELECT * FROM '+tables[index]+' ORDER BY rowid').all(),snapshots[index]);
   }finally{db.close();}

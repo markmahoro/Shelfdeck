@@ -18,6 +18,7 @@ const {
 } = require('../model/material-episode-claims');
 const { deriveAcceptedResponsibility } = require('../model/acceptance-responsibility');
 const { finalGapDecision } = require('../model/acceptance-gap-decision');
+const {verifyArcaCustomAcceptanceTarget,assertArcaCustomAcceptanceBasis}=require('../model/custom-acceptance-target');
 
 const RECEIPT_SCHEMA = 'helix://contracts/types/CustodyAndTransferReceipt/v1';
 const MESSAGE_SCHEMA = 'helix://contracts/types/ArcaProductAcceptedMessage/v1';
@@ -593,6 +594,22 @@ function createHandoffBAcceptanceStore(options) {
 
   function accept(request) {
     const assessment = exactAttempt(request.assessment);
+    const handoff=request.package?.productionProvenance?.acceptanceRequirementSnapshot?.customAcceptanceHandoff;
+    let customAcceptanceBasis;
+    if(handoff){
+      const accepted=readAccepted({acceptanceAttemptId:assessment.acceptanceAttemptId,offerMessage:request.offerMessage,
+        libraRunId:request.libraRunId,onDeckRunId:request.onDeckRunId,finalInventoryDecision:request.finalInventoryDecision});
+      if(accepted){
+        assertArcaCustomAcceptanceBasis({packageValue:request.package,shelf:request.shelf,basis:accepted.decision.customAcceptanceBasis});
+        return accepted;
+      }
+      if(!request.readFence||request.customTargetConfirmation?.readFence!==request.readFence)
+        fail('ARCA_CUSTOM_TARGET_FENCE_INVALID','Custom Acceptance requires confirmation under the exact transaction read fence.');
+      customAcceptanceBasis=verifyArcaCustomAcceptanceTarget({packageValue:request.package,shelf:request.shelf,
+        confirmation:request.customTargetConfirmation});
+    }else if(request.customTargetConfirmation){
+      fail('ARCA_CUSTOM_TARGET_INVALID','Custom Acceptance evidence has no matching Handoff reference.');
+    }
     const gapDecision=request.gapDecision;
     let recomputedGapDecision;
     try {
@@ -740,6 +757,7 @@ function createHandoffBAcceptanceStore(options) {
       authorizedGapComparison: gapDecision.authorizedGapComparison,
       arcaBindingSetDigest,
       controlScopeDigest,
+      ...(customAcceptanceBasis?{customAcceptanceBasis}:{}),
     };
     const decision = Object.freeze({
       ...decisionBase,

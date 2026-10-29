@@ -6,6 +6,11 @@ const {describeCustomRequirement}=require('../../src/helix/contracts/custom-acce
 const {createCustomTargetApplication}=require('../../src/helix/domains/libra/application/custom-target-application');
 const {createLibraCustomTargetConfirmationReader}=require('../../src/helix/domains/libra/public');
 const {verifyArcaCustomAcceptanceTarget}=require('../../src/helix/domains/arca/model/custom-acceptance-target');
+const {buildAcceptanceRequirementSnapshot}=require('../../src/helix/domains/libra/model/acceptance-requirement-snapshot');
+const {createHandoffBAcceptanceStore}=require('../../src/helix/domains/arca/persistence/handoff-b-acceptance-store');
+const {createOnDeckStore}=require('../../src/helix/domains/arca/persistence/on-deck-store');
+const {finalGapDecision}=require('../../src/helix/domains/arca/model/acceptance-gap-decision');
+const {projectMaterialControlRow}=require('../../src/helix/foundation/persistence/material-control');
 const {harness}=require('./fixtures/custom-spec-publication-harness');
 
 function applicationHarness(callback){return harness(h=>{
@@ -203,17 +208,14 @@ function arcaTargetFixture(h){
   const {reader,request,intent,spec}=publishedConfirmation(h,true),confirmation=reader.read(request),
     structureBody={structureKind:'single',contentProfile:'movie',productScopeDigest:spec.productScope.scopeDigest,
       episodeScopeDigest:canonicalDigest('no-episode-claims'),primaryMaterialCount:1,structuralDependencyCount:0},
-    requirementBody={schemaRef:'helix://contracts/domain-types/AcceptanceRequirementSnapshot/v1',schemaVersion:1,
-      acceptanceSpecId:spec.acceptanceSpecId,acceptanceSpecRecordDigest:spec.recordDigest,targetShelfId:spec.targetShelfId,
-      contentProfile:spec.contentProfile,structureKind:spec.structureKind,shelfStandardRevision:spec.shelfStandardRevision,
-      shelfStandardDigest:spec.shelfStandardDigest,requirements:spec.requirements};
-  return {confirmation,shelf:{shelfId:spec.targetShelfId,status:'active',currentStandardRevision:spec.shelfStandardRevision,
+    requirementSnapshot=buildAcceptanceRequirementSnapshot(spec);
+  return {reader,request,confirmation,shelf:{shelfId:spec.targetShelfId,status:'active',currentStandardRevision:spec.shelfStandardRevision,
     standard:{digest:spec.shelfStandardDigest}},packageValue:{subjectId:spec.subjectId,shelfId:spec.targetShelfId,
     acceptanceSpecRef:{id:spec.acceptanceSpecId,recordDigest:spec.recordDigest},
     resolvedIdentitySnapshot:{factDigest:intent.basis.identityDigest,factValue:{resolvedProductIdentity:{identityKind:'tmdb_movie',
       contentProfile:'movie',structureKind:'single'}}},
     productStructureSnapshot:{...structureBody,productStructureDigest:canonicalDigest(structureBody)},
-    productionProvenance:{acceptanceRequirementSnapshot:{...requirementBody,snapshotDigest:canonicalDigest(requirementBody)}}}};
+    productionProvenance:{acceptanceRequirementSnapshot:requirementSnapshot}}};
 }
 
 test('Arca independently reconstructs the confirmed Movie requirement delta while retaining audio and size',()=>applicationHarness(h=>{
@@ -225,7 +227,7 @@ test('Arca independently reconstructs the confirmed Movie requirement delta whil
   assert.equal(basis.basisDigest,canonicalDigest(Object.fromEntries(Object.entries(basis).filter(([key])=>key!=='basisDigest'))));
 }));
 
-for(const corruption of ['shelf_revision','shelf_digest','subject','scope','identity','snapshot_requirements',
+for(const corruption of ['shelf_revision','shelf_digest','subject','scope','identity','snapshot_requirements','handoff_reference',
   'confirmation_actor','intent_selection','custom_spec_requirements','original_requirements','missing_fence'])
   test('Arca custom target precheck rejects '+corruption,()=>applicationHarness(h=>{
     const source=arcaTargetFixture(h),input={packageValue:structuredClone(source.packageValue),shelf:structuredClone(source.shelf),
@@ -239,6 +241,13 @@ for(const corruption of ['shelf_revision','shelf_digest','subject','scope','iden
       const snapshot=input.packageValue.productionProvenance.acceptanceRequirementSnapshot;snapshot.requirements.space.maxSizeGiB=51;
       snapshot.snapshotDigest=canonicalDigest(Object.fromEntries(Object.entries(snapshot).filter(([key])=>key!=='snapshotDigest')));
     }
+    if(corruption==='handoff_reference'){
+      const snapshot=input.packageValue.productionProvenance.acceptanceRequirementSnapshot;
+      snapshot.customAcceptanceHandoff.originalSpec.specDigest=canonicalDigest('other-standard');
+      snapshot.customAcceptanceHandoff.referenceDigest=canonicalDigest(Object.fromEntries(Object.entries(snapshot.customAcceptanceHandoff)
+        .filter(([key])=>key!=='referenceDigest')));
+      snapshot.snapshotDigest=canonicalDigest(Object.fromEntries(Object.entries(snapshot).filter(([key])=>key!=='snapshotDigest')));
+    }
     if(corruption==='confirmation_actor'){
       input.confirmation.evidence.actorId='other';const evidence=input.confirmation.evidence;
       evidence.evidenceDigest=canonicalDigest(Object.fromEntries(Object.entries(evidence).filter(([key])=>key!=='evidenceDigest')));
@@ -249,3 +258,79 @@ for(const corruption of ['shelf_revision','shelf_digest','subject','scope','iden
     if(corruption==='missing_fence')input.confirmation.readFence=null;
     assert.throws(()=>verifyArcaCustomAcceptanceTarget(input),{code:'ARCA_CUSTOM_TARGET_INVALID'});
   }));
+
+test('real Arca Handoff B transaction fences and records the exact confirmed custom basis',()=>applicationHarness(h=>{
+  const input=arcaTargetFixture(h),db=h.db,store=createHandoffBAcceptanceStore(h.options),D=canonicalDigest,
+    shelf={...input.shelf,currentPlacementRevision:1,target:{endpointId:'endpoint',rootLocation:'/shelf',mountScopeId:'shelf-mount',mountScopeRevision:1}};
+  db.pragma('foreign_keys=OFF');
+  db.prepare('INSERT INTO arca_shelves(shelf_id,target_endpoint_id,target_root_location,target_mount_scope_id,target_mount_scope_revision,status,current_standard_revision,current_placement_revision) VALUES(?,?,?,?,?,?,?,?)')
+    .run(shelf.shelfId,'endpoint','/shelf','shelf-mount',1,'active',shelf.currentStandardRevision,1);
+  db.prepare('INSERT INTO arca_shelf_standard_revisions(shelf_id,revision,standard_json,standard_digest) VALUES(?,?,?,?)')
+    .run(shelf.shelfId,shelf.currentStandardRevision,'{}',shelf.standard.digest);
+  db.prepare('INSERT INTO arca_placement_policy_revisions(shelf_id,revision,policy_json,policy_digest) VALUES(?,?,?,?)')
+    .run(shelf.shelfId,1,'{}',D('placement'));
+  const physical={schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',schemaVersion:2,mountScopeId:'source-mount',
+    inode:'1',sizeBytes:100,fingerprintAlgorithm:'middle-256k-sha256',fingerprintVersion:1,contentFingerprint:D('bytes')};
+  physical.materialKey=D({schema:'physical-material-identity@2',mountScopeId:physical.mountScopeId,inode:physical.inode,
+    sizeBytes:physical.sizeBytes,fingerprintAlgorithm:physical.fingerprintAlgorithm,fingerprintVersion:physical.fingerprintVersion,
+    contentFingerprint:physical.contentFingerprint});
+  db.prepare('INSERT INTO fx_material_controls(material_key,mount_scope_id,inode,size_bytes,fingerprint_algorithm,fingerprint_version,content_fingerprint,owner_domain,owner_scope_type,owner_scope_id,control_revision,state,updated_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)')
+    .run(physical.materialKey,physical.mountScopeId,physical.inode,physical.sizeBytes,physical.fingerprintAlgorithm,'1',
+      physical.contentFingerprint,'libra','subject','subject',1,'controlled',0);
+  const projection=projectMaterialControlRow(physical.materialKey,db.prepare('SELECT * FROM fx_material_controls WHERE material_key=?').get(physical.materialKey));
+  const episodeClaimSetDigest=D({schema:'libra.production-material-episode-claims@1',items:[]}),
+    packageValue={...input.packageValue,onDeckPackageId:'package',packageDigest:D('package'),
+    productMaterialManifest:{manifestDigest:D('product-manifest'),members:[{materialKey:physical.materialKey,role:'primary_payload',episodeClaims:[],episodeClaimSetDigest}]},
+    offloadContextManifest:{manifestDigest:D('offload-manifest'),members:[]}};
+  const offer={offerId:'offer',onDeckPackageId:'package',packageDigest:packageValue.packageDigest,libraRunId:'run-1'},
+    attemptId=D({schema:'arca.acceptance-attempt-id@1',offerId:offer.offerId,onDeckPackageId:offer.onDeckPackageId,
+      packageDigest:offer.packageDigest,standardRevision:shelf.currentStandardRevision,placementRevision:1});
+  const emptyGap=kind=>D({schema:'arca.acceptance-check-actual-gap-set@1',checkKind:kind,items:[]}),
+    observationBody={ordinal:0,actualGapCodes:[],actualGapSetDigest:emptyGap('mandatory_media')},
+    observation={...observationBody,observationDigest:D(observationBody)},
+    acceptanceChecks=['identity','mandatory_media','metadata','space','structure'].map(kind=>{
+      const observations=kind==='mandatory_media'?[observation]:[];
+      return {schemaRef:'helix://contracts/types/AcceptanceCheck/v1',acceptanceAttemptId:attemptId,packageDigest:offer.packageDigest,
+        standardRevision:shelf.currentStandardRevision,checkKind:kind,result:'passed',evidenceStatus:'complete',reasonCodes:[],
+        actualGapCodes:[],actualGapSetDigest:emptyGap(kind),missingMetadataFields:[],missingArtifactKinds:[],
+        primaryMediaObservations:observations,primaryMediaObservationSetDigest:D({schema:'arca.mandatory-media-primary-observation-set@1',items:observations}),
+        authorizedDefectManifestDigestOrNull:null,authorizedGapComparison:'not_applicable'};
+    }),gapDecision=finalGapDecision({acceptanceChecks,acceptanceAttemptId:attemptId,packageDigest:offer.packageDigest,
+      standardRevision:shelf.currentStandardRevision}),
+    checks=[...acceptanceChecks.map(item=>({kind:item.checkKind,outcome:'passed',evidenceDigest:D(item)})),
+      {kind:'inventory_feasibility',outcome:'passed',evidenceDigest:D('capacity')}].sort((a,b)=>a.kind.localeCompare(b.kind)),
+    assessment=store.recordAssessment({acceptanceAttemptId:attemptId,offerId:offer.offerId,onDeckPackageId:offer.onDeckPackageId,
+      packageDigest:offer.packageDigest,shelfId:shelf.shelfId,standardRevision:shelf.currentStandardRevision,placementRevision:1,checks}),
+    responsibility=store.deriveAcceptedResponsibility(assessment),targetLocation='/shelf/movie',
+    finalBody={schemaRef:'helix://contracts/domain-types/FinalInventoryDecision/v1',schemaVersion:1,objectId:'final',revision:1,
+      onDeckRunId:responsibility.onDeckRunId,shelfId:shelf.shelfId,placementRevision:1,members:[]},
+    decisionDigest=D({schema:'arca.final-inventory-decision@1',...finalBody,targetEndpointId:'endpoint',targetLocation,
+      productManifestDigest:packageValue.productMaterialManifest.manifestDigest,offloadContextDigest:packageValue.offloadContextManifest.manifestDigest}),
+    finalInventoryDecision={...finalBody,decisionDigest,digest:decisionDigest};
+  function fresh(){const readFence=h.unitOfWork.captureReadFence(),customTargetConfirmation=input.reader.read(input.request,{readFence});
+    return {readFence,customTargetConfirmation,assessment,offerMessage:offer,libraRunId:'run-1',shelf,package:packageValue,
+      onDeckRunId:responsibility.onDeckRunId,finalInventoryDecision,targetLocation,gapDecision,acceptanceChecks,
+      bindings:[{materialKey:physical.materialKey,role:'product:primary_payload',physicalIdentity:physical,episodeClaims:{items:[],episodeClaimSetDigest},
+        endpointId:'source',location:'/source/movie.mkv'}],controlTransfers:[{materialKey:physical.materialKey,expectedRevision:1,
+        expectedProjectionDigest:projection.projectionDigest,fromScope:{ownerDomain:'libra',scopeType:'subject',scopeId:'subject'}}]};}
+  const tables=['arca_acceptance_decisions','arca_ondeck_custodies','arca_ondeck_runs','arca_handoff_b_receipts','fx_outbox'],
+    snapshot=()=>tables.map(table=>db.prepare('SELECT count(*) n FROM '+table).get().n),before=snapshot(),stale=fresh();
+  assert.throws(()=>store.accept({...stale,customTargetConfirmation:null}),{code:'ARCA_CUSTOM_TARGET_FENCE_INVALID'});
+  db.prepare('UPDATE libra_subjects SET intake_revision=intake_revision+1 WHERE subject_id=?').run('subject');
+  assert.throws(()=>store.accept(stale),{code:'P3_UOW_READ_FENCE_CHANGED'});
+  assert.deepEqual(snapshot(),before);
+  const request=fresh(),accepted=store.accept(request);
+  assert.equal(accepted.replayed,false);assert.equal(accepted.decision.customAcceptanceBasis.intentId,input.request.intentId);
+  assert.equal(accepted.decision.customAcceptanceBasis.customRequirements.mandatoryMedia.minimumRasterClass,'none');
+  assert.equal(db.prepare('SELECT owner_domain FROM fx_material_controls WHERE material_key=?').get(physical.materialKey).owner_domain,'arca');
+  assert.deepEqual(store.readAccepted({acceptanceAttemptId:attemptId,offerMessage:offer,libraRunId:'run-1',
+    onDeckRunId:responsibility.onDeckRunId,finalInventoryDecision}).decision.customAcceptanceBasis,accepted.decision.customAcceptanceBasis);
+  const replay=store.accept({...request,readFence:null,customTargetConfirmation:null});
+  assert.equal(replay.replayed,true);assert.equal(replay.decision.decisionDigest,accepted.decision.decisionDigest);
+}));
+
+test('custom On-deck Commit cannot bypass the missing collection-target participant',()=>applicationHarness(h=>{
+  const input=arcaTargetFixture(h),store=createOnDeckStore(h.options),before=h.db.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n;
+  assert.throws(()=>store.commit({package:input.packageValue}),{code:'ARCA_CUSTOM_TARGET_COLLECTION_UNAVAILABLE'});
+  assert.equal(h.db.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n,before);
+}));

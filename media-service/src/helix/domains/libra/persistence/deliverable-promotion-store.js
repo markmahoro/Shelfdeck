@@ -1,4 +1,5 @@
 'use strict';
+const {buildAcceptanceRequirementSnapshot}=require('../model/acceptance-requirement-snapshot');
 const {customTargetHeadStatement,readTargetCommitFence}=require('./custom-target-commit-fence');
 const { readStoredMetadataValue } = require('../../../contracts/episode-metadata-records');
 
@@ -364,11 +365,18 @@ function assertLibraSnapshot(repo, decision) {
   if(!readTargetCommitFence(repo,{subjectId:run.subject_id,productScopeDigest:spec.product_scope_digest,specJson:spec.spec_json,
       executionBasisRecordJson:run.execution_basis_record_json}))
     fail('P9_PROMOTION_TARGET_SUPERSEDED','A confirmed custom target revoked this Run final publication eligibility.');
-  // The current Handoff B package schema cannot carry the original/custom
-  // Spec and Intent references needed for Arca's independent acceptance.
-  // Keep this variant fail-closed until that complete contract is connected.
-  if(parse(spec.spec_json,'P9_PROMOTION_SPEC_CORRUPT').targetKind==='user_custom')
+  const persistedSpec=parse(spec.spec_json,'P9_PROMOTION_SPEC_CORRUPT'),suppliedSnapshot=decision.productionProvenance?.acceptanceRequirementSnapshot;
+  if(persistedSpec.targetKind==='user_custom'){
+    let expectedSnapshot;try{expectedSnapshot=buildAcceptanceRequirementSnapshot(persistedSpec);}
+    catch{fail('P9_PROMOTION_CUSTOM_SNAPSHOT_MISMATCH','Custom Acceptance Spec cannot reconstruct its Handoff snapshot.');}
+    if(!suppliedSnapshot||canonicalJson(suppliedSnapshot)!==canonicalJson(expectedSnapshot))
+      fail('P9_PROMOTION_CUSTOM_SNAPSHOT_MISMATCH','Handoff snapshot does not match the exact published custom Spec.');
+    // Arca must install a confirmed collection target in the On-deck Commit.
+    // Do not publish a custom Offer until that complete participant is wired.
     fail('P9_PROMOTION_CUSTOM_ACCEPTANCE_UNAVAILABLE','Custom target Handoff B acceptance is not yet available.');
+  }
+  if(suppliedSnapshot?.customAcceptanceHandoff)
+    fail('P9_PROMOTION_CUSTOM_SNAPSHOT_MISMATCH','A standard Spec cannot publish a custom Handoff reference.');
   const runManifest = repo.invoke('find_run_manifest', {
     run_material_manifest_id: decision.runMaterialManifestRef.manifestId,
   });

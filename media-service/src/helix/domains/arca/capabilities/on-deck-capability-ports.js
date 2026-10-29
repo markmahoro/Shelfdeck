@@ -1,4 +1,5 @@
 'use strict';
+const {assertArcaCustomAcceptanceBasis}=require('../model/custom-acceptance-target');
 const {packageContentProfile}=require('../model/product-content-profile');
 const {hasRequiredUsAdultActor}=require('../../../contracts/us-adult-actor-package');
 const { readControlProjections } = require('../persistence/read-control-projections');
@@ -66,6 +67,7 @@ function packageRequirementSnapshot(c){const value=c.packageValue?.productionPro
       value.acceptanceSpecRecordDigest!==c.packageValue.acceptanceSpecRef?.recordDigest||value.targetShelfId!==c.packageValue.shelfId||
       value.structureKind!==structure||value.contentProfile!==packageContentProfile(c.packageValue))
     throw Object.assign(new TypeError('Package Acceptance Requirement Snapshot is invalid.'),{code:'ARCA_ACCEPTANCE_REQUIREMENT_INVALID'});
+  if(value.customAcceptanceHandoff)assertArcaCustomAcceptanceBasis({packageValue:c.packageValue,shelf:c.shelf,basis:c.customAcceptanceBasis});
   return Object.freeze({value,stale:value.shelfStandardRevision!==c.shelf.currentStandardRevision||
     value.shelfStandardDigest!==c.shelf.standard.digest});}
 function dimensionDisposition(c,kind,gaps){const manifest=c.packageValue.productionAttestation?.authorizedDefectManifest;
@@ -141,12 +143,12 @@ function priorOnDeckPlacementReceipt(options,execution,targetCommitSlotId=null){
   return null;
 }
 function finalMemberEvidence(reality){return Object.freeze(reality.memberEvidence.map((item)=>Object.freeze({...item})));}
-function context(options,execution,refs){
+function context(options,execution,refs,readFence=null){
   if(execution.ownerScope.processType==='arca_shelf_entry')
     return options.aftercareContextReader.read(execution.ownerScope.processId);
   return execution.ownerScope.processType==='arca_ondeck_run'
     ? options.contextReader.readAccepted(execution.ownerScope.processId,refs)
-    : options.contextReader.readOffer(refs);
+    : options.contextReader.readOffer(refs,{readFence});
 }
 function dependencyRefs(options,execution){const bindings=options.workResultReader.readBindings(execution.workId);
   const binding=bindings.flatMap((item)=>item.inputBindings?.bindings||[]).find((b)=>b.bindingKind==='projected_owner_facts'&&
@@ -204,7 +206,7 @@ function stagePreconditionFailureOutcome(error) {
 function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,acceptance=createHandoffBAcceptanceStore(options),onDeck=createOnDeckStore(options),
   controls=createMaterialControlProjectionPort(options),inbox=createInboxCoordinator(options);
   const effectAt=(execution)=>Number.isSafeInteger(execution.effectOccurredAtMs)?execution.effectOccurredAtMs:now();
-  function ctx(execution){return context(options,execution,dependencyRefs(options,execution));}
+  function ctx(execution,readFence=null){return context(options,execution,dependencyRefs(options,execution),readFence);}
   function settlementCtx(execution,materialKey){return options.contextReader.readSettlement(
     execution.ownerScope.processId,dependencyRefs(options,execution),materialKey);}
   function assertSettlementApproval(execution,member,location){
@@ -289,7 +291,7 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
     let accepted=acceptance.readAccepted({acceptanceAttemptId:assessmentId,offerMessage:c.offer,libraRunId:c.offer.libraRunId,
       onDeckRunId:responsibility.onDeckRunId,finalInventoryDecision});
     if(!accepted){
-    const readFence=options.unitOfWork.captureReadFence(),current=ctx(execution);
+    const readFence=options.unitOfWork.captureReadFence(),current=ctx(execution,readFence);
     if(current.deliveryFence?.eligibility!=='eligible')throw Object.assign(new Error('Product Offer is no longer eligible for first acceptance.'),
       {code:'P14_HANDOFF_B_DELIVERY_INELIGIBLE',details:{reasonCode:current.deliveryFence?.reasonCode||'delivery_unavailable'}});
     const controlled=handoffBControlMembers(c.packageValue),byKey=new Map(controlled.map(m=>[m.materialKey,m])),
@@ -299,7 +301,8 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
       expectedDigest=member.committedControlProjectionDigest??member.admittedControlProjectionDigest;
       if(p.resultKind!=='available'||p.controlState!=='controlled'||p.ownerDomain!=='libra'||p.controlRevision!==expectedRevision||
           p.projectionDigest!==expectedDigest)throw new Error('Arca Handoff B Product Control fence is stale for '+p.materialKey);}
-    accepted=acceptance.accept({readFence,assessment,offerMessage:c.offer,libraRunId:c.offer.libraRunId,shelf:c.shelf,package:c.packageValue,
+    accepted=acceptance.accept({readFence,customTargetConfirmation:current.customTargetConfirmation,
+      assessment,offerMessage:c.offer,libraRunId:c.offer.libraRunId,shelf:c.shelf,package:c.packageValue,
       onDeckRunId:responsibility.onDeckRunId,finalInventoryDecision,targetLocation,gapDecision,
       acceptanceChecks:gapDecision.acceptanceChecks,bindings:[
         ...c.packageValue.productMaterialManifest.members.map(m=>bindingFromProduct(m,contentProfile)),...c.packageValue.offloadContextManifest.members.map(bindingFromContext)]

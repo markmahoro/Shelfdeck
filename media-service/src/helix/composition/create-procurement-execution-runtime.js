@@ -292,7 +292,10 @@ function createProcurementExecutionRuntime(options) {
   const ensureShelfEntryRatingResolution=(shelfEntryId)=>perceptionProcessServices
     ?perceptionProcessServices.ensureResolution('shelf_entry',shelfEntryId)
     :Object.freeze({kind:'pending'});
+  const customTargetConfirmation=require('../domains/libra/public').createLibraCustomTargetConfirmationReader(options);
+  const readLibraCustomTargetConfirmation=(...args)=>customTargetConfirmation.read(...args);
   const arcaCapabilityRegistration=arcaConstruction.createCapabilityRegistration({...options,now,workResultReader,contractValidator,
+    readLibraCustomTargetConfirmation,
     cancelProcessWorks:scope=>workLifecycle.cancelProcess(scope),
     resolveMediaCastReference:input=>peopleProcessServices.mediaCastReferenceQuery.resolve(input),
     materialControlProjectionPort,createSeriesPresentationIo:args=>require('../integrations/series-presentation-io').createSeriesPresentationIo({...args,afterPhysicalEffect:options.afterSeriesPhysicalEffect}),deriveJavCoverBytes,createJavCorrectionWorkspaceIo,createJavCorrectionFormalFiles,createJavCorrectionFormalRetirement,createJavCorrectionWorkspaceReclaim,createJavCorrectionRecoveryScene,
@@ -525,7 +528,7 @@ function createProcurementExecutionRuntime(options) {
   perceptionProcessServices=perceptionConstruction.createProcessServices({...perceptionOptions,now,workResultReader});
   const perceptionPlanningRegistration=perceptionConstruction.createPlanningRegistration({registry,policyRegistry,contractValidator,
     workResultReader,processServices:perceptionProcessServices,resolvePerceptionIntegrationHandle:options.resolvePerceptionIntegrationHandle,now});
-  const arcaProcessServices=arcaConstruction.createProcessServices({...options,now,registry,workResultReader,contractValidator,relocation:arcaCapabilityRegistration.relocation,series:arcaCapabilityRegistration.series,correction:arcaCapabilityRegistration.correction,actorPipelineQuery:arcaCapabilityRegistration.actorPipelineQuery,actorRefreshSource:arcaCapabilityRegistration.actorRefreshSource,peopleReferenceQuery,
+  const arcaProcessServices=arcaConstruction.createProcessServices({...options,now,registry,workResultReader,contractValidator,readLibraCustomTargetConfirmation,relocation:arcaCapabilityRegistration.relocation,series:arcaCapabilityRegistration.series,correction:arcaCapabilityRegistration.correction,actorPipelineQuery:arcaCapabilityRegistration.actorPipelineQuery,actorRefreshSource:arcaCapabilityRegistration.actorRefreshSource,peopleReferenceQuery,
     onActorRefreshAdmitted:()=>host?.wakeBackground({ownerDomain:'arca',reconcilerKey:'active-aftercare-cases'}),
     resolveMediaCastReference:input=>peopleProcessServices.mediaCastReferenceQuery.resolve(input),
     computeBoundedMaterialFingerprintSync,
