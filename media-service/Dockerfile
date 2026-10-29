@@ -82,3 +82,5 @@ ENV FFPROBE_PATH=/usr/local/bin/ffprobe
 # The deployment must inject SHELFDECK_SECRET_ROOT through its secret facility.
 ENTRYPOINT []
 CMD ["node", "src/server.js"]
+
+# CI retrigger twin for overlay-depth Dockerfile fix
