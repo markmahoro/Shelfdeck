@@ -30,6 +30,8 @@ UI修复提交`60f123a71`、浏览器回归`567ad89ca`及专属Evidence `7265d4b
 
 在7265上单独挑入测试工具安全修复后，当前固定候选为`bc4f5c952849ed6079baedde159ddaa5ce1d39c1`，标准镜像tar SHA256 `59bcd40c566af686da84d861ea9b4d8f1cb9c785b3586172320e568e9237a3d6`。4544个跟踪文件与构建输入逐字节一致，Service依赖4995文件与该实际镜像一致；Linux Web 274通过、Service 846通过/28 skip/0失败，跳过包括专用真实媒体与浏览器fixture。UI负责人对bc4镜像适用验收PASS，依据见本包Evidence。上一段7265 UI复验中状态为旧检查点。
 
+continuity合法重规划门禁测试`92df7fa5e`挑入后，当前候选更新为`27a0f68af3599a3422b21853632fc8a01878b750`，标准镜像tar SHA256 `e87f6628edc20732df35889aa7195bd7de1e52ba6753984635a7e39f95a3166e`。4547个跟踪文件与构建工作区逐字节一致；该版本Linux Service 846通过/28 skip/0失败、Web 274通过，UI负责人对具体镜像适用验收PASS。完整架构和真实CIFS待完成，未部署。上述bc4为前一候选。
+
 前候选完整架构3402通过/5失败/27跳过，静态依赖/语义/Manifest/合同均通过。四项依赖路径问题补齐后定向通过；另一项1081视频Host出现一次`P8_ACCEPTANCE_CONTINUITY_BASIS_STALE`，单项重跑通过，Series线程仍核实并发收敛。精确bc4完整架构重跑仍在执行；不能用定向结果冒充全量通过。
 
 真实CIFS首轮将Workspace/SQLite错误放到共享盘而失败；按生产布局重跑后8项直接文件调用仍遇 `PHYSICAL_MATERIAL_STAT_FENCE_CHANGED`。隔离探针发现首次路径stat与文件描述符时间戳不一致、后续收敛；真实Host已定位同一Series publish Effect进入reconcile_required，最初测试把该预期恢复通知视为异常而提前退出。验证原Effect恢复至唯一Commit的第三轮隔离Host在2026-10-29 14:43启动；随后NAS应用响应超时，隔离测试连接在无最终结果时断开，不能计为通过。用户说明前序其他Docker部署导致系统卡死并重启NAS；独立根因未核实。重启后确认任务容器不存在、生产仍为同一a2bf2d6fd镜像；用户重挂两个原CIFS源后原容器仍见启动时空目录，故精确核验源及容器后重启该容器恢复绑定；容器内SMB及健康已恢复，但管理状态一次超时、swap约2GiB，稳定性仍待核验。候选未部署或线上重试；NAS稳定性复核前暂停新NAS测试和发布。[候选与恢复Evidence](evidence/SERIES_INTEGRATION_GATE_20261029.md)。
@@ -38,8 +40,8 @@ UI负责人对前一固定候选的独立走查发现两项阻断：文件状态
 
 ## 生产分诊新增阻断
 
-- ARCA-PATH-COMPONENT-BUDGET：HALT-094和EMLB-094的Arca路径及temporary后缀超出实际CIFS组件字节限制；六次Stage均在复制前失败，旧Final Decision不可静默改写。预防切片b492e3a1a仅在新Decision前拒绝超长路径，不能完成长标题上架或修复旧记录；分诊线程继续核对合同允许时的安全字节截断及新任务真实落位，禁止重试或清理生产现场。
-- US-SIZE-DEFECT-PREVIEW：两条US瑕疵预览未读取已有产品事实；电影/自定义标准线程提交d37bc4272，Linux 78通过/0跳过且覆盖手动/自动及身份、附件、文件安全负例，但依赖镜像与分支锁文件不完全一致，仍须精确依赖、真实媒体及集成版本UI验收；未进行生产接受。
+- ARCA-PATH-COMPONENT-BUDGET：HALT-094和EMLB-094的Arca路径及temporary后缀超出实际CIFS组件字节限制；六次Stage均在复制前失败，旧Final Decision不可静默改写。用户已明确授权主动截断超长名称；分诊线程在隔离分支针对新JAV Decision实现并提交精确SSOT建议，完整番号/扩展名、字节预算和真实碰撞保护保持。旧条目重试或清理仍无授权。
+- US-SIZE-DEFECT-PREVIEW：两条US瑕疵预览未读取已有产品事实；电影/自定义标准线程提交d37bc4272，Linux 78通过/0跳过但依赖镜像与分支锁文件不完全一致。UI负责人提前走查发现证据变化错误在弹窗背后、实测体积误标预计、瑕疵序号重复三项问题，电影线程承接修复；精确依赖、真实媒体及最终版本UI验收仍开放，未进行生产接受。
 - SERIES-PRESENTATION-EXPANSION：13个build/15个Season Subject是13:36快照；后续新增条目不自动纳入七条线上操作授权。其他网络/协议/来源错误和正常人工待决分别承接。
 
 以上均未因局部Linux PASS而自动完成。

@@ -51,3 +51,11 @@ Series线程在上述候选后追加纯Web修复`60f123a71`、浏览器回归`56
 UI负责人对bc4适用UI验收PASS：在7265完成四视口浏览器56通过、定向3通过，再核对bc4的178个Web输入、9个页面资源和2878个镜像运行文件与已测版本一致；季poster与剧情以既有Linux Host和正式NFO证据覆盖。完整独立证据位于`E:/my_project/helix-git-consolidation-20261008/series-ui-review-bc4f5c952-20261029/owner-review.json`。这不替代生产验收或其他发布门禁。
 
 前候选1d8a完整架构结果为3402通过/5失败/27跳过，四项与缺少依赖路径有关，补齐后四项定向通过；1081视频Host有一次`P8_ACCEPTANCE_CONTINUITY_BASIS_STALE`，独立重跑通过但原失败原因未确定，Series线程继续查收敛。首跑`linux-architecture-first.log` SHA256 `328e4ac84688453e9492e8681e256979b438a13c87c6f4927c3b65c5d2d3f952`；四项依赖重验`linux-architecture-dependency-diagnostic.log` `d36a37dcfdeca5a552708a5db96f3a784397e503e39791be899e360d54653d16`；Host单项`linux-procurement-targeted.log` `f1d24f3aa423d19a20d06e131ae3608f3c13e96ebd5d25a46a4673625b873bbd`。bc4完整架构重跑仍进行。
+
+## 后继27a固定版本
+
+Series线程在候选和原生产基线均用可控跨Subject竞争复现相同stale code/evidence：旧输入投影失败无Effect或Result，随后同一Work重规划成功且交接责任闭合。原大规模测试禁止任何历史失败与该合同冲突；`92df7fa5e`仅修正测试，在允许此精确stale前逐条证明无副作用、后继成功、来源和交接闭合，其他失败仍拒绝，并新增受控回归和负例。首次完整门禁临时数据库已清理，不能断言该具体失败最终收敛，详见`SERIES_CONTINUITY_GATE_INVESTIGATION_20261029.md`。
+
+挑入后`27a0f68af3599a3422b21853632fc8a01878b750`的标准镜像tar SHA256 `e87f6628edc20732df35889aa7195bd7de1e52ba6753984635a7e39f95a3166e`；4547个跟踪文件与构建输入逐字节一致（`linux-27a0-source-compare.log` SHA256 `3181ffd379118a3d1acc770565ca0402e040aa293de865dd3ad031c2016119b7`）。完整Service 846通过/28 skip/0失败（`linux-service-27a0f68af.log` `6d97f0a5903f7955e0ff8705c85e7da7a081e5307b8b91fc0d90c2e277170b6e`），Web 49文件/274通过（`linux-web-27a0f68af.log` `ad48df654a247ce7ecd6224b81480cb201b705951d237b74dc0ad836cbb2103a`）；跳过范围不视为通过。UI负责人核对178 Web输入、9资源及2878镜像运行文件与已验收版一致，具体版本UI PASS，证据`E:/my_project/helix-git-consolidation-20261008/series-ui-review-27a0f68af-20261029/owner-review.json`。完整架构重跑仍执行，真实CIFS未通过。
+
+生产副本准备：本任务ignored辅助器`snapshot-qualification-data.cjs` SHA256 `09489eee23969f634d05f8330dd5f385808e1bee137da181d68007e369f96d58`，在本地禁网Linux验证了含未检查点WAL的SQLite一致副本、关闭后无WAL/SHM的稳定文件复制，以及已有目标、源挂载可写和复制中源变化的明确拒绝。首轮测试因fixture未初始化ENOENT保留；辅助器未在NAS使用，尚需完整真实生产副本、完整Host/Owner reconciliation、回退以及独立停机冷备，不能以合成夹具替代这些门禁。

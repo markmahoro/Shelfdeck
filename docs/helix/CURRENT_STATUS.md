@@ -1,5 +1,9 @@
 # ShelfDeck 当前状态
 
+2026-10-29用户在分诊线程明确授权ShelfDeck主动截断超长名称；分诊线程正按新JAV Decision的字节预算、完整番号/扩展名及碰撞拒绝实施，SSOT文本和全局生成物由主整合统一核对；旧冻结Decision和生产数据不自动改写或重试。用户要求定期跟进五个相关线程，已创建10分钟Codex线程跟进，不启用ShelfDeck生产自动观察。UI负责人对电影开发提交d37bc4272发现确认失败提示位置/重复确认、实测体积误标预计、瑕疵序号重复三项问题，已交电影线程修复，最终具体版本仍须重验。
+
+Series最新候选`27a0f68af3599a3422b21853632fc8a01878b750`仅在bc4上增加经过严格收敛证明的continuity并发门禁回归及Evidence，标准镜像tar SHA256 `e87f6628edc20732df35889aa7195bd7de1e52ba6753984635a7e39f95a3166e`；4547跟踪文件逐字节一致，Linux Service 846通过/28 skip/0失败、Web 274通过，UI负责人通过具体版本验收。完整架构和真实CIFS资格仍开放，未部署或线上重试。只读生产副本辅助器已完成本地WAL/关闭库和源漂移/只读挂载/已有目标负例，尚未在NAS执行或替代完整Host、回退及停机冷备资格。[Evidence](implementation/evidence/SERIES_INTEGRATION_GATE_20261029.md)。
+
 2026-10-29独立Series候选现为`bc4f5c952849ed6079baedde159ddaa5ce1d39c1`：在7265之上仅加入电影测试工具路径防护及测试，未夹带US功能；标准镜像tar SHA256 `59bcd40c566af686da84d861ea9b4d8f1cb9c785b3586172320e568e9237a3d6`。UI负责人对该具体镜像适用验收PASS；Linux Web 274通过，Service 846通过/28真实媒体或专用夹具skip/0失败。此前完整架构1d8a为3402通过/5失败/27跳过，四项缺失依赖定向复验通过，1081视频Host单独重跑通过但首次continuity stale原因仍在查；补齐依赖的bc4完整架构运行中。中断的CIFS Host测试私有DB及WAL副本证实尚未进入Series publish且无Commit，不能称通过；NAS健康/SSH恢复但资源负载仍须观察。候选未部署、七条未线上重试。[Evidence](implementation/evidence/SERIES_INTEGRATION_GATE_20261029.md)。
 
 2026-10-29 JAV路径问题预防切片b492e3a1a在Arca冻结前拒绝组件超长，Linux 214通过；它不能使长标题上架，也不会修复两条既有冻结Decision。分诊线程继续核对SSOT，探索允许时的字节预算内安全命名及合成完整落位，不对生产现场做处置。演员线程另交f0f13680b，跨批次合并/目录查询Linux 57通过，正式Capability/Artifact和Phase 4 Exit仍未完成。
