@@ -98,6 +98,55 @@ for(const [label,title,year,actualBytes,maxBytes] of [
   }finally{fs.rmSync(f.root,{recursive:true,force:true});}
 });
 
+for(const [code,title,folderBytes,fileBytes,temporaryBytes,maxBytes] of [
+  ['HALT-094','HALT-094 '+'題'.repeat(74)+'A',232,236,257,222],
+  ['EMLB-094','EMLB-094 '+'題'.repeat(85),264,268,289,255],
+]) test(`a new synthetic ${code} shape cannot produce an over-budget Decision`,()=>{
+  const f=componentBudgetFixture(title,null);
+  try{
+    f.packageValue.resolvedIdentitySnapshot.factValue.providerIdentities=[{provider:'jav',namespace:'jav_code',providerKey:code}];
+    assert.equal(Buffer.byteLength(title),folderBytes);
+    assert.equal(Buffer.byteLength(title+'.mkv'),fileBytes);
+    assert.equal(Buffer.byteLength(title+'.mkv.tmp-'+'0'.repeat(16)),temporaryBytes);
+    assert.throws(()=>f.port.prepare(f.request),error=>error.code==='CLEAN_ARCA_TARGET_SEGMENT_INVALID'&&
+      error.details.actualBytes===folderBytes&&error.details.maxBytes===maxBytes);
+    assert.deepEqual(fs.readdirSync(f.targetRoot),[]);
+    assert.equal(fs.readFileSync(f.files.primary,'utf8'),'synthetic media');
+  }finally{fs.rmSync(f.root,{recursive:true,force:true});}
+});
+
+test('a prefix-only UTF-8 shortening can collapse distinct titles even while retaining the JAV code',()=>{
+  const common='IPX-178 '+'題'.repeat(72),titles=[common+'A',common+'B'];
+  const prefix=(value,budget)=>{
+    let result='',bytes=0;
+    for(const character of value){const size=Buffer.byteLength(character);if(bytes+size>budget)break;result+=character;bytes+=size;}
+    return result;
+  };
+  assert.notEqual(titles[0],titles[1]);
+  assert.equal(prefix(titles[0],222),prefix(titles[1],222));
+  assert.ok(prefix(titles[0],222).startsWith('IPX-178 '));
+  for(const title of titles){
+    const f=componentBudgetFixture(title,null);
+    try{
+      f.packageValue.resolvedIdentitySnapshot.factValue.providerIdentities=[{provider:'jav',namespace:'jav_code',providerKey:'IPX-178'}];
+      assert.throws(()=>f.port.prepare(f.request),{code:'CLEAN_ARCA_TARGET_SEGMENT_INVALID'});
+      assert.deepEqual(fs.readdirSync(f.targetRoot),[]);
+    }finally{fs.rmSync(f.root,{recursive:true,force:true});}
+  }
+});
+
+test('the current closed Placement template cannot replace a full title with a JAV-code-only name',()=>{
+  const {DEFAULT_SHELF_PLACEMENT_POLICY,createShelfPlacementPolicy}=
+    require('../src/helix/domains/arca/model/shelf-placement-policy-contracts');
+  const minimal={...DEFAULT_SHELF_PLACEMENT_POLICY,folderTemplate:'{title}',
+    primaryTemplate:'{stem}{ext}',nfoTemplate:'{stem}.nfo'};
+  assert.equal(createShelfPlacementPolicy(minimal).value.folderTemplate,'{title}');
+  for(const changes of [
+    {folderTemplate:'{jav_code}'}, {folderTemplate:'{jav_code} {title}'},
+    {primaryTemplate:'IPX-178{ext}'}, {nfoTemplate:'IPX-178.nfo'},
+  ])assert.throws(()=>createShelfPlacementPolicy({...minimal,...changes}),{code:'P14_SHELF_PLACEMENT_TEMPLATE'});
+});
+
 test('a previously frozen Decision is not silently rewritten when historical truncation differs',()=>{
   const title='a'.repeat(175),f=componentBudgetFixture(title,2026);
   try{
