@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | 本轮整合线程 | 计划追踪、共享合同/生成物、独立Series候选及最终门禁/发布 | 自有主整合目录；不改写演员/电影worktree，不携带未完成内容进入Series候选 |
 | 演员线程 01a164c5-1b9a-7312-a8ec-701ea6032526 | 继续Catalogue Basis/Work/Artifact/补采恢复及Phase 4→5闭环 | Store 2f9fc0702、Artifact 68b281c33及跨批次查询f0f13680b；后者Linux 57通过/0skip。NAS验证暂停，正式Host/完整门禁未完成，不作为Series发布基线 |
-| ShelfDeck 生产待处理条目分诊 01a18626-520c-79a0-8240-066bd0a777a3 | 当前一次快照、逐条分诊；承接JAV路径字节预算修复 | 生产只读，独立开发工作区可修改源码；13:36快照33 attention/5进行中，不等于33个bug |
+| ShelfDeck 生产待处理条目分诊 01a18626-520c-79a0-8240-066bd0a777a3 | 当前一次快照、逐条分诊；承接JAV路径字节预算修复 | 生产只读，独立开发工作区可修改源码；16:18快照34 attention/4进行中，不等于34个bug或Reset精确范围 |
 | ShelfDeck 剧集上架与自愈修复 01a18627-6d8b-7d72-aa5a-bcb7cbf6ed0f | 7条Series恢复、季poster复用和精确剧情切片已提交；承接具体候选UI问题修复 | a4989adf9、878d814d3、f442a6f2f基于a2bf2d6fd；三个资料Schema及登记摘要由本线程集成，固定候选/生产验收未完成 |
 | ShelfDeck 电影寻源与自定义标准 01a18628-b31a-70c3-abbc-bd29b688cbce | 电影候选与自定义标准Libra基础切片b3929e199已交付；续修US瑕疵预览 | 18文件SHA交接完成；完整API/UI、Arca责任投影和Handoff B等未闭合，Linux精确依赖镜像及真实旅程未完成，不开放半成品 |
 
@@ -32,7 +32,9 @@ UI修复提交`60f123a71`、浏览器回归`567ad89ca`及专属Evidence `7265d4b
 
 continuity合法重规划门禁测试`92df7fa5e`挑入后，当前候选更新为`27a0f68af3599a3422b21853632fc8a01878b750`，标准镜像tar SHA256 `e87f6628edc20732df35889aa7195bd7de1e52ba6753984635a7e39f95a3166e`。4547个跟踪文件与构建工作区逐字节一致；该版本Linux Service 846通过/28 skip/0失败、Web 274通过，UI负责人对具体镜像适用验收PASS。完整架构和真实CIFS待完成，未部署。上述bc4为前一候选。
 
-前候选完整架构3402通过/5失败/27跳过，静态依赖/语义/Manifest/合同均通过。四项依赖路径问题补齐后定向通过；另一项1081视频Host出现一次`P8_ACCEPTANCE_CONTINUITY_BASIS_STALE`，单项重跑通过，Series线程仍核实并发收敛。精确bc4完整架构重跑仍在执行；不能用定向结果冒充全量通过。
+前候选1d8a完整架构3402通过/5失败/27跳过，四项缺少依赖路径后定向通过；1081视频Host并发收敛核查见专项Evidence。bc4完整架构3410通过/3失败/27跳过：两项缺历史Git对象，精确27a相同测试补只读对象后6项通过；另一JAV Aftercare海报失败仍在追因。完整精确27a复验及带完整历史的复验运行中，不能用定向结果冒充全量通过。
+
+普通发布只做安全停止与完整校验备份，不默认执行Reset。Fresh-generation Reset的预检须停止、冻结精确范围并核验保留依赖，可能清除在线未入藏任务和系统工作区，不能仅据工作台34条推算范围；当前无Reset授权。[只读分诊和Reset影响](evidence/PRODUCTION_TRIAGE_INTEGRATION_20261029.md)。
 
 真实CIFS首轮将Workspace/SQLite错误放到共享盘而失败；按生产布局重跑后8项直接文件调用仍遇 `PHYSICAL_MATERIAL_STAT_FENCE_CHANGED`。隔离探针发现首次路径stat与文件描述符时间戳不一致、后续收敛；真实Host已定位同一Series publish Effect进入reconcile_required，最初测试把该预期恢复通知视为异常而提前退出。验证原Effect恢复至唯一Commit的第三轮隔离Host在2026-10-29 14:43启动；随后NAS应用响应超时，隔离测试连接在无最终结果时断开，不能计为通过。用户说明前序其他Docker部署导致系统卡死并重启NAS；独立根因未核实。重启后确认任务容器不存在、生产仍为同一a2bf2d6fd镜像；用户重挂两个原CIFS源后原容器仍见启动时空目录，故精确核验源及容器后重启该容器恢复绑定；容器内SMB及健康已恢复，但管理状态一次超时、swap约2GiB，稳定性仍待核验。候选未部署或线上重试；NAS稳定性复核前暂停新NAS测试和发布。[候选与恢复Evidence](evidence/SERIES_INTEGRATION_GATE_20261029.md)。
 

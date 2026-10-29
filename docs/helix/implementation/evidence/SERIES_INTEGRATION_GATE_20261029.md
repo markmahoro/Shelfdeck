@@ -59,3 +59,9 @@ Series线程在候选和原生产基线均用可控跨Subject竞争复现相同s
 挑入后`27a0f68af3599a3422b21853632fc8a01878b750`的标准镜像tar SHA256 `e87f6628edc20732df35889aa7195bd7de1e52ba6753984635a7e39f95a3166e`；4547个跟踪文件与构建输入逐字节一致（`linux-27a0-source-compare.log` SHA256 `3181ffd379118a3d1acc770565ca0402e040aa293de865dd3ad031c2016119b7`）。完整Service 846通过/28 skip/0失败（`linux-service-27a0f68af.log` `6d97f0a5903f7955e0ff8705c85e7da7a081e5307b8b91fc0d90c2e277170b6e`），Web 49文件/274通过（`linux-web-27a0f68af.log` `ad48df654a247ce7ecd6224b81480cb201b705951d237b74dc0ad836cbb2103a`）；跳过范围不视为通过。UI负责人核对178 Web输入、9资源及2878镜像运行文件与已验收版一致，具体版本UI PASS，证据`E:/my_project/helix-git-consolidation-20261008/series-ui-review-27a0f68af-20261029/owner-review.json`。完整架构重跑仍执行，真实CIFS未通过。
 
 生产副本准备：本任务ignored辅助器`snapshot-qualification-data.cjs` SHA256 `09489eee23969f634d05f8330dd5f385808e1bee137da181d68007e369f96d58`，在本地禁网Linux验证了含未检查点WAL的SQLite一致副本、关闭后无WAL/SHM的稳定文件复制，以及已有目标、源挂载可写和复制中源变化的明确拒绝。首轮测试因fixture未初始化ENOENT保留；辅助器未在NAS使用，尚需完整真实生产副本、完整Host/Owner reconciliation、回退以及独立停机冷备，不能以合成夹具替代这些门禁。
+
+## 16:25 完整架构失败与历史对象补齐
+
+bc4的完整Linux架构为3440项：3410通过、3失败、27跳过，dependency/semantic/manifests/contracts静态项均通过；原JSON日志`linux-architecture-bc4f5c952.log` SHA256 `1c07502a962be1eb0ed77dd043657b4943e4496d799a66256ce975ae5d0dfed2`。P6及P8退出审计分别缺失历史对象`f2846fd1`、`72df5a9d`；这两个对象在主仓库存在，但候选测试卷中的隔离Git对象集不包含它们。JAV特殊来源海报维护另一次失败提示Aftercare目标在missing finding后重新出现；是否真实缺陷尚在隔离追因，不能按环境失败或通过处理。
+
+精确27a的P6/P8对应测试和审计器与bc4字节无差异。首次尝试在生产镜像直接运行历史审计因镜像无git而未启动测试，`linux-history-objects-27a.log` SHA256 `1aeed98310b04444dc2b59b17836290be257ce29733afe9436fc74bd13a12e23`。改用基于相同生产镜像且只补git工具的原gate镜像、候选只读卷和主仓库objects只读alternate，验证两个对象均可读后，原P6/P8测试6通过/0失败；日志`linux-history-objects-gate-27a.log` SHA256 `78593c320e1678d1264e873f46e3ba7cf0998d014ed001b193331bf94cef7f80`。精确27a另已启动带相同只读历史对象的完整架构，不以定向复验代替结果；此前启动的27a全量也继续保留结果。
