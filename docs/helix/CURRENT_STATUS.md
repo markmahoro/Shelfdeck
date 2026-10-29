@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-29后继Series修复工作区已在27a之上挑入Foundation已提交Result/Marker恢复、Perception冻结依据与后继Work及相关窗口测试；当前`f0fab9a91`仍缺P13摘要修复和精确版本完整门禁，不是可部署版本。实现线程正在双平台复验，包括Target/Record Set改变后当前读取不可使用旧结果；真实CIFS及生产冷备仍待。演员Observation落盘切片尚未并入：其先stat后整文件读取的8 MiB围栏存在文件增长/替换窗口，已交实现线程验证有界读取。
+
 2026-10-29精确27a补历史Git对象后完整Linux架构3413通过/1失败/27跳过；唯一失败为旧P13备份工具在哈希期间文件变化未拒绝。隔离tmpfs 60次受控复现中51次stat时间戳相同且接受混合摘要，修复进行中。普通部署的专用冷备在对应隔离变化下由后续源清单复核拒绝且未发布目标，但真实Stop、完整备份/回退和稳定窗口仍待验证。前轮Series Resolution竞态仍开放，第二轮未复现不构成关闭；未部署或Reset。[Evidence](implementation/evidence/SERIES_INTEGRATION_GATE_20261029.md)。
 
 电影Custom Target Reset闭包与历史标准Spec读取叠加演员Basis后，Windows/Linux各34项隔离测试通过；另以进程内模拟新表分类验证人物Reference保护各12项通过。正式239表保留声明不变，244表继续拒绝未审查Reset，真实旧库转换及生产授权未完成。电影开发版修复的提交中弹窗焦点问题已交UI负责人独立复核，尚非最终版本验收。[Evidence](implementation/evidence/SERIES_INTEGRATION_GATE_20261029.md)。
