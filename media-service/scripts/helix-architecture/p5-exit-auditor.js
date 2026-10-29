@@ -18,6 +18,7 @@ const REQUIRED_EVIDENCE = Object.freeze([
 ]);
 const PHASE_DOCS = new Set([
   'docs/helix/ARCHITECTURE_REVIEW.md',
+  'docs/helix/archive/reviews/ARCHITECTURE_REVIEW.md',
   'docs/helix/CURRENT_PLAN.md',
   'docs/helix/CURRENT_STATUS.md',
   'docs/helix/ENGINEERING_PLAYBOOK.md',

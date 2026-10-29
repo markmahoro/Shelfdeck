@@ -1,7 +1,38 @@
 # Changelog
 
-> 本文件保留公开发行版历史，不表示当前 NAS 生产状态。当前 Helix-beta 产品与部署身份分别以
-> `docs/helix/CURRENT_STATUS.md` 和 `docs/v3/VERSIONING.md` 为准。
+ShelfDeck **唯一面向人的产品 Changelog**。按 **Product version**（= Git release tag）记录版本间变化。
+
+口径权威：[`docs/v3/VERSIONING.md`](docs/v3/VERSIONING.md)。  
+**当前 NAS 生产镜像 / commit / sha256** 以 [`docs/helix/CURRENT_STATUS.md`](docs/helix/CURRENT_STATUS.md) 为准，不在本文件逐次镜像流水。
+
+写法约定：
+
+- 日常合入：重要用户可见变更可记入 **Unreleased**（可选）。
+- 用户确认正式 release：打 Git tag → 将 Unreleased 落入对应 `## vX.Y.Z…` 章节。
+- Hotfix 仅部署、未打产品 tag：只更新 Helix Status；必要时在 Unreleased 记一行“已部署但未打产品版本”。
+
+---
+
+## Unreleased
+
+### Docs / hygiene
+
+- 文档入口收敛到 Helix；归档 v2.5、Helix 根历史 issue log / 审查 / 早期 acceptance。
+- `docs/v3/CURRENT_STATUS.md` stub 化；生产身份只写 Helix Status。
+- CI `pull_request` 目标分支 `master` → `main`。
+- 明确 Product version = Git release tag，并与本 Changelog / Docker tag 分层对齐。
+
+---
+
+## Helix Beta（已部署生产线；尚无覆盖本线的正式 Product version tag）
+
+Release goal：`Helix Beta`（Movie 全链路等，见 Helix Plan / Status）。
+
+- 生产身份与历次 deploy：见 Helix `CURRENT_STATUS` 与 `docs/helix/implementation/evidence/`。
+- 最近历史 Git release tag `v2.0.0` **不**代表当前 Helix 镜像。
+- 下一次用户确认的正式产品发布应打 `v3.0.0-beta.N`（或当时约定的 tag），并在本文件新增对应章节。
+
+---
 
 ## v1.0.0 (2026-05-03)
 

@@ -14,3 +14,5 @@ Archived on: 2026-07-14
 
 当前唯一架构SSOT是`../../TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`。本目录中的文件不得作为活动合同、
 活动计划、当前状态、代码实现依据或E2E/生产恢复授权。
+
+与 [`../../nexora/archive/pre-top-down-2026-07-14/`](../../nexora/archive/pre-top-down-2026-07-14/) 是**不同视角**的历史快照（非纯重复）；Nexora 树含独有文件，2026-10-29 清理时两份均保留。

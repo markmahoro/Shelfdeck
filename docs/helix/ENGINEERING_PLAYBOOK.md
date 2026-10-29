@@ -92,7 +92,7 @@ PROD-065 执行失败诊断使用 Foundation 已有 Attempt `evidence_digest` �
 
 ## 4. Workspace, branch and change isolation
 
-先检查工作区与用户修改。存在冲突或需要并行隔离时使用独立worktree；已有干净且归属明确的任务工作区可继续使用。分支默认codex/，不强制Program→Phase→Work Package三级分支；版本开发提交关联Phase工作项及Evidence，上线后问题修复关联对应UAT，不为编号重命名现有目录。
+先检查工作区与用户修改。存在冲突或需要并行隔离时使用独立worktree；已有干净且归属明确的任务工作区可继续使用。**新分支禁止使用 `codex/` 前缀**（既有 `codex/*` 仅为历史残留，逐步合并或退役）；推荐 `sd/<topic>-YYYYMMDD`（人工/本机）或平台默认 `cursor/<topic>-…`（Cloud Agent）。不强制Program→Phase→Work Package三级分支；版本开发提交关联Phase工作项及Evidence，上线后问题修复关联对应UAT，不为编号重命名现有目录。产品版本与 Changelog 口径见 `docs/v3/VERSIONING.md` 与根 `CHANGELOG.md`；生产部署身份只写 `docs/helix/CURRENT_STATUS.md`。
 
 同一批次可整合有关联的迭代项，但每项结果独立追溯。并行任务须明确文件归属和统一整合者；不覆盖用户修改，不使用破坏性reset/checkout。清理前核对worktree、临时数据和回滚资料的用途；不按“旧”或“未跟踪”直接删除。代码隔离不授权业务双读写或旧Runtime回流。
 
