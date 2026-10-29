@@ -2,6 +2,8 @@
 
 2026-10-29自定义标准未来版本的Reset保护缺口已在隔离库复现：仅将Intent/Preview表标为dependent时，已保留Custom Spec所需Intent会遗漏。当前未证明生产受影响，原开发分支因声明与结构不符本已拒绝Reset；主整合中的新结构亦继续保留该fail-closed保护，Libra线程正在实现精确依赖与负例。演员目录Observe合同已在未提交整合副本重生并完成P2/局部验证，包含该缺口的完整Reset和Actor功能仍未获得发布资格。
 
+精确27a首轮完整Linux架构为3411通过/3失败/27跳过；两项为前述缺历史Git对象，第三项是Series并发Host中的`Resolution Commit Handle does not fence the exact typed Resolution Draft`，原因及后继状态正在独立核查。带历史对象的完整复验仍在运行；不能把该轮记为PASS。[Evidence](implementation/evidence/SERIES_INTEGRATION_GATE_20261029.md)。
+
 2026-10-29 16:18生产只读快照为34 attention、4进行中；13:36的33条仍在，新增一条JAV来源超时。15条Series共享资料冲突、两条JAV路径超限、两条US体积瑕疵预览和身份/演员确认等分别处理，不能声称全部自行恢复。普通部署需安全停止和完整校验冷备，Fresh-generation Reset不是普通部署的默认步骤；其精确清除范围须停止态预检、离线备份和单独生产授权，当前尚未获得Reset授权。[分诊与Reset影响](implementation/evidence/PRODUCTION_TRIAGE_INTEGRATION_20261029.md)。
 
 前候选bc4完整Linux架构结果3410通过/3失败/27跳过；P6/P8两项缺历史Git对象，补只读历史对象后精确27a相同测试6通过，首次直接用生产镜像因缺git未启动，均保留日志。第三项JAV Aftercare海报在基线和候选用可控文件身份复用重现相同失败链，首个Effect已提交；原全量现场已失，不可断言首次就是该原因，Arca所有权内的修复及负例仍在进行。带完整历史对象的精确27a完整架构重新执行，尚未通过。16:25 NAS SSH及健康接口可用，但磁盘I/O压力高，NAS重型资格测试和部署继续等待稳定窗口。[门禁Evidence](implementation/evidence/SERIES_INTEGRATION_GATE_20261029.md)。

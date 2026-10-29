@@ -25,6 +25,7 @@
 | 七条恢复 | 假如…？、真探、亿万、越狱、继承之战、当你沉睡时、飞天大盗：逐项冻结原Offer/build/Scope、失败/Effect、Control和文件基线，经原重试入口核验唯一Commit与历史保护；真实冲突继续attention。 |
 | CUSTOM-TARGET-RESET-RETENTION | 隔离模拟证实仅作dependent表分类会遗漏已保留Custom Spec的精确Intent/Preview；Libra按实际保留Spec提供Owner依赖闭包，验证同Subject多版本、未入藏、缺失/篡改与中断恢复。原开发Schema因声明不匹配保持fail-closed；不能仅靠FK通过放行Reset。 |
 | JAV-AFTERCARE-REPLACEMENT-IDENTITY | 基线及候选在可控相同inode/同字节替换时复现Effect已提交、inventory no-change及后继冲突；在Arca既有职责内核查修复，保留真实外部冲突和重放保护。首次全架构现场已失，不声称其根因已确定。 |
+| SERIES-RESOLUTION-COMMIT-FENCE | 精确27a首轮并发Series Host报告Resolution Commit Handle未fence精确Draft；独立核查基线、输入/Effect/Result及后继责任，不以单项通过或修改断言掩盖。 |
 
 2026-10-29固定Series候选：`1d8a45843f9c8982c91bb0a367eb0adfa1c5c310`，基于a2bf2d6fd，三个Schema与既有Linux验证副本字节一致、239表/62事务不变。本机合同13项通过；标准镜像首次下载既有模型失败，核验本机生产基线模型SHA后重建成功并上传校验，tar SHA256 `b57b0de41449109adbeb39f4d12ca6ab81a66d1a9ca6062c5d964b4b3271ca8d`。首个固定检出因Windows路径过长失败，第二个因换行不一致不合格，第三个与构建输入4541文件逐字节一致；独立Linux完整架构门禁仍在执行。
 
@@ -34,11 +35,11 @@ UI修复提交`60f123a71`、浏览器回归`567ad89ca`及专属Evidence `7265d4b
 
 continuity合法重规划门禁测试`92df7fa5e`挑入后，当前候选更新为`27a0f68af3599a3422b21853632fc8a01878b750`，标准镜像tar SHA256 `e87f6628edc20732df35889aa7195bd7de1e52ba6753984635a7e39f95a3166e`。4547个跟踪文件与构建工作区逐字节一致；该版本Linux Service 846通过/28 skip/0失败、Web 274通过，UI负责人对具体镜像适用验收PASS。完整架构和真实CIFS待完成，未部署。上述bc4为前一候选。
 
-前候选1d8a完整架构3402通过/5失败/27跳过，四项缺少依赖路径后定向通过；1081视频Host并发收敛核查见专项Evidence。bc4完整架构3410通过/3失败/27跳过：两项缺历史Git对象，精确27a相同测试补只读对象后6项通过；另一JAV Aftercare海报失败仍在追因。完整精确27a复验及带完整历史的复验运行中，不能用定向结果冒充全量通过。
+前候选1d8a完整架构3402通过/5失败/27跳过，四项缺少依赖路径后定向通过；1081视频Host并发收敛核查见专项Evidence。bc4完整架构3410通过/3失败/27跳过：两项缺历史Git对象，精确27a相同测试补只读对象后6项通过；另一JAV Aftercare海报失败已找到可复现的相同现象，首跑因果仍未证实。精确27a首轮3411通过/3失败/27跳过：两项同样缺历史对象，第三项Series Resolution Commit Handle异常仍在查；带完整历史的复验运行中，不能用定向结果冒充全量通过。
 
 普通发布只做安全停止与完整校验备份，不默认执行Reset。Fresh-generation Reset的预检须停止、冻结精确范围并核验保留依赖，可能清除在线未入藏任务和系统工作区，不能仅据工作台34条推算范围；当前无Reset授权。[只读分诊和Reset影响](evidence/PRODUCTION_TRIAGE_INTEGRATION_20261029.md)。
 
-演员2f/68/f0/723和目录Observe合同正由主线程结合JAV截断合同整合；重生后P2为139/118/244/66、153 domain inputs、257 refs且无未解析，包/语义/Manifest静态检查通过。初次组合的37项Windows及37项Linux局部测试在临时启用244表保留声明的实验状态通过；Linux沿旧镜像依赖，不覆盖新增usearch真实模型。发现上方Custom Spec缺口后，主整合已撤回该声明变更并实测`RESET_RETENTION_SCHEMA_UNREVIEWED`，避免错误放行；对应Reset测试待精确保留修复后重验，当前无正式合同接线或完整Actor/Reset资格。
+演员2f/68/f0/723和目录Observe合同正由主线程结合JAV截断合同整合；重生后P2为139/118/244/66、153 domain inputs、257 refs且无未解析，包/语义/Manifest静态检查通过。初次组合的37项Windows及37项Linux局部测试在临时启用244表保留声明的实验状态通过；Linux沿旧镜像依赖，不覆盖新增usearch真实模型。发现上方Custom Spec缺口后，主整合已撤回该声明变更并实测`RESET_RETENTION_SCHEMA_UNREVIEWED`，避免错误放行；保持拒绝状态重跑其余Actor局部测试Windows/Linux各36通过/0失败。对应Reset测试待精确保留修复后重验，当前无正式合同接线或完整Actor/Reset资格。
 
 真实CIFS首轮将Workspace/SQLite错误放到共享盘而失败；按生产布局重跑后8项直接文件调用仍遇 `PHYSICAL_MATERIAL_STAT_FENCE_CHANGED`。隔离探针发现首次路径stat与文件描述符时间戳不一致、后续收敛；真实Host已定位同一Series publish Effect进入reconcile_required，最初测试把该预期恢复通知视为异常而提前退出。验证原Effect恢复至唯一Commit的第三轮隔离Host在2026-10-29 14:43启动；随后NAS应用响应超时，隔离测试连接在无最终结果时断开，不能计为通过。用户说明前序其他Docker部署导致系统卡死并重启NAS；独立根因未核实。重启后确认任务容器不存在、生产仍为同一a2bf2d6fd镜像；用户重挂两个原CIFS源后原容器仍见启动时空目录，故精确核验源及容器后重启该容器恢复绑定；容器内SMB及健康已恢复，但管理状态一次超时、swap约2GiB，稳定性仍待核验。候选未部署或线上重试；NAS稳定性复核前暂停新NAS测试和发布。[候选与恢复Evidence](evidence/SERIES_INTEGRATION_GATE_20261029.md)。
 
