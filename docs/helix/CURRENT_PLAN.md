@@ -1,19 +1,30 @@
 # ShelfDeck 当前计划
 
-更新：2026-10-29。用户将演员识别/自动建档定为新增核心功能，优先完成Phase 1→4→5，再做Phase 2→3，最后Phase 6整合发布。仅 implementation/CURRENT_PHASE.md 是活动执行包；下表是总路线，不为未来阶段另建活动计划。既有代码、未提交工作、首跑失败、测试及生产证据全部承接，不因重排宣称已完成或重做。
+更新：2026-10-29。用户追加要求把本轮拆线程并行，优先处理持续增加的生产异常。Phase 1已Exit；主线程继续Phase 4→5，生产分诊、Phase 2剧集修复及电影寻源/Phase 3自定义标准并行。仅 implementation/CURRENT_PHASE.md 是活动集成执行包，不在其他线程新增活动计划。既有代码、未提交工作、首跑失败、测试及生产证据全部承接。
 
 ## 本轮阶段与依赖
 
 | 阶段 | 交付范围 | 退出门槛 | 当前状态 / 前置 |
 | --- | --- | --- | --- |
 | Phase 1：BUFFALO-CATALOGUE-FEASIBILITY | 在 ShelfDeck Linux Docker 技术边界内，按固定 Sense 2 方法完成图片检测/对齐/512维特征、官方离线目录检索及自建参考图样本匹配；不接自动建档或视频业务。 | 固定模型/预处理/数据包与原生索引兼容；与同输入 Sense 基准的人脸/候选/距离对照通过；内存/控制面响应/取消与依赖复用条件有证据。失败明确阻断后续识别实现，不降低标准换取通过。 | **有限技术PASS / 已Exit**，见归档和Evidence；不是视频或发布资格。 |
-| Phase 4：BUFFALO-VIDEO-IDENTIFICATION | 统一 buffalo_l 后的视频有界抽帧/补采、聚类/频次、离线目录与自建Reference备用、单演员选择、资源控制和目录更新；不创建人物。 | 多演员/歧义/无脸负例；性别不影响资格和排序；真实视频冷/热/1080/4K/SMB/停止取消及控制面资源资格；确定版本化策略及样本范围。 | **当前唯一活动Phase，技术切片/视频隔离资格进行中。** 用户已取消性别筛选；尚未正式接线，不能以单图PASS替代。 |
-| Phase 5：PEOPLE-AUTOMATION-AND-RETIREMENT | 识别姓名至People唯一复用/TPDB资料/截图兜底建档，Libra单演员出演；原人工入口保留；完整退役推荐人脸认领。 | 新/已有/同名/无TPDB/无图/故障/并发/重启/人工先行的真实Host至正式Commit旅程；统一buffalo_l Reference发布/更新和保留依赖，旧Claim责任停止态预检；具体UI交互验证。 | **Phase 4通过后立即承接，先于Phase 2/3。** 姓名规则和推荐退役已有增量复用；不保留SFace备用，不恢复Mirex架构或代码。 |
-| Phase 2：FORMATION-DEFECT-CLOSURE | 7条剧集发布自愈/人工重试、三部电影外部候选身份可靠性、精确同集剧情补充、季海报复用。 | 各项根因和范围独立闭合，新任务及失败恢复真实 Host 旅程通过，SMB/来源与正式文件保护负例；三部电影不以统一错误码/一处解析修复代替逐项证据。 | **待Phase 5后承接。** 已有局部实现/定向Linux证据复用；生产验收留Phase 6，不靠Reset收口。 |
-| Phase 3：CUSTOM-ACCEPTANCE-LIFECYCLE | 标准/瑕疵/用户自定义三层目标，真实差距建议、Preview/确认、旧Run/Offer收尾、新Run、生产/Conformance/NFO、Arca/Aftercare/保留、API/UI。 | 真实确认至新Run至唯一Commit闭环；重放/崩溃/人工目标变化/恢复标准及基线变化不陷入旧custom Head；跨Owner/部分交接负例完整。 | **待Phase 2后承接。** 已有提交与未提交增量保留；新Run接续重放等缺口继续，不依赖 Phase 1。不可提前开放半成品入口。 |
-| Phase 6：INTEGRATED-RELEASE-AND-ACCEPTANCE | 固定整合候选、Linux镜像/完整架构/Service/Web、具体版本UI负责人、停止态副本/收藏文件与历史保护、发布材料及逐项生产验收。 | Phase 2/3/5均闭合；完整门禁/可审查发布与回退材料，最终明确授权范围后标准部署；生产真实结果与残余分别记录。 | 等待前置。已完成容量清理不重复，禁止把计划重排解释为部署/Reset/改库/删媒体授权。 |
+| Phase 4：BUFFALO-VIDEO-IDENTIFICATION | 统一 buffalo_l 后的视频有界抽帧/补采、聚类/频次、离线目录与自建Reference备用、单演员选择、资源控制和目录更新；不创建人物。 | 多演员/歧义/无脸负例；性别不影响资格和排序；真实视频冷/热/1080/4K/SMB/停止取消及控制面资源资格；确定版本化策略及样本范围。 | **主线程推进，其他生产修复并行。** 用户已取消性别筛选；尚未正式接线，不能以单图PASS替代。 |
+| Phase 5：PEOPLE-AUTOMATION-AND-RETIREMENT | 识别姓名至People唯一复用/TPDB资料/截图兜底建档，Libra单演员出演；原人工入口保留；完整退役推荐人脸认领。 | 新/已有/同名/无TPDB/无图/故障/并发/重启/人工先行的真实Host至正式Commit旅程；统一buffalo_l Reference发布/更新和保留依赖，旧Claim责任停止态预检；具体UI交互验证。 | **主线程在Phase 4通过后承接；不阻挡独立生产补丁。** 姓名规则和推荐退役已有增量复用；不保留SFace备用。 |
+| Phase 2：FORMATION-DEFECT-CLOSURE | 7条剧集发布自愈/人工重试、三部电影外部候选身份可靠性、精确同集剧情补充、季海报复用。 | 各项根因和范围独立闭合，新任务及失败恢复真实 Host 旅程通过，SMB/来源与正式文件保护负例；三部电影不以统一错误码/一处解析修复代替逐项证据。 | **并行实施，生产自愈优先形成独立补丁。** 已有修复先复验/剥离，不等待演员新功能，不靠Reset收口。 |
+| Phase 3：CUSTOM-ACCEPTANCE-LIFECYCLE | 标准/瑕疵/用户自定义三层目标，真实差距建议、Preview/确认、旧Run/Offer收尾、新Run、生产/Conformance/NFO、Arca/Aftercare/保留、API/UI。 | 真实确认至新Run至唯一Commit闭环；重放/崩溃/人工目标变化/恢复标准及基线变化不陷入旧custom Head；跨Owner/部分交接负例完整。 | **电影/目标线程并行承接。** 18个原未提交文件已校验复制，原件保留；不混淆寻源身份缺陷与用户改标准，不开放半成品。 |
+| Phase 6：INTEGRATED-RELEASE-AND-ACCEPTANCE | 固定整合候选、Linux镜像/完整架构/Service/Web、具体版本UI负责人、停止态副本/收藏文件与历史保护、发布材料及逐项生产验收。 | 完整功能按Phase 2/3/5各自门槛；独立生产补丁须证明隔离范围及适用完整门禁；明确授权后标准部署，真实结果与残余分开。 | **主线程唯一整合/发布。** 可审查的独立生产补丁不必等新功能完成；并行开发不授权生产操作。 |
 
-2026-10-29用户将新增演员识别定为核心功能，执行顺序改为 **1→4→5→2→3→6**，保留原Phase编号。Phase 1已Exit，当前唯一活动包切到Phase 4；Phase 4通过后立即打通Phase 5，随后再承接Phase 2/3。尚未开始的Phase 2准备包冻结留证，已有修复和自定义目标未提交工作保留，不作验收关闭。任何后续模型/数据/方法变化仍须复核受影响的Phase 1资格，不能因为优先级提高跳过技术门槛。
+2026-10-29此前顺序1→4→5→2→3→6被本次并行决定调整，保留原Phase编号和验收条件。Phase 4→5仍有依赖；Phase 2/3不再排队等待。可独立发布的生产修复须从已知生产基线剥离，不能夹带未完成模型、Schema或自定义目标。任何模型/数据/方法变化仍须复核受影响的Phase 1资格。
+
+## 并行责任与整合
+
+| 执行线程 | 责任 | 代码与副作用边界 |
+| --- | --- | --- |
+| 诊断 198 个孤儿 Subject（本线程） | Phase 4→5、统一合同/计划/生成物、重门禁排期、补丁整合与发布协调 | 主整合工作区；原Phase 3的18文件交接后不再并行编辑 |
+| ShelfDeck 生产待处理条目分诊 | 一次当前生产快照，逐条原因/责任/可用动作/P0-P1，不将正常待决都算bug | 只读生产，报告留ignored证据；不恢复定时观察 |
+| ShelfDeck 剧集上架与自愈修复 | Series发布恢复/线上重试、季图复用、精确剧情补充，准备独立补丁 | 独立分支codex/series-recovery-parallel-20261029，自a2bf2d6fd起；不含新演员/自定义目标 |
+| ShelfDeck 电影寻源与自定义标准 | 电影候选可靠性、三层Spec完整生命周期，承接18文件增量 | 独立分支codex/movie-spec-parallel-20261029，自f24164ae0起；不写主整合目录或Series发布逻辑 |
+
+单一SSOT、CURRENT_PLAN、CURRENT_PHASE及全局生成物仅本线程修改；其他线程输出专属Evidence/合同需求，无第二活动计划。NAS重测试/模型任务串行排期，不因线程增多叠加负载；默认禁止各线程部署、重试/取消生产任务、Reset或媒体/备份操作。
 
 Phase 1资格与保护见[完整Evidence](implementation/evidence/BUFFALO_CATALOGUE_FEASIBILITY_20261029.md)，[原Phase 1包](implementation/archive/BUFFALO_CATALOGUE_FEASIBILITY_20261029.md)已冻结。11图像场景、5项数学、5组Reference/5空槽及补充8负例通过；不据此关闭真实视频/演员业务或原遗留问题。
 

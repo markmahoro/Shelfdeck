@@ -1,6 +1,17 @@
-# 当前 Phase 4：BUFFALO-VIDEO-IDENTIFICATION
+# 当前集成 Phase：本轮并行修复与 BUFFALO-VIDEO-IDENTIFICATION
 
-更新：2026-10-29。状态：技术切片和真实视频隔离资格进行中，未开放自动出演或变更生产。Phase 1有限技术资格已Exit，固定提交125229556及[Evidence](evidence/BUFFALO_CATALOGUE_FEASIBILITY_20261029.md)可复验。唯一[Master Plan](../CURRENT_PLAN.md)顺序为1→4→5→2→3→6；不改阶段编号、不创建第二个活动包。
+更新：2026-10-29。用户因生产待处理条目增加要求多线程并行：主线程继续Phase 4→5，Phase 2/3独立推进，生产自愈补丁优先；本文件仍是唯一活动集成包，各Phase编号/门槛保留。Phase 1有限技术资格已Exit，固定提交125229556及[Evidence](evidence/BUFFALO_CATALOGUE_FEASIBILITY_20261029.md)可复验。未开放自动出演或授权新的生产副作用；唯一[Master Plan](../CURRENT_PLAN.md)已更新并行责任。
+
+## 并行执行与当前阻断
+
+| 线程 / ID | 本轮交付与先后 | 整合边界 |
+| --- | --- | --- |
+| 本线程 01a164c5-1b9a-7312-a8ec-701ea6032526 | 继续Catalogue Basis/Work/Artifact/补采恢复及Phase 4→5闭环；处理统一合同与门禁 | 主工作区中新增244表/66事务的Store切片已6项本地测试通过，Linux/并发/Reset依赖及完整门禁未完成，不作为发布基线 |
+| ShelfDeck 生产待处理条目分诊 01a18626-520c-79a0-8240-066bd0a777a3 | 当前一次快照、逐条分诊与新增机制故障，给生产补丁排序 | 只读生产，不改源码/状态；首个快照33 attention/5进行中，仍在核对，不等于33个bug |
+| ShelfDeck 剧集上架与自愈修复 01a18627-6d8b-7d72-aa5a-bcb7cbf6ed0f | 优先7条Series真实重试恢复，其后季poster复用/精确剧情缺口 | 自a2bf2d6fd的独立worktree；复用/剥离已有修复，不夹带未完成新功能/Schema，专属Evidence后主线程整合 |
+| ShelfDeck 电影寻源与自定义标准 01a18628-b31a-70c3-abbc-bd29b688cbce | 电影候选身份可靠性独立排查；继续三层目标、新Run、Arca/Aftercare闭环 | 自f24164ae0的独立worktree；18文件SHA交接完成、原件保留，主线程不并行编辑此范围 |
+
+这些线程已创建并实际开始执行。各线程只提交自己的代码/专属Evidence，不改SSOT/Master/本包/全局生成物；需要共享合同变更由本线程合并。重型NAS验证只由主线程串行安排。安全可拆的生产补丁可以先于演员/自定义标准发布，但仍完成适用门禁、具体版本UI与精确授权；没有再次Reset或复机/停机授权。以下为Phase 4技术范围与既有Evidence，较早串行顺序不再约束其他线。
 
 最新检查点：已完成新typed Catalogue Basis、Service内置数值/CPU隔离/目录查询与代表图模块，qualification入口复用正式模块；尚未接通正式Work和Artifact持久化。contract-6 Linux54 PASS/0skip；4组目录有序身份与固定参考一致。contract-3四张代表图（含旋转）可独立检出单脸，记录紧框首败后采用显式1/4留边策略。目录代际冻结manifest及7成员/512维特征空间，实际2,715,402,822 bytes验真；检索与Libra身份资格分开。静态合同/P2从排除原Phase 3未提交文件的源码快照通过，资源共载/正式Host及Phase Exit仍未通过，详见本包[Evidence](evidence/BUFFALO_VIDEO_QUALIFICATION_20261029.md)。
 
@@ -46,7 +57,7 @@ Phase 4应提供绑定材料/帧/模型/目录/策略的识别候选及代表图
 
 ## 保护、授权和当前事实
 
-Phase 2已有修复、Phase 3未提交Run接续文件和既有资格均保留，暂不继续其实现、不记完成。原Phase 2待开始包冻结在[重排检查点](evidence/ROUND_REPLAN_BASELINE_20261029.md)，不构成另一个活动计划。
+Phase 2已有修复、Phase 3未提交Run接续文件和既有资格均保留，现由上述独立线程并行承接，不记验收完成。原Phase 2待开始包冻结在[重排检查点](evidence/ROUND_REPLAN_BASELINE_20261029.md)，不构成另一个活动计划。
 
 仅自用NAS，不对外分发模型/数据。当前不部署、重试、取消、Reset、改库/人物/Reference或媒体，不启停生产/原Sense服务，不恢复自动观察。必要隔离测试按精确目录、只读输入、容量/资源预检及任务专属进程执行；SSH使用tools/nas-ssh-config.js，凭据不输出。
 
