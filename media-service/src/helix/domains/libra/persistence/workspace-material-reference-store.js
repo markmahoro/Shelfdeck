@@ -120,7 +120,8 @@ function createWorkspaceMaterialReferenceStore(options) {
   const libra = libraDefinition(options.schemaManifest), foundation = foundationDefinition(options.schemaManifest);
   return Object.freeze({ repositoryManifest:Object.freeze({ libraTableIds:libra.tableIds, foundationTableIds:foundation.tableIds }),
     commit(request) {
-      const decision = buildReferenceDecision(request?.decision), marker = request?.commitMarker, resultId = request?.resultId;
+      const decision = buildReferenceDecision(request?.decision), marker = request?.commitMarker, resultId = request?.resultId,
+        readFence = request?.readFence ?? null;
       if (typeof marker !== 'string' || !marker || typeof resultId !== 'string' || !resultId)
         fail('P9_REFERENCE_COMMIT_INPUT', 'Commit marker and Result identity are required.');
       let replay = null, result = null;
@@ -222,7 +223,22 @@ function createWorkspaceMaterialReferenceStore(options) {
           scope_id:decision.workspaceId,commit_digest:decision.decisionDigest,result_id:resultId,result_schema_ref:RESULT_SCHEMA,
           result_digest:canonicalDigest(result),committed_at_ms:context.commitTimeMs});
       }};
-      options.unitOfWork.execute([preflight,foundationRead,apply,finish]);
+      function readCommittedReplay() {
+        replay = null;
+        options.unitOfWork.execute([preflight,{...apply,execute(context){if(replay)apply.execute(context);}}]);
+        return replay;
+      }
+      try {
+        // A committed exact transition is replayable independently of a
+        // later Owner change. New transitions must use the captured view.
+        if (readFence !== null && readCommittedReplay())
+          return Object.freeze({result:replay,replayed:true});
+        options.unitOfWork.execute([preflight,foundationRead,apply,finish],{readFence});
+      } catch (error) {
+        if (readFence !== null && error?.code === 'P3_UOW_READ_FENCE_CHANGED' && readCommittedReplay())
+          return Object.freeze({result:replay,replayed:true});
+        throw error;
+      }
       return Object.freeze({result:replay||result,replayed:Boolean(replay)});
     }
   });

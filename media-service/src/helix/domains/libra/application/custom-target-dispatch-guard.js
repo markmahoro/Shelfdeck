@@ -20,6 +20,7 @@ function createLibraCustomTargetDispatchGuard(options){
       if(initial.kind==='run_not_active')return pending('run_not_active');
       if(initial.kind==='target_not_current')return pending('target_not_current');
       if(initial.kind!=='target_current'||!initial.readFence)throw new Error('Run target projection is invalid.');
+      if(scope.executionBasisDigest!==undefined&&scope.executionBasisDigest!==initial.executionBasisDigest)return pending('run_basis_changed');
       if(initial.targetKind==='standard')return Object.freeze({kind:'ready',readFence:initial.readFence});
       if(initial.targetKind!=='user_custom')throw new Error('Run target kind is invalid.');
       const drained=options.replacementReadiness.check(scope.processId);
@@ -27,6 +28,7 @@ function createLibraCustomTargetDispatchGuard(options){
       if(drained.kind!=='ready'||!drained.readFence)throw new Error('Custom replacement drain proof is invalid.');
       const target=options.targetReader.read(scope.processId,{readFence:drained.readFence});
       if(target.kind!=='target_current'||target.targetKind!=='user_custom')return pending('target_not_current');
+      if(target.executionBasisDigest!==initial.executionBasisDigest)return pending('run_basis_changed');
       const intent=options.customTargetStore.current({subjectId:target.subjectId,productScopeDigest:target.productScopeDigest});
       if(!intent||intent.subjectId!==target.subjectId||intent.basis.productScopeDigest!==target.productScopeDigest)
         throw new Error('Current custom target Intent is invalid.');

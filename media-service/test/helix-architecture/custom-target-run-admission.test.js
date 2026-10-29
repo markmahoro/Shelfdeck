@@ -485,6 +485,46 @@ test('custom dispatch combines target currency, complete prior drain and current
   assert.deepEqual(guard.check({ownerDomain:'arca',processType:'arca_ondeck_run'}),{kind:'not_applicable'});
 }));
 
+test('custom dispatch refuses a caller snapshot from a different Run Basis',()=>runHarness(h=>{
+  const replacement=h.advance(h.unitOfWork.captureReadFence()),guard=customDispatchGuard(h);
+  assert.deepEqual(guard.check({...dispatchScope(replacement.libraRunId),executionBasisDigest:D('other-basis')}),
+    {kind:'pending',reasonCode:'run_basis_changed'});
+}));
+
+function guardedCoordinator(h,libraRunId,{changeBeforeAdmission=false}={}){
+  const row=h.db.prepare('SELECT * FROM libra_runs WHERE libra_run_id=?').get(libraRunId),snapshot={
+    run:{libraRunId,subjectId:row.subject_id,acceptanceSpecId:row.acceptance_spec_id,
+      executionBasisDigest:row.execution_basis_digest,state:row.state,packageRevisionHead:row.package_revision_head},
+    spec:{contentProfile:'movie'},relatedReferences:[]};
+  let changed=false;
+  const unitOfWork={...h.unitOfWork,execute(participants,settings){
+    if(changeBeforeAdmission&&!changed&&participants.some(item=>item.participantId==='work_admission')){
+      changed=true;h.db.prepare('UPDATE libra_subjects SET intake_revision=intake_revision+1').run();
+    }
+    return h.unitOfWork.execute(participants,settings);
+  }};
+  const workResultReader=require('../../src/helix/foundation/execution/work-result-reader').createWorkResultReader(h.options);
+  return require('../../src/helix/domains/libra/application/libra-run-coordinator').createLibraRunCoordinator({...h.options,unitOfWork,
+    runExecutionGuard:customDispatchGuard(h),workResultReader,workspaceProductPort:{},
+    movieProductionReader:{readRunSnapshot:()=>snapshot,readFact:()=>null}});
+}
+
+test('actual Run Coordinator waits while the prior execution is draining before admitting any new Work',()=>runHarness(h=>{
+  const old=h.chosen.intent.basis.libraRunId;seedDrainingRun(h,old);
+  const replacement=h.advance(h.unitOfWork.captureReadFence()),coordinator=guardedCoordinator(h,replacement.libraRunId),
+    result=coordinator.reconcile(replacement.libraRunId);
+  assert.equal(result.kind,'pending');assert.equal(result.reasonCode,'prior_execution_draining');
+  assert.equal(h.db.prepare('SELECT count(*) n FROM fx_supporting_works WHERE process_id=?').get(replacement.libraRunId).n,0);
+}));
+
+for(const changed of [false,true])test('actual Run Coordinator '+(changed?'defers a changed Owner view':'admits under the Owner fence'),()=>runHarness(h=>{
+  const replacement=h.advance(h.unitOfWork.captureReadFence()),coordinator=guardedCoordinator(h,replacement.libraRunId,{changeBeforeAdmission:changed}),
+    result=coordinator.reconcile(replacement.libraRunId);
+  assert.equal(result.kind,'pending');
+  assert.equal(changed?result.reasonCode:result.phase,changed?'owner_view_changed':'product_identity_search');
+  assert.equal(h.db.prepare('SELECT count(*) n FROM fx_supporting_works WHERE process_id=?').get(replacement.libraRunId).n,changed?0:1);
+}));
+
 test('custom dispatch refuses unavailable or concurrently changed Owner baselines',()=>runHarness(h=>{
   const replacement=h.advance(h.unitOfWork.captureReadFence()),scope=dispatchScope(replacement.libraRunId),
     pending=customDispatchGuard(h,()=>({kind:'unavailable',reasonCode:'handoff_responsibility_pending'}));

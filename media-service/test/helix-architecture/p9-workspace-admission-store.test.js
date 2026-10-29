@@ -95,3 +95,33 @@ test('an exact Workspace commit racing the replay read is discovered without a s
 }));
 test('rolls every Workspace admission row back when the Foundation participant crashes',()=>fixture((input)=>{const crashing={execute(participants){return input.unitOfWork.execute(participants.map((participant)=>participant.participantId!=='workspace_admission_foundation'?participant:{...participant,execute(context){participant.execute(context);throw new Error('fixture-crash');}}));}},store=createWorkspaceAdmissionStore({schemaManifest,unitOfWork:crashing});assert.throws(()=>store.admit({decision:input.decision,commitMarker:'workspace-crash-marker',resultId:'workspace-crash-result'}),/fixture-crash/);const db=new Database(input.databasePath,{readonly:true});for(const table of ['libra_workspaces','libra_workspace_revisions','fx_workspace_registry','fx_event_result_bindings','fx_commit_markers'])assert.equal(db.prepare(`SELECT COUNT(*) n FROM ${table}`).get().n,0,table);db.close();}));
 test('rejects expired Evidence and stale Platform root without partial writes',()=>fixture((input)=>{const expired={...input.decision,spaceAdmissionEvidence:{...input.decision.spaceAdmissionEvidence,expiresAtMs:1}},store=createWorkspaceAdmissionStore({schemaManifest,unitOfWork:input.unitOfWork});expired.spaceAdmissionEvidence.evidenceDigest=canonicalDigest(Object.fromEntries(Object.entries(expired.spaceAdmissionEvidence).filter(([key])=>key!=='evidenceDigest')));const rebuilt=buildWorkspaceAdmissionDecision({...expired,decisionId:undefined,workspaceScopeDigest:undefined,decisionDigest:undefined});assert.throws(()=>store.admit({decision:rebuilt,commitMarker:'expired-marker',resultId:'expired-result'}),(error)=>error.code==='P9_WORKSPACE_SPACE_NOT_ADMITTED');const db=new Database(input.databasePath);db.prepare("UPDATE platform_workspace_roots SET state='inactive'").run();db.close();assert.throws(()=>store.admit({decision:input.decision,commitMarker:'stale-marker',resultId:'stale-result'}),(error)=>error.code==='P9_WORKSPACE_ROOT_SCOPE'||error.code==='P9_WORKSPACE_ROOT_STALE');}));
+
+for(const outcome of ['pending','changed','ready'])test('Run Coordinator '+outcome+' uses the Owner fence at Workspace admission',()=>fixture(input=>{
+  const ref=input.decision.libraRunRef,root=input.decision.platformWorkspaceRootSnapshot,now=1700000000000,
+    snapshot={run:{...ref,state:'active'},spec:{contentProfile:'western_adult'},members:[{role:'primary_payload',sizeBytes:100}]};
+  let reads=0;
+  const coordinator=require('../../src/helix/domains/libra/application/libra-run-coordinator').createLibraRunCoordinator({
+    schemaManifest,unitOfWork:input.unitOfWork,now:()=>now,workResultReader:{},
+    movieProductionReader:{readRunSnapshot:()=>snapshot,readFact:()=>({}),readWorkspace(){
+      if(++reads>1)throw new Error('fixture-after-workspace-admission');return null;}},
+    runExecutionGuard:{check(scope){assert.equal(scope.processId,ref.libraRunId);assert.equal(scope.executionBasisDigest,ref.executionBasisDigest);
+      if(outcome==='pending')return {kind:'pending',reasonCode:'prior_execution_draining'};
+      const readFence=input.unitOfWork.captureReadFence();
+      if(outcome==='changed'){const db=new Database(input.databasePath);db.prepare('UPDATE platform_workspace_roots SET updated_at_ms=updated_at_ms+1').run();db.close();}
+      return {kind:'ready',readFence};}},
+    workspaceProductPort:{rootSnapshot:()=>root,observeSpace(request){
+      const evidence={evidenceId:canonicalDigest({schema:'platform.workspace-space-admission-evidence-id@1',
+        requestDigest:request.requestDigest,rootSnapshotDigest:root.snapshotDigest,observedAtMs:request.observedAtMs}),
+        authorityRef:'platform.workspace-space-admission@1',requestDigest:request.requestDigest,workspaceId:request.workspaceId,
+        libraRunId:request.libraRunId,rootId:root.rootId,rootSnapshotDigest:root.snapshotDigest,requiredBytes:request.requiredFreeBytes,
+        availableBytes:request.requiredFreeBytes+1,observedAtMs:request.observedAtMs,expiresAtMs:request.observedAtMs+30000,result:'admitted'};
+      return {...evidence,evidenceDigest:canonicalDigest(evidence)};
+    }}
+  });
+  if(outcome==='ready')assert.throws(()=>coordinator.analyzeUsAdult(ref.libraRunId),/fixture-after-workspace-admission/);
+  else {const result=coordinator.analyzeUsAdult(ref.libraRunId);assert.equal(result.kind,'pending');
+    assert.equal(result.reasonCode,outcome==='pending'?'prior_execution_draining':'owner_view_changed');}
+  const db=new Database(input.databasePath,{readonly:true});
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM libra_workspaces').get().n,outcome==='ready'?1:0);
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM fx_workspace_registry').get().n,outcome==='ready'?1:0);db.close();
+}));

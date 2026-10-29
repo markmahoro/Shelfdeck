@@ -7,6 +7,7 @@ const {nextUsAdultIdentityStage}=require('../planning/us-adult-product-identity-
 const {createUsAdultAnalysisCoordinator}=require('./us-adult-analysis-coordinator');
 const {createUsAdultProductCoordinator}=require('./us-adult-product-coordinator');
 const {artifactWorkIdentity}=require('../model/us-adult-product-work');
+const {guardedRunWrite}=require('./run-execution-write-guard');
 
 const { readDirectMediaSelections } = require('../planning/direct-media-selections');
 const {readSeriesProductionCandidates,readSeriesMediaSelections,candidateSetDigest}=require('../planning/series-production-candidates');
@@ -126,7 +127,8 @@ function createLibraRunCoordinator(options){
   function submit(work){
     const existing=options.workResultReader.readDefinition?.(work.workId)||null;
     const replayDefinition=definitionForReplay(work,existing);
-    return admission.replay(replayDefinition)||admission.submit(work);
+    return guardedRunWrite(options.runExecutionGuard,{libraRunId:work.processId,executionBasisDigest:work.executionBasisDigest},
+      readFence=>admission.replay(replayDefinition)||admission.submit(work,{readFence}));
   }
   function attachWorkingHandle(snapshot, workspace, handle, claims = snapshot.episodeClaims) {
     if (!handle?.handleId) return;
@@ -599,9 +601,9 @@ function createLibraRunCoordinator(options){
       stateRevision:snapshot.run.stateRevision,stateDigest:snapshot.run.stateDigest,
       executionBasisDigest:snapshot.run.executionBasisDigest},workspaceId:id,platformWorkspaceRootSnapshot:root,
       spaceAdmissionEvidence:evidence});
-    workspaceAdmission.admit({decision,commitMarker:stable('libra-workspace-admission-marker-',{workspaceId:id,
+    guardedRunWrite(options.runExecutionGuard,snapshot.run,readFence=>workspaceAdmission.admit({decision,readFence,commitMarker:stable('libra-workspace-admission-marker-',{workspaceId:id,
       decisionDigest:decision.decisionDigest}),resultId:stable('libra-workspace-admission-result-',{workspaceId:id,
-      decisionDigest:decision.decisionDigest})});
+      decisionDigest:decision.decisionDigest})}));
     const admitted=options.movieProductionReader.readWorkspace(id);
     if(!admitted)throw new Error('Admitted Libra Workspace cannot be reconstructed.');
     return admitted;
@@ -657,12 +659,13 @@ function createLibraRunCoordinator(options){
     }
     return null;
   }
-  function reconcile(libraRunId){
+  function reconcileCurrent(libraRunId){
     if(options.taskCancellations?.getForRun(libraRunId)?.state==='pending')return {kind:'cancelling',libraRunId};
     let snapshot;
     try { snapshot=typeof options.movieProductionReader.readRunSnapshot==='function'
       ?options.movieProductionReader.readRunSnapshot(libraRunId):options.movieProductionReader.readRun(libraRunId); }
     catch(error){if(error?.code==='P14_MOVIE_PRODUCTION_RUN_UNAVAILABLE')return Object.freeze({kind:'not_found',libraRunId});throw error;}
+    if(snapshot.run.state==='active')guardedRunWrite(options.runExecutionGuard,snapshot.run,()=>null);
     if(snapshot.run.state==='active' && snapshot.run.packageRevisionHead>0 && options.resolveRejectedRun) {
       const published=options.movieProductionReader.readPublishedDeliveryRef(libraRunId,snapshot.run.packageRevisionHead);
       if(published && options.movieProductionReader.readDeliveryReceipt(published.offerId)?.result==='rejected')
@@ -918,6 +921,14 @@ function createLibraRunCoordinator(options){
         {sourceWorkId:sourceMedia.workId,priorSelectionWorkId:direct.workId});
     return ensureDelivery(snapshot,workspace,direct);
   }
+  function reconcile(libraRunId){
+    try{return reconcileCurrent(libraRunId);}
+    catch(error){
+      if(error?.code==='LIBRA_RUN_EXECUTION_DEFERRED')return Object.freeze({kind:'pending',phase:'run_owner_qualification',
+        libraRunId,reasonCode:error.reasonCode});
+      throw error;
+    }
+  }
   return Object.freeze({reconcile,
     reconcileActorChoice(libraRunId){
       const snapshot=options.movieProductionReader.readRunSnapshot(libraRunId);
@@ -932,9 +943,15 @@ function createLibraRunCoordinator(options){
         identity=options.movieProductionReader.readFact(libraRunId,'resolved_identity',1);
       if(!snapshot||snapshot.run.state!=='active'||snapshot.spec.contentProfile!=='western_adult'||!identity)
         throw new Error('US Adult analysis can start only in an active Run with its formal Identity.');
-      const workspace=ensureWorkspace(snapshot);
-      if(workspace.kind==='workspace_admission_deferred')return workspace;
-      return createUsAdultAnalysisCoordinator({...options,submit}).reconcile(snapshot,identity,workspace);
+      try{
+        const workspace=ensureWorkspace(snapshot);
+        if(workspace.kind==='workspace_admission_deferred')return workspace;
+        return createUsAdultAnalysisCoordinator({...options,submit}).reconcile(snapshot,identity,workspace);
+      }catch(error){
+        if(error?.code==='LIBRA_RUN_EXECUTION_DEFERRED')return Object.freeze({kind:'pending',phase:'run_owner_qualification',
+          libraRunId,reasonCode:error.reasonCode});
+        throw error;
+      }
     },
     readJavIdentityStage(libraRunId) {
       const snapshot=options.movieProductionReader.readRunSnapshot(libraRunId);
