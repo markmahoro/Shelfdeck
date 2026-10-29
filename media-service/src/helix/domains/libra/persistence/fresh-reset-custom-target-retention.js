@@ -6,6 +6,8 @@ const {buildCollectionTargetReference}=require('../../../contracts/collection-ta
 const {assertStandardAcceptanceSpec,assertCustomAcceptanceSpec}=require('../model/custom-acceptance-spec');
 
 const SCHEMA='libra.fresh-reset-custom-target-closure@1';
+const HISTORICAL_ROW_SCHEMA='AcceptanceSpec@1';
+const HISTORICAL_VALUE_SCHEMA='helix://contracts/types/AcceptanceSpecDraft/v1';
 function fail(){throw Object.assign(new Error('Retained custom target evidence is incomplete or inconsistent.'),
   {code:'LIBRA_RESET_CUSTOM_TARGET_INVALID'});}
 function parse(row,column){try{return JSON.parse(row?.[column]);}catch{fail();}}
@@ -30,15 +32,22 @@ function createFreshResetCustomTargetRetention(options){
     }});
   function specFrom(repo,id){
     const row=repo.invoke('spec',{acceptance_spec_id:id}),value=parse(row,'spec_json');
+    // Before 053260c409 the standard writer stored this exact pair. It is
+    // recognized only by the cold retention reader; no stored fact changes.
+    const historical=value?.targetKind===undefined&&row?.spec_schema_ref===HISTORICAL_ROW_SCHEMA&&value?.schemaRef===HISTORICAL_VALUE_SCHEMA;
     if(!row||!value||canonicalJson(value)!==row.spec_json||row.acceptance_spec_id!==value.acceptanceSpecId||
         row.subject_id!==value.subjectId||row.shelf_id!==value.targetShelfId||row.product_scope_digest!==value.productScope?.scopeDigest||
-        row.spec_revision!==value.specRevision||row.spec_schema_ref!==value.schemaRef||row.spec_digest!==value.specDigest||
+        row.spec_revision!==value.specRevision||(!historical&&row.spec_schema_ref!==value.schemaRef)||row.spec_digest!==value.specDigest||
         row.record_digest!==value.recordDigest)fail();
-    return {row,value};
+    return {row,value,historical};
   }
   function describeSpec(repo,id){
-    const {value:spec}=specFrom(repo,id);
-    if(spec.targetKind===undefined){assertStandardAcceptanceSpec(spec);return null;}
+    const {value:spec,historical}=specFrom(repo,id);
+    if(spec.targetKind===undefined){
+      // Both versions digest the same frozen Draft. The temporary view lets
+      // the current model verify that complete digest without rewriting it.
+      assertStandardAcceptanceSpec(historical?{...spec,schemaRef:'libra.acceptance-spec@1'}:spec);return null;
+    }
     if(spec.targetKind!=='user_custom'||!spec.customTargetRef||!spec.originalTarget)fail();
     const intentRow=repo.invoke('intent',{intent_id:spec.customTargetRef.intentId}),intent=parse(intentRow,'record_json'),
       previewRow=repo.invoke('preview',{preview_id:spec.customTargetRef.previewDigest}),preview=parse(previewRow,'record_json'),

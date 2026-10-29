@@ -125,3 +125,11 @@ Windows 和隔离 Linux Docker 运行 Replacement Admission、Work Admission、W
 Foundation 的 `ensurePlanningAttempt` 增加可选 opaque read fence，由创建或重用 planning Attempt 的同一 Unit of Work 验证；与已提交命令回执重放不同，重用 ready Attempt 后仍会继续规划，因此陈旧读取不能绕过围栏。新增测试先复现原实现忽略 fence；修复后包括精确 Libra 目标 Head 在读取后变化、原 Work 已准入但新 Attempt 尚未创建、已存在 Attempt 的陈旧重用，均在事务前拒绝且不新增 Attempt。使用受控 SQLite 状态变化，旧 Work 保持原状态供正式取消入口处理。
 
 Windows 和隔离 Linux Docker 的 Work Lifecycle、Work Admission、Replacement Admission、Arca Withdrawal 四文件各 **76 PASS / 0 skip**。该原语尚未接入 Runtime Host，也未覆盖 Plan Publication、Workspace、Event Attempt 及实际 Scheduler 的全部准入；目前仍不能称为全局调度屏障或启用用户自定义目标。
+
+## 已入藏标准 Spec 历史形状复核（2026-10-29）
+
+`24a199ee0` 新增的标准 Spec 完整校验原先只接受当前 schema 对，可能误拒绝历史已入藏事实。仓库提交 `8cce8e801a9aee74fe65f574474c8370952f682e` 的正式标准解析器把 Spec JSON 的 `schemaRef` 保存为 `helix://contracts/types/AcceptanceSpecDraft/v1`，同时该版本的 Publication Store 将行 `spec_schema_ref` 保存为 `AcceptanceSpec@1`；`053260c409` 后改为二者均为 `libra.acceptance-spec@1`。这是源码历史证据，不证明现有生产收藏含该格式。用旧解析器与受控输入生成并冻结 Movie/Series 两份合成记录，复制前的负例为旧版 2 FAIL、当前版 2 PASS。
+
+修复限定在 Libra 的冷态保留只读器：仅识别上述精确旧版标准 schema 对，临时重建等价 Draft 以核验原本的 draft/semantic/record/ID 摘要，不改写存储行；错配 schema、需求或 digest 篡改和伪装 Custom 均拒绝。Custom Spec/Intent/Preview 继续执行完整重建，旧标准不作为 Custom Spec 的兼容基线，也不赋予旧未入藏 Run 执行或保留资格。测试使用当前正式解析器产生 Movie/Series 标准及 4、5 星、相同评分不同来源版本，并在临时库模拟已 Commit 引用、复制和独立只读复验；未入藏 active Run 被清除。相关五文件在 Windows 与隔离 Linux Docker 各 **53 PASS / 0 skip**；这些是合成历史/关系事实，Series 覆盖不扩大 Movie-only Beta 声称。边界扫描无新增 finding，已有全局 2 + 1 finding 保留。
+
+此验证使用现行 243 表测试 schema，不证明任何旧版**数据库 schema**具备冷迁移资格；Owner 声明及来源 catalog/marker 的现有审核仍分别 fail-closed，主整合需核验其实际 244 表混合版本与授权来源。仅从共同基线 `f24164ae0` 移植 `24a199ee0` 最小源码为 `formation-reset-copy.js`、`formation-reset-owner-policy.js`、`formation-reset-verify.js`、`formation-reset-inspect.js`、Libra public index 与新 `fresh-reset-custom-target-retention.js`；还需要 `collection-target-reference.js`（`db7ec1a54` 新增）及 `custom-acceptance-spec.js` 的 `assertStandardAcceptanceSpec` 导出（同提交的一行改动）。原 `custom-target-records.js`、`custom-acceptance-requirements.js` 和测试用 `custom-acceptance-spec-harness.js` 已存在于共同基线；闭包测试需 `formation-reset-custom-target-copy.test.js`。本次历史补丁另需 `formation-reset-standard-spec-history.test.js` 与合成 fixture `fresh-reset-standard-history.json`。未改共享 schema、保留声明或全局计划，没有访问生产。

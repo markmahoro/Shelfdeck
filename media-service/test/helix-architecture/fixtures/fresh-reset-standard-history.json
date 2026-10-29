@@ -1,0 +1,191 @@
+{
+  "provenance": "Synthetic inputs passed through acceptance-spec-contracts.js at parent of 053260c409; row schema from that revision acceptance-spec-store.js.",
+  "records": [
+    {
+      "profile": "movie",
+      "rowSchemaRef": "AcceptanceSpec@1",
+      "spec": {
+        "schemaRef": "helix://contracts/types/AcceptanceSpecDraft/v1",
+        "schemaVersion": 1,
+        "draftId": "cacfbd692552cfc9cae1701ede60eaaf779856d7fcba72f20cf77999d48f7e36",
+        "draftKind": "libra_acceptance_spec",
+        "basisDigest": "3f925a9534d7a3485a744da5acec9ef0d29de66404c67de01bf76cbf3f48068b",
+        "producedAtMs": 201,
+        "subjectId": "subject",
+        "targetShelfId": "shelf",
+        "contentProfile": "movie",
+        "structureKind": "single",
+        "productScope": {
+          "subjectId": "subject",
+          "scopeKind": "single",
+          "subjectIntakeRevision": 1,
+          "episodeKeys": [],
+          "scopeDigest": "bb76d471d732c5d4b97e62ca45f6578475164d1df13cf6e20876faa50470c9c4"
+        },
+        "shelfRoutingProjectionRevision": 1,
+        "shelfProjectionDigest": "652d6b67962be471dd3e67d303eba441671c9a6663f75dd62b2a24dcf68af942",
+        "shelfStandardRevision": 1,
+        "shelfStandardDigest": "55893636c89320b71e14858987ab3eff10679ef7be855443b7809e3c2afebc19",
+        "decisionBasisId": "c581066daf9ed646f34ced9d4b16060cb2b41cca2a8c2ef317dfb69c286a3818",
+        "decisionBasisDigest": "3f925a9534d7a3485a744da5acec9ef0d29de66404c67de01bf76cbf3f48068b",
+        "requirements": {
+          "identity": {
+            "identityKind": "tmdb_movie",
+            "requiredProvider": "tmdb",
+            "requireSeasonNumber": false
+          },
+          "structure": {
+            "structureKind": "single",
+            "primaryModel": "single_primary",
+            "requireOnePrimaryPerEpisode": false
+          },
+          "metadata": {
+            "requiredFieldCodes": [
+              "actor",
+              "director",
+              "genre",
+              "plot",
+              "title",
+              "tmdb_movie_id",
+              "year_or_release_date"
+            ],
+            "requiredArtifactKinds": [
+              "nfo",
+              "poster"
+            ],
+            "requireRenderableSidecar": true,
+            "requireDecodableImages": true
+          },
+          "mandatoryMedia": {
+            "mediaForm": "stream_file",
+            "videoCodec": "hevc",
+            "container": "matroska",
+            "fileExtension": "mkv",
+            "minimumRasterClass": "4k",
+            "acceptedPrimaryAudioClasses": [
+              "dts_hd_ma",
+              "dts_x",
+              "eac3_atmos",
+              "truehd",
+              "truehd_atmos"
+            ],
+            "forbidSystemUpscaleFor4k": true
+          },
+          "space": {
+            "unit": "product",
+            "maxSizeGiB": 50,
+            "maxSizeBytes": 53687091200
+          },
+          "inventory": {
+            "requireDomainBinding": true,
+            "requireChecksum": true,
+            "requiredMaterializedArtifactKinds": [
+              "nfo",
+              "poster"
+            ],
+            "layoutModel": "single"
+          }
+        },
+        "specDigest": "a23b2e9b6e75f66b83653070074666994303b1e49bffdec925285f92789888c1",
+        "draftDigest": "be89b1e450965e7eac917c66084f12ba371e4fbff7d1b2448d6ca3815b7554b4",
+        "acceptanceSpecId": "763b503624ba0a79f94d66b9595f42b25963e26ba7ab29acee5a708b81628543",
+        "specRevision": 1,
+        "recordDigest": "0e78734dc2a052ec53755f7e53f342b6e2209dedc002123c100c8098781735a1",
+        "publishedAtMs": 202
+      }
+    },
+    {
+      "profile": "series",
+      "rowSchemaRef": "AcceptanceSpec@1",
+      "spec": {
+        "schemaRef": "helix://contracts/types/AcceptanceSpecDraft/v1",
+        "schemaVersion": 1,
+        "draftId": "891630dcc0c8d7f46acd81ae1b03e8f706edf5fcd3fe0000cdb435753de6f130",
+        "draftKind": "libra_acceptance_spec",
+        "basisDigest": "7dbf635c5c9925a6625d3a4cf6665ce9502ce7b610de1bf581f9b78bdf97d0c7",
+        "producedAtMs": 202,
+        "subjectId": "subject",
+        "targetShelfId": "shelf",
+        "contentProfile": "series",
+        "structureKind": "season",
+        "productScope": {
+          "subjectId": "subject",
+          "scopeKind": "episode_manifest",
+          "subjectIntakeRevision": 1,
+          "episodeKeys": [
+            "E001",
+            "E002"
+          ],
+          "scopeDigest": "3d4dcbfdca75b6510fa2759c5085561ee8baec033c4f42ccd82fa5489eeb7b81"
+        },
+        "shelfRoutingProjectionRevision": 1,
+        "shelfProjectionDigest": "3cbb9726274af38455f074d919f4611f156376f2f41da98382aa35d6e28fa05c",
+        "shelfStandardRevision": 1,
+        "shelfStandardDigest": "448f9014de801023af6304247ed6d40643c80a5f3444f1d24c497370a84240e6",
+        "decisionBasisId": "6c45c413e818294046fc222ef15ee7f5c7474f871d8ffe928785a7d4578f48c1",
+        "decisionBasisDigest": "7dbf635c5c9925a6625d3a4cf6665ce9502ce7b610de1bf581f9b78bdf97d0c7",
+        "requirements": {
+          "identity": {
+            "identityKind": "tmdb_series_season",
+            "requiredProvider": "tmdb",
+            "requireSeasonNumber": true
+          },
+          "structure": {
+            "structureKind": "season",
+            "primaryModel": "episode_primary",
+            "requireOnePrimaryPerEpisode": true
+          },
+          "metadata": {
+            "requiredFieldCodes": [
+              "actor",
+              "episode_number",
+              "episode_plot",
+              "episode_title",
+              "genre",
+              "plot",
+              "season_number",
+              "series_title",
+              "tmdb_series_id"
+            ],
+            "requiredArtifactKinds": [
+              "nfo",
+              "poster"
+            ],
+            "requireRenderableSidecar": true,
+            "requireDecodableImages": true
+          },
+          "mandatoryMedia": {
+            "mediaForm": "any",
+            "videoCodec": "hevc",
+            "container": "any",
+            "fileExtension": "any",
+            "minimumRasterClass": "none",
+            "acceptedPrimaryAudioClasses": [],
+            "forbidSystemUpscaleFor4k": true
+          },
+          "space": {
+            "unit": "episode",
+            "maxSizeGiB": 3,
+            "maxSizeBytes": 3221225472
+          },
+          "inventory": {
+            "requireDomainBinding": true,
+            "requireChecksum": true,
+            "requiredMaterializedArtifactKinds": [
+              "nfo",
+              "poster"
+            ],
+            "layoutModel": "season_episode"
+          }
+        },
+        "specDigest": "32f1d883fd4cf458000bd23b0f070f84ba36d4b82680dbc0a503bd26c4525962",
+        "draftDigest": "3c5a84b10e2101bd1afac597b3c79eed8c3d18685da430a58d57c2d64476bfcb",
+        "acceptanceSpecId": "4b2612b9f9f64b942660ce8af61131533a09cfdd98c4048e8a1146a36371af62",
+        "specRevision": 2,
+        "recordDigest": "2733fc86d0d36395ad62197b9d23ea55881f3ef9763f3fb00b9737d3ee3db0e3",
+        "publishedAtMs": 203
+      }
+    }
+  ],
+  "sourceCommit": "8cce8e801a9aee74fe65f574474c8370952f682e"
+}
