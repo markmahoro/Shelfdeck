@@ -151,7 +151,7 @@ test('direct custom admission also requires the current baseline inside its tran
 }));
 
 test('a custom Run cannot be admitted without a current Owner baseline reader',()=>runHarness(h=>{
-  const contextReader=createLibraRunContextReader(h.options),creator=createLibraRunCreator({...h.options,contextReader,
+  const contextReader=createLibraRunContextReader(h.options),creator=createLibraRunCreator({...h.options,contextReader,readCurrentCustomTargetBaseline:undefined,
     customTargetStore:h.targets,cancelProcessWorks(){throw new Error('must not cancel');}}),before=h.snapshot();
   assert.throws(()=>creator.replaceConfirmedCustomTarget(h.chosen.intent,h.unitOfWork.captureReadFence()),
     {code:'LIBRA_CUSTOM_TARGET_BASELINE_UNAVAILABLE'});

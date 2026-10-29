@@ -45,12 +45,18 @@ function harness(callback,{failAfterPublication=false,prepareRun=null}={}){retur
         auditRecords:[{auditId:id,actorType:'admin',actorId:'admin',action:'target.'+kind,scopeType:'subject',scopeId:'subject'}],
         resultEnvelope:result=>({resultSchemaRef:'fixture.target-result@1',resultRef:result})});
     }
+    let baselineChange={};
+    options.readCurrentCustomTargetBaseline=()=>({kind:'ready',subjectId:chosen.intent.subjectId,
+      productScopeDigest:chosen.intent.basis.productScopeDigest,standardSpecDigest:chosen.intent.basis.baseSpecDigest,
+      shelfId:chosen.intent.basis.shelfId,shelfStandardRevision:chosen.intent.basis.shelfStandardRevision,
+      shelfStandardDigest:chosen.intent.basis.shelfStandardDigest,identityDigest:chosen.intent.basis.identityDigest,
+      handoffState:chosen.intent.basis.handoffState,...baselineChange});
     const publisher=createCustomSpecPublicationStore(options),currentBasis={...chosen.intent.basis,customTargetRevision:chosen.intent.revision},
       publish=overrides=>publisher.publish({intentId:chosen.intent.intentId,intentDigest:chosen.intent.intentDigest,currentBasis,
         readFence:unitOfWork.captureReadFence(),producedAtMs:1200,...overrides}),
       counts=()=>['libra_acceptance_specs','libra_custom_target_intents','fx_command_receipts','fx_commit_markers','fx_audit_records']
         .map(table=>db.prepare('SELECT count(*) n FROM '+table).get().n);
-    return callback({db,publisher,publish,base,chosen,currentBasis,unitOfWork,counts,options,data,targets});
+    return callback({db,publisher,publish,base,chosen,currentBasis,unitOfWork,counts,options,data,targets,setBaseline:value=>{baselineChange=value;}});
   }finally{db.close();}
 },{seedRun:!prepareRun});}
 

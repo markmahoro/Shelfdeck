@@ -3,8 +3,9 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const {fixture,schemaManifest,D,Database}=require('./fixtures/us-adult-analysis-basis-harness');
 const {fixture:specFixture}=require('./fixtures/custom-acceptance-spec-harness');
-const {canonicalJson}=require('../../src/helix/contracts/canonical-json');
-const {decisionHeadDigest}=require('../../src/helix/domains/libra/model/decision-front-half-contracts');
+const {canonicalDigest,canonicalJson}=require('../../src/helix/contracts/canonical-json');
+const {decisionHeadDigest,buildDecisionInputSet}=require('../../src/helix/domains/libra/model/decision-front-half-contracts');
+const {createCustomTargetBaselineReader}=require('../../src/helix/domains/libra/application/custom-target-baseline-reader');
 const {createCommandCommitCoordinator}=require('../../src/helix/foundation/persistence/commit-foundation');
 const {createCustomTargetStore}=require('../../src/helix/domains/libra/persistence/custom-target-store');
 const {createCustomSpecPublicationStore}=require('../../src/helix/domains/libra/persistence/custom-spec-publication-store');
@@ -36,6 +37,44 @@ test('fresh publication rejects Arca acceptance, changed Shelf projection and st
   }
   const readFence=h.unitOfWork.captureReadFence();h.db.exec('UPDATE libra_subjects SET intake_revision=2');
   assert.throws(()=>h.publish({readFence}),{code:'P3_UOW_READ_FENCE_CHANGED'});assert.deepEqual(h.counts(),before);
+}));
+
+test('new publication requires the freshly read standard and Arca responsibility, but committed replay does not',()=>harness(h=>{
+  const before=h.counts();
+  for(const baseline of [{standardSpecDigest:D('changed-rating')},{shelfStandardDigest:D('changed-shelf')},
+    {identityDigest:D('changed-identity')},{handoffState:'accepted'}]){
+    h.setBaseline(baseline);assert.throws(()=>h.publish(),{code:'LIBRA_CUSTOM_TARGET_BASELINE_CHANGED'});assert.deepEqual(h.counts(),before);
+  }
+  h.setBaseline({kind:'unavailable'});
+  assert.throws(()=>h.publish(),{code:'LIBRA_CUSTOM_TARGET_BASELINE_UNAVAILABLE'});assert.deepEqual(h.counts(),before);
+  const readBaseline=h.options.readCurrentCustomTargetBaseline;h.options.readCurrentCustomTargetBaseline=undefined;
+  assert.throws(()=>h.publish(),{code:'LIBRA_CUSTOM_TARGET_BASELINE_UNAVAILABLE'});assert.deepEqual(h.counts(),before);
+  h.options.readCurrentCustomTargetBaseline=()=>{throw new Error('projection unavailable');};
+  assert.throws(()=>h.publish(),/projection unavailable/);assert.deepEqual(h.counts(),before);
+  h.options.readCurrentCustomTargetBaseline=readBaseline;
+  h.setBaseline({});const first=h.publish();
+  h.setBaseline({kind:'unavailable'});
+  assert.deepEqual(h.publish().receipt,first.receipt);
+  h.options.readCurrentCustomTargetBaseline=()=>{throw new Error('projection unavailable');};
+  assert.deepEqual(h.publish().receipt,first.receipt);
+}));
+
+test('a change during the external baseline read is fenced before Spec publication',()=>harness(h=>{
+  const before=h.counts(),read=h.options.readCurrentCustomTargetBaseline,readFence=h.unitOfWork.captureReadFence();
+  h.options.readCurrentCustomTargetBaseline=request=>{h.db.exec('UPDATE libra_subjects SET intake_revision=2');return read(request);};
+  assert.throws(()=>h.publish({readFence}),{code:'P3_UOW_READ_FENCE_CHANGED'});
+  assert.deepEqual(h.counts(),before);
+}));
+
+test('the typed standard resolver and Arca responsibility projection can feed publication',()=>harness(h=>{
+  const source=h.data.inputSet,subject={...source.subjectSnapshot,currentIdentityRevision:1,currentIdentityDigest:h.chosen.intent.basis.identityDigest};
+  subject.snapshotDigest=canonicalDigest(Object.fromEntries(Object.entries(subject).filter(([key])=>key!=='snapshotDigest')));
+  const inputSet=buildDecisionInputSet({...source,subjectSnapshot:subject}),baselineReader=createCustomTargetBaselineReader({
+    acceptanceSpecContextReader:{read:()=>({kind:'ready',inputSet})},
+    readHandoffResponsibility:request=>({kind:'ready',...request,handoffState:'no_offer'})});
+  h.options.readCurrentCustomTargetBaseline=baselineReader.read;
+  const result=h.publish();
+  assert.equal(h.publisher.read(result.receipt.resultRef.acceptanceSpecId).customTargetRef.intentId,h.chosen.intent.intentId);
 }));
 
 test('interruption after Spec, head and all technical writes rolls back the entire publication',()=>harness(h=>{

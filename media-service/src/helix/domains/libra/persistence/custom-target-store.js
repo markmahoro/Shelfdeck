@@ -178,13 +178,16 @@ function createCustomTargetStore(options) {
         onValidated(intent);return {intentId:intent.intentId,intentDigest:intent.intentDigest,targetRevision:intent.revision};
       }};
     },
-    publicationValidation({intentId,intentDigest,currentBasis},onValidated){
+    publicationValidation({intentId,intentDigest,currentBasis,currentTargetBaseline,baselineReadFailure},onValidated){
       if(typeof onValidated!=='function'||!SHA256.test(intentId||'')||!SHA256.test(intentDigest||''))fail('LIBRA_CUSTOM_TARGET_COMMAND_INVALID');
       return {participantId:'custom_target_publication_validation',owner:'libra',repositories:[validationRepository],execute(context){
         const repo=context.repository(validationRepository.repositoryId),evidence=intentEvidence(repo,intentId),{intent,preview}=evidence,
           basis=validateBasis(currentBasis),expected={...intent.basis,customTargetRevision:intent.revision,
             runState:basis.runState,runStateRevision:basis.runStateRevision,runStateDigest:basis.runStateDigest,gapEvidenceSetDigest:basis.gapEvidenceSetDigest};
         if(intent.intentDigest!==intentDigest||canonicalJson(basis)!==canonicalJson(expected))fail('LIBRA_CUSTOM_TARGET_PREVIEW_STALE');
+        if(baselineReadFailure)throw baselineReadFailure;
+        assertCurrentTargetBaseline(intent,currentTargetBaseline);
+        if(currentTargetBaseline.handoffState!==basis.handoffState)fail('LIBRA_CUSTOM_TARGET_BASELINE_CHANGED');
         assertOwnerBasis(repo,basis,preview,intent.revision);
         const selected=current(repo,basis.subjectId,basis.productScopeDigest);
         if(selected?.intentId!==intentId||selected.intentDigest!==intentDigest)fail('LIBRA_CUSTOM_TARGET_PREVIEW_STALE');

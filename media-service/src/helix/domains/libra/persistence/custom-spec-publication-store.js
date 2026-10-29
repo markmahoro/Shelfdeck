@@ -39,8 +39,16 @@ function createCustomSpecPublicationStore(options){
   }
   return Object.freeze({read,publish({intentId,intentDigest,currentBasis,readFence,producedAtMs}){
     if(!readFence)fail('LIBRA_CUSTOM_TARGET_READ_FENCE_REQUIRED');
-    let evidence;
-    const validation=targets.publicationValidation({intentId,intentDigest,currentBasis},value=>{evidence=value;}),
+    let evidence,currentTargetBaseline,baselineReadFailure;
+    try{
+      if(typeof options.readCurrentCustomTargetBaseline!=='function')fail('LIBRA_CUSTOM_TARGET_BASELINE_UNAVAILABLE');
+      const {intent}=targets.intentEvidence(intentId);
+      currentTargetBaseline=options.readCurrentCustomTargetBaseline(Object.freeze({subjectId:intent.subjectId,libraRunId:intent.libraRunId,
+        productScopeDigest:intent.basis.productScopeDigest}));
+    }catch(error){baselineReadFailure=error;}
+    // Projection failures block a new publication inside the transaction, but
+    // Foundation receipt replay still precedes all current-state validation.
+    const validation=targets.publicationValidation({intentId,intentDigest,currentBasis,currentTargetBaseline,baselineReadFailure},value=>{evidence=value;}),
       commandContract='libra.custom-target.spec.publish@1',commandId=canonicalDigest({schema:'libra.custom-spec-command-id@1',intentId}),
       requestDigest=canonicalDigest({schema:commandContract,intentId,intentDigest});
     return coordinator.execute({readFence,command:{commandReceiptId:commandId,ownerDomain:'libra',commandContract,
