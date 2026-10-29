@@ -199,3 +199,11 @@ UI 负责人独立复核 `db824ddb3b7f1204bff5c965a9490e672bd6b542` 的开发版
 重放同时核对已存结果摘要及完整结果形状、目标类型和 ID、调用范围与结果 schema；四项受控损坏测试先复现旧逻辑接受不一致回执，修复后连同新增目标类型负例共五项均拒绝，即使篡改结果并重算其摘要也不例外。这些校验不依赖继续存在的 Work 行，不扩大旧未入藏条目的兼容范围。Work Admission、Lifecycle、Plan、Scheduler、Host、Event、Replacement、Withdrawal、Arca 责任与 Material Control 十文件在 Windows 与隔离 Linux Docker 各 **294 PASS / 0 skip**。包边界和禁止语义扫描仍仅有既有 2 + 1 finding；Linux 仍使用先前说明的非精确依赖镜像。
 
 这只完善已有 Foundation 原子准入与精确重放能力，实际 Libra Run/Workspace 编排仍未传入完整 Owner Guard；不证明 Fresh-generation Reset 可清除 Withdrawal 后继续履行旧 Offer 的未 ACK 重投责任，也未启用 Custom 入口或访问生产。
+
+## Run 协调与 Workspace 写入围栏（2026-10-29）
+
+独立提交 `046a002872a9d94d3805fb1e6da13c4c28cfaea7` 为实际 Libra Run Coordinator 增加可选 Owner Guard：对 active Run 先检查目标与旧责任，Work Admission 和 Workspace Admission 各在自己的写事务重新验证对应 fence；Product Staging 每次 attach/promote 都重新检查并将 fence 交给 Reference Store。Guard 还比对调用方的精确 Run Basis，不能用另一个 Basis 的快照借用许可。pending 或读取后变化明确返回等待，不伪造终态；无注入时保留现有运行路径。
+
+真实临时 SQLite 测试使用实际 Custom Guard、旧执行排空检查、Run Coordinator 和 Foundation Work Admission：旧 Event/Effect 未排空不产生新 Work；写入前修改 Owner 数据导致零新 Work；fresh view 可准入。Workspace Coordinator 测试使用受控空间/Run 夹具，pending 或提交前并发变化时 Workspace/Registry 均为零，fresh view 原子提交；成功分支在创建后故意以测试异常截断，未声称后续 US 业务通过。Reference Store 与实际 Product Staging 测试先复现忽略 fence，修复后陈旧 view 零写入，精确已提交结果在围栏变化或并发先提交后可重放，篡改 Owner 引用拒绝。Guard 仍不证明文件存在或真实媒体可读。
+
+Windows 和隔离 Linux Docker 的 14 个相关文件各 **374 PASS / 0 skip**；包边界及禁止语义扫描仍仅有既有全局 2 + 1 finding。Linux 使用既有非精确依赖镜像，非最终镜像。该 Guard 尚未装入正式组合根，且 Lifecycle/冻结、Scheduler/Resource Governor、实际确认自动接续、目标恢复标准及 Arca 接纳/唯一 Commit 等仍需闭合；不开放半成品用户入口、不把此局部事务能力称作全局屏障。Fresh Reset 对旧未 ACK Offer 的证明缺口保持开放，未改生产或 Reset 声明。
