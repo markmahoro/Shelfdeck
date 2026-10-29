@@ -21,6 +21,8 @@ DDOB-019 的冲突目标为已有 active Shelf Entry 所控的同番号正式文
 
 JAV长标题`619ffc464`不是发布合格候选：真实Host的Stage回执前、Stage已提交/Verify前和Placement回执前三个进程中断窗口均保留原文件却未完成Effect责任；修复和三个原边界复验进行中。演员系统建档和电影自定义Spec仍在开发，新增People/Cast数据结构若改变目标DDL，须重新验证从实际239表源的Reset结构与精确保留闭包。
 
+演员线程阶段提交`bfc11236e`的真实Frame Effect恢复、People姓名比较和Libra人物请求输入已整合；保留主线Artifact kind，Linux 79项、Windows 25项及静态四项通过。仍使用技术fixture，实际视频/Host、系统建档、Cast和最终Reset未完成。
+
 ## 并行执行与当前阻断
 
 | 线程 / ID | 本轮交付与先后 | 整合边界 |

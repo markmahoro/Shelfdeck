@@ -8,6 +8,8 @@
 
 JAV长标题候选`619ffc464`的真实Linux Host在Stage写完回执前、Stage提交后Verify前、Placement写完回执前三处中断后均未完成原责任恢复；文件保留且无On-deck Commit不等于成功。Series线程正按既有Arca边界修复并复验，当前阻断上线。演员People/Cast合同已进入独立实现，新增数据结构将要求重新审查最终Reset保留和旧生产结构转换；电影端到端仍在开发。
 
+演员阶段`bfc11236e`的Frame/Embedding/Cluster真实Event与中断恢复、People姓名比较和Libra人物请求输入已叠加主整合，保留`face_catalogue_observation`枚举；合并后隔离Linux 79项、本机Windows 25项及四项静态检查通过。视频Probe/CPU/目录仍用fixture，正式Host、真实视频、系统建档与Cast尚未完成；新人物来源和结构变更须连同Reset闭包继续审核。
+
 演员Observation检查点`28a6e4f43`已基于主整合既有暂存状态叠加，保留本整合的`face_catalogue_observation`类型；隔离Linux的真实Event/恢复及Workspace相关52项、四项静态检查通过。视频帧、模型和目录输入仍含fixture，正式Host、People/Cast及入藏闭环未完成。演员线程正在继续，并提出目录选择、系统建档和People Reset依赖的机器合同需求，须按既有Owner边界传播。
 
 Series候选的Perception Planner越界已在`f253017d2`收口，实际判断和错误类型不变；隔离Linux相关45项及静态检查通过。主整合已持有JAV截短SSOT `3e707a033`，系列独立候选尚未合入该合同；JAV正式实现、固定版本Host/冲突/中断证据仍在进行。

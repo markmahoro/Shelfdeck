@@ -270,3 +270,29 @@ Work ID/幂等键绑定完整不可变 Basis/producer Result 集。读取支持 
 - 新增fence后首次native夹具遗漏注入共享UnitOfWork，18项构造失败，保留`catalogue-owner-fence-native-1.log` SHA256 `75ff60df9c1f587ad677b6d9d49dce8aa7b17339ed09da5b1f3803ee2b0c819d`；补全夹具后17 PASS/1非Linux文件替换skip，随后Linux无skip全通过。未放宽正式fence。Package、Semantic、Manifest和P2四项静态通过，139 Capability/118 Result/244表/66事务，257类型引用、0未解析；静态日志SHA256 `847450725690c2bedee7408560f6dcabadcb16ae4d99a3122493f5847e677a47`。
 
 该检查点没有注册正式Host或修改生产。真实Frame三个Event的同类中断恢复、主备模型/目录共载、People姓名解析与自动注册、人工Choice竞争、出演及Arca Commit仍未完成；Phase 4/5不Exit。
+
+## 2026-10-29 Catalogue Frame Event恢复与People姓名比较检查点
+
+在同一97c独立快照中，新初轮Frame→Embedding→Cluster已使用实际Foundation Admission/Plan/Permit/Event/Effect Journal/SQLite/Workspace Registry顺序执行并获得三个真实Result。视频Probe、帧、CPU与模型结果仍为确定性fixture；这不是实际视频或正式Service Host接线。
+
+- 第一Frame物理文件写出而Registry尚未提交的故障注入，原通用观察错误给出`safe_retry`；`catalogue-frame-runtime-native-2.log`保留1 PASS/1 FAIL。现对新catalogue batch精确绑定Capability/Run/Attempt/Plan/输入及Effect，在Owner重建并验证目标、文件语义及当前资格后分类并恢复。三个Event分别在写后中断均复用原字节，未重复抽帧、Embedding或聚类；Embedding登记后、Effect核验前中断也复用同一Registry行。确实无文件且无登记时允许原Effect重建；丢失、损坏、伪造作用域及读不到现实不会冒充匹配。
+- 新batch文件读取限制为冻结Workspace预算与256MiB上限中的较小者，使用同一只读fd、实际初始大小分配与额外一字节增长检查，前后校验inode/时间/大小；已登记帧、Embedding、Cluster沿同Run/Workspace精确Handle与相同上限读取。首轮frame composite在物理发布前即验证完整时间点和内容，不以失败后清理代替合格判定。Libra公开状态与Foundation opaque fence共同保护登记事务；取消只允许遗留未登记临时文件，不形成成功Result。
+- 首次让缺失文件走真实`safe_retry`发现Root仅接受intended而拒绝原Effect的`reconcile_required`；`catalogue-frame-runtime-native-8.log`保留该失败。修复只接受原作用域、确实ENOENT且分类为safe_retry的重建，其他IO错误不能伪装为缺失；同时新增Observation同类回归。构造fixture首跑native-1的Event ID生成器没有参数而失败，native-4的登记后故障错误地预期返回值而非Journal抛错，日志均保留；修正fixture没有放宽断言。
+- 最终本机Linux Docker固定镜像`sha256:afb5fad462130beb66162fff081e96d089adf49ee7e2bb600e9fdac72aea0357`，readonly/network none/1 CPU/768MiB/tmpfs64MiB：65 PASS/0 skip/0 FAIL，162.565秒；`catalogue-frame-runtime-linux-2.log` SHA256 `46b5268de040235cb69d44276fdc103865a8b08dcc4a3f17629940424f159393`。前一版61项日志保留；Package/Semantic/Manifest/P2四项静态通过，139/118/244/66和257引用不变。
+- 最终目录边界路径处理调整后，帧真实Event、同名规则再做Linux定向24 PASS/0 skip/0 FAIL；`catalogue-frame-scope-linux-1.log` SHA256 `c3ca1ce94aa1c05f33d02776a60e18ed8f429dc2a6408cc312e57915a01dcc0c`。
+- 因复用Western Port的纯目标编译与composite验证，额外跑既有Western路由/分析/Product专项：10 PASS/2 skip/0 FAIL。一个skip为原Movie milestone排除Western，一个skip缺少显式旧模型及良性参考图片；不能称旧真实模型回归通过。`catalogue-frame-existing-western-linux-1.log` SHA256 `1faf9a8a34354b00d549bde5fad83b76b42e152416282badc165c3568ac497ad`。
+- People内部姓名解析和外部候选解释复用同一归一化及有界编辑距离，不以Provider ID或图片存在与否替代内部Person身份。新增纯Provider候选解释：完整匹配、无图人物、同名歧义、轻度拼写、多个查询结果矛盾、返回上限饱和与技术错误分开；饱和不能声称唯一或not_found。Linux固定镜像11 PASS/0 skip/0 FAIL，`provider-name-linux-1.log` SHA256 `f67e5dc650fdb8c3bc6466c1f5f15e7c35cc785d3401caa6dae1175bc54582d5`。这是确定性Provider Observation fixture，尚无实际TPDB查询、Integration Handle、图片准备或自动注册。
+
+实际补采Event、真实模型/目录共载、Source文件、正式Host注册、自动Person/Cast/Arca及独立准确性样本仍未验；无NAS或生产操作，Phase 4/5保持开放。People/Cast精确合同提案见`BUFFALO_CATALOGUE_OBSERVATION_CONTRACT_20261029.md`末节，主整合已审阅方向，机器合同与实现仍待传播。
+
+## 2026-10-29 人物请求输入检查点
+
+Libra增加从已完成的目录Observation构建人物处理输入的纯Owner逻辑：绑定当前Run、冻结Basis、资料身份、成功Result和Artifact摘要，并从经过资格判断的同一目录身份提取姓名与别名。它不创建Person或出演；无合格识别、人工Choice已存在、Result替换及Run取消均不能形成自动请求。输入编译前后均检查人工Choice，后续真正提交人物决定仍须在事务内使用Owner fence，不把两次读取视为并发提交保证。
+
+- 独立Linux Docker快照的该输入及现有协调器测试共14 PASS/0 skip/0 FAIL，`catalogue-decision-input-linux-1.log` SHA256 `f4a12b247c25146bf04be444cb3c6534181c5ffb2c584797f9ab98a2c3f1b8ea`；测试使用模拟目录及前序结果，不等于真实影片识别或正式Host验收。
+- 本机定向首轮4 PASS/0 skip/0 FAIL，`catalogue-decision-input-native-1.log` SHA256 `bf18e0ba3d218c5a921ff49986c568c7fc958334d468307ee6204b08bc555f5f`。无需将两组测试相加。
+- 新增合同、数据库保留闭包、TPDB实际调用、People自动建档和Libra最终出演仍待实现；结果不构成Phase 4/5退出或生产发布资格。
+
+## 2026-10-29 主整合阶段交叉复验
+
+以Series合并提交`c42f97569`为基础叠加演员`bfc11236e`相对父提交的代码与视频Evidence；逐文件比较演员提交，仅`clean-workspace-product-port.js`保留主线既有`face_catalogue_observation`枚举。合并后隔离Linux真实Foundation Event/Workspace与姓名、人物输入及协调器79 PASS/0 skip；本机Windows姓名、人物输入及协调器25 PASS/0 skip。日志分别为主整合ignored目录的`actor-bfc-integrated-linux.log`和`actor-bfc-integrated-windows.log`；包边界、语义、Manifest和P2静态检查通过。真实Probe/CPU/目录、正式Host、Provider请求及People/Cast仍未闭合，这些不是完整功能或生产资格。
