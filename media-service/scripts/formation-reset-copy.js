@@ -8,6 +8,7 @@ const { initializeResetTarget } = require('./formation-reset-schema');
 const { digestResetSnapshot } = require('./formation-reset-snapshot-digest');
 const { createSqliteUnitOfWork } = require('../src/helix/foundation/persistence/sqlite-unit-of-work');
 const { createFreshResetCustomTargetRetention } = require('../src/helix/domains/libra/public');
+const { createWithdrawalDependencies } = require('./formation-reset-withdrawals');
 const IDENTIFIER = /^[a-z][a-z0-9_]*$/;
 function fail(code, details) { throw Object.assign(new Error(code), { code, details }); }
 function quote(value) {
@@ -41,6 +42,12 @@ function retainIntoSnapshot(source, target, policy, schemaTransition, schemaMani
     policy.tables.libra_custom_target_heads?.owner!=='libra'||policy.tables.libra_custom_target_heads?.disposition!=='clear'))
     fail('RESET_COPY_OWNER_DESCRIPTION_INVALID');
   if(!needsCustomClosure&&policy.customTargetClosure)fail('RESET_COPY_OWNER_DESCRIPTION_INVALID');
+  const hasWithdrawals=Object.hasOwn(policy.tables,'arca_offer_withdrawal_receipts');
+  if(hasWithdrawals&&(!schemaManifest||!policy.withdrawalClosure||canonicalJson(policy.withdrawalClosure)!==canonicalJson({
+    schemaRef:'arca.fresh-reset-offer-withdrawal-closure@1',owner:'arca'})||
+    policy.tables.arca_offer_withdrawal_receipts.owner!=='arca'||
+    policy.tables.arca_offer_withdrawal_receipts.disposition!=='dependent'))fail('RESET_COPY_OWNER_DESCRIPTION_INVALID');
+  if(!hasWithdrawals&&policy.withdrawalClosure)fail('RESET_COPY_OWNER_DESCRIPTION_INVALID');
   const customRetention=needsCustomClosure?createFreshResetCustomTargetRetention({schemaManifest,
     unitOfWork:createSqliteUnitOfWork({kernel:{runPrimitive(operation){
       return operation(Object.freeze({commitTimeMs:0,prepare:statement=>source.prepare(statement)}));
@@ -166,50 +173,65 @@ function retainIntoSnapshot(source, target, policy, schemaTransition, schemaMani
     lookups.set(key, read); return read;
   }
   const next = target.prepare('SELECT row_number,table_name,key_json FROM reset_pending WHERE row_number>? ORDER BY row_number LIMIT 1');
+  const withdrawals=hasWithdrawals?createWithdrawalDependencies({source,target,schemaManifest}):null;
   let cursor = 0, pending;
-  while ((pending = next.get(cursor))) {
-    cursor = pending.row_number;
-    const table = tables.get(pending.table_name);
-    const row = table.find.get(...decodeKey(pending.key_json));
-    // The Owner resolves opaque JSON references only for facts already chosen
-    // by the collection closure, inside this same frozen source snapshot.
-    if(customRetention&&table.name==='libra_acceptance_specs'){
-      const closure=customRetention.describeSpec(row.acceptance_spec_id);
-      if(closure)for(const [name,id] of [['libra_custom_target_intents',closure.intentId],
-        ['libra_custom_target_previews',closure.previewId],['libra_acceptance_specs',closure.baseAcceptanceSpecId]]){
-        const dependency=tables.get(name),selected=dependency.original.get(id);
-        if(!selected)fail('RESET_COPY_OWNER_REFERENCE_MISSING',{parent:table.name,child:name});
-        add(name,selected);
+  while (true) {
+    while ((pending = next.get(cursor))) {
+      cursor = pending.row_number;
+      const table = tables.get(pending.table_name);
+      const row = table.find.get(...decodeKey(pending.key_json));
+      // The Owner resolves opaque JSON references only for facts already chosen
+      // by the collection closure, inside this same frozen source snapshot.
+      if(customRetention&&table.name==='libra_acceptance_specs'){
+        const closure=customRetention.describeSpec(row.acceptance_spec_id);
+        if(closure)for(const [name,id] of [['libra_custom_target_intents',closure.intentId],
+          ['libra_custom_target_previews',closure.previewId],['libra_acceptance_specs',closure.baseAcceptanceSpecId],
+          ...closure.commandReceiptIds.flatMap(id=>[['fx_command_receipts',id],['fx_commit_markers',id],['fx_audit_records',id]])]){
+          const dependency=tables.get(name),selected=dependency.original.get(id);
+          if(!selected)fail('RESET_COPY_OWNER_REFERENCE_MISSING',{parent:table.name,child:name});
+          add(name,selected);
+        }
+      }
+      if(customRetention&&table.name==='libra_runs')customRetention.validateRun(row.libra_run_id);
+      if(customRetention&&table.name==='libra_product_packages')customRetention.validatePackage(row.on_deck_package_id);
+      for (const fk of table.foreign) {
+        if (fk.columns.some(c => row[c.from] === null)) continue;
+        const parent = tables.get(fk.target);
+        if (!parent) fail('RESET_COPY_REFERENCE_MISSING', { table: fk.target });
+        const columns = [...fk.columns].sort((a, b) => a.seq - b.seq);
+        const where = columns.map((c, i) => quote(c.to || parent.pk[i]) + '=?').join(' AND ');
+        const query = 'SELECT * FROM ' + quote(fk.target) + ' WHERE ' + where;
+        if (!foreignReads.has(query)) foreignReads.set(query, source.prepare(query).safeIntegers());
+        const matches = foreignReads.get(query).all(...columns.map(c => row[c.from]));
+        if (matches.length !== 1) fail('RESET_COPY_REFERENCE_MISSING', { table: fk.target });
+        add(fk.target, matches[0]);
+      }
+      for (const edge of childEdges.get(table.name) || []) {
+        if (edge.columns.some(c => row[c.parent] === null)) continue;
+        const conditions = Object.entries(edge.where || {});
+        const parameters = new Map([...edge.columns.map(c => [c.child, row[c.parent]]), ...conditions]);
+        const columns = [...parameters.keys()].sort();
+        let matched = 0;
+        for (const child of lookup(edge.child, columns)(columns.map(column => parameters.get(column)))) {
+          matched++;
+          add(edge.child, child);
+        }
+        if (edge.required && matched === 0)
+          fail('RESET_COPY_OWNER_REFERENCE_MISSING', { parent: edge.parent, child: edge.child });
       }
     }
-    if(customRetention&&table.name==='libra_runs')customRetention.validateRun(row.libra_run_id);
-    if(customRetention&&table.name==='libra_product_packages')customRetention.validatePackage(row.on_deck_package_id);
-    for (const fk of table.foreign) {
-      if (fk.columns.some(c => row[c.from] === null)) continue;
-      const parent = tables.get(fk.target);
-      if (!parent) fail('RESET_COPY_REFERENCE_MISSING', { table: fk.target });
-      const columns = [...fk.columns].sort((a, b) => a.seq - b.seq);
-      const where = columns.map((c, i) => quote(c.to || parent.pk[i]) + '=?').join(' AND ');
-      const query = 'SELECT * FROM ' + quote(fk.target) + ' WHERE ' + where;
-      if (!foreignReads.has(query)) foreignReads.set(query, source.prepare(query).safeIntegers());
-      const matches = foreignReads.get(query).all(...columns.map(c => row[c.from]));
-      if (matches.length !== 1) fail('RESET_COPY_REFERENCE_MISSING', { table: fk.target });
-      add(fk.target, matches[0]);
-    }
-    for (const edge of childEdges.get(table.name) || []) {
-      if (edge.columns.some(c => row[c.parent] === null)) continue;
-      const conditions = Object.entries(edge.where || {});
-      const parameters = new Map([...edge.columns.map(c => [c.child, row[c.parent]]), ...conditions]);
-      const columns = [...parameters.keys()].sort();
-      let matched = 0;
-      for (const child of lookup(edge.child, columns)(columns.map(column => parameters.get(column)))) {
-        matched++;
-        add(edge.child, child);
-      }
-      if (edge.required && matched === 0)
-        fail('RESET_COPY_OWNER_REFERENCE_MISSING', { parent: edge.parent, child: edge.child });
-    }
+    let addedWithdrawal=false;
+    if(withdrawals)withdrawals.eachRequired(receipt=>{
+      const table=tables.get('arca_offer_withdrawal_receipts');
+      if(table.find.get(receipt.offer.offerId))return;
+      withdrawals.verifyProof(source,receipt);
+      const row=table.original.get(receipt.offer.offerId);
+      if(!row)fail('RESET_COPY_OWNER_REFERENCE_MISSING',{parent:'arca_offer_withdrawal_receipts',child:'receipt'});
+      add(table.name,row);addedWithdrawal=true;
+    });
+    if(!addedWithdrawal)break;
   }
+  if(withdrawals)withdrawals.eachRequired(receipt=>withdrawals.verifyProof(target,receipt));
   const retained = [...tables.values()].map(t => {
     if(t.empty){
       if(target.prepare('SELECT count(*) n FROM '+quote(t.name)).get().n!==0)fail('RESET_COPY_FACTS_CHANGED',{table:t.name});
