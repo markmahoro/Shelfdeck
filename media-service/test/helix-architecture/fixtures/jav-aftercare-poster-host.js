@@ -67,6 +67,8 @@ async function assertJavAftercarePoster({request,db,requests,primaryBytes,diagno
   assert.equal(metadata.format,'jpeg');assert.deepEqual(bytes,originalBytes);
   assert.notEqual(restored.material_key,original.material_key);
   assert.equal(db.prepare('SELECT state FROM fx_material_controls WHERE material_key=?').get(original.material_key)?.state,'released');
+  assert.deepEqual(db.prepare('SELECT state,owner_domain,owner_scope_type,owner_scope_id FROM fx_material_controls WHERE material_key=?').get(restored.material_key),
+    {state:'controlled',owner_domain:'arca',owner_scope_type:'shelf_entry',owner_scope_id:entry.shelf_entry_id});
   assert.equal(db.prepare('SELECT count(*) n FROM arca_inventory_materials m JOIN arca_shelf_entries e ON e.shelf_entry_id=m.shelf_entry_id AND e.current_inventory_revision=m.inventory_revision WHERE m.role=?').get(artifactKind).n,1);
   const rows=db.prepare("SELECT b.result_json FROM fx_event_result_bindings b JOIN fx_workflow_events e ON e.event_id=b.event_id WHERE e.capability_ref='arca.aftercare.binary_artifact.acquire@1'").all();
   assert.equal(rows.length,1,JSON.stringify({kinds:rows.map(row=>JSON.parse(row.result_json).artifactHandle?.artifactKind),
