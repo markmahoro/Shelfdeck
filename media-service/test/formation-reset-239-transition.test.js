@@ -5,25 +5,20 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const zlib = require('node:zlib');
 const Database = require('better-sqlite3');
-const { digest } = require('../src/helix/foundation/persistence/ddl-compiler');
 const { openSqliteKernel, verifyReadOnlySqliteSnapshot } = require('../src/helix/foundation/persistence/sqlite-kernel');
 const { initializeResetTarget } = require('../scripts/formation-reset-schema');
+const { createRetainedDatabase } = require('../scripts/formation-reset-copy');
+const { buildOwnerRetentionPolicy } = require('../scripts/formation-reset-owner-policy');
+const { readResetOwnerSnapshot } = require('../scripts/formation-reset-owner-snapshot');
+const { verifyRetainedCollections } = require('../scripts/formation-reset-verify');
 const olderSchema = require('./helpers/plan-contract-target-schema');
+const sourceSchema = require('./helpers/formation-reset-239-schema');
 
-const fixtureRoot = path.join(__dirname, 'fixtures/formation-reset-239');
-const sourceSchema = {
-  schemaDdl: zlib.gunzipSync(fs.readFileSync(path.join(fixtureRoot, 'schema.sql.gz'))).toString('utf8'),
-  schemaManifest: JSON.parse(zlib.gunzipSync(fs.readFileSync(path.join(fixtureRoot, 'schema.manifest.json.gz')))),
-};
-const sourceDigest = '906ecacce4d6de62e875d1293cec93dd198564c1c53e2f7f7979d75b2eac2d0a';
 const targetSchema = {
   schemaDdl: fs.readFileSync(path.join(__dirname, '../src/helix/foundation/persistence/generated/clean-schema.sql'), 'utf8'),
   schemaManifest: require('../src/helix/foundation/persistence/generated/clean-schema.manifest.json'),
 };
-assert.equal(digest(sourceSchema.schemaDdl), sourceDigest);
-assert.equal(sourceSchema.schemaManifest.ddlDigest, sourceDigest);
 
 function fixture(t, schema = sourceSchema) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'fresh-239-transition-'));
@@ -96,4 +91,16 @@ test('the existing 235-to-239 cold qualification remains available', t => {
   assert.deepEqual(transition.addedTables, ['libra_episode_metadata_mapping_heads',
     'libra_episode_metadata_mapping_intents', 'libra_episode_metadata_reviews', 'proc_field_reset_barriers']);
   assert.deepEqual(transition.addedNullableColumns, { libra_runs: ['episode_metadata_mapping_intent_id'] });
+});
+
+test('an isolated empty 239 source can copy and verify a 244 candidate under the Owner classifications', t => {
+  const f=fixture(t),before=fs.readFileSync(f.sourcePath),owner=readResetOwnerSnapshot({Database,sourcePath:f.sourcePath}),
+    policy=buildOwnerRetentionPolicy(targetSchema.schemaManifest,owner);
+  const copy=createRetainedDatabase({Database,...f,targetSchema,policy});
+  assert.equal(copy.schemaTransition.addedTables.length,5);
+  assert.deepEqual(fs.readFileSync(f.sourcePath),before);
+  const result=verifyRetainedCollections({Database,...f,...targetSchema});
+  assert.equal(result.withdrawals.count,0);
+  assert.equal(result.customTargets.count,0);
+  assert.equal(result.reconstructedCommits,0);
 });

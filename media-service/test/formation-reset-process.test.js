@@ -9,6 +9,7 @@ const { runFreshResetProcess } = require('../scripts/formation-reset-process');
 const { createCleanServiceHost } = require('../src/clean-service-host');
 const { stageResetDatabase } = require('../scripts/formation-reset-stage');
 const { fileDigest } = require('../scripts/formation-reset-generation');
+const currentTableCount = require('../src/helix/foundation/persistence/generated/clean-schema.manifest.json').tableCount;
 
 async function fixture(t, { preflight = false } = {}) {
   const root = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'reset-process-')));
@@ -81,13 +82,21 @@ test('normal Host People errors use the actual GET preview phase and keep execut
   code = 'RESET_COPY_OWNER_REFERENCE_MISSING';
   const otherOwner = await host.inject({ method: 'GET', url: '/v1/admin/runtime/reset-preview', headers });
   assert.match(otherOwner.json().error.message, /^预检未通过/); assert.doesNotMatch(otherOwner.body, /人物/);
+  code = 'RESET_RETAINED_EXECUTION_OPEN';
+  const openExecution = await host.inject({ method: 'GET', url: '/v1/admin/runtime/reset-preview', headers });
+  assert.match(openExecution.json().error.message, /旧执行尚未安全结束/);
+  assert.doesNotMatch(openExecution.body, /private storage details/);
+  code = 'RESET_WITHDRAWAL_PROOF_INVALID';
+  const withdrawal = await host.inject({ method: 'GET', url: '/v1/admin/runtime/reset-preview', headers });
+  assert.match(withdrawal.json().error.message, /撤回记录或回执不完整/);
+  assert.doesNotMatch(withdrawal.body, /private storage details/);
   } finally { await host.close(); }
 });
 
 test('isolated Operator process uses the approved temp volume and switches a native schema while stopped', async t => {
   const f = await fixture(t), previousTemp = process.env.SQLITE_TMPDIR;
   const preview = await runFreshResetProcess({ spec: f.spec, action: 'prepare' });
-  assert.equal(preview.ready, true); assert.equal(preview.counts.length, 239);
+  assert.equal(preview.ready, true); assert.equal(preview.counts.length, currentTableCount);
   assert.equal(process.env.SQLITE_TMPDIR, previousTemp, 'the Host environment cannot be changed by SQLite temp selection');
   assert.throws(() => assertBusinessGenerationOpenAllowed(f.spec.dataDir), { code: 'RESET_COLD_RECOVERY_REQUIRED' });
   const receipt = await runFreshResetProcess({ spec: f.spec, action: 'apply',
@@ -154,7 +163,7 @@ test('actual preflight child reads the stopped native Host without closing it or
     const [preview, health] = await Promise.all([runFreshResetProcess({ spec: f.spec, action: 'inspect' }),
       host.inject({ method: 'GET', url: '/v1/health' })]);
     assert.equal(health.statusCode, 200); assert.equal(health.json().normalSupplyAllowed, false);
-    assert.equal(preview.ready, true); assert.equal(preview.counts.length, 239);
+    assert.equal(preview.ready, true); assert.equal(preview.counts.length, currentTableCount);
     assert.equal(preview.sourceSnapshotDigest, before);
     assert.equal(logicalSnapshot(), before, 'preflight cannot mutate any business row');
     assert.equal(fs.readFileSync(f.intentPath, 'utf8'), intent);

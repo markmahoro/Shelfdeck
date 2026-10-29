@@ -6,14 +6,19 @@ const { openSqliteKernel, verifyReadOnlySqliteSnapshot } = require('../src/helix
 const { createRetainedDatabase } = require('../scripts/formation-reset-copy');
 const { buildOwnerRetentionPolicy } = require('../scripts/formation-reset-owner-policy');
 const oldSchema = require('./helpers/plan-contract-target-schema');
-const targetSchema = { schemaManifest: require('../src/helix/foundation/persistence/generated/clean-schema.manifest.json'),
-  schemaDdl: fs.readFileSync(path.join(__dirname, '../src/helix/foundation/persistence/generated/clean-schema.sql'), 'utf8') };
+const targetSchema = require('./helpers/formation-reset-239-schema');
+const currentManifest = require('../src/helix/foundation/persistence/generated/clean-schema.manifest.json');
+function historicalPolicy() {
+  const current=buildOwnerRetentionPolicy(currentManifest), names=new Set(targetSchema.schemaManifest.tables.map(t=>t.tableId));
+  return {tables:Object.fromEntries(Object.entries(current.tables).filter(([name])=>names.has(name))),
+    edges:current.edges.filter(edge=>names.has(edge.parent)&&names.has(edge.child)),seeds:[]};
+}
 function fixture(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'fresh-schema-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const sourcePath = path.join(root, 'source.db'), targetPath = path.join(root, 'target.db');
   openSqliteKernel({ Database, databasePath: sourcePath, ...oldSchema }).close();
-  return { Database, sourcePath, targetPath, targetSchema, policy: buildOwnerRetentionPolicy(targetSchema.schemaManifest) };
+  return { Database, sourcePath, targetPath, targetSchema, policy: historicalPolicy() };
 }
 test('cold import creates the declared new relation and a native target marker without changing its source', t => {
   const f = fixture(t), before = fs.readFileSync(f.sourcePath), receipt = createRetainedDatabase(f);

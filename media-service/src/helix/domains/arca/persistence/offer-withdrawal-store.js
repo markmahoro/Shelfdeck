@@ -67,4 +67,40 @@ function createOfferWithdrawalStore(options){
   }
   return Object.freeze({read,close,admissionParticipant});
 }
-module.exports=Object.freeze({COLUMNS,decodeOfferWithdrawalRow,createOfferWithdrawalStore});
+
+// Cold Reset consumes only bounded Owner projections from its frozen source.
+// The Operator determines whether a retained responsibility references an
+// Offer; Arca validates the exact immutable withdrawal before it is selected.
+function createFreshResetOfferWithdrawalRetention(options){
+  const repository=createRepositoryDefinition({repositoryId:'arca_reset_offer_withdrawals',owner:'arca',
+    schemaManifest:options.schemaManifest,readOnly:true,statements:{
+      page:{kind:'select-page-after',tableId:'arca_offer_withdrawal_receipts',columns:COLUMNS,keyColumn:'offer_id',maxItems:128,safeIntegers:true},
+      find:{kind:'select-one',tableId:'arca_offer_withdrawal_receipts',columns:COLUMNS,keyColumns:['offer_id'],safeIntegers:true},
+      attempts:{kind:'select-all',tableId:'arca_acceptance_attempts',columns:['state'],keyColumns:['offer_id']},
+      decisions:{kind:'select-all',tableId:'arca_acceptance_decisions',columns:['result'],keyColumns:['offer_id']},
+      custodies:{kind:'select-all',tableId:'arca_ondeck_custodies',columns:['custody_id'],keyColumns:['on_deck_package_id']},
+    }});
+  function page(cursor=null){
+    return options.unitOfWork.execute([{participantId:'arca_reset_offer_page',owner:'arca',repositories:[repository],execute(context){
+      const repo=context.repository(repository.repositoryId);
+      return repo.invoke('page',{cursor,limit:128}).map(row=>decodeOfferWithdrawalRow(row));
+    }}]).arca_reset_offer_page;
+  }
+  function assertNotAccepted(receipt){
+    const value=assertOfferWithdrawal(receipt);
+    return options.unitOfWork.execute([{participantId:'arca_reset_offer_check',owner:'arca',repositories:[repository],execute(context){
+      const repo=context.repository(repository.repositoryId),offer=value.offer;
+      if(repo.invoke('attempts',{offer_id:offer.offerId}).some(row=>row.state==='accepted')||
+          repo.invoke('decisions',{offer_id:offer.offerId}).some(row=>row.result==='accepted')||
+          repo.invoke('custodies',{on_deck_package_id:offer.onDeckPackageId}).length)fail('ARCA_OFFER_WITHDRAWAL_CORRUPT');
+      return true;
+    }}]).arca_reset_offer_check;
+  }
+  function read(offerId){
+    return options.unitOfWork.execute([{participantId:'arca_reset_offer_read',owner:'arca',repositories:[repository],execute(context){
+      return decodeOfferWithdrawalRow(context.repository(repository.repositoryId).invoke('find',{offer_id:offerId}));
+    }}]).arca_reset_offer_read;
+  }
+  return Object.freeze({page,read,assertNotAccepted});
+}
+module.exports=Object.freeze({COLUMNS,decodeOfferWithdrawalRow,createOfferWithdrawalStore,createFreshResetOfferWithdrawalRetention});

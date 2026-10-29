@@ -11,6 +11,7 @@ const { readResetOwnerSnapshotDatabase } = require('./formation-reset-owner-snap
 const { verifyRetainedControls } = require('./formation-reset-responsibilities');
 const { verifyRetainedPeopleReferences } = require('./formation-reset-people-references');
 const { createFreshResetCustomTargetRetention } = require('../src/helix/domains/libra/public');
+const { verifyRetainedWithdrawals } = require('./formation-reset-withdrawals');
 
 function fail(code, details) { throw Object.assign(new Error(code), { code, details }); }
 function digestRows(rows) {
@@ -128,6 +129,7 @@ function verifyRetainedCollections({ Database, sourcePath, targetPath, schemaMan
     });
     const shared = verifySharedCollections(source, target);
     const customTargets = verifyRetainedCustomTargets(source,target,schemaManifest);
+    const withdrawals = verifyRetainedWithdrawals(source,target,schemaManifest);
     const packages = source.prepare(`SELECT DISTINCT p.on_deck_package_id,p.offer_id,p.package_revision,p.package_digest
       FROM arca_ondeck_commit_receipts c JOIN arca_ondeck_runs r ON r.on_deck_run_id=c.on_deck_run_id
       JOIN arca_ondeck_custodies k ON k.custody_id=r.custody_id
@@ -172,7 +174,7 @@ function verifyRetainedCollections({ Database, sourcePath, targetPath, schemaMan
         fail('RESET_VERIFY_PACKAGE_CHANGED', { packageId: row.on_deck_package_id });
       reconstructed.push({ packageId: row.on_deck_package_id, digest: canonicalDigest(after) });
     }
-    return { schemaRef: 'formation-reset-collection-verification@1', integrity, controls, protections, shared, peopleReferences, customTargets,
+    return { schemaRef: 'formation-reset-collection-verification@1', integrity, controls, protections, shared, peopleReferences, customTargets, withdrawals,
       reconstructedCommits: ownership.length, ownershipDigest: canonicalDigest(ownership),
       reconstructedPackages: reconstructed.length, packageReadDigest: canonicalDigest(reconstructed) };
   } finally {

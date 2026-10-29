@@ -71,6 +71,10 @@ function buildOwnerRetentionPolicy(manifest, { seriesRetention, metadataRetentio
   edge('libra_workspaces', 'fx_workspace_registry', [['workspace_id', 'workspace_id']],
     { owner_domain: 'libra', process_type: 'libra_run' });
 
+  if (byName.has('arca_offer_withdrawal_receipts'))
+    edge('arca_offer_withdrawal_receipts', 'fx_command_receipts', [['offer_id', 'target_id']],
+      { owner_domain: 'arca', target_type: 'handoff_b_offer', command_contract: 'arca.offer-withdrawal@1' }, true);
+
   children('proc_candidate_packages', 'candidate_package_id', ['proc_candidate_primary_materials',
     'proc_candidate_primary_material_episode_claims', 'proc_candidate_related_references', 'proc_candidate_season_continuity_claims',
     'proc_run_materials']);
@@ -91,7 +95,15 @@ function buildOwnerRetentionPolicy(manifest, { seriesRetention, metadataRetentio
     ['arca_offdeck_cases', 'offdeck_case_id', 'arca', 'arca_offdeck_case'],
     ['proc_procurement_runs', 'procurement_run_id', 'procurement', 'procurement_run'],
     ['arca_series_presentation_builds', 'build_id', 'arca', 'arca_series_presentation'],
-  ]) edge(parent, 'fx_supporting_works', [[id, 'process_id']], { owner_domain: owner, process_type: processType });
+  ]) {
+    if (parent === 'libra_runs') {
+      // A retained Run is historical provenance, not authority to resume an
+      // unfinished Work in the fresh generation. Exact fact FKs may still
+      // select a Work; normalization separately checks its execution state.
+      for (const state of ['succeeded', 'failed', 'cancelled'])
+        edge(parent, 'fx_supporting_works', [[id, 'process_id']], { owner_domain: owner, process_type: processType, state });
+    } else edge(parent, 'fx_supporting_works', [[id, 'process_id']], { owner_domain: owner, process_type: processType });
+  }
   // Retained collection maintenance still owns its workspace. Its active files
   // must be excluded from the Operator's temporary cleanup inventory.
   for (const [parent, id, processType] of [
@@ -195,7 +207,10 @@ function buildOwnerRetentionPolicy(manifest, { seriesRetention, metadataRetentio
     ? {schemaRef:'libra.fresh-reset-custom-target-closure@1',owner:'libra'} : null;
   if(customTargetTables.some(name=>byName.has(name))&&!customTargetClosure)
     throw Object.assign(new Error('Custom target retention schema is incomplete.'), {code:'RESET_RETENTION_SCHEMA_UNREVIEWED'});
+  const withdrawalClosure=byName.has('arca_offer_withdrawal_receipts')
+    ? {schemaRef:'arca.fresh-reset-offer-withdrawal-closure@1',owner:'arca'} : null;
   const policy = { tables, edges, seeds, ...(customTargetClosure ? {customTargetClosure} : {}),
+    ...(withdrawalClosure ? {withdrawalClosure} : {}),
     ...(seriesRetention ? { seriesRetentionDigest: seriesRetention.digest } : {}),
     ...(metadataRetention ? { metadataRetentionDigest: metadataRetention.digest } : {}) };
   return Object.freeze({ ...policy, policyDigest: canonicalDigest(policy) });

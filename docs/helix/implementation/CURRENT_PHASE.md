@@ -13,7 +13,7 @@ DDOB-019 的冲突目标为已有 active Shelf Entry 所控的同番号正式文
 
 更新：2026-10-29。用户同意恢复演员、电影、剧集及UI负责人线程并行，本线程追踪和整合、负责Reset与发布；不恢复定时轮询。Series、电影自定义Spec及演员识别统一发版，旧七条不逐条恢复。本文件仍是唯一活动集成包。Phase 1有限技术资格已Exit，固定提交125229556及[Evidence](evidence/BUFFALO_CATALOGUE_FEASIBILITY_20261029.md)可复验；未开放自动出演。
 
-独立候选`b7a03bb48`、`2a58c1606`已整合US体积检查及对话框修复：隔离Linux服务56项、Windows Web 15项和前端构建通过；最终合版、真实媒体及具体版本UI复核仍开放。冷态Reset结构转换提交`bfc9f0cd4`对固定生产239表→当前244表进行精确目录和marker校验；隔离Linux 6项通过，含结构/marker负例、244原样及235→239回归。首次运行在旧实现中2失败/1通过，失败保留；正式244表Owner保留声明、Withdrawal依赖及生产Reset均仍未放行，结构通过不代表数据闭包通过。
+独立候选`b7a03bb48`、`2a58c1606`已整合US体积检查及对话框修复：隔离Linux服务56项、Windows Web 15项和前端构建通过；最终合版、真实媒体及具体版本UI复核仍开放。冷态Reset结构转换提交`bfc9f0cd4`对固定生产239表→当前244表进行精确目录和marker校验；后续已声明244表保留规则，补齐相关Withdrawal闭包与旧执行防重启边界。隔离Linux完整管理流程85项通过，后续闭包回归85项及管理入口2项通过；原2项缺失闭包、旧Work反例和一次声明错误失败均保留。最终整合结构、生产停止态数据闭包、校验冷备与实际Reset仍待核验。
 
 ## 并行执行与当前阻断
 
@@ -40,7 +40,8 @@ DDOB-019 的冲突目标为已有 active Shelf Entry 所控的同番号正式文
 | CUSTOM-TARGET-RESET-RETENTION | 隔离模拟证实仅作dependent表分类会遗漏已保留Custom Spec的精确Intent/Preview；Libra按实际保留Spec提供Owner依赖闭包，验证同Subject多版本、未入藏、缺失/篡改与中断恢复。原开发Schema因声明不匹配保持fail-closed；不能仅靠FK通过放行Reset。 |
 | JAV-AFTERCARE-REPLACEMENT-IDENTITY | 隔离环境发现的额外文件归属风险，未证明为本轮积压根因；按用户决定不作为本轮独立专项，现有保护不削弱。 |
 | ON-DECK-FOREIGN-STAGE-OWNERSHIP | 同字节外来Stage是隔离反例，未证明与现有积压有关；不作为本轮独立专项。若新长名实现复用相关路径，仍按其现行Owner/冲突合同处理。[Evidence](evidence/ARCA_TARGET_EXCLUSION_RECOVERY_20261029.md) |
-| WITHDRAWN-OFFER-RESET-DEPENDENCY | 未Accepted Offer的Withdrawal是永久否决证据；目前尚未证明所有保留Producer/Work/Outbox/Delivery均不能重投或重建精确旧Offer。测试中模拟clear不代表正式分类，须以停止态同一快照的Owner闭包和迟到投递负例收口；239与244两道Schema围栏继续关闭。[Audit](evidence/ARCA_WITHDRAWN_OFFER_RESET_AUDIT_20261029.md) |
+| WITHDRAWN-OFFER-RESET-DEPENDENCY | 已实现244表精确保留：当前保留Run、Work、Package或Outbox仍可能关联旧Offer时保留Arca Withdrawal及原Command/Marker/Audit；无关记录清除，证明缺失/Accepted矛盾阻断。隔离待投递和已投递未ACK重投、缺证、伪造及独立核验测试通过；目标结构变化或生产停止态事实不同须重核。[Audit与后继证据](evidence/ARCA_WITHDRAWN_OFFER_RESET_AUDIT_20261029.md) |
+| FRESH-RESET-OLD-EXECUTION | 隔离复现历史Run带入无依赖ready Work；只按终态Work选择历史，确有保留证据依赖的未终态Work/Attempt/Event/Effect在规范化时阻断，不能恢复旧执行或伪造终态。覆盖上述各层负例；生产实际范围未知。 |
 | SERIES-RESOLUTION-COMMIT-FENCE | 精确27a并发Series Host自然复现：Draft冻结后当前Query变化导致Commit Handle不匹配，Effect已reconcile_required但无Marker/Result；生产基线的受控输入亦复现。150秒持续版本变化的合成观察未收敛，不能外推首次门禁或线上状态。独立实现须保全同一Effect责任、冻结Query/Record Set/Rule、后继Work与冲突负例，不得放宽fence。[隔离调查](evidence/SERIES_RESOLUTION_COMMIT_FENCE_INVESTIGATION_20261029.md) |
 | P13-BACKUP-DIGEST-CONSISTENCY | 27a完整架构第二轮中哈希时文件改变未拒绝；Linux tmpfs受控复现stat时间戳相同且接受混合摘要。独立修复须覆盖原负例、时间戳不变、正常文件/有限内存及Windows/Linux；仍须真实停止、独占与完整冷备，不能把单次复验或双读称为原子快照。[Evidence](evidence/SERIES_INTEGRATION_GATE_20261029.md) |
 

@@ -51,7 +51,7 @@ async function bootstrapFixture(t) {
   await host.close();
   // Reconstruct the accepted old schema only in this empty isolated fixture.
   // The new business Host must refuse it, while the cold Operator may import.
-  const Database = require('better-sqlite3'), oldSchema = require('./helpers/plan-contract-target-schema');
+  const Database = require('better-sqlite3'), oldSchema = require('./helpers/formation-reset-239-schema');
   const current = path.join(f.options.dataDir, 'shelfdeck.db'), oldPath = path.join(f.root, 'old.db');
   require('../src/helix/foundation/persistence/sqlite-kernel').openSqliteKernel({ Database, databasePath: oldPath, ...oldSchema }).close();
   const old = new Database(oldPath), source = new Database(current, { readonly: true });
@@ -119,7 +119,7 @@ test('cold bootstrap validates a private copy without creating missing source SQ
   });
 });
 
-test('explicit deployment closure opens confirmation on schema 235 without a business Host and switches to stopped schema 239', async t => {
+test('explicit deployment closure opens confirmation on schema 239 without a business Host and switches to stopped schema 244', async t => {
   const f = await bootstrapFixture(t);
   const { prepareColdResetBootstrap } = require('../scripts/formation-reset-bootstrap');
   prepareColdResetBootstrap(f.preparation);

@@ -1,6 +1,6 @@
 {
   "schemaRef": "formation-reset-owner-retention@1",
-  "schemaDigest": "906ecacce4d6de62e875d1293cec93dd198564c1c53e2f7f7979d75b2eac2d0a",
+  "schemaDigest": "294bb8243aca2857729f70fa07fbc59b69efad5da5854a5db528386e19179bc6",
   "tables": [
     {
       "table": "arca_acceptance_attempts",
@@ -254,6 +254,11 @@
     },
     {
       "table": "arca_offdeck_terminal_receipts",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_offer_withdrawal_receipts",
       "owner": "arca",
       "disposition": "dependent"
     },
@@ -539,6 +544,21 @@
     },
     {
       "table": "libra_acquisition_candidate_evidence",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_custom_target_heads",
+      "owner": "libra",
+      "disposition": "clear"
+    },
+    {
+      "table": "libra_custom_target_intents",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_custom_target_previews",
       "owner": "libra",
       "disposition": "dependent"
     },
@@ -834,6 +854,11 @@
     },
     {
       "table": "libra_us_adult_analysis_bases",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_us_adult_catalogue_bases",
       "owner": "libra",
       "disposition": "dependent"
     },

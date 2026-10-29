@@ -5,36 +5,23 @@ const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const Database=require('better-sqlite3');
 const {canonicalDigest:D,canonicalJson}=require('../src/helix/contracts/canonical-json');
 const {openSqliteKernel}=require('../src/helix/foundation/persistence/sqlite-kernel');
+const {createSqliteUnitOfWork}=require('../src/helix/foundation/persistence/sqlite-unit-of-work');
+const {createOfferWithdrawalStore}=require('../src/helix/domains/arca/persistence/offer-withdrawal-store');
+const {createOnDeckProcessCoordinator}=require('../src/helix/domains/arca/application/on-deck-process-coordinator');
+const {createOutboxDispatcherHost}=require('../src/helix/foundation/execution/outbox-dispatcher-host');
 const {fixture:specFixture}=require('./helix-architecture/fixtures/custom-acceptance-spec-harness');
 const {createRetainedDatabase}=require('../scripts/formation-reset-copy');
 const {buildOwnerRetentionPolicy}=require('../scripts/formation-reset-owner-policy');
 const {readResetOwnerSnapshot}=require('../scripts/formation-reset-owner-snapshot');
 const {verifyRetainedCustomTargets}=require('../scripts/formation-reset-verify');
+const {verifyRetainedWithdrawals}=require('../scripts/formation-reset-withdrawals');
+const {normalizeRetainedSubjects}=require('../scripts/formation-reset-normalize');
 const {createOfflineFormationReset}=require('../scripts/formation-reset-offline');
 const {fileDigest}=require('../scripts/formation-reset-generation');
-const declaration=require('../scripts/formation-reset-owner-retention.json');
 const targetSchema={schemaManifest:require('../src/helix/foundation/persistence/generated/clean-schema.manifest.json'),
   schemaDdl:fs.readFileSync(path.join(__dirname,'../src/helix/foundation/persistence/generated/clean-schema.sql'),'utf8')};
 
-// The checked-in declaration intentionally predates the custom-target tables.
-// Simulate the integration thread's proposed classifications in memory only;
-// marking rows dependent must not itself be mistaken for selecting them.
-function reviewedPolicy(owner){
-  const before={schemaDigest:declaration.schemaDigest,tables:declaration.tables};
-  try{
-    declaration.schemaDigest=targetSchema.schemaManifest.ddlDigest;
-    const simulated=new Set(['arca_offer_withdrawal_receipts','libra_custom_target_heads','libra_custom_target_intents','libra_custom_target_previews',
-      'libra_us_adult_catalogue_bases']);
-    declaration.tables=[...before.tables.filter(row=>!simulated.has(row.table)),
-      {table:'arca_offer_withdrawal_receipts',owner:'arca',disposition:'clear'},
-      {table:'libra_custom_target_heads',owner:'libra',disposition:'clear'},
-      {table:'libra_custom_target_intents',owner:'libra',disposition:'dependent'},
-      {table:'libra_custom_target_previews',owner:'libra',disposition:'dependent'},
-      ...(targetSchema.schemaManifest.tables.some(row=>row.tableId==='libra_us_adult_catalogue_bases')
-        ? [{table:'libra_us_adult_catalogue_bases',owner:'libra',disposition:'dependent'}] : [])];
-    return buildOwnerRetentionPolicy(targetSchema.schemaManifest,owner);
-  }finally{Object.assign(declaration,before);}
-}
+function reviewedPolicy(owner){return buildOwnerRetentionPolicy(targetSchema.schemaManifest,owner);}
 
 function fixture(t){
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'reset-custom-target-'));
@@ -99,6 +86,161 @@ function fixture(t){
   }finally{db.close();}
   return {sourcePath,targetPath,committed,unused,usedSpec,unusedSpec,base,packages};
 }
+
+function withdrawnOffer(f,runId){
+  const packageId=D('withdrawn-package-'+runId),packageDigest=D('withdrawn-digest-'+runId),
+    offer={onDeckPackageId:packageId,packageRevision:1,packageDigest,shelfId:'shelf',libraRunId:runId,
+      subjectId:'subject',acceptanceSpecId:f.base.acceptanceSpecId,relatedDispositionSetDigest:D('withdrawn-related-'+runId)};
+  offer.offerId=D({schema:'libra.product-offer-id@1',onDeckPackageId:packageId,packageDigest});
+  const db=new Database(f.sourcePath);
+  try{db.prepare('INSERT INTO libra_product_packages(on_deck_package_id,offer_id,package_revision,libra_run_id,subject_id,shelf_id,acceptance_spec_id,acceptance_spec_record_digest,package_digest,related_disposition_set_digest,state) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+    .run(packageId,offer.offerId,1,runId,'subject','shelf',f.base.acceptanceSpecId,f.base.recordDigest,packageDigest,offer.relatedDispositionSetDigest,'published');}
+  finally{db.close();}
+  const kernel=openSqliteKernel({Database,databasePath:f.sourcePath,...targetSchema,now:()=>1700000001000}),unitOfWork=createSqliteUnitOfWork({kernel});
+  try{
+    const basis={eligibility:'ineligible',reasonCode:'target_not_current',libraRunId:runId,runState:'superseded',runStateRevision:1,
+      runStateDigest:D('state-'+runId),acceptanceSpecId:f.base.acceptanceSpecId,packageRevisionHead:1,deliveryReceiptAbsent:true},
+      store=createOfferWithdrawalStore({schemaManifest:targetSchema.schemaManifest,unitOfWork});
+    const result=store.close({offer,deliveryFence:{...basis,fenceDigest:D(basis)},readFence:unitOfWork.captureReadFence()});
+    return {offer,receipt:result.receipt.resultRef,commandId:result.receipt.commandReceiptId};
+  }finally{kernel.close();}
+}
+
+function seedOfferMessage(f,offer,state){
+  const messageId=D({schema:'libra.product-offer-message-id@1',offerId:offer.offerId,packageDigest:offer.packageDigest}),
+    payload={...offer,messageKind:'libra.product-offer.available@1',messageId,dedupKey:messageId},db=new Database(f.sourcePath);
+  try{
+    db.prepare('INSERT INTO fx_outbox(message_id,producer_domain,message_kind,aggregate_type,aggregate_id,aggregate_revision,dedup_key,consumer_set_digest,intended_consumer_count,payload_schema_ref,payload_json,payload_digest,state,available_at_ms,created_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+      .run(messageId,'libra',payload.messageKind,'on_deck_package',offer.onDeckPackageId,1,messageId,D(['arca']),1,
+        'helix://contracts/types/LibraProductOfferAvailableMessage/v1',canonicalJson(payload),D(payload),'pending',0,0);
+    db.prepare('INSERT INTO fx_outbox_deliveries(message_id,consumer_domain,state,attempt_count,next_attempt_at_ms) VALUES(?,?,?,?,?)')
+      .run(messageId,'arca',state,0,0);
+  }finally{db.close();}
+  return payload;
+}
+
+function seedHistoricalWork(f,id,state){
+  const db=new Database(f.sourcePath);
+  try{db.prepare('INSERT INTO fx_supporting_works(work_id,owner_domain,process_type,process_id,work_kind,priority_class,definition_json,state,idempotency_key) VALUES(?,?,?,?,?,?,?,?,?)')
+    .run(id,'libra','libra_run','old-run-1','historic_work','normal_foreground','{}',state,id);}
+  finally{db.close();}
+}
+
+test('an unreferenced ready Work of a retained predecessor leaves the fresh generation',t=>{
+  const f=fixture(t);seedHistoricalWork(f,'old-ready-work','ready');seedHistoricalWork(f,'old-completed-work','succeeded');
+  const before=fs.readFileSync(f.sourcePath),owner=readResetOwnerSnapshot({Database,sourcePath:f.sourcePath});
+  createRetainedDatabase({Database,sourcePath:f.sourcePath,targetPath:f.targetPath,targetSchema,policy:reviewedPolicy(owner)});
+  const copy=new Database(f.targetPath,{readonly:true});
+  try{assert.deepEqual(copy.prepare("SELECT work_id FROM fx_supporting_works WHERE process_id='old-run-1' ORDER BY work_id").all(),
+    [{work_id:'old-completed-work'}]);}
+  finally{copy.close();}
+  assert.deepEqual(fs.readFileSync(f.sourcePath),before);
+});
+
+test('a required but still runnable predecessor Work blocks normalization',t=>{
+  const f=fixture(t);seedHistoricalWork(f,'required-ready-work','ready');
+  const owner=readResetOwnerSnapshot({Database,sourcePath:f.sourcePath}),base=reviewedPolicy(owner),
+    policy={...base,seeds:[...base.seeds,{owner:'execution-foundation',table:'fx_supporting_works',key:{work_id:'required-ready-work'}}]};
+  createRetainedDatabase({Database,sourcePath:f.sourcePath,targetPath:f.targetPath,targetSchema,policy});
+  assert.throws(()=>normalizeRetainedSubjects({Database,targetPath:f.targetPath,...targetSchema,generationId:'a'.repeat(64),
+    backupDigest:'b'.repeat(64),manifestDigest:'c'.repeat(64),assertIsolated(){}}),{code:'RESET_RETAINED_EXECUTION_OPEN'});
+});
+
+for(const kind of ['work_attempt','event','event_attempt','effect'])test('a retained unresolved '+kind+' blocks Reset normalization',t=>{
+  const f=fixture(t);seedHistoricalWork(f,'historical-work','succeeded');const db=new Database(f.sourcePath);
+  try{
+    if(kind==='work_attempt')db.exec("INSERT INTO fx_work_attempts(attempt_id,work_id,ordinal,state) VALUES('attempt','historical-work',1,'ready')");
+    else{
+      db.exec("INSERT INTO fx_workflow_plans(plan_id,state) VALUES('plan','planned')");
+      db.prepare('INSERT INTO fx_workflow_events(event_id,plan_id,node_id,work_id,owner_domain,state) VALUES(?,?,?,?,?,?)')
+        .run('event','plan','node','historical-work','libra',kind==='event'?'ready':'succeeded');
+      if(kind!=='event')db.prepare('INSERT INTO fx_event_attempts(event_attempt_id,event_id,ordinal,state) VALUES(?,?,?,?)')
+        .run('event-attempt','event',1,kind==='event_attempt'?'executing':'completed');
+      if(kind==='effect')db.exec("INSERT INTO fx_effect_journal(effect_id,event_attempt_id,effect_class,idempotency_key,state) VALUES('effect','event-attempt','domain_fact_commit','effect-key','intended')");
+    }
+  }finally{db.close();}
+  const owner=readResetOwnerSnapshot({Database,sourcePath:f.sourcePath});
+  createRetainedDatabase({Database,sourcePath:f.sourcePath,targetPath:f.targetPath,targetSchema,policy:reviewedPolicy(owner)});
+  assert.throws(()=>normalizeRetainedSubjects({Database,targetPath:f.targetPath,...targetSchema,generationId:'a'.repeat(64),
+    backupDigest:'b'.repeat(64),manifestDigest:'c'.repeat(64),assertIsolated(){}}),{code:'RESET_RETAINED_EXECUTION_OPEN'});
+});
+
+test('retained custom-target predecessor keeps its exact withdrawn Offer proof, not unrelated withdrawals',t=>{
+  const f=fixture(t),needed=withdrawnOffer(f,'old-run-1'),unrelated=withdrawnOffer(f,'old-run-2'),
+    owner=readResetOwnerSnapshot({Database,sourcePath:f.sourcePath});
+  createRetainedDatabase({Database,sourcePath:f.sourcePath,targetPath:f.targetPath,targetSchema,policy:reviewedPolicy(owner)});
+  const copy=new Database(f.targetPath,{readonly:true});
+  try{
+    assert.deepEqual(copy.prepare('SELECT offer_id FROM arca_offer_withdrawal_receipts ORDER BY offer_id').all(),[{offer_id:needed.offer.offerId}]);
+    for(const [table,column] of [['fx_command_receipts','command_receipt_id'],['fx_commit_markers','commit_marker'],['fx_audit_records','audit_id']]){
+      assert.equal(copy.prepare('SELECT count(*) n FROM '+table+' WHERE '+column+'=?').get(needed.commandId).n,1);
+      assert.equal(copy.prepare('SELECT count(*) n FROM '+table+' WHERE '+column+'=?').get(unrelated.commandId).n,0);
+    }
+    assert.equal(copy.prepare('SELECT count(*) n FROM libra_product_packages WHERE on_deck_package_id=?').get(needed.offer.onDeckPackageId).n,0);
+    assert.deepEqual(copy.pragma('foreign_key_check'),[]);
+  }finally{copy.close();}
+  const source=new Database(f.sourcePath,{readonly:true}),target=new Database(f.targetPath,{readonly:true});
+  try{source.exec('BEGIN');target.exec('BEGIN');assert.equal(verifyRetainedWithdrawals(source,target,targetSchema.schemaManifest).count,1);}
+  finally{source.exec('ROLLBACK');target.exec('ROLLBACK');source.close();target.close();}
+});
+
+for(const [table,column] of [['fx_command_receipts','command_receipt_id'],['fx_commit_markers','commit_marker'],['fx_audit_records','audit_id']])
+test('retained withdrawal cannot lose its original '+table+' evidence',t=>{
+  const f=fixture(t),needed=withdrawnOffer(f,'old-run-1'),db=new Database(f.sourcePath);
+  try{db.prepare('DELETE FROM '+table+' WHERE '+column+'=?').run(needed.commandId);}finally{db.close();}
+  const owner=readResetOwnerSnapshot({Database,sourcePath:f.sourcePath});
+  assert.throws(()=>createRetainedDatabase({Database,sourcePath:f.sourcePath,targetPath:f.targetPath,targetSchema,policy:reviewedPolicy(owner)}),
+    {code:'RESET_WITHDRAWAL_PROOF_INVALID'});
+});
+
+test('the independent verifier rejects a retained predecessor whose withdrawal was lost',t=>{
+  const f=fixture(t),needed=withdrawnOffer(f,'old-run-1'),owner=readResetOwnerSnapshot({Database,sourcePath:f.sourcePath});
+  createRetainedDatabase({Database,sourcePath:f.sourcePath,targetPath:f.targetPath,targetSchema,policy:reviewedPolicy(owner)});
+  const changed=new Database(f.targetPath);
+  try{changed.prepare('DELETE FROM arca_offer_withdrawal_receipts WHERE offer_id=?').run(needed.offer.offerId);}finally{changed.close();}
+  const source=new Database(f.sourcePath,{readonly:true}),target=new Database(f.targetPath,{readonly:true});
+  try{source.exec('BEGIN');target.exec('BEGIN');
+    assert.throws(()=>verifyRetainedWithdrawals(source,target,targetSchema.schemaManifest),{code:'RESET_WITHDRAWAL_PROOF_INVALID'});}
+  finally{source.exec('ROLLBACK');target.exec('ROLLBACK');source.close();target.close();}
+});
+
+for(const state of ['pending','delivered'])test('a retained '+state+' Offer cannot lose its withdrawal or create a new acceptance',async t=>{
+  const f=fixture(t),withdrawn=withdrawnOffer(f,'old-run-2'),payload=seedOfferMessage(f,withdrawn.offer,state),
+    owner=readResetOwnerSnapshot({Database,sourcePath:f.sourcePath}),base=reviewedPolicy(owner),
+    policy={...base,tables:{...base.tables,fx_outbox:{...base.tables.fx_outbox,disposition:'root'}}};
+  createRetainedDatabase({Database,sourcePath:f.sourcePath,targetPath:f.targetPath,targetSchema,policy});
+  const db=new Database(f.targetPath,{readonly:true});
+  try{
+    assert.equal(db.prepare('SELECT count(*) n FROM libra_runs WHERE libra_run_id=?').get('old-run-2').n,0);
+    assert.equal(db.prepare('SELECT state FROM fx_outbox_deliveries WHERE message_id=?').get(payload.messageId).state,state);
+    assert.equal(db.prepare('SELECT count(*) n FROM arca_offer_withdrawal_receipts WHERE offer_id=?').get(payload.offerId).n,1);
+  }finally{db.close();}
+  const kernel=openSqliteKernel({Database,databasePath:f.targetPath,...targetSchema}),unitOfWork=createSqliteUnitOfWork({kernel});
+  let dispatcher;
+  try{
+    const coordinator=createOnDeckProcessCoordinator({schemaManifest:targetSchema.schemaManifest,unitOfWork,
+      contextReader:{onDeck:{findRunByOffer:()=>null}},workResultReader:{},cancelProcessWorks:()=>({cancelledWorks:0,drainingWorks:0})});
+    assert.equal(coordinator.admitOffer(payload).kind,'offer_withdrawn');
+    let wakes=0;
+    dispatcher=createOutboxDispatcherHost({schemaManifest:targetSchema.schemaManifest,unitOfWork,arcaCoordinator:coordinator,
+      executionRuntimeHost:{wake(){wakes++;}},onError(error){throw error;}});
+    assert.deepEqual(await dispatcher.drainOnce(),{kind:'advanced',delivered:1});
+    const verified=new Database(f.targetPath,{readonly:true});
+    try{assert.equal(verified.prepare('SELECT state FROM fx_outbox_deliveries WHERE message_id=?').get(payload.messageId).state,'acked');
+      assert.equal(verified.prepare('SELECT count(*) n FROM arca_acceptance_attempts WHERE offer_id=?').get(payload.offerId).n,0);
+    }finally{verified.close();}
+    assert.equal(wakes,0);
+  }finally{if(dispatcher)await dispatcher.stop();kernel.close();}
+});
+
+test('a retained withdrawal conflicting with Accepted responsibility blocks Reset',t=>{
+  const f=fixture(t),withdrawn=withdrawnOffer(f,'old-run-1'),db=new Database(f.sourcePath);
+  try{db.prepare("INSERT INTO arca_acceptance_attempts(acceptance_attempt_id,offer_id,state) VALUES('invalid-accepted',?,'accepted')").run(withdrawn.offer.offerId);}
+  finally{db.close();}
+  const owner=readResetOwnerSnapshot({Database,sourcePath:f.sourcePath});
+  assert.throws(()=>createRetainedDatabase({Database,sourcePath:f.sourcePath,targetPath:f.targetPath,targetSchema,policy:reviewedPolicy(owner)}),
+    {code:'ARCA_OFFER_WITHDRAWAL_CORRUPT'});
+});
 
 test('reviewed dependent tables preserve only the committed custom Spec Intent Preview and original standard',t=>{
   const f=fixture(t),owner=readResetOwnerSnapshot({Database,sourcePath:f.sourcePath}),policy=reviewedPolicy(owner);
@@ -230,6 +372,9 @@ test('unreviewed schema and a missing Owner closure declaration remain fail-clos
     libra_custom_target_heads:{...unsafe.tables.libra_custom_target_heads,disposition:'dependent'}}};
   assert.throws(()=>createRetainedDatabase({Database,sourcePath:f.sourcePath,targetPath:path.join(path.dirname(f.targetPath),'head.db'),
     targetSchema,policy:withHead}),{code:'RESET_COPY_OWNER_DESCRIPTION_INVALID'});
+  const withoutWithdrawal={...unsafe};delete withoutWithdrawal.withdrawalClosure;
+  assert.throws(()=>createRetainedDatabase({Database,sourcePath:f.sourcePath,targetPath:path.join(path.dirname(f.targetPath),'withdrawal.db'),
+    targetSchema,policy:withoutWithdrawal}),{code:'RESET_COPY_OWNER_DESCRIPTION_INVALID'});
 });
 
 test('a retained copy with missing target dependency fails the independent read-only verification',t=>{

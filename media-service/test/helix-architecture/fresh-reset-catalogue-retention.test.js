@@ -5,26 +5,12 @@ const {createUsAdultCatalogueStore}=require('../../src/helix/domains/libra/persi
 const {buildOwnerRetentionPolicy}=require('../../scripts/formation-reset-owner-policy');
 const {createRetainedDatabase}=require('../../scripts/formation-reset-copy');
 const {canonicalJson}=require('../../src/helix/contracts/canonical-json');
-const declaration=require('../../scripts/formation-reset-owner-retention.json');
 const {fixture:specFixture}=require('./fixtures/custom-acceptance-spec-harness');
 
-function simulatedPolicy(){
-  const before={schemaDigest:declaration.schemaDigest,tables:declaration.tables};
-  try{
-    const additions=[{table:'arca_offer_withdrawal_receipts',owner:'arca',disposition:'clear'},
-      {table:'libra_custom_target_heads',owner:'libra',disposition:'clear'},
-      {table:'libra_custom_target_intents',owner:'libra',disposition:'dependent'},
-      {table:'libra_custom_target_previews',owner:'libra',disposition:'dependent'},
-      {table:'libra_us_adult_catalogue_bases',owner:'libra',disposition:'dependent'}];
-    const added=new Set(additions.map(row=>row.table));
-    declaration.schemaDigest=schemaManifest.ddlDigest;
-    declaration.tables=[...before.tables.filter(row=>!added.has(row.table)),...additions];
-    return buildOwnerRetentionPolicy(schemaManifest);
-  }finally{Object.assign(declaration,before);}
-}
+function reviewedPolicy(){return buildOwnerRetentionPolicy(schemaManifest);}
 
 test('unreviewed combined schema cannot authorize a production Reset',()=>{
-  assert.throws(()=>buildOwnerRetentionPolicy(schemaManifest),{code:'RESET_RETENTION_SCHEMA_UNREVIEWED'});
+  assert.throws(()=>buildOwnerRetentionPolicy({...schemaManifest,ddlDigest:'0'.repeat(64)}),{code:'RESET_RETENTION_SCHEMA_UNREVIEWED'});
 });
 test('the exact retained Run carries its catalogue Basis while unselected task state leaves the online copy',t=>{
   const f=fixture(t);createUsAdultCatalogueStore(f.options).freeze(f.basis);
@@ -42,7 +28,7 @@ test('the exact retained Run carries its catalogue Basis while unselected task s
       specRevision:spec.specRevision,productScopeDigest:spec.productScope.scopeDigest,shelfId:spec.targetShelfId}};
   f.db.prepare("UPDATE libra_runs SET acceptance_spec_id=?,execution_basis_record_json=?,state='completed' WHERE libra_run_id='run'")
     .run(spec.acceptanceSpecId,canonicalJson(basis));
-  const before=canonicalJson(f.db.prepare('SELECT * FROM libra_us_adult_catalogue_bases').all()),policy=simulatedPolicy();
+  const before=canonicalJson(f.db.prepare('SELECT * FROM libra_us_adult_catalogue_bases').all()),policy=reviewedPolicy();
   assert.equal(policy.tables.libra_us_adult_catalogue_bases.disposition,'dependent');
   assert.ok(policy.edges.some(edge=>edge.parent==='libra_runs'&&edge.child==='libra_us_adult_catalogue_bases'));
   // This fixture seed stands for the exact Run selected by Arca's retention

@@ -22,6 +22,21 @@ function normalizeRetainedSubjects({ Database, targetPath, schemaManifest, schem
   try {
     if (read.prepare("SELECT 1 FROM libra_runs WHERE state IN ('active','suspended','frozen') LIMIT 1").get())
       fail('RESET_RETAINED_UNCOMMITTED_RUN');
+    // A dependency-selected historical Work must not re-enter the scheduler
+    // or Effect recovery merely because its Run is retained for provenance.
+    const scope="w.owner_domain='libra' AND w.process_type='libra_run'";
+    if (read.prepare("SELECT 1 FROM fx_supporting_works w WHERE "+scope+
+        " AND (w.state IS NULL OR w.state NOT IN ('succeeded','failed','cancelled')) LIMIT 1").get() ||
+        read.prepare("SELECT 1 FROM fx_supporting_works w JOIN fx_work_attempts a ON a.work_id=w.work_id WHERE "+scope+
+          " AND (a.state IS NULL OR a.state NOT IN ('succeeded','failed','cancelled')) LIMIT 1").get() ||
+        read.prepare("SELECT 1 FROM fx_supporting_works w JOIN fx_workflow_events e ON e.work_id=w.work_id WHERE "+scope+
+          " AND (e.state IS NULL OR e.state NOT IN ('succeeded','skipped','failed','cancelled')) LIMIT 1").get() ||
+        read.prepare("SELECT 1 FROM fx_supporting_works w JOIN fx_workflow_events e ON e.work_id=w.work_id "+
+          "JOIN fx_event_attempts a ON a.event_id=e.event_id WHERE "+scope+
+          " AND (a.state IS NULL OR a.state!='completed') LIMIT 1").get() ||
+        read.prepare("SELECT 1 FROM fx_supporting_works w JOIN fx_workflow_events e ON e.work_id=w.work_id "+
+          "JOIN fx_event_attempts a ON a.event_id=e.event_id JOIN fx_effect_journal f ON f.event_attempt_id=a.event_attempt_id WHERE "+scope+
+          " AND (f.state IS NULL OR f.state NOT IN ('committed','failed')) LIMIT 1").get()) fail('RESET_RETAINED_EXECUTION_OPEN');
     if (read.prepare('SELECT 1 FROM libra_predeck_pipeline_tokens LIMIT 1').get() ||
         read.prepare('SELECT 1 FROM libra_workshop_placements LIMIT 1').get()) fail('RESET_RETAINED_ADMISSION_OCCUPANCY');
     subjects = read.prepare("SELECT subject_id FROM libra_subjects WHERE status='active' ORDER BY subject_id").all();

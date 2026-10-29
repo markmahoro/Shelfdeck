@@ -1,5 +1,13 @@
 # Arca Offer Withdrawal 与 Fresh-generation Reset 依赖审计（2026-10-29）
 
+## 后继实现检查点
+
+审计后，主整合为当前244表建立明确Owner保留声明：Arca Withdrawal为dependent，Custom Intent/Preview为dependent、Head为clear，演员Catalogue Basis为dependent。复制操作从同一只读源快照分页读取Arca验证过的Withdrawal，对目标中保留的精确Libra Run/Work、Package、Arca Acceptance Work及Offer Outbox/Command检查依赖；必要时保留该Withdrawal和原Command/Marker/Audit，直至保留集合不再扩张。未关联记录不进入新代际。Arca Accepted/Custody与Withdrawal矛盾、原证明缺失或篡改均拒绝；独立只读Verifier再次比较源与目标并校验原始证明，不靠相同Subject或目标名选择。
+
+隔离夹具实际创建原Arca Withdrawal Command、Receipt、Marker和Audit，证明已保留自定义Spec的前序Run必须连同对应否决凭据保留，而同Subject无关旧Offer及其Package不保留；人为在测试策略中保留pending/delivered未ACK Outbox，真实Foundation Dispatcher重投后复用原Withdrawal、ACK且不新建Assessment。源Marker缺失、目标Receipt丢失和Accepted矛盾等负例拒绝。首次旧实现因漏留必要凭据及未检查缺证两项失败；修复后相关负例通过。首轮扩展回归61通过/1失败为缺少Closure时错误类型不正确，修正后62项通过；最新加入旧执行及People/结构回归后隔离Linux **85 PASS / 0 FAIL / 0 skip**。日志为本线程ignored目录中的`reset-withdrawal-first.log`、`reset-withdrawal-reviewed.log`、`reset-withdrawal-reviewed-retry.log`和`reset-244-closure-final.log`。
+
+另一个隔离负例确认：此前只要保留历史Libra Run就会带入其无依赖ready Work；现在仅由Run选择已终态Work，确有其他保留证据引用的未终态Work、Attempt、Event或Effect在规范化时明确阻断。首轮两项失败及修后六项通过分别留在`reset-old-work-before.log`与`reset-old-work-cases.log`；不修改历史Work伪造完成，也不恢复旧执行。冷态239→244隔离Host的完整停止、校验备份、切换及中断恢复集合**85 PASS / 0 skip**（`reset-244-managed.log`）；后续带新规则的管理入口定向**2 PASS / 7 name-filter skip**（`reset-244-operator-final.log`）。这些是独立合成数据，不是生产数据闭包、最终合版或实际Reset通过；未来结构变化仍须重新审查。SSOT同步后，首轮P2因sourceDocumentDigest漂移失败，重新生成source map后四项静态门禁通过。
+
 本文件是只读代码/合同审计和负例建议，不是 Retention 声明、Reset 授权或资格通过。核对的主整合快照为 `436714456014ddadc659e872e5f102409e921b4a`；唯一 SSOT 中 Fresh-generation Formation Reset 保留已完成 On-deck Commit 所需最小闭包与收藏维护责任，其余无收藏依赖的旧在线 Formation 历史清除，完整历史在校验离线备份。未连接生产，也未预检或执行 Reset。
 
 **审计结论：不能仅凭“该 Offer 未 Accepted”就将 `arca_offer_withdrawal_receipts` 全表或其记录定为 `clear`。** 该 Receipt 是原 Offer 后续准入、重新 Assessment 和首次 Accepted 的永久否决证据；若停止态选择的保留集合仍包含能投递或重新形成该 Offer 的责任，必须在切换前证明其闭包已安全收口，或保留与该责任精确对应的否决证明及必要依赖。当前只读检查没有证明所有可能保留责任都不能重投旧 Offer；也没有证明生产中存在实际重投或错误 Accepted。具体保留方案及跨 Owner 读取须由主整合按各 Owner 合同确认。

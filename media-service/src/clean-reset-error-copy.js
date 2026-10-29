@@ -9,6 +9,9 @@ const messages = Object.freeze({
   RESET_OPERATOR_BUSY: '已有重置作业正在执行，请等待其结束。',
   RESET_STORAGE_BOUNDARY_OVERLAP: '临时清理目录与受保护目录重叠，请修正作业配置后重新核对。',
   RESET_WORKFLOW_AUTHORITY_CHANGED: '本次重置的授权或运行记录已变化，系统保持停止，请核查原始回执。',
+  RESET_RETAINED_EXECUTION_OPEN: '收藏引用的旧执行尚未安全结束，请核查备份和执行记录。',
+  RESET_WITHDRAWAL_PROOF_INVALID: '重置所需的撤回记录或回执不完整，请核查备份和原始记录。',
+  ARCA_OFFER_WITHDRAWAL_CORRUPT: '撤回记录无法核对，请检查备份和原始记录。',
 });
 const peopleMessages = Object.freeze({
   RESET_VERIFY_PEOPLE_REFERENCE_FACTS_INVALID: '人物参考资料不完整。请修复后重新核对。',

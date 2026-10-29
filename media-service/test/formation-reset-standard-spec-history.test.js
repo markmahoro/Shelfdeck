@@ -10,26 +10,12 @@ const {buildDecisionInputSet,buildDecisionBasisRevision}=require('../src/helix/d
 const {resolveAcceptanceSpec}=require('../src/helix/domains/libra/model/acceptance-spec-contracts');
 const {BETA_RECOMMENDED_RULES}=require('../src/helix/domains/arca/model/rule-template-contracts');
 const history=require('./helix-architecture/fixtures/fresh-reset-standard-history.json');
-const declaration=require('../scripts/formation-reset-owner-retention.json');
 const {buildOwnerRetentionPolicy}=require('../scripts/formation-reset-owner-policy');
 const {createRetainedDatabase}=require('../scripts/formation-reset-copy');
 const {verifyRetainedCustomTargets}=require('../scripts/formation-reset-verify');
 const targetSchema={schemaManifest:require('../src/helix/foundation/persistence/generated/clean-schema.manifest.json'),
   schemaDdl:fs.readFileSync(path.join(__dirname,'../src/helix/foundation/persistence/generated/clean-schema.sql'),'utf8')};
-function policy(){
-  const before={schemaDigest:declaration.schemaDigest,tables:declaration.tables},simulated=new Set([
-    'arca_offer_withdrawal_receipts','libra_custom_target_heads','libra_custom_target_intents','libra_custom_target_previews',
-    'libra_us_adult_catalogue_bases']);
-  try{declaration.schemaDigest=targetSchema.schemaManifest.ddlDigest;declaration.tables=[...before.tables.filter(row=>!simulated.has(row.table)),
-    {table:'arca_offer_withdrawal_receipts',owner:'arca',disposition:'clear'},
-    {table:'libra_custom_target_heads',owner:'libra',disposition:'clear'},
-    {table:'libra_custom_target_intents',owner:'libra',disposition:'dependent'},
-    {table:'libra_custom_target_previews',owner:'libra',disposition:'dependent'},
-    ...(targetSchema.schemaManifest.tables.some(row=>row.tableId==='libra_us_adult_catalogue_bases')
-      ? [{table:'libra_us_adult_catalogue_bases',owner:'libra',disposition:'dependent'}] : [])];
-    return buildOwnerRetentionPolicy(targetSchema.schemaManifest);
-  }finally{Object.assign(declaration,before);}
-}
+function policy(){return buildOwnerRetentionPolicy(targetSchema.schemaManifest);}
 function fixture(t,record){
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'reset-standard-history-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
   const sourcePath=path.join(root,'source.db'),targetPath=path.join(root,'target.db');
