@@ -178,6 +178,7 @@ const boundedContracts = {
   ClusterParameters: '',
   EncodeIntent: '',
   FaceModelRef: '',
+  FaceCatalogueGeneration: '',
   BoundedFingerprintProfile: 'profileRef,revision,algorithm,maxSampleBytes,profileDigest',
   IdentityRequirement: '',
   MandatoryRequirement: '',
@@ -280,6 +281,7 @@ const dtoContracts = {
   PeopleProfileUpdateDecision: '',
   UsAdultPersonSnapshot:'',
   UsAdultAnalysisBasis:'',
+  UsAdultCatalogueAnalysisBasis:'',
   UsAdultActorChoiceRecord:'',
   UsAdultActorChoiceDecision:'',
   UsAdultActorChoiceReceipt:'',
@@ -341,6 +343,8 @@ function idField(name) {
 }
 
 function buildSchema(name, role, fields) {
+  if(name==='FaceCatalogueGeneration')return require('../../src/helix/contracts/face-catalogue-generation').schema();
+  if(name==='UsAdultCatalogueAnalysisBasis')return require('../../src/helix/domains/libra/model/us-adult-catalogue-analysis-basis').schema();
   if(name==='SeriesRootRelocationReference')return exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},revision:{const:1},digest:digest(),relocationId:id(),scopeId:id(),planDigest:digest()});
   if(['SeriesPresentationScope','SeriesPresentationManifest','SeriesPresentationReclamationBasis'].includes(name)){
     const value=require('../../src/helix/contracts/series-presentation-schemas')[name==='SeriesPresentationScope'?'scopeSchema':name==='SeriesPresentationManifest'?'manifestSchema':'reclamationSchema']();

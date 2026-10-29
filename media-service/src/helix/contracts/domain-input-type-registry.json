@@ -5,7 +5,7 @@
   "kind": "domain-input-type-registry",
   "owner": "contracts",
   "status": "active",
-  "targetCount": 150,
+  "targetCount": 152,
   "ssotRefs": [
     "8.6.3",
     "8.6.14",
@@ -700,6 +700,18 @@
           "typeExpression": "Episode Delivery Manifest"
         }
       ]
+    },
+    {
+      "id": "FaceCatalogueGeneration",
+      "version": 1,
+      "role": "bounded-contract",
+      "schemaId": "helix://contracts/domain-types/FaceCatalogueGeneration/v1",
+      "relativePath": "domain-types/FaceCatalogueGeneration/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "354020fa6f49dc27d604f12d79a088d5a79486dcf73f23bca61235a66d4e9e70"
+      },
+      "usedBy": []
     },
     {
       "id": "FaceModelRef",
@@ -3501,6 +3513,18 @@
       "digest": {
         "algorithm": "sha256",
         "value": "cbafccf88ac4dc6580a65e01db1b10a93b7874e22d31f2c9654ba55d43449c2e"
+      },
+      "usedBy": []
+    },
+    {
+      "id": "UsAdultCatalogueAnalysisBasis",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/UsAdultCatalogueAnalysisBasis/v1",
+      "relativePath": "domain-types/UsAdultCatalogueAnalysisBasis/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "91d64c1d15ba0523eb2662fa9ee73504d664bb8704b4429d955dd3aa7c85c57b"
       },
       "usedBy": []
     },

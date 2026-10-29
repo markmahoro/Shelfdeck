@@ -86,3 +86,47 @@ NAS产物根为上面的`video-phase4`；本机ignored副本为`E:/my_project/em
 | assessment-2.log | 3438 | 40eb70a1dc984de0497486fc2646095398aff492cf1331d76b4b9c038ae36495 |
 
 目录/策略/Artifact与正式Work接线、补采、代表图、准确率与资源/恢复资格仍按唯一Phase推进；本段不是Phase Exit，也不继承为完整Host或具体版本UI验收。
+
+## 2026-10-29：正式合同和内置CPU模块切片
+
+本次将已资格的数值/图片/分组实现迁入Service，qualification wrappers复用这些实现；正式Runtime composition未改，原128维链尚未切换。新增`FaceCatalogueGeneration`和`UsAdultCatalogueAnalysisBasis`，新Basis绑定当前Run/唯一Primary及成功Probe、512维Model Ref、数据代际、显式检索/采样/分组/代表图/Libra身份策略及资源预算。主目录路不冻结People全库，不产生Person、ActorChoice或Cast。USearch固定2.25.3及既有相同完整性，已进入Service依赖lock；不把模型/第三方数据库装入对外镜像。
+
+目录验证逐块校验manifest与七成员SHA/大小，拒绝链接、替换、读取中变化、超时和取消；查询前后核对同一代际文件身份。代际必须独立目录发布，不原地覆盖。内置CPU线程只接受一个操作，第二个请求立即busy；超时/取消结束线程并拒绝迟到结果，没有私有业务队列或独立服务。正式Work/Permit仍须后续接线，不能从此推导已完成Runtime资源准入。
+
+Frame Evidence Artifact payload把原编码SHA、校正画布像素SHA/尺寸/旋转、五点/512维特征和精确脸序号连续绑定。代表图按同一画布留1/4脸框边距，PNG输出记录渲染policy/裁剪/帧/脸/特征proof；裁剪包含另一检测脸中心或剩余脸太小时明确失败。图像和向量留在技术Artifact payload，未加入业务Result或写入生产Workspace。
+
+### 结果与适用范围
+
+- `contract-1`：实际Linux37 PASS/0skip；迁移后的数值/图片代码对固定Sense的三原图及一旋转图再次通过，原始比对门槛未变。
+- `contract-3`：实际Linux48 PASS/0skip；四张代表图各重新检出1脸。图片向量与oracle的最小cosine为0.9998701773；裁剪后与原检测特征cosine为0.9584–0.9901，这是技术连续性测量，不是身份准确率。模型加载2.177s，四图/裁剪/复检总57.660s、停止69ms。仅模型/图片进程，1CPU/1.5GiB，不包含目录索引共载。
+- 正式目录代际为`280b5425debb95ec95d1cf89efa5e34428ce7643316b1a690157696038643485`；manifest+7成员共2,715,402,822 bytes，实际逐项验真约6.2–8.1s。预期SHA来自Phase 1冻结manifest，未把当前文件现算SHA直接当可信发布。
+- 最新`contract-6`：实际Linux54 PASS/0skip；正式CPU目录适配器以固定代际加载并查询四组参考特征，有序UID完全一致、最大调整距离差1.1920929e-7；加载9.920s、含查询总10.779s、停止102ms。1CPU/1GiB，仅目录/元数据，无图片模型推理；不能与上条拼成完整共载资格。
+- 独立暂存源码导出排除了原Phase 3未提交文件。静态合同/P2无finding，计数138 Capability/117 Result family/243表/65事务/152 Domain input，聚合摘要`1257303c07c1498bc30748827dc8e36b20874283170f64ace5002473a56b9c27`。相关逻辑/合同测试60 PASS/1 Linux-only skip，该分组线程场景已有上述Linux覆盖；这不是完整架构或最终镜像资格。新增SSOT两行引起Source Map及其下游行号/digest机械传播，未增加表/事务或DDL。
+
+### 失败保留
+
+1. 新DTO首轮生成器把精确七成员合同误归为任意typedParameters合同，明确列入精确合同集合后通过；没有放开通用对象约束。新Probe Fixture的`discTopology:null`不合schema，修正Fixture为实际可选字段语义，保留正式Probe/摘要/大小/视频流校验。
+2. `contract-2`真实图紧框裁剪复检0脸，断言失败；保持“一张可独立检测的脸”断言，新增显式1/4留边规则后`contract-3`四图通过。没有降低检测门槛或跳过失败图。
+3. `contract-4`错误假设索引向量数等于JSON键槽长度，加载拒绝；实际USearch使用稀疏稳定键，五个已声明null槽外还存在未分配键空间。修正为向量数量和键空间各自边界并增加稀疏键正例，越界/缺映射继续拒绝。
+4. `contract-5`把外部目录UID与SQLite整型人物主键直接比较，查询拒绝。核对固定目录表结构及上游导出规则后，经`stashbox_ids`端点/外部ID或catalogue源+内部整型ID核对同一人物；真实不一致继续拒绝。不是按同名合并，也未把TPDB ID设为ShelfDeck personId。
+5. 独立源码静态首两轮未传播Source Map/Result registry/表合同的出处行号，明确失败；完整机械生成后通过，首跑未记全绿。原Phase 3未提交增量始终保留，没有混入本次资格或提交。
+
+### 固定产物
+
+NAS私有实验根继续为`/vol1/1000/docker/shelfdeck-buffalo-qualification-20261029/video-phase4`，本机副本在同名`.codex/buffalo-video-phase4-20261029`；原始JSON/日志及所有失败文件留档，不提交图片/向量/数据库。对照环境继续为Phase 1固定Linux镜像和Node/ORT/sharp/USearch版本。
+
+| 产物 | 字节 | SHA256 |
+| --- | ---: | --- |
+| contract-3.tar.gz（代表图复验） | 880890 | d8c23242ede1ae6427f61fc85ccff3fa351802aeba9281e15feaafe5063065e9 |
+| contract-3/cpu-evidence-report.json | 5661 | 25ff2265263f18b27d4e8cdfe3c7f41e934d19c8e8f5b04513e1f225ebffffe6 |
+| contract-3/catalogue-generation-report.json | 3352 | 9f4c8a5a664eb3a7d3e0a045a706dad083859c2b7f3714fafe1cc2de54bae740 |
+| contract-6.tar.gz（最新目录/模块测试） | 884857 | 844243a7437fe9097f6258f6ab704b5b565799ddc1ed88d5e8d6b297990fc4f0 |
+| contract-6-tests.log | 12907 | b30bc166a4363bdc99ad9b9ad2f19cae7b5e6964f9971e02135674f2feaeb75d |
+| contract-6/formal-catalogue-report.json | 1215 | 4b6f8e16e002b99cfea80d99809c4eb8dfa2b4889eb2b17c1a5f4b1e5d724b36 |
+| contract-2/cpu-evidence-report.json（首败） | 329 | 95f126e0419ebe9e94ec0f2c379e34f115e92e9bb53ea279656e3379b85c3fce |
+| contract-4/formal-catalogue-report.json（首败） | 239 | 6ef4a66db32889da635c996ab1146449b1f2ba7755bf1105444df326b4c804a6 |
+| contract-5/formal-catalogue-report.json（首败） | 559 | 2b1fc4a39ca39f6bc4b06845bbe9d5f2999e6767e31b2335f293371082aebbbe |
+
+最终生产container/image/StartedAt与原基线一致，running/Restart0/OOM=false；Sense仍exited；本任务容器均已退出。2模型/7目录成员最终SHA与Phase 1及首轮记录一致。本次没有挂载生产DB、写People/Reference/收藏/源文件，也没有执行部署/Reset或恢复自动观察；不冒称重新逐行核验全库/全部媒体。
+
+剩余门槛：新Basis Store、正式Work/Capability/Artifact/Effect/Permit及可恢复补采，目录/模型同进程共载和真实Host停止/重启/迟到结果，独立真值充分的视频识别/4K/SMB资格；随后Phase 5人物完整发布、Reference统一更新、单演员出演及唯一Commit。当前切片不是Phase 4 Exit或核心功能完成。

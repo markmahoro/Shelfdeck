@@ -2,6 +2,8 @@
 
 更新：2026-10-29。状态：技术切片和真实视频隔离资格进行中，未开放自动出演或变更生产。Phase 1有限技术资格已Exit，固定提交125229556及[Evidence](evidence/BUFFALO_CATALOGUE_FEASIBILITY_20261029.md)可复验。唯一[Master Plan](../CURRENT_PLAN.md)顺序为1→4→5→2→3→6；不改阶段编号、不创建第二个活动包。
 
+最新检查点：已完成新typed Catalogue Basis、Service内置数值/CPU隔离/目录查询与代表图模块，qualification入口复用正式模块；尚未接通正式Work和Artifact持久化。contract-6 Linux54 PASS/0skip；4组目录有序身份与固定参考一致。contract-3四张代表图（含旋转）可独立检出单脸，记录紧框首败后采用显式1/4留边策略。目录代际冻结manifest及7成员/512维特征空间，实际2,715,402,822 bytes验真；检索与Libra身份资格分开。静态合同/P2从排除原Phase 3未提交文件的源码快照通过，资源共载/正式Host及Phase Exit仍未通过，详见本包[Evidence](evidence/BUFFALO_VIDEO_QUALIFICATION_20261029.md)。
+
 ## 本轮优先Outcome
 
 先完成真实视频识别，再立即接Phase 5人物复用/自动建档和出演确认。共同终点是“真实影片→可靠选定一位演员→完整人物→正式出演→生产→Arca唯一Commit”，演员/NFO/海报一致。不能仅凭图片姓名、一个聚类或中间Choice就称整项核心功能完成。
@@ -55,5 +57,7 @@ Phase 2已有修复、Phase 3未提交Run接续文件和既有资格均保留，
 首次Inventory TEXT版本比较失败和新增测试挂载被只读父目录拒绝均保留；输入转换及隔离挂载修正后复验，不放宽身份/产品断言。三条Inventory/收藏保护字段及2模型/7目录SHA保持，生产容器身份/StartedAt不变，全部本任务容器已退出。2026-10-29用户明确否决FEMALE-only提议，取消全部性别筛选和分流；该项已定，不再等待确认。当前不能开放自动出演的剩余原因是正式执行链/资源/识别资格尚未完成。原来的常规单图资格不被这里的小样本替代或扩张。
 
 尚缺正式typed Basis/策略/Artifact与资源接线、补采、真值充分的独立视频识别和4K/冷启动/完整停止恢复资格；Phase 5人物发布和唯一Commit未开始。Phase 6最终整合/镜像/完整架构及具体版本UI/生产门禁保持；本次没有增加CUDA、生产处置或自动观察。
+
+上段为首轮检查点：typed Catalogue Basis与显式策略现已新增，后续缺口为其Store/正式Work/Artifact/Runtime Permit接线、20+20补采与恢复及业务/资源资格；不能因纯模块已迁入Service就提前开启自动人物处理。原128维正式链尚未切换，Phase 5仍需统一Reference及本地备用，不允许新增SFace运行备用或未入藏旧Run兼容。
 
 取消性别条件后的增量：Libra私有`us-adult-catalogue-assessment`按显式冻结的距离/候选差距、独立代表及时间覆盖参数形成候选评估，完全不读取gender作决定；技术候选不等于Person、ActorChoice或Cast。资格不够、无脸、无匹配及身份歧义分开，重复截图不充当独立证据，同一组强身份冲突或同框两脸归同UID不能被高分掩盖。最新assessment-2实际Linux 10 PASS / 0 skip，三部已有Evidence的12组网格与60次gender值/缺失/冲突变更重放全部通过。参数0.5/0.05/2代表区段/3覆盖区段仅为明确的实验Fixture，不是生产校准默认值。私有模型尚未接正式Work/typed Observation，Phase 4仍开放。
