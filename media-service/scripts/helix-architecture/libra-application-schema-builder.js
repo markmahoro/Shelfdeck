@@ -314,6 +314,7 @@ function runExecutionBasis() {
     })
   };
   schema.properties.episodeMetadataMappingRef = require('../../src/helix/contracts/episode-metadata-mapping-reference').episodeMetadataMappingReferenceSchema();
+  schema.properties.collectionTargetRef = require('../../src/helix/contracts/collection-target-reference').collectionTargetReferenceSchema();
   return schema;
 }
 
@@ -330,7 +331,7 @@ function runExecutionBasisRecord() {
   });
   return { $schema: DRAFT, $id: typeId('LibraRunExecutionBasisRecord'), title: 'LibraRunExecutionBasisRecord@1',
     'x-helix-ssotRefs': ['8.6.21'], 'x-helix-maxCanonicalBytes': 1024 * 1024,
-    ...object(properties, Object.keys(properties).filter(key => key !== 'episodeMetadataMappingRef')) };
+    ...object(properties, Object.keys(properties).filter(key => !['episodeMetadataMappingRef','collectionTargetRef'].includes(key))) };
 }
 
 function runAdmissionDecision() {

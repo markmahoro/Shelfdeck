@@ -31,13 +31,17 @@ function createCustomTargetStore(options) {
       keyColumns:['subject_id','product_scope_digest'],compareColumns:[{column:'current_revision',parameter:'expected_revision'},
         {column:'intent_id',parameter:'expected_intent_id'},{column:'record_digest',parameter:'expected_digest'}]},
     run:{kind:'select-one',tableId:'libra_runs',keyColumns:['libra_run_id'],columns:['libra_run_id','subject_id','state','state_revision',
-      'state_digest','package_revision_head','execution_basis_digest','acceptance_spec_id','run_material_manifest_id']},
+      'state_digest','package_revision_head','execution_basis_digest','execution_basis_record_json','acceptance_spec_id','run_material_manifest_id']},
     subject:{kind:'select-one',tableId:'libra_subjects',keyColumns:['subject_id'],columns:['subject_id','status','content_profile','structure_kind']},
     spec:{kind:'select-one',tableId:'libra_acceptance_specs',keyColumns:['acceptance_spec_id'],columns:['acceptance_spec_id','subject_id',
       'shelf_id','shelf_standard_revision','shelf_standard_digest','product_scope_digest','spec_digest','record_digest','spec_json']},
     decision_head:{kind:'select-one',tableId:'libra_subject_decision_heads',keyColumns:['subject_id'],columns:['head_digest','current_acceptance_spec_id']},
     manifest:{kind:'select-one',tableId:'libra_run_material_manifests',keyColumns:['run_material_manifest_id'],columns:['libra_run_id','member_set_digest']},
     identity:{kind:'select-one',tableId:'libra_product_fact_revisions',keyColumns:['libra_run_id','fact_kind','fact_revision'],columns:['fact_digest']},
+    source_members:{kind:'select-all',tableId:'libra_run_material_members',keyColumns:['run_material_manifest_id'],
+      columns:options.schemaManifest.tables.find(table=>table.tableId==='libra_run_material_members').columns,safeIntegers:true},
+    source_claims:{kind:'select-all',tableId:'libra_run_material_episode_claims',keyColumns:['run_material_manifest_id'],
+      columns:['member_ordinal','episode_key','season_claim_digest','claim_digest'],safeIntegers:true},
   });
   const repository = createRepositoryDefinition({ repositoryId:'libra_custom_targets',owner:'libra',schemaManifest:options.schemaManifest,statements });
   const validationRepository=createRepositoryDefinition({repositoryId:'libra_custom_target_publication_inputs',owner:'libra',schemaManifest:options.schemaManifest,
@@ -110,6 +114,60 @@ function createCustomTargetStore(options) {
     preview:previewId=>read(repo=>getPreview(repo,previewId)),
     current:({subjectId,productScopeDigest})=>read(repo=>current(repo,subjectId,productScopeDigest)),
     intentEvidence:intentId=>read(repo=>intentEvidence(repo,intentId)),
+    admissionValidation(basis,replacementRunId,onValidated){
+      return {participantId:'custom_target_run_admission_validation',owner:'libra',repositories:[validationRepository],execute(context){
+        const repo=context.repository(validationRepository.repositoryId),row=repo.invoke('spec',{acceptance_spec_id:basis.acceptanceSpec.acceptanceSpecId});
+        let spec;try{spec=row&&JSON.parse(row.spec_json);}catch{fail('LIBRA_CUSTOM_TARGET_RECORD_INVALID');}
+        if(!spec)fail('LIBRA_CUSTOM_TARGET_RECORD_INVALID');
+        const selected=current(repo,basis.subjectSnapshot.subjectId,basis.acceptanceSpec.productScopeDigest),reference=basis.collectionTargetRef;
+        if(spec.targetKind!=='user_custom'){
+          if(reference||selected)fail('LIBRA_COLLECTION_TARGET_NOT_CURRENT');
+          return {targetKind:'standard'};
+        }
+        if(!reference||reference.targetKind!=='user_custom'||!selected||selected.intentId!==reference.intentId||
+            selected.intentDigest!==reference.intentDigest||selected.revision!==reference.targetRevision)
+          fail('LIBRA_COLLECTION_TARGET_NOT_CURRENT');
+        const evidence=intentEvidence(repo,reference.intentId),{intent,preview,baseSpec}=evidence,
+          validated=require('../model/custom-acceptance-spec').assertCustomAcceptanceSpec({spec,baseSpec,preview,intent});
+        if(validated.acceptanceSpecId!==row.acceptance_spec_id||validated.recordDigest!==row.record_digest||validated.specDigest!==row.spec_digest||
+            intent.subjectId!==basis.subjectSnapshot.subjectId||intent.basis.productScopeDigest!==basis.acceptanceSpec.productScopeDigest||
+            intent.basis.libraRunId!==replacementRunId||!replacementRunId||intent.basis.handoffState==='accepted')
+          fail('LIBRA_CUSTOM_TARGET_ADMISSION_STALE');
+        const old=repo.invoke('run',{libra_run_id:replacementRunId}),manifest=old&&repo.invoke('manifest',{run_material_manifest_id:old.run_material_manifest_id}),
+          identity=repo.invoke('identity',{libra_run_id:replacementRunId,fact_kind:'resolved_identity',fact_revision:1});
+        if(!old||old.subject_id!==intent.subjectId||!['active','suspended','frozen'].includes(old.state)||
+            old.execution_basis_digest!==intent.basis.runExecutionBasisDigest||old.acceptance_spec_id!==intent.basis.runAcceptanceSpecId||
+            old.package_revision_head!==intent.basis.runPackageRevisionHead||!manifest||manifest.libra_run_id!==replacementRunId||
+            manifest.member_set_digest!==intent.basis.materialSetDigest||identity?.fact_digest!==intent.basis.identityDigest)
+          fail('LIBRA_CUSTOM_TARGET_ADMISSION_STALE');
+        let oldBasis;try{oldBasis=JSON.parse(old.execution_basis_record_json);}catch{fail('LIBRA_CUSTOM_TARGET_RECORD_INVALID');}
+        if(!oldBasis||!oldBasis.relatedDispositionScope)fail('LIBRA_CUSTOM_TARGET_RECORD_INVALID');
+        if(canonicalJson(oldBasis.relatedDispositionScope)!==canonicalJson(basis.relatedDispositionScope))
+          fail('LIBRA_CUSTOM_TARGET_ADMISSION_MATERIAL_CHANGED');
+        const members=repo.invoke('source_members',{run_material_manifest_id:old.run_material_manifest_id}),
+          claims=repo.invoke('source_claims',{run_material_manifest_id:old.run_material_manifest_id});
+        if(members.length!==basis.productionMaterialManifest.members.length)fail('LIBRA_CUSTOM_TARGET_ADMISSION_MATERIAL_CHANGED');
+        for(const member of basis.productionMaterialManifest.members){
+          const source=members.find(item=>item.material_key===member.materialKey);
+          if(!source)fail('LIBRA_CUSTOM_TARGET_ADMISSION_MATERIAL_CHANGED');
+          const expected={materialKey:source.material_key,role:source.role,physicalIdentity:{schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',
+            schemaVersion:2,materialKey:source.material_key,mountScopeId:source.mount_scope_id,inode:source.inode,
+            fingerprintAlgorithm:source.fingerprint_algorithm,fingerprintVersion:Number(source.fingerprint_version),contentFingerprint:source.content_fingerprint,
+            sizeBytes:Number(source.size_bytes)},sizeBytes:Number(source.size_bytes),location:{locationKind:source.location_kind,endpointId:source.endpoint_id,
+            location:source.location},bindingKind:source.binding_kind,bindingRevision:Number(source.binding_revision),bindingEvidenceDigest:source.binding_evidence_digest,
+            originCandidateDeliveryRef:{intakeDecisionId:source.origin_intake_decision_id,offerId:source.origin_offer_id,candidatePackageId:source.origin_candidate_package_id,
+              packageRevision:Number(source.origin_package_revision),packageDigest:source.origin_package_digest,
+              candidateDeliverySnapshotDigest:source.origin_candidate_delivery_snapshot_digest,relatedReferenceSetDigest:source.origin_related_reference_set_digest},
+            episodeClaims:claims.filter(claim=>Number(claim.member_ordinal)===Number(source.ordinal)).sort((a,b)=>Buffer.compare(Buffer.from(a.episode_key),Buffer.from(b.episode_key)))
+              .map(claim=>({episodeKey:claim.episode_key,seasonClaimDigest:claim.season_claim_digest,claimDigest:claim.claim_digest}))};
+          // Control revisions may advance during legitimate package-to-Subject
+          // reclamation. Input identity, binding, location and claims may not.
+          const actual=Object.fromEntries(Object.keys(expected).map(key=>[key,member[key]]));
+          if(canonicalJson(actual)!==canonicalJson(expected))fail('LIBRA_CUSTOM_TARGET_ADMISSION_MATERIAL_CHANGED');
+        }
+        onValidated(intent);return {intentId:intent.intentId,intentDigest:intent.intentDigest,targetRevision:intent.revision};
+      }};
+    },
     publicationValidation({intentId,intentDigest,currentBasis},onValidated){
       if(typeof onValidated!=='function'||!SHA256.test(intentId||'')||!SHA256.test(intentDigest||''))fail('LIBRA_CUSTOM_TARGET_COMMAND_INVALID');
       return {participantId:'custom_target_publication_validation',owner:'libra',repositories:[validationRepository],execute(context){

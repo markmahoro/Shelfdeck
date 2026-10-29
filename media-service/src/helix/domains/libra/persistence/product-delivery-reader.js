@@ -575,7 +575,8 @@ function deliveryFence(repo, row, run) {
   if (receipt) {
     eligibility = 'ineligible';
     reasonCode = 'delivery_already_terminal';
-  } else if(!readTargetCommitFence(repo,{subjectId:row.subject_id,productScopeDigest:spec.product_scope_digest,specJson:spec.spec_json})){
+  } else if(!readTargetCommitFence(repo,{subjectId:row.subject_id,productScopeDigest:spec.product_scope_digest,specJson:spec.spec_json,
+      executionBasisRecordJson:run?.execution_basis_record_json})){
     eligibility='ineligible';reasonCode='target_not_current';
   } else if (!run || run.state !== 'active') {
     eligibility = 'ineligible';

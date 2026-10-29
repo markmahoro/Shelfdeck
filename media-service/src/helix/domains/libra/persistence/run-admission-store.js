@@ -737,6 +737,9 @@ function createRunAdmissionStore(options) {
         );
       const commitDigest = decision.decisionDigest;
       let authorizedEpisodeMapping = null;
+      let authorizedCustomTarget = null;
+      const targetValidation=require('./custom-target-store').createCustomTargetStore(options).admissionValidation(
+        decision.runExecutionBasis,decision.replacementOfRunRef?.libraRunId,record=>{authorizedCustomTarget=record;});
       const mappingValidation = decision.runExecutionBasis.episodeMetadataMappingRef
         ? require('./episode-metadata-mapping-store').createEpisodeMetadataMappingStore(options).admissionValidation(
           decision.runExecutionBasis, decision.replacementOfRunRef?.libraRunId, record => { authorizedEpisodeMapping = record; }) : null;
@@ -751,7 +754,14 @@ function createRunAdmissionStore(options) {
         execute(context) {
           const repo = context.repository(foundation.repositoryId),
             found = repo.invoke("find_marker", { commit_marker: marker });
-          if (!found) return;
+          if (!found) {
+            if(decision.runExecutionBasis.collectionTargetRef){
+              if(!request.readFence||typeof options.unitOfWork.assertReadFence!=='function')
+                fail('P9_RUN_TARGET_READ_FENCE_REQUIRED','A confirmed target Run requires a fresh public input read fence.');
+              options.unitOfWork.assertReadFence(request.readFence);
+            }
+            return;
+          }
           if (
             found.owner_domain !== "libra" ||
             found.scope_type !== "libra_run" ||
@@ -841,7 +851,8 @@ function createRunAdmissionStore(options) {
             );
             if (
               !old ||
-              !(["active", "suspended"].includes(old.state) || old.state === 'frozen' && authorizedEpisodeMapping?.libraRunId === old.libra_run_id) ||
+              !(["active", "suspended"].includes(old.state) || old.state === 'frozen' &&
+                (authorizedEpisodeMapping?.libraRunId === old.libra_run_id||authorizedCustomTarget?.basis.libraRunId===old.libra_run_id)) ||
               number(old.state_revision) !==
                 decision.replacementOfRunRef.stateRevision ||
               old.state_digest !== decision.replacementOfRunRef.stateDigest ||
@@ -1179,7 +1190,7 @@ function createRunAdmissionStore(options) {
         },
       };
       try {
-        options.unitOfWork.execute([preflight, ...(mappingValidation ? [mappingValidation] : []), control, apply, finish]);
+        options.unitOfWork.execute([preflight, targetValidation, ...(mappingValidation ? [mappingValidation] : []), control, apply, finish]);
       } catch (error) {
         if (error instanceof Replay)
           return Object.freeze({ result: error.result, replayed: true });
