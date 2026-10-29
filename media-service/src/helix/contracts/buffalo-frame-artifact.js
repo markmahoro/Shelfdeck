@@ -64,4 +64,17 @@ function restoreBuffaloEmbeddingSet(payload,{expectedSource}={}){
   if(canonicalJson(rebuilt)!==canonicalJson(payload))fail('Embedding Artifact bytes no longer match their complete frame evidence.');
   return freeze(JSON.parse(canonicalJson({source,frames:records})));
 }
-module.exports=Object.freeze({encodeBuffaloEmbeddingSet,restoreBuffaloEmbeddingSet,MAX_BYTES});
+function encodeBuffaloClusterSet({clusters,sourceEmbeddingDigest,clusterParameterDigest}){
+  if(!Array.isArray(clusters)||clusters.length>640||!hash(sourceEmbeddingDigest)||!hash(clusterParameterDigest))
+    fail('The buffalo cluster payload requires its exact completed embedding and clustering parameters.');
+  const value={schema:'shared.buffalo-cluster-set@1',sourceEmbeddingDigest,clusterParameterDigest,clusters};
+  if(Buffer.byteLength(canonicalJson(value))>MAX_BYTES)fail('The buffalo cluster payload exceeds its byte bound.');
+  return freeze(JSON.parse(canonicalJson(value)));
+}
+function restoreBuffaloClusterSet(payload,{sourceEmbeddingDigest,clusterParameterDigest}){
+  if(!exact(payload,['schema','sourceEmbeddingDigest','clusterParameterDigest','clusters'])||
+    payload.schema!=='shared.buffalo-cluster-set@1'||payload.sourceEmbeddingDigest!==sourceEmbeddingDigest||payload.clusterParameterDigest!==clusterParameterDigest)
+    fail('Recovered buffalo clusters are not the exact frozen embedding and parameter set.');
+  return encodeBuffaloClusterSet(payload).clusters;
+}
+module.exports=Object.freeze({encodeBuffaloEmbeddingSet,restoreBuffaloEmbeddingSet,encodeBuffaloClusterSet,restoreBuffaloClusterSet,MAX_BYTES});

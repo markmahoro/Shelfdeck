@@ -1,6 +1,7 @@
 'use strict';
 const {canonicalDigest,canonicalJson}=require('../../../contracts/canonical-json');
-const {FRAME,EMBED,CLUSTER,resultRef,exactResult}=require('../model/us-adult-analysis-work');
+const {FRAME,EMBED,CLUSTER,resultRef}=require('../model/us-adult-analysis-work');
+const {exactCatalogueResult}=require('../model/us-adult-catalogue-work-results');
 const {catalogueFrameBatch,catalogueFrameWork}=require('../model/us-adult-catalogue-frame-work');
 const {buildWorkspaceFrameTarget}=require('../model/workspace-frame-target');
 const REFS=Object.freeze([FRAME,EMBED,CLUSTER]);
@@ -12,7 +13,8 @@ function createUsAdultCatalogueFrameCapabilityPorts(options){
   const now=options.now||Date.now;
   function state(context){
     if(context.ownerScope?.domain!=='libra'||context.ownerScope.processType!=='libra_run'||!REFS.includes(context.capabilityRef)||
-      typeof context.assertExecutionActive!=='function')fail('The frame capability requires its live Libra execution authority.');
+      typeof context.assertExecutionActive!=='function'||typeof context.workAttemptId!=='string'||!context.workAttemptId||
+      typeof context.planId!=='string'||!context.planId)fail('The frame capability requires its live Libra execution authority.');
     context.assertExecutionActive();
     const historical=options.usAdultCatalogueStore.getByRun(context.ownerScope.processId);
     if(!historical)fail('The Run has no frozen catalogue Basis.');
@@ -23,8 +25,8 @@ function createUsAdultCatalogueFrameCapabilityPorts(options){
       context.basisRefs[0].digest!==basis.runExecutionBasisDigest)fail('The capability belongs to another Work or execution basis.');
     return {basis,batch:catalogueFrameBatch(basis,stage),work:catalogueFrameWork(snapshot,basis,stage)};
   }
-  function record(work,ref){
-    const result=exactResult(options,work,ref);options.contractValidator.validate(resultRef(ref),result.result);return result.result;
+  function record(work,ref,context){
+    return exactCatalogueResult(options,work,ref,{workAttemptId:context.workAttemptId,planId:context.planId}).result;
   }
   function validate(context){
     const current=state(context),{basis,batch,work}=current,input=context.namedInputs;
@@ -35,9 +37,9 @@ function createUsAdultCatalogueFrameCapabilityPorts(options){
           rootSnapshot:options.workspaceProductPort.rootSnapshot(),samplingPlan:batch.samplingPlan,
           targetRelativePath:'analysis/catalogue/'+basis.analysisId+'/'+batch.stage+'-'+batch.batchDigest+'.json'}));break;
       case EMBED:
-        equal(input.artifactHandleList,[record(work,FRAME).frameSetArtifactHandle]);equal(input.faceModelRef,basis.faceModelRef);break;
+        equal(input.artifactHandleList,[record(work,FRAME,context).frameSetArtifactHandle]);equal(input.faceModelRef,basis.faceModelRef);break;
       case CLUSTER:
-        equal(input.faceEmbeddingSetHandle,record(work,EMBED));equal(input.clusterParameters,basis.clusterParameters);break;
+        equal(input.faceEmbeddingSetHandle,record(work,EMBED,context));equal(input.clusterParameters,basis.clusterParameters);break;
     }
     return current;
   }
@@ -55,8 +57,8 @@ function createUsAdultCatalogueFrameCapabilityPorts(options){
       const {handleDigest,...handle}=value;
       if(canonicalDigest(handle)!==handleDigest||value.faceModelRefDigest!==basis.faceModelRef.digest)fail('The face Result lost its exact model or canonical Handle.');
       if(context.capabilityRef===EMBED){
-        if(value.dimension!==512||value.sourceArtifactSetDigest!==record(work,FRAME).manifestDigest)fail('Embedding Result changed feature space or source frames.');
-      }else if(value.sourceEmbeddingDigest!==record(work,EMBED).embeddingDigest||value.clusterParameterDigest!==basis.clusterParameters.digest)
+        if(value.dimension!==512||value.sourceArtifactSetDigest!==record(work,FRAME,context).manifestDigest)fail('Embedding Result changed feature space or source frames.');
+      }else if(value.sourceEmbeddingDigest!==record(work,EMBED,context).embeddingDigest||value.clusterParameterDigest!==basis.clusterParameters.digest)
         fail('Grouping Result changed its exact embedding source or policy.');
     }
     const artifact=context.capabilityRef===FRAME?value.frameSetArtifactHandle:value.artifactHandle;
@@ -75,7 +77,7 @@ function createUsAdultCatalogueFrameCapabilityPorts(options){
       const {basis,batch,work}=validate(context),port=options.createCatalogueFramePort({context,basis,batch}),input=context.namedInputs;let result;
       if(ref===FRAME)result=await port.extractFrames({sourceHandle:input.physicalMaterialReadHandleOrWorkspaceMaterialHandle,
         samplingPlan:input.samplingPlan,outputTarget:input.workspaceArtifactOutputTarget});
-      else if(ref===EMBED)result=await port.computeEmbeddings({frameArtifactSet:record(work,FRAME),faceModelRef:input.faceModelRef});
+      else if(ref===EMBED)result=await port.computeEmbeddings({frameArtifactSet:record(work,FRAME,context),faceModelRef:input.faceModelRef});
       else result=await port.computeClusters({faceEmbeddingSetHandle:input.faceEmbeddingSetHandle,clusterParameters:input.clusterParameters});
       validateResult(context,{result});
       const digest=canonicalDigest(result),id=canonicalDigest({eventId:context.eventId,resultDigest:digest}).slice(0,40),at=now();

@@ -26,8 +26,10 @@ function runtime(t){
     context=(ref,namedInputs)=>({ownerScope:{domain:'libra',processType:'libra_run',processId:'run',objectRefs:[]},workId:work.workId,
       workAttemptId:'attempt',planId:'plan',eventId:'event-'+ref,idempotencyKey:'key-'+ref,capabilityRef:ref,namedInputs,
       basisRefs:[{basisType:'execution_basis',basisId:work.workId,revision:1,digest:f.basis.runExecutionBasisDigest}],assertExecutionActive(){}}),
-    remember=(ref,outcome)=>records.push({workId:work.workId,outcomeKind:'succeeded',capabilityRef:ref,resultSchemaRef:resultRef(ref),
-      result:outcome.result,resultDigest:D(outcome.result)});
+    remember=(ref,outcome)=>{const inputBindings={schemaRef:'helix://foundation/types/EventInputBindingSet/v1',schemaVersion:1,bindings:[]};
+      records.push({workId:work.workId,attemptId:'attempt',planId:'plan',eventId:'event-'+ref,resultId:'result-'+ref,
+        outcomeKind:'succeeded',capabilityRef:ref,resultSchemaRef:resultRef(ref),inputBindings,inputBindingDigest:D(inputBindings),
+        result:outcome.result,resultDigest:D(outcome.result)});};
   return {...f,options,records,work,target,context,remember,ports:createUsAdultCatalogueFrameCapabilityPorts(options)};
 }
 test('real runtime-shaped contexts carry frozen batches through three nominal Capability Results and three Workspace Artifacts',async t=>{
@@ -50,6 +52,17 @@ test('another basis, Work or batch cannot borrow the source Handle or frozen fra
   assert.throws(()=>f.ports[FRAME].validateInputs({...context,basisRefs:[{...context.basisRefs[0],digest:D('wrong')}]}),{code:'US_ADULT_CATALOGUE_FRAME_INPUT_INVALID'});
   assert.throws(()=>f.ports[FRAME].validateInputs({...context,namedInputs:{...input,samplingPlan:f.basis.samplingPlan}}),{code:'US_ADULT_CATALOGUE_FRAME_INPUT_INVALID'});
   assert.equal(f.counters.frames,0);
+});
+
+test('embedding reads only the current Attempt and Plan even when a previous attempt left successful frames',async t=>{
+  const f=runtime(t),frames=await f.ports[FRAME].execute(f.context(FRAME,{physicalMaterialReadHandleOrWorkspaceMaterialHandle:f.basis.sourceHandle,
+    samplingPlan:f.batch.samplingPlan,workspaceArtifactOutputTarget:f.target}));f.remember(FRAME,frames);
+  f.records.unshift({...f.records[0],attemptId:'old-attempt',planId:'old-plan',resultId:'old-result'});
+  const context=f.context(EMBED,{artifactHandleList:[frames.result.frameSetArtifactHandle],faceModelRef:f.basis.faceModelRef});
+  await f.ports[EMBED].execute(context);assert.equal(f.counters.images,20);
+  assert.throws(()=>f.ports[EMBED].validateInputs({...context,planId:'other-plan'}),{code:'US_ADULT_CATALOGUE_RESULT_SCOPE_INVALID'});
+  assert.throws(()=>f.ports[EMBED].validateInputs({...context,workAttemptId:'new-attempt'}),{code:'US_ADULT_CATALOGUE_RESULT_SCOPE_INVALID'});
+  assert.equal(f.counters.images,20);
 });
 test('a Run cancelled after Artifact production cannot publish a late successful Capability Outcome',async t=>{
   const f=runtime(t),ports=createUsAdultCatalogueFrameCapabilityPorts({...f.options,createCatalogueFramePort:()=>({

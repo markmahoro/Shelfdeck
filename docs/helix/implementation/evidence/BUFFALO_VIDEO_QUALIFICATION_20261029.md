@@ -202,3 +202,20 @@ NAS按主整合通知保持暂停：SSH/健康超时尚未确认原因，本线�
 - 覆盖完整来源重建、摘要/输入/代际/计数替换、非canonical JSON、改写目标路径或producer、初轮Observer及既有Frame Work回归。CPU/目录仍用确定性fixture，不代表真实模型/索引共载或精确新依赖镜像资格。
 - NAS测试仍暂停，等待主整合给出的资源窗口；未操作生产、重新观察、部署或Reset。完整Host接线、补采准入/取消恢复、People自动建档与真正单演员Commit仍开放。
 
+## 2026-10-29 Libra catalogue coordination checkpoint
+
+增加未激活的 Libra Catalogue Coordinator 和目录 Work 构造：正式 Probe 后冻结 Basis，初轮三项来源全部成功才准入目录 Observation；初轮完整 Owner 评估未合格且有剩余唯一时间点时，才准入补采及包含两批全部特征的第二次 Observation。第二次依赖初轮目录 Work 与补采 Frame Work，不把两轮各自选出的姓名投票。短片没有剩余采样点时明确结束目录未解决，不提交空 Work。
+
+Work ID/幂等键绑定完整不可变 Basis/producer Result 集。读取支持 Work 重规划：正式 Foundation status 的 latestAttempt 必须成功，结果必须来自该 Attempt；Capability 内使用真实 ExecutionContext 的 workAttemptId/planId，不能混入旧 Attempt 的成功帧或另一 Plan。重复当前 Result、缺项、摘要/绑定变化均明确拒绝。底层身份摘要和来源 Result 不重新编造。
+
+人工 Actor Choice 在准入前和最终读取后优先；Run/身份/Workspace 被收回、读文件失败、目录 Work 失败保留各自错误，不能当作无候选再加采样。Observation Handle 的8MiB上限在读取 bytes 前验证。输出只为 catalogue_candidate / catalogue_unresolved / pending / failed / manual_choice_present，不创建 People、Cast 或收藏事实，未接现行 Host 注册。
+
+首跑负例暴露一个新缺陷：两批都无脸时，旧聚类payload仅含schema/clusters，两个空数组字节相同，但不同路径/provenance产生同一按内容定位的Artifact ID，正式 Workspace Registry 拒绝不完整重放。没有改 Foundation Artifact ID、归属或放宽 Registry。新 frames-only buffalo 技术 payload 使用 closed shared.buffalo-cluster-set@1，完整包含 sourceEmbeddingDigest/clusterParameterDigest/clusters；恢复须精确命中输入，Workspace quota计算采用实际新payload。原非buffalo入口不被当成备用；本轮新版没有旧payload恢复分支。两批无脸已通过正式三种源 Artifact 落盘及不同Handle/完整重放验证。
+
+验证与限制：
+
+- index-gate-14实际本机Linux Docker，受影响Catalogue/Frame/CPU/原业务Work等19文件共99 PASS/0skip/0FAIL，65.294秒。log catalogue-coordinator-local-linux-1.log SHA256 515f217b5af59f8de88b8ded4d02a24728a507f0103b64fcf7922f7b2ccfc46d。
+- 增加短片和读前字节上限负例后，固定index-gate-15实际Linux定向36 PASS/0skip/0FAIL，56.555秒。log catalogue-coordinator-local-linux-2.log SHA256 8b37b0238ba9aa3c470460afffbecc8b9e214705078a1cbf72518c0d06445afd。两组有重叠，不相加声称独立用例数。镜像、readonly/1CPU/768MiB/network none/tmpfs64MiB沿前节相同，不包含新依赖原生共载资格。
+- 首轮本机逻辑日志 native-1 因新增夹具未加载实际Probe/result wrapper而失败；native-2 因补采夹具缺少ExecutionContext ownerScope而失败；native-3记录上述真实两批无脸Artifact冲突；三个原日志保留，native-4修复后10项通过。没有放宽正式schema、Root/Owner或停止守卫。随后 Linux 又覆盖新增负例。
+- 目录/CPU为确定性fixture；第四份Observation为显式 proposed Handle/内存字节，三种源Artifact使用真实SQLite Registry及Workspace Port。这不是正式Observe Capability/Effect/恢复旅程、真实模型/索引共载、旧Reference切换、People建档或Phase 4 Exit。
+- Phase 3原18个未提交文件逐字节保持；共享SSOT/builder/global generated contract未由演员线程改动。等主整合提供正式接线基准后完成新Capability/Artifact/Host旅程；NAS资源窗口继续保持暂停。

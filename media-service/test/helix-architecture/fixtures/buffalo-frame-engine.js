@@ -9,8 +9,14 @@ const {clusterFaces}=require('../../../src/helix/integrations/buffalo-video-evid
 const {createCleanWesternFramePort}=require('../../../src/clean-western-analysis-port');
 const {createCleanWorkspaceProductPort}=require('../../../src/clean-workspace-product-port');
 function setup(t,overrides={}){
-  const f=fixture(t),basis=overrides.workspaceBytes?buildCatalogueAnalysisBasis({...f.args,resourceBudget:{...f.args.resourceBudget,
-    maximumWorkspaceBytes:overrides.workspaceBytes}}):f.basis,batch=catalogueFrameBatch(basis,'initial'),counters={frames:0,images:0,groups:0,stops:0},
+  const f=fixture(t);
+  if(overrides.durationMs){
+    const probe=f.args.sourceProbeRecord.result,{payloadDigest,...payload}=probe;probe.durationMs=overrides.durationMs;
+    probe.payloadDigest=D({...payload,durationMs:overrides.durationMs});f.args.sourceProbeRecord.resultDigest=D(probe);
+  }
+  const basis=overrides.workspaceBytes||overrides.durationMs?buildCatalogueAnalysisBasis({...f.args,resourceBudget:{...f.args.resourceBudget,
+    maximumWorkspaceBytes:overrides.workspaceBytes||f.args.resourceBudget.maximumWorkspaceBytes}}):f.basis,
+    batch=catalogueFrameBatch(basis,'initial'),counters={frames:0,images:0,groups:0,stops:0},
     clock={value:1000,active:true},vector=Array(512).fill(0);vector[0]=1;
   f.db.prepare('INSERT INTO fx_workspace_registry(workspace_id,owner_domain,process_type,process_id,root_handle_ref,state,created_at_ms) VALUES(?,?,?,?,?,?,?)')
     .run('workspace','libra','libra_run','run',D('root'),'active',1);
@@ -34,6 +40,6 @@ function setup(t,overrides={}){
     port=createCleanWesternFramePort({workspaceProductPort:workspace,configuration,engine,now:()=>1000}),
     target={libraRunId:'run',workspaceId:'workspace',outputKind:'frame_set',sourceInputDigest:D({sourceHandle:basis.sourceHandle,samplingPlan:batch.samplingPlan}),
       targetRelativePath:'analysis/frames/initial.json',targetId:D('target'),targetDigest:D('target-digest')};
-  return {...f,basis,batch,workspace,engine,port,target,counters,clock};
+  return {...f,basis,batch,workspace,engine,port,target,counters,clock,cpuSession,frameExtractor};
 }
 module.exports=Object.freeze({setup});

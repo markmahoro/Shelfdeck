@@ -3,7 +3,7 @@ const {createHash}=require('node:crypto');
 const {canonicalDigest,canonicalJson}=require('../contracts/canonical-json');
 const {buffaloModelReference,assertBuffaloModelReference,pack}=require('../contracts/buffalo-model-reference');
 const {frameEvidence}=require('../contracts/buffalo-frame-evidence');
-const {encodeBuffaloEmbeddingSet,restoreBuffaloEmbeddingSet}=require('../contracts/buffalo-frame-artifact');
+const {encodeBuffaloEmbeddingSet,restoreBuffaloEmbeddingSet,encodeBuffaloClusterSet}=require('../contracts/buffalo-frame-artifact');
 const {unit,frameFaces}=require('./buffalo-video-evidence');
 const bytesDigest=bytes=>createHash('sha256').update(bytes).digest('hex');
 function fail(message){throw Object.assign(new Error(message),{code:'BUFFALO_FRAME_ENGINE_INVALID'});}
@@ -89,7 +89,7 @@ function createBuffaloFrameEngine(options){
     const restored=restoreBuffaloEmbeddingSet(embeddingSet),source=restored.source,allFaces=facesFor(restored),
       faces=new Map(allFaces.map(face=>[face.frameOrdinal+':'+face.faceOrdinal,face])),seen=new Set(),ids=new Set();
     space(source.frameArtifactBytes+Buffer.byteLength(canonicalJson(embeddingSet))+
-      Buffer.byteLength(canonicalJson({schema:'shared.face-cluster-set@1',clusters})));
+      Buffer.byteLength(canonicalJson(encodeBuffaloClusterSet({clusters,sourceEmbeddingDigest:handle.embeddingDigest,clusterParameterDigest:parameters.digest}))));
     if(source.basisDigest!==batch.basisDigest||source.batchDigest!==batch.batchDigest||!same(source.points,frozen.batch.points)||
       handle.libraRunId!==sourceHandle.ownerScope.scopeId||handle.sourceArtifactSetDigest!==source.frameArtifactSetDigest||
       handle.vectorCount!==allFaces.length||handle.detectedFaceCount!==allFaces.length)

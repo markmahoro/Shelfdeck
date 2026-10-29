@@ -1,6 +1,7 @@
 'use strict';
 const {restoreFrameAnalysis}=require('./helix/contracts/us-adult-frame-geometry');
 const {faceModelReference}=require('./helix/contracts/us-adult-face-model');
+const {encodeBuffaloClusterSet,restoreBuffaloClusterSet}=require('./helix/contracts/buffalo-frame-artifact');
 
 const { createHash } = require('node:crypto');
 const { canonicalDigest, canonicalJson } =
@@ -539,11 +540,12 @@ function createWesternPort(options, framesOnly) {
         materialized.artifactHandle,
         'face_cluster_set',
       ).payload;
-      if (payload?.schema !== 'shared.face-cluster-set@1') {
+      if (framesOnly) {
+        rawClusters = restoreBuffaloClusterSet(payload,{sourceEmbeddingDigest:embedding.embeddingDigest,clusterParameterDigest:parameters.digest});
+      } else if (payload?.schema !== 'shared.face-cluster-set@1') {
         fail('CLEAN_WESTERN_CLUSTER_RESULT_INVALID',
           'Recovered cluster set has the wrong schema.');
-      }
-      rawClusters = payload.clusters;
+      } else rawClusters = payload.clusters;
     } else {
       const raw = await options.engine.computeClusters(Object.freeze({
         faceEmbeddingSetHandle: embedding,
@@ -573,7 +575,7 @@ function createWesternPort(options, framesOnly) {
     if (framesOnly) await options.engine.validateClusters({clusters, faceEmbeddingSetHandle:embedding,
       embeddingSet:embeddingPayload, clusterParameters:parameters});
     if (!materialized) {
-      const payload = Object.freeze({
+      const payload = framesOnly ? encodeBuffaloClusterSet({clusters,sourceEmbeddingDigest:embedding.embeddingDigest,clusterParameterDigest:parameters.digest}) : Object.freeze({
         schema: 'shared.face-cluster-set@1',
         clusters: Object.freeze(clusters),
       });
