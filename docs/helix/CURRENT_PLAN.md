@@ -21,7 +21,7 @@
 | --- | --- | --- |
 | ShelfDeck 本轮整合与生产交付（本线程） | 唯一计划/合同/生成物、跨线交付追踪、重门禁排期、Series独立补丁与最终整合发布 | 主整合分支codex/round-integration-20261029；生产候选从a2bf2d6fd隔离，不读取其他线程未提交工作 |
 | ShelfDeck 演员识别与自动建档 | Phase 4→5演员识别和自动建档 | 自有worktree；Store检查点2f9fc0702已提交，Linux19项通过但正式Host及Phase Exit未完成；原Phase 3的18文件由电影线程承接 |
-| ShelfDeck 生产待处理条目分诊 | 一次当前生产快照，逐条原因/责任/可用动作/P0-P1，不将正常待决都算bug | 只读生产，报告留ignored证据；不恢复定时观察 |
+| ShelfDeck 生产待处理条目分诊 | 一次生产快照与逐项分诊；在独立开发工作区继续承接JAV路径字节预算修复 | 生产保持只读，合成样本开发与验证；不重试生产条目或恢复定时观察 |
 | ShelfDeck 剧集上架与自愈修复 | Series发布恢复/线上重试、季图复用、精确剧情补充，准备独立补丁 | 独立分支codex/series-recovery-parallel-20261029，自a2bf2d6fd起；不含新演员/自定义目标 |
 | ShelfDeck 电影寻源与自定义标准 | 电影候选可靠性、三层Spec完整生命周期，承接18文件增量 | 独立分支codex/movie-spec-parallel-20261029，自f24164ae0起；不写主整合目录或Series发布逻辑 |
 
@@ -29,8 +29,8 @@
 
 | 工作项 | 责任与当前状态 |
 | --- | --- |
-| ARCA-PATH-COMPONENT-BUDGET | HALT-094、EMLB-094的UTF-8目录/正式名/临时后缀超限，Arca Placement须按组件字节预算和碰撞保护修复；两条Stage为空，旧冻结Decision及生产处置另按精确合同处理。建议独立开发线，不阻挡已隔离的Series候选。 |
-| US-SIZE-DEFECT-PREVIEW | TTIA-026、Roxy Raye的Libra瑕疵预览遗漏US已提交产品字段，实际仍ineligible；电影/自定义标准线程确认可在Libra Owner内承接，已安排独立修复与手动/自动及安全负例，不扩大接纳权限。 |
+| ARCA-PATH-COMPONENT-BUDGET | HALT-094、EMLB-094的UTF-8目录/正式名/临时后缀超限，Arca Placement须按组件字节预算和碰撞保护修复；两条Stage为空，旧冻结Decision及生产处置另按精确合同处理。分诊线程已在独立工作区承接开发，不阻挡Series候选。 |
+| US-SIZE-DEFECT-PREVIEW | TTIA-026、Roxy Raye的Libra瑕疵预览遗漏US已提交产品字段，实际仍ineligible；电影/自定义标准线程在Libra内提交d37bc4272，Linux 78项通过，精确依赖/真实媒体和具体版本UI资格仍开放，不扩大接纳权限。 |
 | SERIES-PRESENTATION-EXPANSION | 13个共享build、15个Season Subject有同类故障，含原7条和后续新增；先完成已授权七条线上验收，新增条目不自动扩大人工处置范围。 |
 
 分诊事实和具体边界见[整合Evidence](implementation/evidence/PRODUCTION_TRIAGE_INTEGRATION_20261029.md)；人工身份/演员待决及其他来源故障不并作同一缺陷。
