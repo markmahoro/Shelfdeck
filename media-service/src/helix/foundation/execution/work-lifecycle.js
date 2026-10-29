@@ -174,7 +174,7 @@ function createWorkLifecycle(options) {
     },{readFence});
   }
 
-  function startPlanned(workId, attemptId, diagnosticClassification = null) {
+  function startPlanned(workId, attemptId, diagnosticClassification = null, {readFence=null}={}) {
     return execute('work_lifecycle_start_planned', (context) => {
       const works = context.repository('work_lifecycle_works');
       const attempts = context.repository('work_lifecycle_attempts');
@@ -210,7 +210,7 @@ function createWorkLifecycle(options) {
       }).changes !== 1) fail('P4_WORK_START_CAS', 'Work start fence changed.');
       return Object.freeze({ workId, attemptId, state: workState, attemptState,
         attemptFailureCode: failureCode, resolution: plan.state, replayed: false });
-    });
+    },{readFence});
   }
 
   function aggregate(workId, expectedAttemptId = null) {

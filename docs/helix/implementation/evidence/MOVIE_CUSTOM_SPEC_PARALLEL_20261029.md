@@ -133,3 +133,9 @@ Windows 和隔离 Linux Docker 的 Work Lifecycle、Work Admission、Replacement
 修复限定在 Libra 的冷态保留只读器：仅识别上述精确旧版标准 schema 对，临时重建等价 Draft 以核验原本的 draft/semantic/record/ID 摘要，不改写存储行；错配 schema、需求或 digest 篡改和伪装 Custom 均拒绝。Custom Spec/Intent/Preview 继续执行完整重建，旧标准不作为 Custom Spec 的兼容基线，也不赋予旧未入藏 Run 执行或保留资格。测试使用当前正式解析器产生 Movie/Series 标准及 4、5 星、相同评分不同来源版本，并在临时库模拟已 Commit 引用、复制和独立只读复验；未入藏 active Run 被清除。相关五文件在 Windows 与隔离 Linux Docker 各 **53 PASS / 0 skip**；这些是合成历史/关系事实，Series 覆盖不扩大 Movie-only Beta 声称。边界扫描无新增 finding，已有全局 2 + 1 finding 保留。
 
 此验证使用现行 243 表测试 schema，不证明任何旧版**数据库 schema**具备冷迁移资格；Owner 声明及来源 catalog/marker 的现有审核仍分别 fail-closed，主整合需核验其实际 244 表混合版本与授权来源。仅从共同基线 `f24164ae0` 移植 `24a199ee0` 最小源码为 `formation-reset-copy.js`、`formation-reset-owner-policy.js`、`formation-reset-verify.js`、`formation-reset-inspect.js`、Libra public index 与新 `fresh-reset-custom-target-retention.js`；还需要 `collection-target-reference.js`（`db7ec1a54` 新增）及 `custom-acceptance-spec.js` 的 `assertStandardAcceptanceSpec` 导出（同提交的一行改动）。原 `custom-target-records.js`、`custom-acceptance-requirements.js` 和测试用 `custom-acceptance-spec-harness.js` 已存在于共同基线；闭包测试需 `formation-reset-custom-target-copy.test.js`。本次历史补丁另需 `formation-reset-standard-spec-history.test.js` 与合成 fixture `fresh-reset-standard-history.json`。未改共享 schema、保留声明或全局计划，没有访问生产。
+
+## Plan 发布与启动的读取围栏（2026-10-29）
+
+Foundation Plan Publication 和 Work `startPlanned` 分别增加可选 opaque read fence，在写 Plan/Node/Event 或将 Work/Attempt 置 running 的同一事务验证；计划计算、发布和启动之间如发生 Owner 变化，须重新读取并取得新的 fence。Plan 的既有精确重用也会继续执行流程，因此同样不能使用陈旧 view。先添加竞态负例分别复现原实现忽略 fence；修复后陈旧读取不写 Plan/Contract/Event、不进入 running，fresh view 仍可使用既有合法重用。
+
+Windows 与隔离 Linux Docker 运行 Plan、Work Lifecycle、Work Admission、Execution Runtime Host 与 Replacement Admission 五文件各 **104 PASS / 0 skip**。目前是未接线的事务能力；Host/Planner/Scheduler 必须在每个边界取得正确 Owner view 与 fresh fence，Event 实际开始及 Workspace 等其他边界仍未覆盖。不能据此宣称全局屏障已完成或开放 Custom Target。

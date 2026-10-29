@@ -183,7 +183,7 @@ function fixture(run, injectCommitFailure = false) {
     } })));
   } } : unitOfWork;
   const publisher = createWorkflowPlanPublisher({ schemaManifest, unitOfWork: publishingUnitOfWork, registry, contractValidator, policyRegistry });
-  try { return run({ publisher, databasePath }); }
+  try { return run({ publisher, unitOfWork, databasePath }); }
   finally { kernel.close(); fs.rmSync(root, { recursive: true, force: true }); }
 }
 
@@ -215,6 +215,22 @@ test('publisher atomically normalizes Plan, Nodes, Edges and initial Events with
     assert.equal(events[1].ready_at_ms, null);
   });
 });
+
+test('Plan publication and planning replay reject a stale Owner read before any new Events',()=>fixture(({publisher,unitOfWork,databasePath})=>{
+  function changeOwnerView(){const db=new Database(databasePath);try{
+    db.prepare('UPDATE fx_supporting_works SET updated_at_ms=coalesce(updated_at_ms,0)+1 WHERE work_id=?').run('work-1');
+  }finally{db.close();}}
+  const stale=unitOfWork.captureReadFence();changeOwnerView();
+  assert.throws(()=>publisher.publish(plan(),{readFence:stale}),{code:'P3_UOW_READ_FENCE_CHANGED'});
+  for(const table of ['fx_workflow_plans','fx_plan_nodes','fx_plan_edges','fx_plan_contracts','fx_workflow_events'])
+    assert.equal(rows(databasePath,table).length,0,table);
+  assert.equal(publisher.publish(plan(),{readFence:unitOfWork.captureReadFence()}).replayed,false);
+  const staleReplay=unitOfWork.captureReadFence();changeOwnerView();
+  assert.throws(()=>publisher.publish(plan(),{readFence:staleReplay}),{code:'P3_UOW_READ_FENCE_CHANGED'});
+  assert.equal(rows(databasePath,'fx_workflow_plans').length,1);
+  assert.equal(rows(databasePath,'fx_workflow_events').length,2);
+  assert.equal(publisher.publish(plan(),{readFence:unitOfWork.captureReadFence()}).replayed,true);
+}));
 
 test('publisher persists an explicit same-Plan compensation target and contract', () => {
   fixture(({ publisher, databasePath }) => {

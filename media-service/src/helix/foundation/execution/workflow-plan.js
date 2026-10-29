@@ -347,7 +347,7 @@ function createWorkflowPlanPublisher(options) {
   const repositories = definitions(options.schemaManifest);
   const contractEvidence = createPlanContractEvidenceStore(options);
   return Object.freeze({
-    publish(rawPlan) {
+    publish(rawPlan, {readFence=null}={}) {
       const validated = validateWorkflowPlan(rawPlan, options);
       const plan = validated.plan;
       const captured = capturePlanContracts(plan, options);
@@ -406,7 +406,7 @@ function createWorkflowPlanPublisher(options) {
             }
             return Object.freeze({ replayed: false, planId: plan.planId, graphDigest: validated.graphDigest, resolution: plan.resolution });
           }
-        }]);
+        }],{readFence});
         return results.workflow_plan_publish;
       } catch (error) {
         if (error instanceof PlanReplay) return error.result;

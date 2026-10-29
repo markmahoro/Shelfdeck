@@ -200,6 +200,21 @@ test('planning and its replay reject a stale Owner read fence without creating a
   assert.equal(read(databasePath,'SELECT state FROM fx_supporting_works').state,'ready');
 }));
 
+test('starting a published Plan rejects a stale Owner read and writes no running state',()=>fixture(({lifecycle,unitOfWork,databasePath})=>{
+  const activation=lifecycle.ensurePlanningAttempt('work-1'),db=new Database(databasePath);
+  try{db.prepare('INSERT INTO fx_workflow_plans(plan_id,attempt_id,basis_digest,state) VALUES(?,?,?,?)')
+    .run('plan',activation.attempt.attempt_id,'a'.repeat(64),'planned');
+    const stale=unitOfWork.captureReadFence();
+    db.prepare('UPDATE fx_supporting_works SET updated_at_ms=updated_at_ms+1 WHERE work_id=?').run('work-1');
+    assert.throws(()=>lifecycle.startPlanned('work-1',activation.attempt.attempt_id,null,{readFence:stale}),
+      {code:'P3_UOW_READ_FENCE_CHANGED'});
+    assert.equal(read(databasePath,'SELECT state FROM fx_supporting_works').state,'ready');
+    assert.equal(read(databasePath,'SELECT state FROM fx_work_attempts').state,'ready');
+    assert.equal(lifecycle.startPlanned('work-1',activation.attempt.attempt_id,null,
+      {readFence:unitOfWork.captureReadFence()}).state,'running');
+  }finally{db.close();}
+}));
+
 test('terminal Event aggregation closes only Work Attempt until Domain Owner settles Work', () => fixture(({ lifecycle, databasePath }) => {
   const activation = lifecycle.ensurePlanningAttempt('work-1');
   const database = new Database(databasePath);
