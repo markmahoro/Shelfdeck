@@ -153,3 +153,21 @@ Foundation Event Runtime 新增可选 typed Owner 检查口，接收精确 Work/
 测试先复现未安装检查口时的旧 Event 仍启动；受控 SQLite 竞态覆盖 Attempt 写入前、输入错误、首尾 execution fence 和外部等待恢复前的 Owner 变化，均不创建错误 Attempt/Effect；fresh view 正常执行，检查口错误、资源释放、调度公平与原恢复路径也覆盖。Windows 与隔离 Linux Docker 的 Event Runtime、Work Scheduler、Execution Runtime Host、Plan、Work Lifecycle 五文件各 **180 PASS / 0 skip**。
 
 此口尚未接入实际 Libra Runtime；在 Scheduler 选择和 Resource Governor 内的技术等待/资源事务仍需同一 Owner 资格整体复核，不能宣称所有调度边界已受保护。新 Run 的完整评分/Shelf/材料和 Arca 责任读取、旧执行排空、恢复及用户入口仍须实际组合与验收。Linux 依旧使用已披露的非精确依赖镜像，没有运行生产或真实媒体。
+
+## 瑕疵确认提交期间的弹窗焦点（2026-10-29）
+
+UI 负责人复核 `80ea48f5e` 时确认此前三项问题已修复、未知结果重试保持原请求，但发现提交按钮禁用后四个视口的键盘焦点离开弹窗。新增 Chromium 回归测试在修复前四个视口均失败；另复现处理中点击遮罩也会使焦点离开。独立 UI 提交 `a4d716878e191ba80a3205202adfc4dbbff6e5af` 基于 `80ea48f5e`，在禁用操作前将焦点移至弹窗，处理所有操作均禁用时的 Tab/Shift+Tab 循环，处理期间禁用关闭与取消、阻止 Escape 和遮罩关闭并显示处理状态；重新检查和未知结果核对共用这一处理状态。遮罩或弹窗内非交互内容的指针操作不再移走焦点。
+
+Windows Chromium 的 1920×1080、1280×800、1024×768、390×844 各运行六项，共 **24 PASS / 0 skip**；包含初次提交和未知结果重试的真实键盘焦点、重复 Tab、Shift+Tab、Escape、遮罩/内容点击、原请求精确重放，以及原有大小、旧预览与错误场景。三份相关 Vitest **31 PASS**，Web `tsc`/Vite build PASS。四个待处理弹窗截图均已查看，保存于本任务 ignored `ui-focus-verified` 目录，wide、desktop、tablet、narrow 的 SHA-256 分别为 `b9fbb01c323c99146c9c39083fb99a6c51e6b147059a4df6c0aef5d1921af15c`、`ce17a41d0099797e769feb15bfbb0fcb2261f2292fa41e5432df4688f18e2e98`、`bec57fd70bdcf05d894dcb0c0e0d93b3759604b2989abfcce312595d901e0cc7`、`8531ed467698536f7c1eee16f144b9723bc84f84190b6ffd6973f8c232857d1c`。受控 API 夹具没有调用真实服务或生产，测试自动启动的 Vite 已退出。该证据供 UI 负责人审核提交和整合后的精确版本，不能代替其最终验收。
+
+UI 负责人随后对 `a4d716878` 的独立开发版复核确认忙碌状态、遮罩和原请求重试通过，但空闲弹窗经 Escape 或遮罩关闭时焦点回到 BODY，四视口两种关闭方式均 FAIL。新增测试还复现取消和关闭按钮有同样问题：异步 Preview 期间原按钮被禁用，弹窗挂载时才捕获焦点已过晚。独立 UI 提交 `db824ddb3b7f1204bff5c965a9490e672bd6b542` 在用户触发动作时保存精确按钮，关闭后恢复焦点；若按钮因状态变化不再可用，改为聚焦结果提示或页面动作。Preview 失败或不合资格、没有打开弹窗时也恢复按钮焦点，同时避免覆盖用户已经移到其他位置的焦点。
+
+该版本在上述四个 Chromium 视口各执行 14 项，共 **56 PASS / 0 skip**，覆盖四种空闲关闭方式、键盘重新打开、消失的触发按钮、成功后的结果焦点、Preview 失败及不合资格、提交期间焦点和未知结果的原请求重试；三份相关 Vitest **31 PASS**，Web `tsc`/Vite build PASS。被模拟移除按钮的测试是浏览器受控 DOM 夹具，结果和请求仍是受控前端 API 夹具。该提交依次依赖 `80ea48f5e` 和 `a4d716878`，须由 UI 负责人重新复核开发版本及整合后的精确版本，不能宣称最终 UI 或生产验收通过。
+
+## 精确 Handoff 责任与 Custom 调度组合（2026-10-29）
+
+独立提交 `814c30f42eff18159f4ff03bf068bde1a7146e8c` 增加 Libra Owner 自有精确 Run Handoff 责任读取器：验证 Run、Subject、Spec 产品范围和完整 Package revision head，按每页最多 100 项枚举本 Run 已发布 Offer，校验精确身份，再逐项调用注入的 Arca public Offer 责任投影。任何 Arca 接纳信号或 Libra accepted 回执均作为阻断信号，不宣称已重建完整 Accepted Receipt；无 Offer、未 Accepted 与不可取得投影分别返回，隐藏 Package、错误范围、错误投影和矛盾回执拒绝。读取前、分页和读取完成使用同一个 Foundation opaque fence；它只是只读事实，不单独授权工作。
+
+另新增未接线的 Libra Custom Target Dispatch Guard，组合当前 Run 目标、全部旧执行/精确 Withdrawal 排空证明、当前标准与 Arca 责任。将同一 fence 传过当前基线读取，并在实际 Foundation Work Admission 测试事务核验；确认前后目标替换、旧 Effect 未排空、基线变化、Accepted 信号及跨读取并发均不形成新工作。测试含 101 个受控 Offer 的跨页 Accepted 信号、读取中插入 Arca Accepted 信号、Arca 自有 Withdrawal Store 写入/Formation 投影及允许和过期 fence 的实际 Foundation Admission。Accepted 信号及部分 Package 使用刻意简化的 SQLite 关系夹具（为插入不完整信号暂时关闭测试连接 FK），不代表完整 Accepted 旅程；Withdrawal 使用 Arca Store 写入，但不代表真实媒体。Windows 与隔离 Linux 各运行八文件 **235 PASS / 0 skip**；Linux 镜像及依赖限制同前。包边界与禁止语义扫描仍只有已披露的基线 2 + 1 finding，新增文件无 finding。
+
+该组合依赖此前的当前目标读取 `a650487af`、Replacement 排空 `8a4303fec`、当前标准读取 `c2e3a7976`、Arca 精确 Offer 投影 `65378760d` 和 Foundation 围栏原语（包括 Work Admission `8b8a19532`、Event 接口 `6698071f6` 等）；不是可独立启用的完整功能。实际 Runtime 尚未接入这些组件；当前真实 Acceptance Spec 上下文、Material Control、所有 Scheduler/Resource Governor 与 Workspace/Plan/Event 边界、旧责任恢复及完整用户旅程仍待整合。没有改变全局 Manifest/SSOT 或访问生产，不能称作全局调度屏障、Beta 完成或生产验收。
