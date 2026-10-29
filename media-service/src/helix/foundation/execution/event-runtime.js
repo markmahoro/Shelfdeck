@@ -592,7 +592,7 @@ function createEventRuntime(options) {
   }
 
   async function recover(request) {
-    const allowed = new Set(['safe_retry', 'safe_retry_before_intent', 'continue_forward', 'already_committed', 'already_failed', 'terminal_failure']);
+    const allowed = new Set(['safe_retry', 'safe_retry_before_intent', 'continue_forward', 'observe_again', 'already_committed', 'already_failed', 'terminal_failure']);
     if (!request || typeof request !== 'object' || Array.isArray(request) ||
         typeof request.eventId !== 'string' || !allowed.has(request.decision)) fail(
       'P4_EVENT_RECOVERY_REQUEST_INVALID', 'Event recovery requires one classified recoverable action.'
@@ -608,6 +608,28 @@ function createEventRuntime(options) {
     if(request.decision==='already_committed'){
       const prebound=readPreboundCommittedOutcome(request.eventId,request.effectId,attempt,entry);
       if(prebound){await options.effectJournal.settle(Object.freeze({effectId:request.effectId,receipt:prebound.outcome.effectReceipt,scope:prebound.scope}));return completeCommittedEffect(snapshot,attempt.event_attempt_id,prebound.outcome);}
+    }
+    if(request.decision==='observe_again') {
+      const effect=options.effectJournal.read(request.effectId),expectedIntent=valueDigest({eventId:request.eventId,capabilityRef:snapshot.event.capability_ref,
+        contractVersion:snapshot.event.contract_version,inputSnapshotDigest:attempt.input_snapshot_digest,fenceSnapshotDigest:attempt.fence_snapshot_digest});
+      if(!/^[a-f0-9]{64}$/.test(request.evidenceDigest||'')||!effect||effect.event_attempt_id!==attempt.event_attempt_id||
+          effect.effect_class!==entry.manifest.effectClass||effect.intent_digest!==expectedIntent||
+          !['workspace_write','material_commit'].includes(effect.effect_class)||
+          !['intended','effect_observed','reconcile_required'].includes(effect.state))
+        fail('P4_EVENT_RECOVERY_EFFECT_DRIFT','Observation-only recovery requires the exact active file Effect and immutable evidence.');
+      const budget=options.effectJournal.beginRecoveryExecution(effect.effect_id),startedAtMs=Number(budget?.verified_at_ms);
+      if(budget?.effect_id!==effect.effect_id||budget.event_attempt_id!==attempt.event_attempt_id||budget.effect_class!==effect.effect_class||
+          budget.verified_at_ms===null||budget.verified_at_ms===undefined||!Number.isSafeInteger(startedAtMs)||startedAtMs<0)
+        fail('P4_EVENT_RECOVERY_BUDGET_DRIFT','Observation-only recovery cannot change or renew its original durable budget.');
+      const timing=options.attemptPolicy.prepare({capabilityRef:snapshot.event.capability_ref,effectClass:effect.effect_class,
+        retryPolicyRef:policyBinding.retryPolicyRef,timeoutPolicyRef:policyBinding.timeoutPolicyRef,startedAtMs});
+      if(options.now()<timing.deadlineAtMs)return Object.freeze({kind:'recovery_deferred',eventId:request.eventId,effectId:effect.effect_id});
+      const outcome=Object.freeze({kind:'failed',failureClass:'integration',code:'P4_EVENT_RECOVERY_OBSERVATION_UNAVAILABLE',
+        message:'File reality could not be observed within the original recovery budget.',retryDirective:'never',
+        evidence:Object.freeze({effectId:effect.effect_id,recoveryEvidenceDigest:request.evidenceDigest,
+          realityStatus:'unobservable',dispatchStarted:false,recoveryStartedAtMs:startedAtMs,deadlineAtMs:timing.deadlineAtMs})});
+      options.effectJournal.abandonUncommitted(effect.effect_id);
+      return complete(snapshot,attempt.event_attempt_id,outcome,Object.freeze({decision:'terminal_failure'}));
     }
     if(request.decision==='terminal_failure') {
       const effect=options.effectJournal.read(request.effectId),expectedIntent=valueDigest({eventId:request.eventId,capabilityRef:snapshot.event.capability_ref,
