@@ -20,7 +20,7 @@ ShelfDeck **唯一面向人的产品 Changelog**。按 **Product version**（= G
 - 文档入口收敛到 Helix；归档 v2.5、Helix 根历史 issue log / 审查 / 早期 acceptance。
 - `docs/v3/CURRENT_STATUS.md` stub 化；生产身份只写 Helix Status。
 - CI `pull_request` 目标分支 `master` → `main`；**退役 Windows desktop/service CI**（仅保留 Linux/Docker）。
-- Docker smoke 在启动前执行 `helix-clean-init`（修复 `CLEAN_DATABASE_MISSING`）。
+- Docker smoke：`helix-clean-init` 写入子目录（挂载父路径），避免 volume 根目录 rename `EBUSY`；修复 `CLEAN_DATABASE_MISSING`。
 - 明确 Product version = Git release tag，并与本 Changelog / Docker tag 分层对齐。
 
 ---

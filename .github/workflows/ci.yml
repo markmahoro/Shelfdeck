@@ -12,8 +12,9 @@ on:
 
 jobs:
   # ── Job 1: service Docker ─────────────────────────────────────────────────
-  # Clean Helix refuses empty /app/data (CLEAN_DATABASE_MISSING). Smoke must
-  # run helix-clean-init with a disposable secret before starting the server.
+  # helix-clean-init renames dataDir → dataDir.retired. That EBUSYs when
+  # dataDir itself is a volume mount point. Mount a parent dir and init a
+  # child path (same pattern as scripts/p14-beta-impl-02-docker-retest.js).
   service-docker:
     name: service (Docker)
     runs-on: ubuntu-latest
@@ -25,17 +26,17 @@ jobs:
         run: |
           set -euo pipefail
           SECRET_ROOT="$(openssl rand -hex 32)"
-          DATA_HOST="${RUNNER_TEMP}/shelfdeck-ci-data"
-          mkdir -p "$DATA_HOST"
+          ROOT_HOST="${RUNNER_TEMP}/shelfdeck-ci-root"
+          mkdir -p "$ROOT_HOST"
           docker run --rm \
             -e "SHELFDECK_SECRET_ROOT=${SECRET_ROOT}" \
-            -v "${DATA_HOST}:/app/data" \
+            -v "${ROOT_HOST}:/run/ci" \
             shelfdeck:ci \
-            node scripts/helix-clean-init.js --data-dir /app/data --apply --confirm INITIALIZE_HELIX_CLEAN_V1
+            node scripts/helix-clean-init.js --data-dir /run/ci/data --apply --confirm INITIALIZE_HELIX_CLEAN_V1
           docker run -d --name shelfdeck-ci \
             -e "SHELFDECK_SECRET_ROOT=${SECRET_ROOT}" \
-            -e MEDIA_SERVICE_DATA_DIR=/app/data \
-            -v "${DATA_HOST}:/app/data" \
+            -e MEDIA_SERVICE_DATA_DIR=/run/ci/data \
+            -v "${ROOT_HOST}:/run/ci" \
             -p 18080:18080 \
             shelfdeck:ci
           ok=0
@@ -70,18 +71,18 @@ jobs:
         run: |
           set -euo pipefail
           SECRET_ROOT="$(openssl rand -hex 32)"
-          DATA_HOST="${RUNNER_TEMP}/shelfdeck-e2e-data"
-          mkdir -p "$DATA_HOST"
+          ROOT_HOST="${RUNNER_TEMP}/shelfdeck-e2e-root"
+          mkdir -p "$ROOT_HOST"
           docker build -f media-service/Dockerfile -t shelfdeck:ci .
           docker run --rm \
             -e "SHELFDECK_SECRET_ROOT=${SECRET_ROOT}" \
-            -v "${DATA_HOST}:/app/data" \
+            -v "${ROOT_HOST}:/run/ci" \
             shelfdeck:ci \
-            node scripts/helix-clean-init.js --data-dir /app/data --apply --confirm INITIALIZE_HELIX_CLEAN_V1
+            node scripts/helix-clean-init.js --data-dir /run/ci/data --apply --confirm INITIALIZE_HELIX_CLEAN_V1
           docker run -d --name shelfdeck-e2e \
             -e "SHELFDECK_SECRET_ROOT=${SECRET_ROOT}" \
-            -e MEDIA_SERVICE_DATA_DIR=/app/data \
-            -v "${DATA_HOST}:/app/data" \
+            -e MEDIA_SERVICE_DATA_DIR=/run/ci/data \
+            -v "${ROOT_HOST}:/run/ci" \
             -p 18080:18080 \
             shelfdeck:ci
           ok=0
