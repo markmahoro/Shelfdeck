@@ -342,8 +342,19 @@ test('an Owner dispatch guard can defer an Event without creating an Attempt or 
     assert.equal(state().schedulerReleased,1);assert.equal(state().governorReleased,0);
     assert.equal(state().dispatchContext,undefined);assert.deepEqual(state().journalCalls,[]);
     assert.deepEqual(state().dispatchOutcomes,['owner_wait']);
-    assert.deepEqual(calls,[{ownerDomain:'libra',processType:'libra_run',processId:'run',workKind:'test_work',workId:'work',eventId:'event'}]);
+    assert.deepEqual(calls,[{ownerDomain:'libra',processType:'libra_run',processId:'run',workKind:'test_work',
+      executionBasisDigest:HASH_A,workId:'work',eventId:'event'}]);
   },{effectClass:'workspace_write',createDispatchGuard:()=>({check(scope){calls.push(scope);return {kind:'pending',reasonCode:'target_not_current'};}})});
+});
+
+test('an Event refuses a Work Basis changed before its Owner fence was captured',async()=>{
+  await fixture(async({runtime,lease,databasePath,state})=>{
+    await assert.rejects(runtime.run({schedulerLease:lease}),{code:'P4_EVENT_OWNER_SCOPE_CHANGED'});
+    assert.equal(databaseFacts(databasePath).attempts,0);assert.equal(state().dispatchContext,undefined);
+  },{effectClass:'workspace_write',createDispatchGuard:({unitOfWork,databasePath})=>({check(){
+    const db=new Database(databasePath);try{db.prepare('UPDATE fx_supporting_works SET basis_digest=? WHERE work_id=?').run(HASH_B,'work');}finally{db.close();}
+    return {kind:'ready',readFence:unitOfWork.captureReadFence()};
+  }})});
 });
 
 test('a concurrent Owner change rejects Event Attempt creation under the opaque read fence',async()=>{
@@ -351,7 +362,8 @@ test('a concurrent Owner change rejects Event Attempt creation under the opaque 
     const result=await runtime.run({schedulerLease:lease});
     assert.deepEqual(result,{kind:'owner_deferred',eventId:'event',reasonCode:'owner_view_changed'});
     assert.equal(databaseFacts(databasePath).event.state,'ready');assert.equal(databaseFacts(databasePath).attempts,0);
-    assert.equal(state().schedulerReleased,1);assert.equal(state().governorReleased,1);
+    assert.equal(state().schedulerReleased,1);assert.equal(state().governorReleased,0,
+      'A stale Owner view is detected before acquiring a resource permit.');
     assert.equal(state().dispatchContext,undefined);assert.deepEqual(state().journalCalls,[]);
     assert.equal(state().dispatchOutcomes.at(-1),'owner_wait');
   },{effectClass:'workspace_write',createDispatchGuard:({unitOfWork,databasePath})=>({check(){

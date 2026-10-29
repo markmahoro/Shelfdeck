@@ -11,7 +11,7 @@ const {createCustomSpecPublicationStore}=require('../../../src/helix/domains/lib
 function harness(callback,{failAfterPublication=false,prepareRun=null}={}){return fixture(input=>{
   const db=new Database(input.databasePath),data=specFixture('movie','run-1',{runStateRevision:1,runStateDigest:D('run-state'),
     runExecutionBasisDigest:D('basis'),materialSetDigest:D('member-set')}),base=data.baseSpec;
-  let injected=false;
+  let injected=false,deferred=false;
   const unitOfWork={...input.unitOfWork,execute(participants,...options){
     const domain=participants.find(row=>row.participantId==='custom_spec_publish');
     if(failAfterPublication&&domain&&!injected){injected=true;return input.unitOfWork.execute([...participants,
@@ -56,8 +56,10 @@ function harness(callback,{failAfterPublication=false,prepareRun=null}={}){retur
         readFence:unitOfWork.captureReadFence(),producedAtMs:1200,...overrides}),
       counts=()=>['libra_acceptance_specs','libra_custom_target_intents','fx_command_receipts','fx_commit_markers','fx_audit_records']
         .map(table=>db.prepare('SELECT count(*) n FROM '+table).get().n);
-    return callback({db,publisher,publish,base,chosen,currentBasis,unitOfWork,counts,options,data,targets,setBaseline:value=>{baselineChange=value;}});
-  }finally{db.close();}
+    const result=callback({db,publisher,publish,base,chosen,currentBasis,unitOfWork,counts,options,data,targets,setBaseline:value=>{baselineChange=value;}});
+    if(result&&typeof result.then==='function'){deferred=true;return Promise.resolve(result).finally(()=>db.close());}
+    return result;
+  }finally{if(!deferred)db.close();}
 },{seedRun:!prepareRun});}
 
 module.exports={harness};

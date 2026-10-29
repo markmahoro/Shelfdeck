@@ -210,7 +210,7 @@ test('an Owner-deferred Event is not aggregated or reported as completed Work',a
 });
 
 async function guardedWorkCase(decisions,{staleAt=null}={}){
-  const calls=[],errors=[],scope={ownerDomain:'libra',processType:'libra_run',processId:'run',workKind:'test_work'},
+  const calls=[],errors=[],scope={ownerDomain:'libra',processType:'libra_run',processId:'run',workKind:'test_work',executionBasisDigest:'a'.repeat(64)},
     lease={targetType:'work',targetId:'guarded-work',leaseId:'guarded-lease'},fences=[];
   let available=false;
   const host=createExecutionRuntimeHost({tickIntervalMs:60000,

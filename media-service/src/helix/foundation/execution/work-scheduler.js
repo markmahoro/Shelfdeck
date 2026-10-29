@@ -41,10 +41,10 @@ function repositories(schemaManifest) {
   return Object.freeze({
     works: createRepositoryDefinition({ repositoryId: 'scheduler_works', owner: 'execution-foundation', schemaManifest, statements: {
       list_by_states: { kind: 'select-in', tableId: 'fx_supporting_works', columns: [
-        'work_id', 'owner_domain', 'process_type', 'process_id', 'work_kind', 'priority_class', 'state', 'created_at_ms'
+        'work_id', 'owner_domain', 'process_type', 'process_id', 'work_kind', 'basis_digest', 'priority_class', 'state', 'created_at_ms'
       ], keyColumn:'state', maxItems:4 },
       list_by_ids: { kind: 'select-in', tableId: 'fx_supporting_works', columns: [
-        'work_id', 'owner_domain', 'process_type', 'process_id', 'work_kind', 'priority_class', 'state', 'created_at_ms'
+        'work_id', 'owner_domain', 'process_type', 'process_id', 'work_kind', 'basis_digest', 'priority_class', 'state', 'created_at_ms'
       ], keyColumn:'work_id', maxItems:500 }
     } }),
     events: createRepositoryDefinition({ repositoryId: 'scheduler_events', owner: 'execution-foundation', schemaManifest, statements: {
@@ -268,7 +268,7 @@ function createWorkScheduler(options) {
     }
     return Object.freeze({ kind: 'leased', lease,
       executionScope: Object.freeze({ownerDomain:selected.work.owner_domain,processType:selected.work.process_type,
-        processId:selected.work.process_id,workKind:selected.work.work_kind}),
+        processId:selected.work.process_id,workKind:selected.work.work_kind,executionBasisDigest:selected.work.basis_digest}),
       lane: minimumBackgroundSelected ? 'minimum_background' : supply.lane, priorityClass: selected.projection.priorityClass,
       localPriority: selected.projection.localPriority, aging: selected.aging });
   }

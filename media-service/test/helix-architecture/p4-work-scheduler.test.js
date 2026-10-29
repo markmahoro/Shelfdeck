@@ -24,7 +24,7 @@ function fixture(run, schedulerOptions = {}) {
   const unitOfWork = createSqliteUnitOfWork({ kernel });
   const seed = createRepositoryDefinition({ repositoryId: 'scheduler_seed', owner: 'execution-foundation', schemaManifest, statements: {
     work: { kind: 'insert', tableId: 'fx_supporting_works', columns: [
-      'work_id', 'owner_domain', 'process_type', 'process_id', 'work_kind', 'priority_class', 'state', 'idempotency_key', 'created_at_ms'
+      'work_id', 'owner_domain', 'process_type', 'process_id', 'work_kind', 'basis_digest', 'priority_class', 'state', 'idempotency_key', 'created_at_ms'
     ] },
     attempt: { kind: 'insert', tableId: 'fx_work_attempts', columns: ['attempt_id', 'work_id', 'state'] },
     plan: { kind: 'insert', tableId: 'fx_workflow_plans', columns: ['plan_id', 'attempt_id', 'state'] },
@@ -49,7 +49,7 @@ function fixture(run, schedulerOptions = {}) {
 function addWork(repository, projections, id, options = {}) {
   const priorityClass = options.priorityClass || 'normal_foreground';
   repository.invoke('work', { work_id: 'work-' + id, owner_domain: 'libra', process_type: 'libra_run', process_id: 'process-' + id,
-    work_kind:'fixture_work',priority_class: priorityClass, state: options.state || 'admitted', idempotency_key: 'key-' + id, created_at_ms: options.createdAtMs ?? 120000 });
+    work_kind:'fixture_work',basis_digest:'a'.repeat(64),priority_class: priorityClass, state: options.state || 'admitted', idempotency_key: 'key-' + id, created_at_ms: options.createdAtMs ?? 120000 });
   projections.set('process-' + id, Object.freeze({ priorityClass, localPriority: options.localPriority || 0,
     priorityRevision: options.priorityRevision || 1,supplyRole:'expansion' }));
 }
@@ -90,6 +90,7 @@ for (const targetType of ['work', 'event']) test('target admission filters ' + t
     const first = scheduler.acquire({ targetType });
     assert.equal(first.lease.targetId, targetType + '-maintenance');
     assert.equal(first.executionScope.processId, 'process-maintenance');
+    assert.equal(first.executionScope.executionBasisDigest, 'a'.repeat(64));
     scheduler.release(first.lease);
     maintenanceOnly = false;
     const resumed = scheduler.acquire({ targetType });
@@ -135,7 +136,7 @@ test('Owner waits for Work and Event with the same ID remain independent',()=>{
   fixture(({scheduler,seedRows,projections})=>{
     seedRows(repository=>{addEventGraph(repository,projections,'shared');
       repository.invoke('work',{work_id:'event-shared',owner_domain:'libra',process_type:'libra_run',process_id:'process-collision',
-        work_kind:'fixture_work',priority_class:'normal_foreground',state:'admitted',idempotency_key:'collision',created_at_ms:100000});
+        work_kind:'fixture_work',basis_digest:'a'.repeat(64),priority_class:'normal_foreground',state:'admitted',idempotency_key:'collision',created_at_ms:100000});
       projections.set('process-collision',Object.freeze({priorityClass:'normal_foreground',localPriority:0,priorityRevision:1,supplyRole:'expansion'}));});
     const work=scheduler.acquire({targetType:'work'}).lease;assert.equal(work.targetId,'event-shared');
     scheduler.noteDispatchOutcome(work,{kind:'owner_wait'});scheduler.release(work);

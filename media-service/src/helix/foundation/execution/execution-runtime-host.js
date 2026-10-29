@@ -161,10 +161,11 @@ function createExecutionRuntimeHost(options) {
       finishScope = options.onExecutionScopeStarted?.(scheduled.executionScope);
       return await withWorkLeaseHeartbeat(scheduled.lease, async () => {
         const scope=scheduled.executionScope;
-        if(options.workDispatchGuard&&(!scope||['ownerDomain','processType','processId','workKind'].some(key=>typeof scope[key]!=='string'||!scope[key])))
+        if(options.workDispatchGuard&&(!scope||['ownerDomain','processType','processId','workKind'].some(key=>typeof scope[key]!=='string'||!scope[key])||
+            !/^[a-f0-9]{64}$/.test(scope.executionBasisDigest||'')))
           fail('P4_WORK_OWNER_GUARD_INVALID','Owner Work scope must be exact.');
         const expectedScope=options.workDispatchGuard?Object.freeze({ownerDomain:scope.ownerDomain,processType:scope.processType,
-          processId:scope.processId,workKind:scope.workKind}):null;
+          processId:scope.processId,workKind:scope.workKind,executionBasisDigest:scope.executionBasisDigest}):null;
         function checkOwner(){
           if(!options.workDispatchGuard)return {kind:'not_applicable',readFence:null};
           let decision;

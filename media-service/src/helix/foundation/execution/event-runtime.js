@@ -936,8 +936,11 @@ function createEventRuntime(options) {
         const snapshot = readSnapshot(eventId);
         function checkOwner(){
           if(!options.dispatchGuard)return {kind:'not_applicable',readFence:null};
-          const decision=options.dispatchGuard.check(Object.freeze({ownerDomain:snapshot.work.owner_domain,processType:snapshot.work.process_type,
-            processId:snapshot.work.process_id,workKind:snapshot.work.work_kind,workId:snapshot.work.work_id,eventId}));
+          let decision;
+          try{decision=options.dispatchGuard.check(Object.freeze({ownerDomain:snapshot.work.owner_domain,processType:snapshot.work.process_type,
+            processId:snapshot.work.process_id,workKind:snapshot.work.work_kind,executionBasisDigest:snapshot.work.basis_digest,
+            workId:snapshot.work.work_id,eventId}));}
+          catch(error){if(error?.code==='P3_UOW_READ_FENCE_CHANGED')return {kind:'pending',reasonCode:'owner_view_changed'};throw error;}
           if(!decision||typeof decision!=='object'||Array.isArray(decision)||!['ready','pending','not_applicable'].includes(decision.kind))
             fail('P4_EVENT_OWNER_GUARD_INVALID','Owner dispatch guard returned an invalid decision.');
           const keys=Object.keys(decision).sort().join(',');
@@ -947,8 +950,23 @@ function createEventRuntime(options) {
             return decision;
           }
           if(decision.kind==='ready'){
-            if(keys!=='kind,readFence'||!decision.readFence||typeof decision.readFence!=='object')
+            if(keys!=='kind,readFence'||!decision.readFence||typeof decision.readFence!=='object'||
+                !/^[a-f0-9]{64}$/.test(snapshot.work.basis_digest||''))
               fail('P4_EVENT_OWNER_GUARD_INVALID','Ready Owner dispatch requires an opaque read fence.');
+            let current;
+            try{current=options.unitOfWork.execute([{participantId:'event_owner_scope_read',owner:'execution-foundation',
+              repositories:[repositories.works,repositories.workAttempts,repositories.plans],execute(context){return {
+                work:context.repository('runtime_works').invoke('find',{work_id:snapshot.work.work_id}),
+                attempt:context.repository('runtime_work_attempts').invoke('find',{attempt_id:snapshot.workAttempt.attempt_id}),
+                plan:context.repository('runtime_plans').invoke('find',{plan_id:snapshot.plan.plan_id})};}}],
+              {readFence:decision.readFence}).event_owner_scope_read;}
+            catch(error){if(error?.code==='P3_UOW_READ_FENCE_CHANGED')return {kind:'pending',reasonCode:'owner_view_changed'};throw error;}
+            if(!current.work||['owner_domain','process_type','process_id','work_kind','basis_digest'].some(key=>current.work[key]!==snapshot.work[key])||
+                !['ready','running'].includes(current.work.state)||!current.attempt||current.attempt.work_id!==snapshot.work.work_id||
+                !['ready','running'].includes(current.attempt.state)||current.attempt.basis_digest!==snapshot.work.basis_digest||
+                !current.plan||current.plan.attempt_id!==current.attempt.attempt_id||current.plan.state!=='planned'||
+                current.plan.basis_digest!==snapshot.work.basis_digest)
+              fail('P4_EVENT_OWNER_SCOPE_CHANGED','The Event Work scope changed before Owner qualification.');
             return decision;
           }
           if(keys!=='kind')fail('P4_EVENT_OWNER_GUARD_INVALID','Unscoped Owner dispatch must be explicit.');

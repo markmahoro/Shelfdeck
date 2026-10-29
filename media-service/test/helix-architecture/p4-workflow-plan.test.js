@@ -216,6 +216,13 @@ test('publisher atomically normalizes Plan, Nodes, Edges and initial Events with
   });
 });
 
+test('Plan publication refuses a Work whose Basis differs from its ready Attempt',()=>fixture(({publisher,databasePath})=>{
+  const db=new Database(databasePath);try{db.prepare('UPDATE fx_supporting_works SET basis_digest=? WHERE work_id=?').run('b'.repeat(64),'work-1');}
+  finally{db.close();}
+  assert.throws(()=>publisher.publish(plan()),{code:'P4_PLAN_WORK_BASIS_MISMATCH'});
+  assert.equal(rows(databasePath,'fx_workflow_plans').length,0);assert.equal(rows(databasePath,'fx_workflow_events').length,0);
+}));
+
 test('Plan publication and planning replay reject a stale Owner read before any new Events',()=>fixture(({publisher,unitOfWork,databasePath})=>{
   function changeOwnerView(){const db=new Database(databasePath);try{
     db.prepare('UPDATE fx_supporting_works SET updated_at_ms=coalesce(updated_at_ms,0)+1 WHERE work_id=?').run('work-1');

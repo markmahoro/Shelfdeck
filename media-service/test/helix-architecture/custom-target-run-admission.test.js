@@ -533,6 +533,61 @@ for(const changed of [false,true])test('actual Run Coordinator '+(changed?'defer
   assert.equal(h.db.prepare('SELECT count(*) n FROM fx_supporting_works WHERE process_id=?').get(replacement.libraRunId).n,changed?0:1);
 }));
 
+async function customHost(h,work,lifecycle){
+  const scope={ownerDomain:'libra',processType:'libra_run',processId:work.process_id,workKind:work.work_kind,
+      executionBasisDigest:work.basis_digest},
+    lease={targetType:'work',targetId:work.work_id,leaseId:'fixture-lease'},outcomes=[],errors=[];
+  let available=false;
+  const host=require('../../src/helix/foundation/execution/execution-runtime-host').createExecutionRuntimeHost({tickIntervalMs:60000,
+    startupRecovery:{async recover(){return {normalSupplyAllowed:true};}},
+    scheduler:{acquire({targetType}){if(targetType==='work'&&available){available=false;return {kind:'leased',lease,executionScope:scope};}
+      return {kind:'idle'};},noteDispatchOutcome(_lease,outcome){outcomes.push(outcome.kind);},release(){}},
+    workDispatchGuard:customDispatchGuard(h),workLifecycle:lifecycle,
+    plannerRegistry:{resolve(){throw new Error('Changed Control cannot reach planning.');}},planPublisher:{publish(){}},
+    eventRuntime:{async run(){}},domainReconciler:{async reconcile(){}},fallbackReconciler:{async start(){},async stop(){}},
+    onError:error=>errors.push(error)});
+  try{
+    await host.start();await new Promise(resolve=>setImmediate(resolve));available=true;
+    const drained=await host.drainOnce();return {drained,outcomes,errors};
+  }finally{await host.stop();}
+}
+
+test('actual Coordinator and Host both use the real custom Guard when input Control changes',async()=>runHarness(async h=>{
+  const replacement=h.advance(h.unitOfWork.captureReadFence()),coordinator=guardedCoordinator(h,replacement.libraRunId),
+    result=coordinator.reconcile(replacement.libraRunId),work=h.db.prepare('SELECT * FROM fx_supporting_works WHERE work_id=?').get(result.workId);
+  assert.equal(result.phase,'product_identity_search');
+  h.db.prepare('UPDATE fx_material_controls SET control_revision=control_revision+1 WHERE owner_domain=?').run('libra');
+  const {drained,outcomes,errors}=await customHost(h,work,createWorkLifecycle({...h.options,nextWorkAttemptId:()=> 'host-attempt'}));
+  assert.equal(drained.work.kind,'work_owner_deferred');assert.equal(drained.work.reasonCode,'input_control_changed');
+  assert.deepEqual(outcomes,['owner_wait']);assert.deepEqual(errors,[]);
+  assert.equal(h.db.prepare('SELECT count(*) n FROM fx_work_attempts WHERE work_id=?').get(work.work_id).n,0);
+}));
+
+test('actual Host checks its custom Owner fence in the Work Attempt transaction',async()=>runHarness(async h=>{
+  const replacement=h.advance(h.unitOfWork.captureReadFence()),coordinator=guardedCoordinator(h,replacement.libraRunId),
+    result=coordinator.reconcile(replacement.libraRunId),work=h.db.prepare('SELECT * FROM fx_supporting_works WHERE work_id=?').get(result.workId),
+    lifecycle=createWorkLifecycle({...h.options,nextWorkAttemptId:()=> 'host-attempt'}),wrapped={...lifecycle,
+      ensurePlanningAttempt(id,settings){h.db.prepare('UPDATE libra_subjects SET intake_revision=intake_revision+1').run();
+        return lifecycle.ensurePlanningAttempt(id,settings);}};
+  const {drained,outcomes,errors}=await customHost(h,work,wrapped);
+  assert.equal(drained.work.kind,'work_owner_deferred');assert.equal(drained.work.reasonCode,'owner_view_changed');
+  assert.deepEqual(outcomes,['owner_wait']);assert.deepEqual(errors,[]);
+  assert.equal(h.db.prepare('SELECT count(*) n FROM fx_work_attempts WHERE work_id=?').get(work.work_id).n,0);
+}));
+
+test('actual Host refuses a valid Work Definition bound to a different Run Basis',async()=>runHarness(async h=>{
+  const replacement=h.advance(h.unitOfWork.captureReadFence()),coordinator=guardedCoordinator(h,replacement.libraRunId),
+    result=coordinator.reconcile(replacement.libraRunId),row=h.db.prepare('SELECT * FROM fx_supporting_works WHERE work_id=?').get(result.workId),
+    definition={...JSON.parse(row.definition_json),executionBasisDigest:D('wrong-work-basis')};
+  h.db.prepare('UPDATE fx_supporting_works SET basis_digest=?,definition_json=?,definition_digest=? WHERE work_id=?')
+    .run(definition.executionBasisDigest,canonicalJson(definition),canonicalDigest(definition),row.work_id);
+  const work=h.db.prepare('SELECT * FROM fx_supporting_works WHERE work_id=?').get(row.work_id),
+    {drained,outcomes,errors}=await customHost(h,work,createWorkLifecycle({...h.options,nextWorkAttemptId:()=> 'host-attempt'}));
+  assert.equal(drained.work.kind,'work_owner_deferred');assert.equal(drained.work.reasonCode,'run_basis_changed');
+  assert.deepEqual(outcomes,['owner_wait']);assert.deepEqual(errors,[]);
+  assert.equal(h.db.prepare('SELECT count(*) n FROM fx_work_attempts WHERE work_id=?').get(work.work_id).n,0);
+}));
+
 function continuationHarness(callback){return harness(h=>{
   const lifecycle=createWorkLifecycle({...h.options,nextWorkAttemptId:()=> 'unused'}),contextReader=createLibraRunContextReader(h.options),
     scope={subjectId:h.chosen.intent.subjectId,productScopeDigest:h.chosen.intent.basis.productScopeDigest};

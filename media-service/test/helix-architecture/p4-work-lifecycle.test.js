@@ -84,12 +84,27 @@ function seedPlannedAttempt(lifecycle, databasePath, suffix, eventState = 'succe
 }
 
 test('a guarded Work scope is checked in the Attempt transaction before any write',()=>fixture(({lifecycle,unitOfWork,databasePath})=>{
-  const scope={ownerDomain:'procurement',processType:'procurement_run',processId:'run-1',workKind:'evidence_assessment'};
+  const scope={ownerDomain:'procurement',processType:'procurement_run',processId:'run-1',workKind:'evidence_assessment',executionBasisDigest:'a'.repeat(64)};
   assert.throws(()=>lifecycle.ensurePlanningAttempt('work-1',{readFence:unitOfWork.captureReadFence(),
     expectedScope:{...scope,processId:'other-run'}}),{code:'P4_WORK_OWNER_SCOPE_CHANGED'});
+  assert.throws(()=>lifecycle.ensurePlanningAttempt('work-1',{readFence:unitOfWork.captureReadFence(),
+    expectedScope:{...scope,executionBasisDigest:'b'.repeat(64)}}),{code:'P4_WORK_OWNER_SCOPE_CHANGED'});
   assert.equal(read(databasePath,'SELECT state FROM fx_supporting_works WHERE work_id=?','work-1').state,'admitted');
   assert.equal(read(databasePath,'SELECT count(*) n FROM fx_work_attempts WHERE work_id=?','work-1').n,0);
   assert.equal(lifecycle.ensurePlanningAttempt('work-1',{readFence:unitOfWork.captureReadFence(),expectedScope:scope}).attempt.state,'ready');
+}));
+
+for(const changed of ['work','plan'])test('Work start rejects a '+changed+' Basis different from its Attempt',()=>fixture(({lifecycle,unitOfWork,databasePath})=>{
+  const {attempt}=lifecycle.ensurePlanningAttempt('work-1'),db=new Database(databasePath);
+  try{
+    db.prepare('INSERT INTO fx_workflow_plans(plan_id,attempt_id,planner_ref,planner_version,catalog_digest,basis_digest,graph_digest,state,created_at_ms) VALUES(?,?,?,?,?,?,?,?,?)')
+      .run('basis-plan',attempt.attempt_id,'planner',1,'c'.repeat(64),changed==='plan'?'b'.repeat(64):'a'.repeat(64),'d'.repeat(64),'planned',2);
+    if(changed==='work')db.prepare('UPDATE fx_supporting_works SET basis_digest=? WHERE work_id=?').run('b'.repeat(64),'work-1');
+  }finally{db.close();}
+  assert.throws(()=>lifecycle.startPlanned('work-1',attempt.attempt_id,null,{readFence:unitOfWork.captureReadFence()}),
+    {code:'P4_WORK_PLAN_BASIS_MISMATCH'});
+  assert.equal(read(databasePath,'SELECT state FROM fx_supporting_works WHERE work_id=?','work-1').state,'ready');
+  assert.equal(read(databasePath,'SELECT state FROM fx_work_attempts WHERE attempt_id=?',attempt.attempt_id).state,'ready');
 }));
 
 for(const race of ['during_planning','before_start'])test('the real Host and SQLite fence defer '+race+' and reopen the same Attempt',()=>fixture(async({lifecycle,unitOfWork,databasePath,restartPersistence})=>{
@@ -97,7 +112,7 @@ for(const race of ['during_planning','before_start'])test('the real Host and SQL
   const {createWorkflowPlanPublisher,executionCatalogDigest}=require('../../src/helix/foundation/execution/workflow-plan');
   const registry={snapshot:[],resolve(){throw new Error('No Capability is needed for this zero-node plan.');}},
     policyRegistry={digest:'c'.repeat(64)},contractValidator={readSchema(){throw new Error('No schema is needed for this zero-node plan.');}},
-    scope={ownerDomain:'procurement',processType:'procurement_run',processId:'run-1',workKind:'evidence_assessment'},
+    scope={ownerDomain:'procurement',processType:'procurement_run',processId:'run-1',workKind:'evidence_assessment',executionBasisDigest:'a'.repeat(64)},
     lease={targetType:'work',targetId:'work-1',leaseId:'fixture-lease'};
   let available=false,guardCalls=0,mutated=false,activeUnitOfWork=unitOfWork,activeLifecycle=lifecycle;const outcomes=[],errors=[];
   function changeDatabase(){const database=new Database(databasePath);try{
