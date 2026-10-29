@@ -179,3 +179,5 @@ UI 负责人随后对 `a4d716878` 的独立开发版复核确认忙碌状态、�
 新增测试覆盖 Control 转属、同 Owner revision 变化、Binding 位置变化、不可取得/错误投影、成员摘要损坏、其他 Run Basis 篡改及投影读取中并发 Control 变化；Foundation Work Admission 继续在实际写事务验证相同 fence。测试直接修改临时 SQLite 以模拟竞态与损坏，未转移真实材料。Windows 与隔离 Linux 的 11 个相关文件各 **296 PASS / 0 skip**；原有 `run-discard-store` 重建方法仅增加供同 Owner 复用的导出，其生命周期测试同时通过。包边界和禁止语义检查仍仅有既有 2 + 1 finding；Linux 镜像及依赖限制同前。
 
 该提交依赖 `814c30f42` 及其所列基础，仍是未接线的局部检查：不证明文件当前存在/可读、Related 的完整责任、全部旧 Effect 和每个 Scheduler/Resource Governor/Workspace/Plan/Event 边界，也不替代 Arca 的独立接纳。真实 Owner 上下文、全部边界和完整用户旅程仍须主整合验证，不能开放自定义入口或宣称全局屏障已完成。
+
+补充测试在临时数据库调用真实 Foundation Material Control Participant 和 marker 写事务，将受控输入的 revision 从 1 推进到 2 并释放；先前 fence 随即失效，新的 Guard 检查返回 `input_control_changed`，不授权新执行。这是合成 Handle/Subject、仅验证 Foundation 事务和投影的集成测试，不代表实际业务已有释放授权。该测试与 Foundation Control 文件在 Windows、隔离 Linux 各 **49 PASS / 0 skip**。

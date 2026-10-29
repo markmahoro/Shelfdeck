@@ -533,6 +533,36 @@ test('a Control change during projection invalidates the entire input read fence
   assert.throws(()=>reader.check({subjectId:'subject',libraRunId:replacement.libraRunId}),{code:'P3_UOW_READ_FENCE_CHANGED'});
 }));
 
+test('a Foundation Control release changes the real projection and blocks custom dispatch',()=>runHarness(h=>{
+  const replacement=h.advance(h.unitOfWork.captureReadFence()),guard=customDispatchGuard(h),scope=dispatchScope(replacement.libraRunId),
+    before=guard.check(scope),row=h.db.prepare('SELECT * FROM fx_material_controls').get();
+  assert.equal(before.kind,'ready');
+  const control=require('../../src/helix/foundation/persistence/material-control'),identity={
+    schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',schemaVersion:2,materialKey:row.material_key,
+    mountScopeId:row.mount_scope_id,inode:row.inode,sizeBytes:row.size_bytes,fingerprintAlgorithm:row.fingerprint_algorithm,
+    fingerprintVersion:Number(row.fingerprint_version),contentFingerprint:row.content_fingerprint},
+    change={action:'release',identity,expectedRevision:row.control_revision,fromScope:{ownerDomain:'libra',scopeType:'subject',scopeId:'subject'},toScope:null},
+    handle={schemaRef:'helix://contracts/types/ResponsibilityControlCommitHandle/v1',schemaVersion:1,handleId:'fixture-control-release',
+      operationKind:'release',ownerDomain:'libra',processType:'libra_run',processId:replacement.libraRunId,
+      basisRef:{objectType:'fixture',objectId:'fixture',revision:1,digest:D('basis-ref')},basisDigest:D('basis'),
+      canonicalFactSetDigest:D('facts'),bindingSetDigest:D('bindings'),controlScopeDigest:control.controlScopeDigest([change]),
+      expectedControlRevisions:[{materialKey:identity.materialKey,revision:row.control_revision}],eventFenceDigest:D('fence'),
+      receiptContract:{receiptSchemaRef:'fixture.receipt@1',controlRevisionSetSchemaRef:'fixture.revisions@1'}};
+  const markers=require('../../src/helix/foundation/persistence/owner-repository').createRepositoryDefinition({repositoryId:'fixture_release_marker',
+    owner:'execution-foundation',schemaManifest:h.options.schemaManifest,statements:{insert:{kind:'insert',tableId:'fx_commit_markers',
+      columns:['commit_marker','owner_domain','scope_type','scope_id','commit_digest','committed_at_ms']}}});
+  h.unitOfWork.execute([control.createMaterialControlParticipant({schemaManifest:h.options.schemaManifest,handle,changes:[change],commitMarker:'fixture-release'}),
+    {participantId:'fixture_release_marker',owner:'execution-foundation',boundBusinessOwner:'libra',repositories:[markers],execute(context){
+      context.repository(markers.repositoryId).invoke('insert',{commit_marker:'fixture-release',owner_domain:'libra',scope_type:'subject',
+        scope_id:'subject',commit_digest:D('release'),committed_at_ms:context.commitTimeMs});
+    }}]);
+  assert.deepEqual(guard.check(scope),{kind:'pending',reasonCode:'input_control_changed'});
+  const targetReader=require('../../src/helix/domains/libra/application/current-run-target-reader').createCurrentRunTargetReader(h.options);
+  assert.throws(()=>targetReader.read(replacement.libraRunId,{readFence:before.readFence}),{code:'P3_UOW_READ_FENCE_CHANGED'});
+  assert.equal(h.db.prepare('SELECT control_revision FROM fx_material_controls WHERE material_key=?').get(identity.materialKey).control_revision,2);
+  assert.equal(h.db.prepare('SELECT count(*) n FROM fx_material_control_revisions WHERE material_key=?').get(identity.materialKey).n,2);
+}));
+
 test('a forged Run execution basis fails reconstruction even when the input manifest itself is intact',()=>runHarness(h=>{
   const replacement=h.advance(h.unitOfWork.captureReadFence()),run=h.db.prepare('SELECT execution_basis_record_json FROM libra_runs WHERE libra_run_id=?').get(replacement.libraRunId),
     basis=JSON.parse(run.execution_basis_record_json);basis.relatedDispositionScope.relatedReferenceSetDigest=D('forged-related-scope');
