@@ -434,6 +434,76 @@ test('Arca acceptance wins cancellation even before Libra consumes the delivery 
   }finally{db.close();}
 }));
 
+test('a fenced discard does not release Control after the Owner view changes and still replays the exact committed command',()=>fixture(input=>{
+  const store=createRunDiscardStore({schemaManifest,unitOfWork:input.unitOfWork}),command=buildRunDiscardCommand({libraRunId:input.libraRunId,
+    expectedRunStateRevision:input.admitted.stateRevision,expectedRunStateDigest:input.admitted.stateDigest,
+    actorId:'admin',idempotencyKey:'guarded-discard'}),ready=store.inspect(command),stale=input.unitOfWork.captureReadFence(),db=new Database(input.databasePath);
+  try{
+    db.prepare('UPDATE libra_subjects SET intake_revision=intake_revision+1 WHERE subject_id=?').run('subject-1');
+    assert.throws(()=>store.commit(ready,'user_cancelled',null,{readFence:stale}),{code:'P3_UOW_READ_FENCE_CHANGED'});
+    assert.equal(db.prepare('SELECT state FROM libra_runs').get().state,'active');
+    assert.equal(db.prepare('SELECT state FROM fx_material_controls').get().state,'controlled');
+    assert.equal(db.prepare('SELECT count(*) n FROM libra_run_discard_receipts').get().n,0);
+    const fence=input.unitOfWork.captureReadFence(),fresh=store.inspect(command),committed=store.commit(fresh,'user_cancelled',null,{readFence:fence});
+    assert.equal(committed.resultKind,'discarded');
+    assert.deepEqual(store.commit(fresh,'user_cancelled',null,{readFence:fence}),committed);
+    assert.equal(db.prepare('SELECT count(*) n FROM libra_run_discard_receipts').get().n,1);
+  }finally{db.close();}
+}));
+
+test('terminal cancellation retains Control when the target or the exact Handoff view changes after cancellation',()=>fixture(input=>{
+  const createAdmin=require('../../src/helix/domains/libra/application/libra-run-admin-service').createLibraRunAdminService,
+    db=new Database(input.databasePath),scope=input.basisSnapshot.productScopeDigest;
+  let current=false,changeDuringHandoff=false;
+  const admin=createAdmin({schemaManifest,unitOfWork:input.unitOfWork,libraRunExecutionProjection:{invalidate(){}},
+    currentRunTargetReader:{read(_run,{readFence}){return current?{kind:'target_current',subjectId:'subject-1',productScopeDigest:scope,readFence}:
+      {kind:'target_not_current'};}},
+    readHandoffResponsibility(request){
+      if(changeDuringHandoff)db.prepare('UPDATE libra_subjects SET intake_revision=intake_revision+1 WHERE subject_id=?').run('subject-1');
+      return {kind:'ready',...request,handoffState:'no_offer'};
+    },cancelProcessWorks:()=>({drainingWorks:0})}),
+    body={expectedRunStateRevision:input.admitted.stateRevision,expectedRunStateDigest:input.admitted.stateDigest,idempotencyKey:'terminal-guard'};
+  try{
+    assert.equal(admin.discard(input.libraRunId,body).reasonCode,'target_not_current');
+    assert.equal(db.prepare('SELECT state FROM fx_material_controls').get().state,'controlled');
+    current=true;changeDuringHandoff=true;
+    assert.equal(admin.reconcileCancellation('subject-1').reasonCode,'owner_view_changed');
+    assert.equal(db.prepare('SELECT state FROM fx_material_controls').get().state,'controlled');
+    assert.equal(db.prepare('SELECT count(*) n FROM libra_run_discard_receipts').get().n,0);
+    changeDuringHandoff=false;
+    assert.equal(admin.reconcileCancellation('subject-1').resultKind,'discarded');
+    assert.equal(db.prepare('SELECT state FROM fx_material_controls').get().state,'released');
+  }finally{db.close();}
+}));
+
+test('the exact Arca Owner projection prevents cancellation when an Accepted Attempt precedes the delivery receipt',()=>fixture(input=>{
+  const createAdmin=require('../../src/helix/domains/libra/application/libra-run-admin-service').createLibraRunAdminService,
+    {createLibraHandoffResponsibilityReader}=require('../../src/helix/domains/libra/public'),
+    {createArcaOfferResponsibilityProjection}=require('../../src/helix/domains/arca/public'),
+    options={schemaManifest,unitOfWork:input.unitOfWork},arca=createArcaOfferResponsibilityProjection(options),
+    responsibility=createLibraHandoffResponsibilityReader({...options,readArcaOfferResponsibility:offer=>arca.read(offer)}),
+    db=new Database(input.databasePath),packageRevision=1,
+    onDeckPackageId=canonicalDigest({schema:'libra.on-deck-package-id@1',libraRunId:input.libraRunId,packageRevision}),
+    packageDigest=D('real-arca-acceptance'),offerId=canonicalDigest({schema:'libra.product-offer-id@1',onDeckPackageId,packageDigest});
+  try{
+    db.prepare("INSERT INTO arca_shelves(shelf_id,status) VALUES('shelf-1','active')").run();
+    db.prepare('UPDATE libra_runs SET package_revision_head=1 WHERE libra_run_id=?').run(input.libraRunId);
+    db.prepare('INSERT INTO libra_product_packages(on_deck_package_id,offer_id,package_revision,libra_run_id,subject_id,shelf_id,acceptance_spec_id,package_digest,related_disposition_set_digest,state) VALUES(?,?,?,?,?,?,?,?,?,?)')
+      .run(onDeckPackageId,offerId,packageRevision,input.libraRunId,'subject-1','shelf-1','spec-1',packageDigest,D('related'),'published');
+    db.prepare('INSERT INTO arca_acceptance_attempts(acceptance_attempt_id,offer_id,on_deck_package_id,package_digest,shelf_id,state) VALUES(?,?,?,?,?,?)')
+      .run('accepted-before-message',offerId,onDeckPackageId,packageDigest,'shelf-1','accepted');
+    const admin=createAdmin({...options,libraRunExecutionProjection:{invalidate(){}},cancelProcessWorks:()=>({drainingWorks:0}),
+      currentRunTargetReader:{read(_run,{readFence}){return {kind:'target_current',subjectId:'subject-1',
+        productScopeDigest:input.basisSnapshot.productScopeDigest,readFence};}},
+      readHandoffResponsibility:(request,view)=>responsibility.read(request,view)}),
+      body={expectedRunStateRevision:input.admitted.stateRevision,expectedRunStateDigest:input.admitted.stateDigest,idempotencyKey:'accepted-guard'};
+    assert.equal(admin.discard(input.libraRunId,body).reasonCode,'handoff_b_already_accepted');
+    assert.equal(db.prepare('SELECT state FROM fx_material_controls').get().state,'controlled');
+    assert.equal(db.prepare('SELECT count(*) n FROM libra_run_discard_receipts').get().n,0);
+    assert.equal(db.prepare('SELECT state FROM libra_task_cancellations').get().state,'handoff_accepted');
+  }finally{db.close();}
+}));
+
 test('discard is an atomic exit that releases original input Control without deleting files',()=>fixture((input)=>{
   const store=createRunDiscardStore({schemaManifest,unitOfWork:input.unitOfWork});
   const activeCommand=buildRunDiscardCommand({libraRunId:input.libraRunId,expectedRunStateRevision:input.admitted.stateRevision,
@@ -650,6 +720,27 @@ function defectAdmin(input){return require('../../src/helix/domains/libra/applic
   schemaManifest,unitOfWork:input.unitOfWork,now:()=>3000,libraRunExecutionProjection:{invalidate(){}}});}
 function manualDefectCommand(preview){return {expectedRunStateRevision:preview.frozenRunStateRevision,expectedRunStateDigest:preview.frozenRunStateDigest,
   expectedDefectCandidateDigest:preview.candidateDigest,idempotencyKey:'manual-defect',acknowledged:true};}
+
+test('defect admission cannot resume a frozen Run after its target changes or its Owner fence becomes stale',()=>fixture(input=>{
+  frozenSizePreview(input,{profile:'movie'});const preview=defectAdmin(input).previewDefects(input.libraRunId),db=new Database(input.databasePath);
+  let changed=true,race=false;
+  const admin=require('../../src/helix/domains/libra/application/libra-run-admin-service').createLibraRunAdminService({schemaManifest,
+    unitOfWork:input.unitOfWork,now:()=>3000,libraRunExecutionProjection:{invalidate(){}},currentRunTargetReader:{read(){
+      if(changed)return {kind:'target_not_current'};
+      const readFence=input.unitOfWork.captureReadFence();
+      if(race)db.prepare('UPDATE libra_subjects SET intake_revision=intake_revision+1 WHERE subject_id=?').run('subject-1');
+      return {kind:'target_current',readFence};
+    }}});
+  try{
+    const command=manualDefectCommand(preview),before=db.prepare('SELECT count(*) n FROM libra_run_revisions').get().n;
+    assert.throws(()=>admin.admitWithDefects(input.libraRunId,command),{code:'LIBRA_COLLECTION_TARGET_NOT_CURRENT'});
+    changed=false;race=true;
+    assert.throws(()=>admin.admitWithDefects(input.libraRunId,command),{code:'P3_UOW_READ_FENCE_CHANGED'});
+    assert.equal(db.prepare('SELECT state FROM libra_runs').get().state,'frozen');
+    assert.equal(db.prepare('SELECT count(*) n FROM libra_run_revisions').get().n,before);
+    race=false;assert.equal(admin.admitWithDefects(input.libraRunId,command).resultKind,'defect_admitted');
+  }finally{db.close();}
+},{contentProfile:'movie',requirements:defectRequirements('movie')}));
 
 test('US size-only preview reads committed same-Run facts and supports explicit manual confirmation',()=>fixture(input=>{
   frozenSizePreview(input);const admin=defectAdmin(input),preview=admin.previewDefects(input.libraRunId);

@@ -785,6 +785,16 @@ test('an old standard Run is blocked by the confirmed Head even before replaceme
   assert.deepEqual(customDispatchGuard(h).check(dispatchScope(old)),{kind:'pending',reasonCode:'target_not_current'});
 }));
 
+test('frozen terminal decisions can check target currency without admitting ordinary execution',()=>runHarness(h=>{
+  const id=h.chosen.intent.basis.libraRunId,
+    reader=require('../../src/helix/domains/libra/application/current-run-target-reader').createCurrentRunTargetReader(h.options);
+  assert.equal(reader.read(id).kind,'run_not_active');
+  assert.equal(reader.read(id,{allowFrozen:true}).kind,'target_not_current');
+  h.db.prepare('DELETE FROM libra_custom_target_heads').run();
+  const current=reader.read(id,{allowFrozen:true});assert.equal(current.kind,'target_current');assert.ok(current.readFence);
+  assert.equal(reader.read(id).kind,'run_not_active');
+}));
+
 test('target currency reader rejects corrupted Run and Spec identity rather than authorizing dispatch',()=>runHarness(h=>{
   const {createCurrentRunTargetReader}=require('../../src/helix/domains/libra/application/current-run-target-reader');
   const replacement=h.advance(h.unitOfWork.captureReadFence()),reader=createCurrentRunTargetReader(h.options),
@@ -880,3 +890,93 @@ test('real Arca withdrawal and Owner projections compose into the custom dispatc
   assert.equal(h.db.prepare("SELECT count(*) n FROM fx_supporting_works WHERE work_id='owner-stale-work'").get().n,0);
   assert.equal(h.db.prepare("SELECT count(*) n FROM fx_command_receipts WHERE target_id='owner-stale-work'").get().n,0);
 }));
+
+test('runtime Owner composition keeps blocked transcode replanning behind the actual drain and transaction fence',()=>runHarness(h=>{
+  const old=h.chosen.intent.basis.libraRunId;seedDrainingRun(h,old);
+  const replacement=h.advance(h.unitOfWork.captureReadFence()),source=h.data.inputSet,
+    subject={...source.subjectSnapshot,currentIdentityRevision:1,currentIdentityDigest:h.chosen.intent.basis.identityDigest};
+  subject.snapshotDigest=canonicalDigest(Object.fromEntries(Object.entries(subject).filter(([key])=>key!=='snapshotDigest')));
+  const inputSet=buildDecisionInputSet({...source,subjectSnapshot:subject}),
+    {createWorkResultReader}=require('../../src/helix/foundation/execution/work-result-reader'),
+    {createMaterialControlProjectionPort}=require('../../src/helix/foundation/persistence/material-control'),
+    {createArcaOfferResponsibilityProjection}=require('../../src/helix/domains/arca/public'),
+    {createLibraCustomTargetRuntimeSupport}=require('../../src/helix/domains/libra/public'),
+    {resumeBlockedTranscodeAssessments}=require('../../src/helix/composition/libra-transcode-replan'),
+    workResultReader=createWorkResultReader(h.options),materialControlProjectionPort=createMaterialControlProjectionPort(h.options),
+    arca=createArcaOfferResponsibilityProjection(h.options),formation=require('../../src/helix/domains/arca/application/formation-status-projection')
+      .createFormationStatusProjection(h.options),lifecycle=createWorkLifecycle({...h.options,nextWorkAttemptId:id=>id+':attempt:1'}),
+    runtime=createLibraCustomTargetRuntimeSupport({...h.options,workResultReader,materialControlProjectionPort,
+      acceptanceSpecContextReader:{read:()=>({kind:'ready',inputSet})},readArcaOfferResponsibility:offer=>arca.read(offer),
+      readArcaFormationStatus:ids=>formation.read(ids),cancelProcessWorks:scope=>lifecycle.cancelProcess(scope)}),
+    basis=h.db.prepare('SELECT execution_basis_digest FROM libra_runs WHERE libra_run_id=?').get(replacement.libraRunId).execution_basis_digest,
+    work={schemaRef:'helix://foundation/types/SupportingWorkDefinition/v1',schemaVersion:1,
+      workId:'libra-workspace-media-transcode_0_assessment-work-fixture',ownerDomain:'libra',processType:'libra_run',processId:replacement.libraRunId,
+      workKind:'workspace_media_production',workObjectiveTypeRef:'helix://libra/work/WorkspaceMediaProduction/v1',workObjectiveVersion:1,
+      executionBasisId:'runtime-replan-basis',executionBasisDigest:basis,dependencyRefs:[],priorityClass:'normal_foreground',priorityRevision:1,
+      capabilityCatalogScope:'libra',workspaceMaterialScope:[],idempotencyKey:'runtime-replan',concurrencyScope:replacement.libraRunId+'/transcode',
+      outputContractRef:'helix://libra/results/WorkspaceMediaProduction/v1'},
+    admission=require('../../src/helix/foundation/execution/work-admission').createWorkAdmission({...h.options,
+      eligibilityProvider:{check:value=>({eligible:true,basisDigest:value.executionBasisDigest})},
+      limits:{globalOpenWorks:100,ownerOpenWorks:100,openEvents:100}});
+  admission.submit(work);const {attempt}=lifecycle.ensurePlanningAttempt(work.workId);
+  h.db.prepare('INSERT INTO fx_workflow_plans(plan_id,attempt_id,planner_ref,planner_version,catalog_digest,basis_digest,graph_digest,state,created_at_ms) VALUES(?,?,?,?,?,?,?,?,?)')
+    .run('runtime-blocked-plan',attempt.attempt_id,'planner@1',1,D('catalog'),basis,D('graph'),'temporarily_unplannable',10);
+  lifecycle.startPlanned(work.workId,attempt.attempt_id,'media_device_strategies_unavailable');
+  let wakes=0;const args={libraRunId:replacement.libraRunId,hasReadyEncodeDevice:()=>true,workResultReader,guard:runtime.guard,
+    workLifecycle:lifecycle,wake:()=>{wakes++;}};
+  assert.equal(resumeBlockedTranscodeAssessments(args),false);
+  assert.equal(h.db.prepare('SELECT state FROM fx_supporting_works WHERE work_id=?').get(work.workId).state,'blocked');
+  h.db.prepare("UPDATE fx_workflow_events SET state='succeeded' WHERE event_id='draining-event'").run();
+  h.db.prepare("UPDATE fx_event_attempts SET state='completed',outcome_kind='succeeded' WHERE event_attempt_id='draining-event-attempt'").run();
+  h.db.prepare("UPDATE fx_effect_journal SET state='committed' WHERE effect_id='draining-effect'").run();
+  const racing={check(scope){const decision=runtime.guard.check(scope);h.db.exec('UPDATE libra_subjects SET intake_revision=intake_revision+1');return decision;}};
+  assert.equal(resumeBlockedTranscodeAssessments({...args,guard:racing}),false);
+  assert.equal(h.db.prepare('SELECT state FROM fx_supporting_works WHERE work_id=?').get(work.workId).state,'blocked');
+  assert.equal(h.db.prepare('SELECT state FROM fx_work_attempts WHERE attempt_id=?').get(attempt.attempt_id).state,'blocked');
+  assert.equal(resumeBlockedTranscodeAssessments(args),true);assert.equal(wakes,1);
+  assert.equal(h.db.prepare('SELECT state FROM fx_supporting_works WHERE work_id=?').get(work.workId).state,'ready');
+  assert.equal(h.db.prepare('SELECT state FROM fx_work_attempts WHERE attempt_id=?').get(attempt.attempt_id).state,'cancelled');
+}));
+
+test('the existing ready-Subject reconciler resumes one confirmed replacement and never falls through while its baseline is unavailable',()=>runHarness(h=>{
+  const {reconcileReadyLibraSubject}=require('../../src/helix/composition/libra-ready-run-reconcile'),
+    {createCustomTargetContinuation}=require('../../src/helix/domains/libra/application/custom-target-continuation'),
+    continuation=createCustomTargetContinuation({...h.options,customTargetStore:h.targets,customSpecPublicationStore:h.publisher,libraRunCreator:h.creator}),
+    contextReader=createLibraRunContextReader(h.options),seen=[],args={subjectId:'subject',contextReader,customTargetStore:h.targets,continuation,
+      libraRunCreator:h.creator,reconcileRun:id=>{seen.push(id);return {kind:'reconciled',libraRunId:id};}};
+  h.setBaseline({kind:'unavailable'});
+  const waiting=reconcileReadyLibraSubject(args);
+  assert.deepEqual(waiting,{kind:'pending',reasonCode:'custom_target_baseline_unavailable'});
+  assert.equal(h.db.prepare('SELECT count(*) n FROM libra_runs').get().n,1);assert.deepEqual(seen,[]);
+  h.setBaseline({kind:'ready'});const first=reconcileReadyLibraSubject(args);
+  assert.equal(first.kind,'reconciled');assert.notEqual(first.libraRunId,h.chosen.intent.basis.libraRunId);
+  assert.equal(h.db.prepare('SELECT count(*) n FROM libra_runs').get().n,2);
+  const repeated=reconcileReadyLibraSubject(args);assert.deepEqual(repeated,first);
+  assert.equal(h.db.prepare('SELECT count(*) n FROM libra_runs').get().n,2);assert.deepEqual(seen,[first.libraRunId,first.libraRunId]);
+}));
+
+test('the existing frozen-Run reconciliation resumes a persisted target without a pipeline token',()=>runHarness(h=>{
+  const {reconcileConfirmedTargetForRun}=require('../../src/helix/composition/libra-ready-run-reconcile'),
+    {createCustomTargetContinuation}=require('../../src/helix/domains/libra/application/custom-target-continuation'),
+    targetReader=require('../../src/helix/domains/libra/application/current-run-target-reader').createCurrentRunTargetReader(h.options),
+    continuation=createCustomTargetContinuation({...h.options,customTargetStore:h.targets,customSpecPublicationStore:h.publisher,libraRunCreator:h.creator}),
+    args={libraRunId:h.chosen.intent.basis.libraRunId,targetReader,customTargetStore:h.targets,continuation};
+  h.setBaseline({kind:'unavailable'});
+  assert.deepEqual(reconcileConfirmedTargetForRun(args),{kind:'pending',reasonCode:'custom_target_baseline_unavailable'});
+  assert.equal(h.db.prepare('SELECT state FROM libra_runs').get().state,'frozen');
+  h.setBaseline({kind:'ready'});const result=reconcileConfirmedTargetForRun(args);
+  assert.equal(result.kind,'admitted');assert.notEqual(result.libraRunId,args.libraRunId);
+  assert.equal(h.db.prepare('SELECT count(*) n FROM libra_runs').get().n,2);
+  assert.equal(reconcileConfirmedTargetForRun({...args,libraRunId:result.libraRunId}),null);
+  assert.equal(reconcileConfirmedTargetForRun(args),null);
+}));
+
+test('the existing Run reconciler pages active and suspended Runs in one stable order',()=>{
+  const {runnableLibraRunPage}=require('../../src/helix/composition/libra-ready-run-reconcile'),
+    rows={active:['a','d','f'],suspended:['b','c','e']},reader={listActiveRunPage(cursor,limit,state){
+      return {items:rows[state].filter(id=>cursor===null||id>cursor).slice(0,limit).map(libraRunId=>({libraRunId}))};}};
+  const first=runnableLibraRunPage(reader,null,2),second=runnableLibraRunPage(reader,first.at(-1).cursor,2),
+    third=runnableLibraRunPage(reader,second.at(-1).cursor,2);
+  assert.deepEqual([...first,...second,...third].map(item=>item.scope.libraRunId),['a','b','c','d','e','f']);
+  assert.deepEqual(runnableLibraRunPage(reader,third.at(-1).cursor,2),[]);
+});

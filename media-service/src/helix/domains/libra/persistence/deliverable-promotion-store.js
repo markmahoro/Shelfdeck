@@ -364,6 +364,11 @@ function assertLibraSnapshot(repo, decision) {
   if(!readTargetCommitFence(repo,{subjectId:run.subject_id,productScopeDigest:spec.product_scope_digest,specJson:spec.spec_json,
       executionBasisRecordJson:run.execution_basis_record_json}))
     fail('P9_PROMOTION_TARGET_SUPERSEDED','A confirmed custom target revoked this Run final publication eligibility.');
+  // The current Handoff B package schema cannot carry the original/custom
+  // Spec and Intent references needed for Arca's independent acceptance.
+  // Keep this variant fail-closed until that complete contract is connected.
+  if(parse(spec.spec_json,'P9_PROMOTION_SPEC_CORRUPT').targetKind==='user_custom')
+    fail('P9_PROMOTION_CUSTOM_ACCEPTANCE_UNAVAILABLE','Custom target Handoff B acceptance is not yet available.');
   const runManifest = repo.invoke('find_run_manifest', {
     run_material_manifest_id: decision.runMaterialManifestRef.manifestId,
   });

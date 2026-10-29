@@ -635,6 +635,12 @@ function createLibraRunCoordinator(options){
       coversRequirementGaps(snapshot.run.authorizedDefectManifest,
         evidence.unmetRequirementCodes || evidence.reasonCodes || [],evidence)))return freezeBusinessTerminal(snapshot,conformance,conformanceRecord,
       evidence.unmetRequirementCodes?.[0] || evidence.reasonCodes?.[0] || 'product_conformance_failed');
+    // The Handoff B schema and Arca acceptance path do not yet carry and
+    // validate the required original/custom references. Preserve verified
+    // production while waiting rather than scheduling an unsafe Offer.
+    if(snapshot.spec.targetKind==='user_custom')return Object.freeze({kind:'pending',phase:'custom_target_handoff',
+      reasonCode:'ARCA_CUSTOM_ACCEPTANCE_UNAVAILABLE',libraRunId:snapshot.run.libraRunId,verificationId:evidence.verificationId,
+      workspaceId:workspace.workspaceId});
     const promotion=deliverablePromotionWork(snapshot,selectedMediaWork,conformance,evidence),
       promotionSubmitted=submit(promotion),promotionStatus=options.workResultReader.status(promotion.workId);
     if(!workSucceeded(promotionStatus)){

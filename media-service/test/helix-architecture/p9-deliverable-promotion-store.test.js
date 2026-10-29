@@ -982,6 +982,26 @@ test('a confirmed custom target blocks old Run promotion before Package, Control
   }finally{db.close();}
 }));
 
+test('a current custom target cannot publish a lower requirement snapshot before the formal Arca acceptance handoff exists',()=>withDatabase(value=>{
+  const intent=seedCommittedCustomTarget(value),db=new Database(value.databasePath);
+  try{
+    const run=db.prepare('SELECT * FROM libra_runs').get(),row=db.prepare('SELECT * FROM libra_acceptance_specs').get(),
+      spec=JSON.parse(row.spec_json),basis=JSON.parse(run.execution_basis_record_json);
+    spec.targetKind='user_custom';spec.customTargetRef={schemaRef:'libra.custom-target-reference@1',intentId:intent.intentId,
+      intentDigest:intent.intentDigest,targetRevision:intent.revision,previewDigest:intent.previewDigest,targetRequirementsDigest:intent.target.targetRequirementsDigest};
+    basis.collectionTargetRef={schemaRef:'libra.collection-target-reference@1',targetKind:'user_custom',
+      intentId:intent.intentId,intentDigest:intent.intentDigest,targetRevision:intent.revision};
+    db.prepare('UPDATE libra_acceptance_specs SET spec_json=? WHERE acceptance_spec_id=?').run(canonicalJson(spec),row.acceptance_spec_id);
+    db.prepare('UPDATE libra_runs SET execution_basis_record_json=? WHERE libra_run_id=?').run(canonicalJson(basis),run.libra_run_id);
+    const before=db.prepare('SELECT * FROM fx_material_controls').all(),tables=['libra_product_packages','fx_outbox','fx_commit_markers'],
+      snapshots=tables.map(table=>db.prepare('SELECT * FROM '+table+' ORDER BY rowid').all());
+    assert.throws(()=>createDeliverablePromotionStore({schemaManifest,unitOfWork:value.unitOfWork}).publish(request(value)),
+      {code:'P9_PROMOTION_CUSTOM_ACCEPTANCE_UNAVAILABLE'});
+    assert.deepEqual(db.prepare('SELECT * FROM fx_material_controls').all(),before);
+    for(let index=0;index<tables.length;index++)assert.deepEqual(db.prepare('SELECT * FROM '+tables[index]+' ORDER BY rowid').all(),snapshots[index]);
+  }finally{db.close();}
+}));
+
 test('confirmed target invalidates an unaccepted Offer while preserving immutable Package history and receipt replay',()=>withDatabase(value=>{
   const store=createDeliverablePromotionStore({schemaManifest,unitOfWork:value.unitOfWork}),first=store.publish(request(value)),
     reader=createProductDeliveryReader({schemaManifest,unitOfWork:value.unitOfWork}),query=readRequest(value),

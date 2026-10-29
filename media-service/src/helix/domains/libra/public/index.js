@@ -344,6 +344,8 @@ Object.defineProperties(createExecutionRegistration, {
 });
 
 module.exports = Object.freeze({
+  createLibraCustomTargetRuntimeSupport: require('../application/custom-target-runtime-support').createLibraCustomTargetRuntimeSupport,
+  createLibraCustomTargetConfirmationReader: require('../persistence/custom-target-confirmation-reader').createLibraCustomTargetConfirmationReader,
   createLibraHandoffResponsibilityReader: require('../application/handoff-responsibility-reader').createLibraHandoffResponsibilityReader,
   createLibraCustomTargetDispatchGuard: require('../application/custom-target-dispatch-guard').createLibraCustomTargetDispatchGuard,
   createLibraRunInputControlReader: require('../application/run-input-control-reader').createLibraRunInputControlReader,

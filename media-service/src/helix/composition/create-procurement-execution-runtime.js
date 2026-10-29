@@ -1,5 +1,7 @@
 'use strict';
 const {createLibraResourcePriorityBridge}=require('./libra-resource-priority-bridge');
+const {resumeBlockedTranscodeAssessments}=require('./libra-transcode-replan');
+const {reconcileReadyLibraSubject,reconcileConfirmedTargetForRun,runnableLibraRunPage}=require('./libra-ready-run-reconcile');
 
 const fs = require('node:fs');
 const os = require('node:os');
@@ -61,12 +63,12 @@ function mergeResourceDemands(resources) {
   return [...merged.values()];
 }
 const { ProcurementExecutionRegistration } = require('../domains/procurement/public');
-const { LibraExecutionRegistration } = require('../domains/libra/public');
+const { LibraExecutionRegistration, createLibraCustomTargetRuntimeSupport } = require('../domains/libra/public');
 const DEFAULT_PREDECK_PIPELINE_SEATS = LibraExecutionRegistration.DEFAULT_PREDECK_PIPELINE_SEATS;
 const createMovieResponsibilityClosureCoordinator =
   LibraExecutionRegistration.createMovieResponsibilityClosureCoordinator;
 const { PerceptionExecutionRegistration } = require('../domains/perception/public');
-const { ArcaExecutionRegistration } = require('../domains/arca/public');
+const { ArcaExecutionRegistration, createArcaOfferResponsibilityProjection } = require('../domains/arca/public');
 const createOffloadCompletionPort = ArcaExecutionRegistration.createOffloadCompletionPort;
 const { createPeopleImageExecutionRegistration } = require('../domains/people/public');
 
@@ -474,7 +476,16 @@ function createProcurementExecutionRuntime(options) {
   const workLifecycle = createWorkLifecycle({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
     nextWorkAttemptId: (workId, ordinal) => workId + ':attempt:' + ordinal,
     onProcessCancelled: (scope) => executorIncidentObserver.reconcileRecoveryReservations(scope) });
+  const arcaOfferResponsibility=createArcaOfferResponsibilityProjection(options),
+    customTargetRuntime=createLibraCustomTargetRuntimeSupport({...options,now,workResultReader,materialControlProjectionPort,
+      acceptanceSpecContextReader:{read:(...args)=>libraProcessServices.acceptanceSpecContextReader.read(...args)},
+      readArcaOfferResponsibility:offer=>arcaOfferResponsibility.read(offer),
+      readArcaFormationStatus:offerIds=>arcaProcessServices.formationStatusProjection.read(offerIds),
+      cancelProcessWorks:scope=>workLifecycle.cancelProcess(scope)});
   libraProcessServices=libraConstruction.createProcessServices({...libraOptions,peopleReferenceQuery,now,workResultReader,contractValidator,onLibraPriorityChanged:resourcePriorityBridge.refresh,
+    customTargetStore:customTargetRuntime.customTargetStore,runExecutionGuard:customTargetRuntime.guard,
+    currentRunTargetReader:customTargetRuntime.currentRunTargetReader,readHandoffResponsibility:customTargetRuntime.readHandoffResponsibility,
+    readCurrentCustomTargetBaseline:customTargetRuntime.readCurrentCustomTargetBaseline,
     onTaskCancellationChanged:subjectId=>options.onFormationSubjectChanged?.(subjectId),
     onWorkshopTransferred:(subjectId)=>{
       fillPredeckIntakeSeats();options.onFormationSubjectChanged?.(subjectId);host?.wake();
@@ -495,6 +506,7 @@ function createProcurementExecutionRuntime(options) {
     movieProductionReader:libraCapabilityRegistration.movieProductionReader,
     offerReader:libraCapabilityRegistration.offerReader,readArcaShelfStandard:libraOptions.readArcaShelfStandard,
     resolvePerceptionRating:(subjectId)=>perceptionProcessServices?.resolveDecisionFact({targetType:'subject',targetId:subjectId})||Object.freeze({kind:'pending'})});
+  const customTargetContinuation=customTargetRuntime.createContinuation(libraProcessServices.libraRunCreator);
   const libraPlanningRegistration=libraConstruction.createPlanningRegistration({registry,policyRegistry,contractValidator,
     readJavUnknownActorProjection:()=>peopleReferenceQuery.getPersonReferenceProjection({personId:JAV_UNKNOWN_ACTOR_ID}),
     workResultReader,offerReader:libraProcessServices.offerReader,decisionResolver:libraProcessServices.decisionResolver,
@@ -550,6 +562,7 @@ function createProcurementExecutionRuntime(options) {
   const dispatcher = createExecutorDispatcher({ registry, contractValidator });
   const eventRuntime = createEventRuntime({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,contractValidator,
     scheduler, governor, registry, dispatcher, effectJournal, effectReconciler, attemptPolicy, timeoutController, circuitBreaker: breaker,
+    dispatchGuard:customTargetRuntime.guard,
     incidentObserver:executorIncidentObserver, failureEvidenceStore:options.failureEvidenceStore,
     onDiagnosticError:options.onError,
     onProgress: (sample) => { if(sample.ownerDomain==='libra'&&sample.processType==='libra_run')options.onFormationRunChanged?.(sample.processId); },
@@ -913,23 +926,16 @@ function createProcurementExecutionRuntime(options) {
       return false;
     }
   }
-  function resumeBlockedTranscodeAssessments(libraRunId) {
-    if (!hasReadyEncodeDevice()) return false;
-    const works = workResultReader.listWorks({
-      ownerDomain: 'libra', processType: 'libra_run', processId: libraRunId, workKind: 'workspace_media_production',
-    });
-    let resumed = false;
-    for (const work of works) {
-      if (work.state !== 'blocked') continue;
-      if (!/^libra-workspace-media-transcode_\d+_assessment-work-/.test(work.work_id)) continue;
-      workLifecycle.settleWork({ workId: work.work_id, disposition: 'replan' });
-      resumed = true;
-    }
-    if (resumed) host?.wake();
-    return resumed;
-  }
   function reconcileLibraRun(libraRunId) {
-    resumeBlockedTranscodeAssessments(libraRunId);
+    const continuation=reconcileConfirmedTargetForRun({libraRunId,targetReader:customTargetRuntime.currentRunTargetReader,
+      customTargetStore:customTargetRuntime.customTargetStore,continuation:customTargetContinuation});
+    if(continuation){
+      if(continuation.kind==='admitted'&&continuation.libraRunId&&continuation.libraRunId!==libraRunId)
+        return reconcileLibraRun(continuation.libraRunId);
+      return continuation;
+    }
+    resumeBlockedTranscodeAssessments({libraRunId,hasReadyEncodeDevice,workResultReader,guard:customTargetRuntime.guard,
+      workLifecycle,wake:()=>host?.wake()});
     const result = libraProcessServices.libraRunCoordinator.reconcile(libraRunId);
     if (result?.kind === 'replacement_required') {
       const replacement = libraProcessServices.libraRunCreator.replace(
@@ -1300,12 +1306,12 @@ function createProcurementExecutionRuntime(options) {
     }),Object.freeze({
       ownerDomain:'libra',reconcilerKey:'ready-libra-runs',
       listPage:({cursor,limit})=>pipelineSubjectPage(cursor,limit),
-      reconcile:({subjectId})=>{const run=libraProcessServices.libraRunCreator.reconcile(subjectId);
-        return run.libraRunId?reconcileLibraRun(run.libraRunId):run;},
+      reconcile:({subjectId})=>reconcileReadyLibraSubject({subjectId,contextReader:libraProcessServices.libraRunContextReader,
+        customTargetStore:customTargetRuntime.customTargetStore,continuation:customTargetContinuation,
+        libraRunCreator:libraProcessServices.libraRunCreator,reconcileRun:reconcileLibraRun}),
     }),Object.freeze({
       ownerDomain:'libra',reconcilerKey:'active-libra-runs',
-      listPage:({cursor,limit})=>libraProcessServices.libraRunContextReader.listActiveRunPage(cursor,limit).items
-        .map((item)=>Object.freeze({cursor:item.libraRunId,scope:item})),
+      listPage:({cursor,limit})=>runnableLibraRunPage(libraProcessServices.libraRunContextReader,cursor,limit),
       reconcile:({libraRunId})=>reconcileLibraRun(libraRunId),
     }),Object.freeze({
       ownerDomain:'arca',reconcilerKey:'due-aftercare-shelf-entries',
@@ -1404,6 +1410,7 @@ function createProcurementExecutionRuntime(options) {
     })]});
   host = createExecutionRuntimeHost({ startupRecovery, scheduler, plannerRegistry, planPublisher, workLifecycle,
     eventRuntime, domainReconciler, fallbackReconciler, incidentObserver:executorIncidentObserver,
+    workDispatchGuard:customTargetRuntime.guard,
     onExecutionScopeStarted:options.onExecutionScopeStarted,
     onError: options.onError,maxInFlightEvents:16,shutdownTimeoutMs:options.shutdownTimeoutMs });
   return Object.freeze({ host, registry, policyRegistry, contractValidator, bindingProjectionRegistry, terminalEffectObserver,

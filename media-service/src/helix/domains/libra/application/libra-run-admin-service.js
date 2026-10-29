@@ -104,6 +104,30 @@ function createLibraRunAdminService(options) {
     return false;
   }
 
+  function terminalResponsibility(libraRunId) {
+    const reader=options.currentRunTargetReader,readHandoff=options.readHandoffResponsibility;
+    if(!reader&&!readHandoff)return null;
+    if(typeof reader?.read!=='function'||typeof readHandoff!=='function')
+      throw new TypeError('Run terminal closure requires both target and Handoff responsibility projections.');
+    try{
+      const readFence=options.unitOfWork.captureReadFence(),target=reader.read(libraRunId,{readFence,allowFrozen:true});
+      if(target.kind!=='target_current')return {resultKind:'closure_pending',libraRunId,reasonCode:'target_not_current'};
+      const request={subjectId:target.subjectId,libraRunId,productScopeDigest:target.productScopeDigest},
+        responsibility=readHandoff(Object.freeze(request),{readFence});
+      if(!responsibility||responsibility.kind==='unavailable')
+        return {resultKind:'closure_pending',libraRunId,reasonCode:'handoff_responsibility_pending'};
+      if(responsibility.kind!=='ready'||responsibility.subjectId!==request.subjectId||responsibility.libraRunId!==libraRunId||
+          responsibility.productScopeDigest!==request.productScopeDigest||!['no_offer','not_accepted','accepted'].includes(responsibility.handoffState))
+        throw new Error('Run Handoff responsibility projection does not match its exact scope.');
+      if(responsibility.handoffState==='accepted')
+        return {resultKind:'invalid_state',libraRunId,reasonCode:'handoff_b_already_accepted'};
+      return {readFence};
+    }catch(error){
+      if(error?.code==='P3_UOW_READ_FENCE_CHANGED')return {resultKind:'closure_pending',libraRunId,reasonCode:'owner_view_changed'};
+      throw error;
+    }
+  }
+
   function validateExclusion(subjectId,libraRunId,body){
     if(!body?.excludeSourceFiles)return;
     if(!options.validateCancellationExclusions||!options.applyCancellationExclusions)
@@ -584,7 +608,7 @@ function createLibraRunAdminService(options) {
       }
       const readFence=options.unitOfWork.captureReadFence();
       if(acceptedByArca(libraRunId))return {resultKind:'invalid_state',libraRunId,reasonCode:'handoff_b_already_accepted'};
-      const inspected = discardStore.inspect(command);
+      let inspected = discardStore.inspect(command);
       if(inspected.kind==='ready') {
         if(terminalReason==='user_cancelled'&&!acceptedCancellation) {
           validateExclusion(subjectId,libraRunId,body);
@@ -597,8 +621,22 @@ function createLibraRunAdminService(options) {
       }
       let result;
       try {
+        let commitFence=null;
+        if(inspected.kind==='ready'){
+          const gate=terminalResponsibility(libraRunId);
+          if(gate?.resultKind){
+            if(acceptedCancellation&&gate.reasonCode==='handoff_b_already_accepted'){
+              cancellations.handoffAccepted(subjectId);options.onTaskCancellationChanged?.(subjectId);
+            }
+            return gate;
+          }
+          commitFence=gate?.readFence||null;
+          // Work cancellation may itself write. Reinspect only after acquiring
+          // the final target/Handoff fence that protects the Control release.
+          if(commitFence)inspected=discardStore.inspect(command);
+        }
         result = inspected.kind === 'ready'
-          ? discardStore.commit(inspected,terminalReason,productEvidence) : inspected;
+          ? discardStore.commit(inspected,terminalReason,productEvidence,{readFence:commitFence}) : inspected;
       } catch (error) {
         if(acceptedCancellation&&error.code==='P9_DISCARD_HANDOFF_ACCEPTED'){
           cancellations.handoffAccepted(subjectId);options.onTaskCancellationChanged?.(subjectId);
@@ -606,6 +644,8 @@ function createLibraRunAdminService(options) {
         }
         if (['P9_DISCARD_EXECUTION_PENDING','P9_DISCARD_EFFECT_PENDING'].includes(error.code))
           return Object.freeze({resultKind:'closure_pending',libraRunId,reasonCode:error.code});
+        if(error.code==='P3_UOW_READ_FENCE_CHANGED')
+          return Object.freeze({resultKind:'closure_pending',libraRunId,reasonCode:'owner_view_changed'});
         throw error;
       }
       if (result.resultKind === 'discarded') {
@@ -685,6 +725,9 @@ function createLibraRunAdminService(options) {
           snapshot.run.state_digest !== body.expectedRunStateDigest) {
         fail('LIBRA_DEFECT_ADMISSION_STALE', 'Libra Run changed before defect admission.');
       }
+      const target=options.currentRunTargetReader?.read(libraRunId,{allowFrozen:true});
+      if(target&&target.kind!=='target_current')
+        fail('LIBRA_COLLECTION_TARGET_NOT_CURRENT','The Run target changed before defect admission.');
       const candidate = defectCandidate(libraRunId, snapshot);
       if (candidate.candidateDigest !== body.expectedDefectCandidateDigest) {
         fail('LIBRA_DEFECT_ADMISSION_CANDIDATE_STALE',
@@ -701,7 +744,7 @@ function createLibraRunAdminService(options) {
         transitionKind:'defect_admit', transitionEvidence:manifest,
         expectedAdmissionHeadRevision:Number(snapshot.head.head_revision),
         expectedActiveScopeSetDigest:snapshot.head.active_scope_set_digest });
-      const committed = lifecycle.transition({ decision,
+      const committed = lifecycle.transition({ decision,...(target?{readFence:target.readFence}:{}),
         commitMarker:canonicalDigest({ schema:'libra.defect-admission-marker@1',
           defectDecisionId:manifest.defectDecisionId, decisionDigest:decision.decisionDigest }),
         resultId:canonicalDigest({ schema:'libra.defect-admission-result-id@1',
