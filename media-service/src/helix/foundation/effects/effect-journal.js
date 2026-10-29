@@ -331,7 +331,7 @@ function createEffectJournal(options) {
     let state = effect.state;
     if (result.decision === 'already_committed' || result.decision === 'safe_retry') state = 'reconcile_required';
     else if (result.decision === 'terminal_failure') state = 'failed';
-    else if (result.decision === 'continue_forward' || result.decision === 'compensate') state = 'reconcile_required';
+    else if (result.decision === 'continue_forward' || result.decision === 'compensate' || result.decision === 'observe_again') state = 'reconcile_required';
     else fail('P4_EFFECT_RECOVERY_DECISION_INVALID', 'Reconciler returned an unsupported recovery decision.');
     let current = effect;
     if (current.state !== state) current = transition(current, state, {

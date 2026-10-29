@@ -181,6 +181,20 @@ test('an abandoned failed Effect keeps its idempotency key and is not a fresh in
   assert.equal(reused.event_attempt_id, 'event-attempt');
 }));
 
+test('unobservable file recovery retains its exact intent without a successful commit marker', async () => fixture(async ({ journal, databasePath }) => {
+  const original=journal.intend({eventAttemptId:'event-attempt',effectClass:'material_commit',idempotencyKey:'request-key',intentDigest:INTENT});
+  const observed=await journal.reconcile(original.effect_id,{reconcile:async()=>({
+    decision:'observe_again',action:'reobserve_effect',evidenceDigest:REALITY,
+  })});
+  assert.equal(observed.effect.state,'reconcile_required');
+  assert.equal(observed.effect.intent_digest,INTENT);
+  assert.equal(observed.effect.event_attempt_id,'event-attempt');
+  assert.equal(observed.recovery.decision,'observe_again');
+  const database=new Database(databasePath,{readonly:true});
+  try{assert.equal(database.prepare('SELECT COUNT(*) count FROM fx_commit_markers').get().count,0);}
+  finally{database.close();}
+}));
+
 test('safe retry keeps one durable intent for reuse by a later Event Attempt', async () => fixture(async ({ journal }) => {
   journal.intend({ eventAttemptId: 'event-attempt', effectClass: 'external_request', idempotencyKey: 'request-key', intentDigest: INTENT });
   const result = await journal.reconcile(effectIdentity('external_request', 'request-key'), { reconcile: async () => ({

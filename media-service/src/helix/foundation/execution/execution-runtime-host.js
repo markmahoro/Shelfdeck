@@ -25,6 +25,7 @@ function withRecoveryContext(error, eventId, effectId) {
 function deferRecoveryUntilReady(action) {
   if (!action || typeof action.decision !== 'string') return false;
   if (action.decision === 'safe_retry_before_intent') return true;
+  if (action.decision === 'observe_again') return true;
   if (action.decision === 'continue_forward' && action.action === 'reuse_existing') return true;
   if (action.decision === 'safe_retry' &&
       (action.action === 'rebuild_workspace_output' || action.action === 'cleanup_then_rebuild')) {
@@ -345,9 +346,11 @@ function createExecutionRuntimeHost(options) {
         });
       }
       const recovered = await options.eventRuntime.recover(pending.action);
-      if (!recovered || recovered.kind === 'recovery_deferred') return Object.freeze({
-        kind:'recovery_deferred', eventId:pending.action.eventId,
-      });
+      if (!recovered || recovered.kind === 'recovery_deferred') {
+        const eventId=pending.action.eventId;
+        if(pending.effectId)pending.action=null;
+        return Object.freeze({kind:'recovery_deferred',eventId});
+      }
       deferredRecoveries.delete(pending.action.eventId);
       const aggregation = options.workLifecycle.aggregateEvent(pending.action.eventId);
       await reconcileTerminal(aggregation);
