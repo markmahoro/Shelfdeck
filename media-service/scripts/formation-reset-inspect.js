@@ -15,6 +15,7 @@ const { deriveWorkspaceStorage } = require('./formation-reset-workspace-protecti
 const { databaseFiles } = require('../src/clean-reset-bootstrap');
 const { fileDigest } = require('./formation-reset-generation');
 const { verifyRetainedPeopleReferences } = require('./formation-reset-people-references');
+const { verifyRetainedCatalogueRegistrations } = require('./formation-reset-people-catalogue');
 
 function fail(code) { throw Object.assign(new Error(code), { code }); }
 function realDirectory(directory) {
@@ -94,6 +95,7 @@ function inspectFreshReset({ Database, spec, privateRoot }) {
     try {
       peopleSource.pragma('query_only=ON'); peopleSource.exec('BEGIN');
       verifyRetainedPeopleReferences(peopleSource, peopleSource);
+      verifyRetainedCatalogueRegistrations(peopleSource, peopleSource);
     } finally { if (peopleSource.inTransaction) peopleSource.exec('ROLLBACK'); peopleSource.close(); }
     const owner = readResetOwnerSnapshot({ Database, sourcePath });
     const policy = buildOwnerRetentionPolicy(schemaManifest, owner);

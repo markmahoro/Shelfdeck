@@ -51,6 +51,12 @@ function buildOwnerRetentionPolicy(manifest, { seriesRetention, metadataRetentio
   children('libra_product_packages', 'on_deck_package_id', ['libra_delivery_receipts', 'libra_product_package_artifact_refs',
     'libra_product_package_fact_refs', 'libra_product_package_materials', 'libra_product_package_material_episode_claims',
     'libra_offload_context_materials']);
+  // Only a retained Cast fact may keep its exact directory decision. A Run
+  // alone must not retain unrelated auto-decisions from discarded attempts.
+  edge('libra_product_fact_revisions','libra_us_adult_catalogue_actor_decisions',
+    [['source_basis_id','decision_id']]);
+  edge('libra_us_adult_catalogue_actor_decisions','fx_event_result_bindings',
+    [['observation_result_id','result_id']],undefined,true);
   children('libra_runs', 'libra_run_id', ['libra_run_revisions', 'libra_run_outcomes', 'libra_product_fact_revisions',
     'libra_product_identity_selection_intents', 'libra_acquisition_candidate_evidence', 'libra_us_adult_analysis_bases',
     'libra_us_adult_match_completions', 'libra_us_adult_catalogue_bases', 'libra_workspaces']);
@@ -81,7 +87,9 @@ function buildOwnerRetentionPolicy(manifest, { seriesRetention, metadataRetentio
   edge('libra_handoff_a_receipts', 'proc_candidate_deliveries', [['offer_id', 'offer_id']]);
 
   children('people_persons', 'person_id', ['people_aliases', 'people_person_revisions', 'people_preference_revisions',
-    'people_provider_identities', 'people_reference_assets', 'people_reference_faces', 'people_reference_revisions', 'people_image_operations']);
+    'people_provider_identities', 'people_reference_assets', 'people_reference_faces', 'people_reference_revisions', 'people_image_operations',
+    'people_us_adult_catalogue_registration_origins']);
+  edge('people_us_adult_catalogue_registration_origins','people_image_operations', [['operation_id','operation_id']],undefined,true);
 
   // Technical execution is retained only for exact business processes and
   // source evidence selected by the Owners above, never by a global time range.

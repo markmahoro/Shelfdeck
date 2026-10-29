@@ -163,6 +163,7 @@ const NULLABLE_COLUMN_OVERRIDES = new Set([
   'libra_intake_decisions.expected_target_status'
 ]);
 const FOREIGN_KEY_OVERRIDES = Object.freeze({
+  'people_us_adult_catalogue_registration_origins.operation_id': ['people_image_operations', 'operation_id'],
   'proc_field_reset_barriers.field_id': ['proc_material_fields', 'field_id'],
   'fx_plan_edges.plan_id': ['fx_workflow_plans', 'plan_id'],
   'fx_plan_nodes.plan_id': ['fx_workflow_plans', 'plan_id'],
@@ -362,6 +363,13 @@ const JSON_LIMIT_OVERRIDES = Object.freeze({
   'people_us_recommendation_publications.snapshot_json':1024*1024,
   'libra_us_adult_reference_pages.page_json':1024*1024,
   'libra_us_adult_catalogue_bases.basis_json':32*1024,
+  'libra_us_adult_catalogue_actor_decisions.decision_json':256*1024,
+  'people_us_adult_catalogue_registration_origins.origin_json':64*1024,
+  'people_us_adult_catalogue_registration_origins.decision_json':256*1024,
+  'people_us_adult_catalogue_registration_origins.catalogue_input_json':256*1024,
+  'people_us_adult_catalogue_registration_origins.name_resolution_json':64*1024,
+  'people_us_adult_catalogue_registration_origins.observation_json':8*1024*1024,
+  'people_us_adult_catalogue_registration_origins.provider_observation_json':512*1024,
   'libra_us_adult_actor_choice_intents.record_json':256*1024,
   'libra_episode_metadata_reviews.record_json':3*1024*1024,
   'libra_episode_metadata_mapping_intents.record_json':1024*1024,
@@ -679,6 +687,7 @@ function resolveForeignKeys(rows) {
       const sameOwner = candidates.filter((candidate) => candidate.owner === row.owner);
       if (sameOwner.length > 0) candidates = sameOwner;
       if (column === 'subject_id') candidates = candidates.filter((candidate) => candidate.tableId === 'libra_subjects');
+      if (column === 'person_id') candidates = candidates.filter((candidate) => candidate.tableId === 'people_persons');
       if (column === 'field_id') candidates = candidates.filter((candidate) => candidate.tableId === 'proc_material_fields');
       if (column === 'libra_run_id') candidates = candidates.filter((candidate) => candidate.tableId === 'libra_runs');
       if (column === 'shelf_entry_id') candidates = candidates.filter((candidate) => candidate.tableId === 'arca_shelf_entries');

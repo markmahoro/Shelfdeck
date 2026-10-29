@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/UsAdultActorSelectionCurrent/v1",
+  "title": "UsAdultActorSelectionCurrent@1",
+  "x-helix-ssotRefs": [
+    "6.4.7.1",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "x-helix-maxCanonicalBytes": 524288,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/domain-types/UsAdultActorSelectionCurrent/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "selectionId": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "libraRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "subjectId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "runExecutionBasisDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "resolvedIdentityDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "selectionOrigin": {
+      "enum": [
+        "user_choice",
+        "automatic_catalogue"
+      ]
+    },
+    "actorChoiceRecord": {
+      "anyOf": [
+        {
+          "$ref": "helix://contracts/domain-types/UsAdultActorChoiceRecord/v1"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "personSnapshot": {
+      "anyOf": [
+        {
+          "$ref": "helix://contracts/domain-types/UsAdultPersonSnapshot/v1"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "catalogueDecision": {
+      "anyOf": [
+        {
+          "$ref": "helix://contracts/domain-types/UsAdultCatalogueActorDecision/v1"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "referenceAssetId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "referenceModelRefDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "selectionDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "selectionId",
+    "libraRunId",
+    "subjectId",
+    "runExecutionBasisDigest",
+    "resolvedIdentityDigest",
+    "selectionOrigin",
+    "actorChoiceRecord",
+    "personSnapshot",
+    "catalogueDecision",
+    "referenceAssetId",
+    "referenceModelRefDigest",
+    "selectionDigest"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "selectionOrigin": {
+            "const": "user_choice"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "actorChoiceRecord": {
+            "$ref": "helix://contracts/domain-types/UsAdultActorChoiceRecord/v1"
+          },
+          "personSnapshot": {
+            "$ref": "helix://contracts/domain-types/UsAdultPersonSnapshot/v1"
+          },
+          "catalogueDecision": {
+            "type": "null"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "actorChoiceRecord": {
+            "type": "null"
+          },
+          "personSnapshot": {
+            "type": "null"
+          },
+          "catalogueDecision": {
+            "$ref": "helix://contracts/domain-types/UsAdultCatalogueActorDecision/v1"
+          }
+        }
+      }
+    }
+  ]
+}

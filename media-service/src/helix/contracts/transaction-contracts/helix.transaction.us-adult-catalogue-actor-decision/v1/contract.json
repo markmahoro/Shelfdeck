@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.us-adult-catalogue-actor-decision/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.us-adult-catalogue-actor-decision",
+    "displayName": "US Adult Catalogue Actor Decision",
+    "ownerScope": "libra",
+    "commitClass": "domain_unit_of_work",
+    "atomicFactSet": "Libra基于同Run完整Observation、资格评估及People公开人物快照冻结唯一目录演员决定；事务内校验当前Run、身份、目录Basis和人工Choice head，精确重放幂等；不创建人物或正式出演；不同决定不得覆盖已有不可变记录",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "libra",
+        "access": "write",
+        "tables": [
+          "libra_us_adult_catalogue_actor_decisions"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "read",
+        "tables": [
+          "fx_supporting_works",
+          "fx_work_attempts",
+          "fx_workflow_plans",
+          "fx_workflow_events",
+          "fx_event_attempts",
+          "fx_event_result_bindings",
+          "fx_artifact_registry"
+        ]
+      }
+    ],
+    "writeTables": [
+      "libra_us_adult_catalogue_actor_decisions"
+    ],
+    "readTables": [
+      "libra_runs",
+      "libra_subjects",
+      "libra_product_fact_revisions",
+      "libra_us_adult_catalogue_bases",
+      "libra_us_adult_actor_choice_heads",
+      "libra_us_adult_catalogue_actor_decisions",
+      "fx_supporting_works",
+      "fx_work_attempts",
+      "fx_workflow_plans",
+      "fx_workflow_events",
+      "fx_event_attempts",
+      "fx_event_result_bindings",
+      "fx_artifact_registry"
+    ],
+    "variants": [],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": false,
+      "outboxRequired": false
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "us-adult-catalogue-actor-decision",
+        "faultInjectionPoints": "Run, identity, current manual Choice and exact Observation/People projection fences; decision insert; before and after COMMIT",
+        "requiredInvariant": "Only the exact immutable directory decision is committed; cancelled Run, changed Choice, replaced Result or stale People fence leaves no decision and no Person/Cast mutation",
+        "source": {
+          "section": "8.9.7",
+          "line": 12701
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 8859,
+      "lineDigest": "d8cf4e4bdc4a497f5a017e3cbd394335181720b29d18ebe17da492135d34f8a4"
+    }
+  }
+}

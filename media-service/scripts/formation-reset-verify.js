@@ -10,6 +10,7 @@ const { describeFreshResetSeriesRetention } = require('../src/helix/domains/arca
 const { readResetOwnerSnapshotDatabase } = require('./formation-reset-owner-snapshot');
 const { verifyRetainedControls } = require('./formation-reset-responsibilities');
 const { verifyRetainedPeopleReferences } = require('./formation-reset-people-references');
+const { verifyRetainedCatalogueRegistrations } = require('./formation-reset-people-catalogue');
 const { createFreshResetCustomTargetRetention } = require('../src/helix/domains/libra/public');
 const { verifyRetainedWithdrawals } = require('./formation-reset-withdrawals');
 
@@ -111,6 +112,7 @@ function verifyRetainedCollections({ Database, sourcePath, targetPath, schemaMan
     const integrity = verifyReadOnlySqliteSnapshot({ database: target, schemaManifest, schemaDdl });
     const controls = verifyRetainedControls(target);
     const peopleReferences = verifyRetainedPeopleReferences(source, target);
+    const peopleCatalogue = verifyRetainedCatalogueRegistrations(source, target);
     // Collection identity, current and historical representation and file /
     // Person associations are all protected, not merely the two root counts.
     const roots = ['arca_shelf_entries', 'arca_ondeck_commit_receipts',
@@ -174,7 +176,7 @@ function verifyRetainedCollections({ Database, sourcePath, targetPath, schemaMan
         fail('RESET_VERIFY_PACKAGE_CHANGED', { packageId: row.on_deck_package_id });
       reconstructed.push({ packageId: row.on_deck_package_id, digest: canonicalDigest(after) });
     }
-    return { schemaRef: 'formation-reset-collection-verification@1', integrity, controls, protections, shared, peopleReferences, customTargets, withdrawals,
+    return { schemaRef: 'formation-reset-collection-verification@1', integrity, controls, protections, shared, peopleReferences, peopleCatalogue, customTargets, withdrawals,
       reconstructedCommits: ownership.length, ownershipDigest: canonicalDigest(ownership),
       reconstructedPackages: reconstructed.length, packageReadDigest: canonicalDigest(reconstructed) };
   } finally {

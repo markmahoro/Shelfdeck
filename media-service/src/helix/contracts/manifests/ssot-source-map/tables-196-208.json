@@ -6,13 +6,24 @@
   "endOrdinal": 208,
   "entries": [
     {
+      "id": "people_image_operations",
+      "owner": "people",
+      "columnsContract": "`operation_id PK, person_id, actor_id, idempotency_key, request_digest, payload_schema_ref, payload_json, payload_digest, state(preparing|completed|failed), result_schema_ref NULL, result_json NULL, result_digest NULL, failure_code NULL, created_at_ms, updated_at_ms`",
+      "constraintsContract": "`UNIQUE(actor_id,idempotency_key)`；`INDEX(state,operation_id)`；用户payload schema为`people.image-operation-request@1`；系统catalogue_registration使用独立`people.catalogue-image-operation-request@1`，固定system actor、稳定Operation/Person ID、目录输入/姓名决定/图片来源摘要与buffalo_l模型，系统分支不得冒充user_upload；用户closed公共字段`schema,operationKind(registration|reference_add|reference_release|reference_replace),expectedPersonRevision,expectedReferenceRevision,operationId,personId,actorId`；registration/reference_add追加`canonicalName,aliases,selectedImage,faceModelRef`，reference_replace再追加`replacedImage`精确旧图/Face快照；reference_release只追加完整`releaseDecision`且不执行import/embedding，≤`16 KiB`并完整JCS digest；registration的person_id为未发布身份的预分配ID；reference_add指向已发布Person并冻结两项expected revision，不能FK或由operation自身当作Person事实；state仅从preparing执行terminal CAS；completed schema固定`people.image-operation-result@1`，closed结果`personId,personRevision,referenceRevision`，≤`16 KiB`；failed保存明确错误码且无result；只有内部工作流及用户本次operation只读查询可见，不构成确认队列",
+      "source": {
+        "section": "8.5.13",
+        "line": 9743,
+        "lineDigest": "6af4dd75f90c8ecbc8c5712ff2cee48290e75b2d880d3f9db598cafe37a4a81e"
+      }
+    },
+    {
       "id": "people_us_recommendation_cycles",
       "owner": "people",
       "columnsContract": "`cycle_id PK, state(active|complete), revision INTEGER, progress_schema_ref, progress_json, progress_digest, created_at_ms, updated_at_ms`",
       "constraintsContract": "`INDEX(state,cycle_id)`；进度schema固定`people.us-adult-recommendation-progress@1`，closed字段`schema,policy,stage,sourceCursor,sourceExhausted,pendingSourceId,groupCursor,bestGroup,rankSourceCursor,rankGroupCursor,leaders,windowKey,assignedSinceRank,rankPassId`，最多`16 KiB`并按JCS digest校验；revision CAS；policy固定版本、64组分页及最多五位，不持有Person身份或跨域写权限；stage为source_scan/group_scan/refresh_sources/rank_groups；leaders最多五个有界排名摘要",
       "source": {
         "section": "8.5.13",
-        "line": 9725,
+        "line": 9744,
         "lineDigest": "268c0e69218a587a1e98e870bda52c852f61c7695d9f917bc155bad1bad25376"
       }
     },
@@ -23,7 +34,7 @@
       "constraintsContract": "`UNIQUE(cycle_id,libra_run_id)`；`INDEX(cycle_id,group_id,source_id)`；`FOREIGN KEY(cycle_id) REFERENCES people_us_recommendation_cycles(cycle_id)`；Observation schema固定`people.us-adult-recommendation-observation@1`，closed字段`schema,source,image,observationDigest`，其中source严格为UsAdultRecommendationSource，image严格为版本化受控图片Evidence；最多`128 KiB`并校验JCS digest；group_id只允许首次分配，不产生影片Actor关系；libra_run_id只是公开来源引用，不创建跨Owner FK",
       "source": {
         "section": "8.5.13",
-        "line": 9726,
+        "line": 9745,
         "lineDigest": "fbf043741ca6eb484906f21dc95ecc1d37540c8513f1f1ac722113ddaebac175"
       }
     },
@@ -34,7 +45,7 @@
       "constraintsContract": "`INDEX(cycle_id,group_id)`；`FOREIGN KEY(cycle_id) REFERENCES people_us_recommendation_cycles(cycle_id)`；来源代表必须由People Owner重验属于同cycle的Observation；coverage为cycle内已归组来源数，rank计数只属于指定版本排名pass重验后的有效来源；清晰度相同时按sourceId稳定选图；revision CAS，禁止把该内部分组当作Person合并",
       "source": {
         "section": "8.5.13",
-        "line": 9727,
+        "line": 9746,
         "lineDigest": "797868e30799a3757a89836596433f872e18582c5b1c11d4da59c7b8e9823979"
       }
     },
@@ -45,7 +56,7 @@
       "constraintsContract": "`FOREIGN KEY(cycle_id) REFERENCES people_us_recommendation_cycles(cycle_id)`；window_key是本维护窗口固定endAtMs；Snapshot schema固定`people.us-adult-recommendation-publication@1`，closed字段`schema,windowKey,cycleId,policy,items`，items最多五项完整内部Group Snapshot，最多`1 MiB`并校验JCS digest；revision CAS，仅本窗口维护准入可更新尚未生效Publication；GET只读，不能启动扫描或发布",
       "source": {
         "section": "8.5.13",
-        "line": 9728,
+        "line": 9747,
         "lineDigest": "b7a9ecd7227573301f03c971f6ecbd07d8136025a7f5adca4f1d4ee4d97cbb6e"
       }
     },
@@ -56,19 +67,30 @@
       "constraintsContract": "`UNIQUE(actor_id,idempotency_key)`；`INDEX(state,claim_id)`；active_source_id在活动状态严格等于source_id，终态释放NULL，以单一Owner事务及唯一约束阻止同来源并发认领；payload schema固定`people.us-adult-recommendation-claim@1`，closed字段`schema,claimId,actorId,recommendationId,publicationWindowKey,publicationRevision,source,imageEvidenceDigest,target`，target为existing精确Person版本或create的preparedRegistration；最多`128 KiB`；person schema固定`people.us-adult-recommendation-person@1`，closed字段`schema,personId,personRevision,referenceRevision`，最多`16 KiB`；receipt schema固定`people.us-adult-recommendation-ack@1`，closed字段`schema,receipt:UsAdultActorChoiceReceipt`，最多`16 KiB`；全部JSON按JCS digest校验；请求重放先读持久Claim，revision CAS推进；终态Receipt不因当前推荐变化而重写",
       "source": {
         "section": "8.5.13",
-        "line": 9729,
+        "line": 9748,
         "lineDigest": "3115aef1b174e7bffbac2065c5829721f735b8536b425f7c5555b9a89237ea61"
       }
     },
     {
       "id": "people_person_revisions",
       "owner": "people",
-      "columnsContract": "`person_id FK, revision, person_status(active|merged), canonical_name, merged_into_person_id NULL, origin_kind(direct|candidate), origin_decision_id, origin_decision_digest, origin_candidate_kind NULL, origin_candidate_id NULL, origin_candidate_revision NULL, origin_candidate_payload_digest NULL, fact_digest, committed_at_ms`",
-      "constraintsContract": "`PK(person_id,revision)`；immutable；direct Registration保存完整Direct Decision ID/digest且Candidate列全NULL；Candidate acceptance保存Acceptance Decision ID/digest及精确Candidate revision/payload；CHECK禁止两种来源混合；library_kind在Person head冻结且不可改变，不持久化媒体`content_scope`",
+      "columnsContract": "`person_id FK, revision, person_status(active|merged), canonical_name, merged_into_person_id NULL, origin_kind(direct|candidate|catalogue_auto), origin_decision_id, origin_decision_digest, origin_candidate_kind NULL, origin_candidate_id NULL, origin_candidate_revision NULL, origin_candidate_payload_digest NULL, fact_digest, committed_at_ms`",
+      "constraintsContract": "`PK(person_id,revision)`；immutable；direct为用户Direct Registration，Candidate为Candidate acceptance，catalogue_auto为People系统建档；三者分别保存实际Decision ID/digest，非Candidate列的Candidate引用全NULL；历史direct/candidate语义和行值保持，不能将系统决定伪装成用户；library_kind在Person head冻结且不可改变",
       "source": {
         "section": "8.5.13",
-        "line": 9732,
-        "lineDigest": "faa31e5a6e2d54ed8329c7dc215288659d2c6570b1ac076364c02a4f983f9a2e"
+        "line": 9751,
+        "lineDigest": "e8bb78f7d3afe7326e45a6f07e62a1997619576b728329a18fbf9659635d68e3"
+      }
+    },
+    {
+      "id": "people_us_adult_catalogue_registration_origins",
+      "owner": "people",
+      "columnsContract": "`person_id PK FK, decision_id UNIQUE, decision_schema_ref, decision_json, decision_digest, operation_id FK UNIQUE, origin_schema_ref, origin_json, origin_digest, catalogue_input_schema_ref, catalogue_input_json, catalogue_input_digest, name_resolution_schema_ref, name_resolution_json, name_resolution_digest, observation_schema_ref, observation_json, observation_digest, provider_observation_schema_ref, provider_observation_json, provider_observation_digest, created_at_ms`",
+      "constraintsContract": "People-owned immutable系统建档证据；Decision完整canonical副本≤`256 KiB`，origin为closed来源、姓名和图片证明≤`64 KiB`；精确Libra目录输入≤`256 KiB`和People姓名解析≤`64 KiB`都保存完整副本并重算摘要；目录Observation完整canonical副本≤`8 MiB`且digest等于来源Artifact digest；安全Provider Observation完整canonical副本≤`512 KiB`，不持久化URL或Secret；与Person同事务发布，Person保留时精确保留本行及Operation、Reference、系统审计闭包，不反向保留未入藏Libra Subject或视频",
+      "source": {
+        "section": "8.5.13",
+        "line": 9752,
+        "lineDigest": "cd1a3a2f87957bf5f141ae10d12bf8d7bd2f0088390c5c97cf1ab02a825c3b03"
       }
     },
     {
@@ -78,7 +100,7 @@
       "constraintsContract": "`PK(person_id,revision,alias_normalized)`；`FOREIGN KEY(person_id,revision)`引用精确Person revision；`INDEX(alias_normalized)`",
       "source": {
         "section": "8.5.13",
-        "line": 9733,
+        "line": 9753,
         "lineDigest": "bd43e6bd7b8f61d3edeb1afd1af2b94acccb8ba986a1cb2a3493948cf2997a51"
       }
     },
@@ -89,7 +111,7 @@
       "constraintsContract": "`PK(person_id,revision,provider,namespace,provider_key)`；`FOREIGN KEY(person_id,revision)`引用精确Person revision；stable identity active unique限定`library_kind,provider,namespace,provider_key`；library_kind必须等于Person head",
       "source": {
         "section": "8.5.13",
-        "line": 9734,
+        "line": 9754,
         "lineDigest": "6c675ceb9aa6b87bb74dd73a796972f0cea2062c2cbfad6fa463910a224cec2d"
       }
     },
@@ -100,7 +122,7 @@
       "constraintsContract": "`PK(person_id,revision)`；level枚举`-2..2`；current pointer由`people_persons.current_preference_revision`维护，禁止热路径`MAX(revision)`",
       "source": {
         "section": "8.5.13",
-        "line": 9735,
+        "line": 9755,
         "lineDigest": "b4a09dbb667fe1048ff44b6f98529e82d1c3abd77d084d0d35760f75275c0977"
       }
     },
@@ -111,7 +133,7 @@
       "constraintsContract": "stable业务ID由`ReferenceAssetCoordinator`在Plan前分配；`artifact_handle_id/artifact_digest`必须分别等于Decision中`artifactHandle.artifactHandleId/digestHex`；`UNIQUE(person_id,artifact_digest)`；created/released revision都显式引用同Person的`people_reference_revisions`；released不可回到active",
       "source": {
         "section": "8.5.13",
-        "line": 9736,
+        "line": 9756,
         "lineDigest": "9310ae4780a034c017c0fe0e8027c30effa5b6c815bf631e8fe1bc6ff6b626cd"
       }
     },
@@ -122,30 +144,8 @@
       "constraintsContract": "`embedding_handle_id/embedding_digest/model_ref`必须分别等于Decision中`faceEmbeddingSetHandle.artifactHandleId/digestHex/modelRef`；每个active Asset恰好一个active派生Face；Face与Asset同事务建立/释放；`UNIQUE(reference_asset_id)`及`UNIQUE(person_id,embedding_handle_id,model_ref)`；用户API不得按Face ID修改",
       "source": {
         "section": "8.5.13",
-        "line": 9737,
+        "line": 9757,
         "lineDigest": "40b612dbfb17b8cdd516fa5e1268cd835947499b9b69229d3978aefe562d1782"
-      }
-    },
-    {
-      "id": "people_reference_revisions",
-      "owner": "people",
-      "columnsContract": "`person_id FK, revision, operation_kind(add_image|release_image|replace_image), reference_asset_id, reference_face_id, active_asset_set_digest, active_face_set_digest, reference_set_digest, decision_digest, fact_digest, committed_at_ms`",
-      "constraintsContract": "`PK(person_id,revision)`；immutable；`people_persons.current_reference_revision`显式FK指向current row；Reference commit以expected reference revision CAS并保存完整active set digest，不通过扫描时间猜current；三个set digest及`fact_digest`必须严格使用`PersonReferenceRevision` nominal合同声明的唯一basis",
-      "source": {
-        "section": "8.5.13",
-        "line": 9738,
-        "lineDigest": "756e91a6ead741e35ef48a4bf422a3baaab36d15e173525b4b6f62e52b8aece1"
-      }
-    },
-    {
-      "id": "people_registration_candidates",
-      "owner": "people",
-      "columnsContract": "`registration_candidate_id PK, current_revision, current_state, proposed_name, evidence_digest, candidate_schema_ref, candidate_json, candidate_payload_digest, created_at_ms, terminal_at_ms`",
-      "constraintsContract": "`candidate_json`保存Draft中精确Registration `candidatePayload`，其JCS digest必须等于`candidate_payload_digest`，且`proposed_name`以DDL CHECK匹配payload字段；payload在Candidate生命周期内immutable；JSON上限`16 KiB`且大Reference只含handle；`FOREIGN KEY(registration_candidate_id,current_revision,current_state)`显式引用revision表并`DEFERRABLE INITIALLY DEFERRED`；`UNIQUE(evidence_digest) WHERE current_state='open'`；`INDEX(current_state,created_at_ms)`",
-      "source": {
-        "section": "8.5.13",
-        "line": 9739,
-        "lineDigest": "3d5f894e2f70f04a1a8fc462ca7708bec32f7938b3849e29a5570de47fb8fb35"
       }
     }
   ]

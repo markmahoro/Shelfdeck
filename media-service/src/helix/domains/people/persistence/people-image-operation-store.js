@@ -2,6 +2,8 @@
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
+const {SCHEMA:CATALOGUE_SCHEMA,assertCatalogueImagePayload}=require('../model/prepared-catalogue-registration');
+const {SYSTEM}=require('../model/us-adult-catalogue-registration');
 
 const COLUMNS = ['operation_id', 'person_id', 'actor_id', 'idempotency_key', 'request_digest', 'payload_schema_ref', 'payload_json', 'payload_digest',
   'state', 'result_schema_ref', 'result_json', 'result_digest', 'failure_code', 'created_at_ms', 'updated_at_ms'];
@@ -28,14 +30,18 @@ function createPeopleImageOperationStore(options) {
     let payload, result;
     try { payload = JSON.parse(row.payload_json); result = row.result_json === null ? null : JSON.parse(row.result_json); }
     catch { fail('PEOPLE_IMAGE_OPERATION_CORRUPT', '人物建档操作记录损坏。'); }
+    const catalogue=payload.schema===CATALOGUE_SCHEMA;
+    if(catalogue){try{assertCatalogueImagePayload(payload);}catch{fail('PEOPLE_IMAGE_OPERATION_CORRUPT','系统人物建档操作记录损坏。');}}
     const common=['schema','operationKind','expectedPersonRevision','expectedReferenceRevision','operationId','personId','actorId'],
       release=payload.operationKind==='reference_release',replacing=payload.operationKind==='reference_replace',
       fields=[...common,...(release?['releaseDecision']:['canonicalName','aliases','selectedImage','faceModelRef']),...(replacing?['replacedImage']:[])];
-    if (row.payload_schema_ref !== 'people.image-operation-request@1' || canonicalJson(payload) !== row.payload_json || canonicalDigest(payload) !== row.payload_digest || payload.personId !== row.person_id ||
-        payload.actorId !== row.actor_id || payload.operationId !== row.operation_id || payload.schema !== 'people.image-operation-request@1' ||
-        !['registration','reference_add','reference_release','reference_replace'].includes(payload.operationKind)||!Number.isSafeInteger(payload.expectedPersonRevision)||payload.expectedPersonRevision<1||!Number.isSafeInteger(payload.expectedReferenceRevision)||payload.expectedReferenceRevision<0||
+    if (row.payload_schema_ref !== payload.schema || canonicalJson(payload) !== row.payload_json || canonicalDigest(payload) !== row.payload_digest || payload.personId !== row.person_id ||
+        payload.actorId !== row.actor_id || payload.operationId !== row.operation_id ||
+        (catalogue ? row.actor_id!==SYSTEM||row.idempotency_key!==payload.operationId||row.request_digest!==canonicalDigest(payload) :
+          payload.schema!=='people.image-operation-request@1'||!['registration','reference_add','reference_release','reference_replace'].includes(payload.operationKind)||
+          Object.keys(payload).sort().join(',') !== fields.sort().join(','))||
+        !Number.isSafeInteger(payload.expectedPersonRevision)||payload.expectedPersonRevision<1||!Number.isSafeInteger(payload.expectedReferenceRevision)||payload.expectedReferenceRevision<0||
         !['preparing', 'completed', 'failed'].includes(row.state) ||
-        Object.keys(payload).sort().join(',') !== fields.sort().join(',') ||
         release&&(payload.releaseDecision?.operationKind!=='release_image'||['personId','actorId','expectedPersonRevision','expectedReferenceRevision'].some(key=>payload.releaseDecision[key]!==payload[key]))||
         row.state === 'completed' && (!result || row.result_schema_ref !== 'people.image-operation-result@1' || canonicalDigest(result) !== row.result_digest || result.personId !== row.person_id || row.failure_code !== null ||
           Object.keys(result).sort().join(',') !== 'personId,personRevision,referenceRevision') ||
@@ -47,6 +53,26 @@ function createPeopleImageOperationStore(options) {
       requestDigest: row.request_digest, payloadDigest: row.payload_digest, payload, state: row.state, result, failureCode: row.failure_code,
       createdAtMs: row.created_at_ms, updatedAtMs: row.updated_at_ms });
   }
+  function createOperation({ operationId, personId, actorId, idempotencyKey, requestDigest, payload }) {
+    const payloadJson = canonicalJson(payload),catalogue=payload?.schema===CATALOGUE_SCHEMA;
+    if(catalogue)assertCatalogueImagePayload(payload);
+    if (![operationId, personId, actorId, idempotencyKey].every(requiredString) || !SHA256.test(requestDigest) || Buffer.byteLength(payloadJson) > 16384 ||
+        payload.personId !== personId || payload.actorId !== actorId || payload.operationId !== operationId ||
+        (catalogue ? actorId!==SYSTEM||idempotencyKey!==operationId||requestDigest!==canonicalDigest(payload) : payload.schema !== 'people.image-operation-request@1')) {
+      fail('PEOPLE_IMAGE_OPERATION_INPUT_INVALID', '建档操作参数无效或超出大小限制。');
+    }
+    return execute((repo, at) => {
+      const existing = repo.invoke('command', { actor_id: actorId, idempotency_key: idempotencyKey });
+      if (existing) {
+        if (existing.request_digest !== requestDigest) fail('PEOPLE_IMAGE_OPERATION_COMMAND_CONFLICT', '此操作标识已用于其他建档内容。');
+        return map(existing);
+      }
+      repo.invoke('insert', { operation_id: operationId, person_id: personId, actor_id: actorId, idempotency_key: idempotencyKey, request_digest: requestDigest,
+        payload_schema_ref:payload.schema,payload_json: payloadJson, payload_digest: canonicalDigest(payload), state: 'preparing', result_schema_ref:null, result_json: null, result_digest: null,
+        failure_code: null, created_at_ms: at, updated_at_ms: at });
+      return map(repo.invoke('get', { operation_id: operationId }));
+    });
+  }
   return Object.freeze({
     get: operationId => execute(repo => map(repo.invoke('get', { operation_id: operationId }))),
     findCommand: (actorId, idempotencyKey) => execute(repo => map(repo.invoke('command', { actor_id: actorId, idempotency_key: idempotencyKey }))),
@@ -54,24 +80,9 @@ function createPeopleImageOperationStore(options) {
       if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100 || cursor !== null && !requiredString(cursor)) fail('PEOPLE_IMAGE_OPERATION_INPUT_INVALID', '建档操作分页参数无效。');
       return execute(repo => repo.invoke('page', { cursor, limit, state: 'preparing' }).map(row => ({ cursor: row.operation_id, scope: { operationId: row.operation_id } })));
     },
-    create({ operationId, personId, actorId, idempotencyKey, requestDigest, payload }) {
-      const payloadJson = canonicalJson(payload);
-      if (![operationId, personId, actorId, idempotencyKey].every(requiredString) || !SHA256.test(requestDigest) || Buffer.byteLength(payloadJson) > 16384 ||
-          payload.personId !== personId || payload.actorId !== actorId || payload.operationId !== operationId || payload.schema !== 'people.image-operation-request@1') {
-        fail('PEOPLE_IMAGE_OPERATION_INPUT_INVALID', '建档操作参数无效或超出大小限制。');
-      }
-      return execute((repo, at) => {
-        const existing = repo.invoke('command', { actor_id: actorId, idempotency_key: idempotencyKey });
-        if (existing) {
-          if (existing.request_digest !== requestDigest) fail('PEOPLE_IMAGE_OPERATION_COMMAND_CONFLICT', '此操作标识已用于其他建档内容。');
-          return map(existing);
-        }
-        repo.invoke('insert', { operation_id: operationId, person_id: personId, actor_id: actorId, idempotency_key: idempotencyKey, request_digest: requestDigest,
-          payload_schema_ref:'people.image-operation-request@1',payload_json: payloadJson, payload_digest: canonicalDigest(payload), state: 'preparing', result_schema_ref:null, result_json: null, result_digest: null,
-          failure_code: null, created_at_ms: at, updated_at_ms: at });
-        return map(repo.invoke('get', { operation_id: operationId }));
-      });
-    },
+    create:createOperation,
+    createCatalogue(payload){assertCatalogueImagePayload(payload);return createOperation({operationId:payload.operationId,personId:payload.personId,
+      actorId:SYSTEM,idempotencyKey:payload.operationId,requestDigest:canonicalDigest(payload),payload});},
     finish({ operationId, expectedPayloadDigest, result = null, failureCode = null }) {
       if (!SHA256.test(expectedPayloadDigest) || Boolean(result) === Boolean(failureCode) || failureCode !== null && !/^[A-Z0-9_]{1,128}$/.test(failureCode)) {
         fail('PEOPLE_IMAGE_OPERATION_INPUT_INVALID', '建档操作结果无效。');

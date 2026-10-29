@@ -445,7 +445,14 @@
           "const": "us_adult_actor"
         },
         "actorSelection": {
-          "$ref": "helix://contracts/domain-types/UsAdultActorSelectionBasis/v1"
+          "anyOf": [
+            {
+              "$ref": "helix://contracts/domain-types/UsAdultActorSelectionBasis/v1"
+            },
+            {
+              "$ref": "helix://contracts/domain-types/UsAdultActorSelectionCurrent/v1"
+            }
+          ]
         },
         "sourceBasisDigest": {
           "type": "string",

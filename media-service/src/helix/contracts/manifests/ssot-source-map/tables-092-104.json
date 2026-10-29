@@ -6,13 +6,24 @@
   "endOrdinal": 104,
   "entries": [
     {
+      "id": "libra_us_adult_actor_choice_intents",
+      "owner": "libra",
+      "columnsContract": "`intent_id PK, libra_run_id FK, subject_id FK, choice_revision INTEGER, person_id, person_revision INTEGER, reference_revision INTEGER, actor_id, idempotency_key, request_digest, record_schema_ref, record_json, record_digest, created_at_ms`",
+      "constraintsContract": "immutable用户Intent；`UNIQUE(subject_id,choice_revision)`、`UNIQUE(actor_id,idempotency_key)`；Person为People opaque ref不建FK；record_schema固定UsAdultActorChoiceRecord，JSON上限`256 KiB`；同Subject合法replacement读取原用户意图，不以影片命名或空演员关系替代；不自动修改其他影片",
+      "source": {
+        "section": "8.5.11",
+        "line": 9622,
+        "lineDigest": "eb33ddd018847dbd35708bbbe1570b5efe60287d17a669098749b77c213e1727"
+      }
+    },
+    {
       "id": "libra_us_adult_actor_choice_heads",
       "owner": "libra",
       "columnsContract": "`subject_id PK FK, current_revision INTEGER, intent_id FK, record_digest`",
       "constraintsContract": "每Subject当前用户演员选择head；revision从1连续、expectedChoiceRevision CAS；head与immutable intent同事务，来源Run必须是当前未交付Run；不承担Arca演员刷新",
       "source": {
         "section": "8.5.11",
-        "line": 9604,
+        "line": 9623,
         "lineDigest": "a9176f48233085dcb67e3a5d5de5cddebeeac6673df963c0d2fec2d0b89219c1"
       }
     },
@@ -23,7 +34,7 @@
       "constraintsContract": "immutable；`UNIQUE(actor_id,idempotency_key)`；Libra通过明确资料查询命令取得Provider候选并保存完整Review，schema固定`libra.episode-metadata-review-record@1`，JSON上限`3 MiB`；绑定Run revision/execution basis、resolved identity、本地材料集合、期望mapping revision及完整候选证据；GET只读已保存Review",
       "source": {
         "section": "8.5.11",
-        "line": 9605,
+        "line": 9624,
         "lineDigest": "eea70aa096bdc6f4ec6375dc48aa7c2e85abe69eddcb01496f644c378810dbaa"
       }
     },
@@ -34,7 +45,7 @@
       "constraintsContract": "immutable；`UNIQUE(subject_id,mapping_revision)`、`UNIQUE(actor_id,idempotency_key)`；schema固定`libra.episode-metadata-mapping-record@1`，JSON上限`1 MiB`；显式用户选择产生完整版本，条目绑定Review证据，不能直接提交Provider内容；同事务写head/Receipt/Marker/Audit，陈旧Run/identity/material/head或已交付拒绝",
       "source": {
         "section": "8.5.11",
-        "line": 9606,
+        "line": 9625,
         "lineDigest": "b72de5a847bff4be2d353f69839ef37ad0152982d2b11c28642d149c665068d2"
       }
     },
@@ -45,7 +56,7 @@
       "constraintsContract": "每Subject当前映射head；expected revision CAS且连续递增；仅对完整identity/material basis一致的后续Run有效；不因整个Subject保留而进入Reset保留集合，只保留已入藏执行明确依赖的Intent及Review",
       "source": {
         "section": "8.5.11",
-        "line": 9607,
+        "line": 9626,
         "lineDigest": "994c50297c118f636ce82a45c1eb53f2b91426fa7523b9339883bb3784ce9882"
       }
     },
@@ -56,7 +67,7 @@
       "constraintsContract": "immutable；`UNIQUE(actor_id,idempotency_key)`；schema固定`libra.custom-target-preview@1`，closed JCS JSON上限`64 KiB`；preview_id及record_digest均为完整previewDigest，绑定精确Run/Spec/decision head/Shelf Standard/identity/material/product scope与当前custom revision；只保存用户实际可确认的要求及证据，不产生执行资格",
       "source": {
         "section": "8.5.11",
-        "line": 9608,
+        "line": 9627,
         "lineDigest": "da3678efa7583cf52c579a9849295e941fb82813b22228de44673e000c1e6c62"
       }
     },
@@ -67,7 +78,7 @@
       "constraintsContract": "immutable；`UNIQUE(actor_id,idempotency_key)`及`UNIQUE(subject_id,product_scope_digest,target_revision)`及`UNIQUE(intent_id,subject_id,product_scope_digest,target_revision,record_digest)`；schema固定`libra.custom-target-intent@1`，closed JCS JSON上限`64 KiB`；target_revision从1连续；只确认preview实际展示的子集且保留全部原始基线/要求/证据。意图不是Spec发布、生产完成或Arca接纳事实；旧执行输入不得原地修改。已入藏依赖通过冻结的精确Intent与Preview闭包保留，不保留同Subject的其他历史",
       "source": {
         "section": "8.5.11",
-        "line": 9609,
+        "line": 9628,
         "lineDigest": "54474ca50b1adea3a2b478fd4552729bfff8e6047e2c4cfa2064225ad27a3046"
       }
     },
@@ -78,7 +89,7 @@
       "constraintsContract": "按Subject与精确产品范围的当前指针；expected revision/intent/digest CAS连续递增，首次logical revision为0；head与Intent的subject/scope/revision复合FK必须一致。跨Owner公开Projection在事务外读取，Foundation opaque read fence在BEGIN IMMEDIATE后且Owner写入前验证；幂等Receipt重放先于新鲜度检查，不把Arca/Perception Repository加入Libra事务。不保留旧head来代替已入藏精确依赖",
       "source": {
         "section": "8.5.11",
-        "line": 9610,
+        "line": 9629,
         "lineDigest": "8dad2cf3995602601e1c353d049d274a5073b45e9a399a1a880d03a187af3a1c"
       }
     },
@@ -89,7 +100,7 @@
       "constraintsContract": "immutable完成事实；schema固定UsAdultMatchCompletion，JSON上限`256 KiB`；analysis_id指同Run的Analysis Basis；完整匹配Result集digest、页数、检测脸数、胜者版本及原Result引用冻结；无胜者是明确正常结果，不以未完成或失败页替代；不因People编辑重算",
       "source": {
         "section": "8.5.11",
-        "line": 9611,
+        "line": 9630,
         "lineDigest": "c1136bcaf84fabee4cd58f7aa6d3ee86d0578d8baf523d8109c5d8b8c741e028"
       }
     },
@@ -100,7 +111,7 @@
       "constraintsContract": "`PK(workspace_id,workspace_revision)`；append-only且从1连续；`workspace_id`到`libra_workspaces`的普通父FK保持immediate，配合上述固定aggregate-first插入顺序消除首次建立循环；current Workspace row由最高revision重建，set digest来自每个handle最高Reference revision",
       "source": {
         "section": "8.5.11",
-        "line": 9612,
+        "line": 9631,
         "lineDigest": "c9feabe34057b46e3f19b7e6c5778ba9a7b7ef32f118ee77c625b572fb4726f7"
       }
     },
@@ -111,7 +122,7 @@
       "constraintsContract": "`PK(reference_id,reference_revision)`及`UNIQUE(workspace_id,material_handle_id,reference_revision)`；typed Handle JSON固定`WorkspaceMaterialHandle@1`且≤`4 KiB`，Episode claims JSON固定`LibraWorkspaceEpisodeClaims@1`且≤`16 KiB`，完整保存`0..32`项本节typed Episode claim并重算同一scope digest；Handle必须与`fx_workspace_materials.handle_schema_ref/json/digest/fence_digest`及Decision逐字节一致后冻结，允许Foundation material后来reclaimed仍重建历史Reference。Verification四列在working全NULL；product_staging全非NULL且schema固定role-aware `WorkspaceProductVerificationSnapshot@1`、canonical JSON≤`128 KiB`、ID/digest逐字节匹配；released逐字节沿用前一revision四列：由working释放时全NULL，由product_staging释放时全非NULL，不能清空或替换。每次Reference transition与同一事务Workspace revision一一绑定，历史Workspace revision N按`committed_workspace_revision<=N`选择每个stream最高Reference revision重建set；每个reference stream从1连续、append-only，最高revision是current；同一stream后续revision的Handle、materialKey与Episode claims逐字节沿用；同一Workspace最多1024个current non-released Reference且同一materialKey至多一个，防止Cleanup无法形成完整Scope或hard-link Handle对同一Control重复release；released不得再回到前态；同一handle不能同时存在两个current role；只引用同Workspace的`fx_workspace_materials`，Artifact分支还必须精确命中`fx_artifact_registry`中的immutable Handle",
       "source": {
         "section": "8.5.11",
-        "line": 9613,
+        "line": 9632,
         "lineDigest": "eba994f679519f1de5ef313e0fd5549888ab838ea476045c7335aa58c019ba3c"
       }
     },
@@ -122,7 +133,7 @@
       "constraintsContract": "`UNIQUE(trigger_kind,trigger_ref,trigger_revision,trigger_digest)`；Admission Record typed JSON≤`64 KiB`保存除relationized members外的完整Decision，和member rows合并后必须重建同一Decision/digest；current row为`cas_lifecycle`，active/blocked的completed time为NULL；只由Discard或Cleanup Scope Admission事务建立；`INDEX(state,created_at_ms)`",
       "source": {
         "section": "8.5.11",
-        "line": 9614,
+        "line": 9633,
         "lineDigest": "d80abdb4cc5a9cf74fa62345002180ae284614e91a4701a0f453fe890c4cc348"
       }
     },
@@ -133,19 +144,8 @@
       "constraintsContract": "`PK(cleanup_scope_id,material_handle_id)`；`rowMutability=cas_lifecycle`且只允许expected `pending→completed|blocked`；每项都保存完整available Control Projection revision/digest，uncontrolled的owner列全NULL，两个owned variant全非NULL且分别要求ownerDomain=libra或非libra；pending的committed/effect/evidence/receipt列全NULL；terminal Evidence typed JSON≤`16 KiB`，completed固定`WorkspaceMaterialDeletionEvidence@1`，blocked固定`WorkspaceCleanupBlockingEvidence@1`；libra_owned的released Control revision严格为expected+1并由historical Control row重建Receipt，other_owned不得主动删除或释放Control、只允许already-absent Evidence，blocked不得释放Reference或Control。Scope revision history由每个member唯一`committed_scope_state_revision`排序，与初始revision 1确定性重建，禁止later current row覆盖历史；`INDEX(state,updated_at_ms)`",
       "source": {
         "section": "8.5.11",
-        "line": 9615,
+        "line": 9634,
         "lineDigest": "40d6789727148672ec4dcbd6da64d02db887027e90be684d813a1fe17f000d0a"
-      }
-    },
-    {
-      "id": "libra_product_fact_revisions",
-      "owner": "libra",
-      "columnsContract": "`product_fact_id PK, libra_run_id FK, fact_kind, fact_revision, aggregate_id NULL, schema_ref, fact_json, episode_metadata_schema_ref NULL, episode_metadata_json NULL, fact_digest, evidence_digest, source_basis_kind(decision_evidence|metadata_observation|western_analysis|western_match|us_adult_actor) NULL, source_basis_id NULL, source_basis_digest NULL, source_ref_count, verified_artifact_manifest_schema_ref NULL, verified_artifact_manifest_json NULL, verified_artifact_manifest_digest NULL, artifact_verification_result_count, commit_payload_schema_ref NULL, commit_payload_digest NULL, event_fence_digest NULL, commit_marker NULL FK UNIQUE, result_digest NULL, committed_at_ms`",
-      "constraintsContract": "`fact_kind`必须是Catalog已注册的Product Fact kind，不由Store发明open value；Fact JSON上限`64 KiB`且大Artifact只含handle。`resolved_identity|media_cast|product_metadata`按8.6.19固定`product_fact_id/aggregate_id/revision/commit/evidence/result`，要求全部commit/Source Basis列非NULL。Resolved Identity只允许`decision_evidence`且`source_ref_count=1`，同事务还必须建立Subject Identity revision/current pointer及全部exact continuity relations。Product Metadata只允许`metadata_observation|western_analysis`，且三个Artifact Manifest列全非NULL、schema固定`VerifiedArtifactManifest@1`、canonical JSON≤`256 KiB`、digest逐字节等于Manifest `manifestDigest`，`artifact_verification_result_count`等于items中去重后的显式verification Result ID数并为`0..256`；Media Cast只允许`metadata_observation|western_match`，三个Manifest列全NULL且该count=0。Observation basis的`source_ref_count=1..16`；Western Product Metadata basis为`2..17`（至少一项Analysis Result加恰一项Normalize Result）；Western Media-Cast basis恰为1项Match Result。其他已注册kind继续服从各自既有精确合同，允许这些PBF-14专用列为NULL且两个count=0，不能被本修正反向套用未定义公式；非NULL `commit_marker`显式FK到`fx_commit_markers(commit_marker)`，`ON DELETE RESTRICT`且唯一，`result_digest`逐字节等于marker所指`fx_event_result_bindings`；`UNIQUE(libra_run_id,fact_kind,fact_revision)`；`INDEX(libra_run_id,fact_kind,fact_revision)`",
-      "source": {
-        "section": "8.5.11",
-        "line": 9616,
-        "lineDigest": "4e1ee37363f2353100b0f797c05de34aa5a59b16bbd031a566a17eeab5a6b415"
       }
     }
   ]
