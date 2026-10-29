@@ -1,5 +1,6 @@
 'use strict';
 const {packageContentProfile}=require('./helix/domains/arca/model/product-content-profile');
+const {chooseJavTitlePrefix}=require('./helix/domains/arca/model/jav-title-prefix');
 const {relatedPrimaryName}=require('./helix/domains/arca/model/related-primary-name');
 const {assertRequiredUsAdultActor}=require('./helix/contracts/us-adult-actor-package');
 const {assertUsAdultInventoryPresentation}=require('./helix/contracts/us-adult-inventory-presentation');
@@ -545,6 +546,10 @@ function createCleanArcaInventoryPort(options) {
   }
 
   function resolveTargetLocation(request, policyOnly = false) {
+    return resolveTargetLocationWithTitle(request, policyOnly, null);
+  }
+
+  function resolveTargetLocationWithTitle(request, policyOnly, previewTitle) {
     const targetRoot = path.resolve(request?.shelf?.target?.rootLocation || '');
     assertPathComponents(targetRoot);
     const shelf = request?.shelf;
@@ -563,7 +568,8 @@ function createCleanArcaInventoryPort(options) {
     if(request.inventoryUsAdultPresentation!==undefined&&
         (packageValue.resolvedIdentitySnapshot?.factValue?.resolvedProductIdentity||packageValue.resolvedIdentitySnapshot?.factValue)?.contentProfile!=='western_adult')
       fail('CLEAN_ARCA_INVENTORY_INPUT','Inventory actor naming cannot change a different content profile.');
-    const identity = inventoryDisplayIdentity(packageValue,request);
+    const originalIdentity = inventoryDisplayIdentity(packageValue,request);
+    const identity = previewTitle === null ? originalIdentity : Object.freeze({ ...originalIdentity, title:previewTitle });
     const placement = { ...DEFAULT_SHELF_PLACEMENT_POLICY, ...(shelf.placement?.value || {}) };
     if(identity.usAdultNaming)placement.collisionPolicy='reject';
     const renderedFolder = renderTemplate(placement.folderTemplate, {
@@ -594,6 +600,87 @@ function createCleanArcaInventoryPort(options) {
   function assertFinalName(name, identity) {
     assertComponentBudget(name, PRESENTATION_RESTORE_SUFFIX, Boolean(identity.usAdultNaming));
     return name;
+  }
+
+  // This is a read-only naming preview, not authority to reserve or publish.
+  // The normal Decision and Effect paths deliberately do not call it until
+  // target ownership and crash recovery have their own complete proof.
+  function previewJavTitle(request) {
+    const packageValue = request?.onDeckProductPackage;
+    if (!packageValue || packageContentProfile(packageValue) !== 'jav' ||
+        request.correctionId || request.aftercareCaseId || request.finalInventoryDecision) {
+      fail('CLEAN_ARCA_JAV_TITLE_PREVIEW_SCOPE', 'JAV title preview requires a new single On-deck package.');
+    }
+    const targetRoot = path.resolve(request?.shelf?.target?.rootLocation || '');
+    assertPathComponents(targetRoot);
+    const original = inventoryDisplayIdentity(packageValue, request);
+    const identityFact = packageValue.resolvedIdentitySnapshot.factValue.resolvedProductIdentity ||
+      packageValue.resolvedIdentitySnapshot.factValue;
+    function renderCandidate(title) {
+      try {
+        const resolved = resolveTargetLocationWithTitle(request, false, title);
+        const members = packageValue.productMaterialManifest.members.map(member => {
+          const source = sourcePath(member);
+          return { member, source, name:assertFinalName(finalMemberName(member, source, resolved.identity,
+            resolved.placement, resolved.series), resolved.identity) };
+        });
+        if (!members.some(item => item.member.role === 'primary_payload')) {
+          fail('CLEAN_ARCA_PRIMARY_MISSING', 'Product Material Manifest has no primary payload.');
+        }
+        const counts = new Map();
+        for (const item of members) counts.set(item.name, (counts.get(item.name) || 0) + 1);
+        const names = members.map(item => {
+          const colliding = counts.get(item.name) > 1;
+          return colliding && item.member.role === 'subtitle'
+            ? assertFinalName(safeSegment(path.basename(item.source)), resolved.identity) : item.name;
+        });
+        return Object.freeze({ targetDirectory:resolved.targetDirectory,
+          members:Object.freeze(members.map((item,index) => Object.freeze({
+            materialKey:item.member.materialKey, role:item.member.role, finalName:names[index],
+          }))) });
+      } catch (error) {
+        if (error?.code === 'CLEAN_ARCA_TARGET_SEGMENT_INVALID' &&
+            Number.isSafeInteger(error?.details?.actualBytes) && Number.isSafeInteger(error?.details?.maxBytes)) return null;
+        throw error;
+      }
+    }
+    function assertShortNames(rendered) {
+      const names = rendered.members.map(item => item.finalName);
+      if (new Set(names).size !== names.length) {
+        fail('CLEAN_ARCA_TARGET_COLLISION', 'Shortened members must not share a final target.');
+      }
+      const primaryStems = rendered.members.filter(item => item.role === 'primary_payload')
+        .map(item => path.basename(item.finalName, path.extname(item.finalName)));
+      const nfoStems = rendered.members.filter(item => item.role === 'metadata_sidecar')
+        .map(item => path.extname(item.finalName).toLowerCase() === '.nfo'
+          ? path.basename(item.finalName, path.extname(item.finalName)) : null);
+      if (nfoStems.some(stem => stem === null || primaryStems.some(primary => primary !== stem))) {
+        fail('CLEAN_ARCA_JAV_SHORT_STEM_MISMATCH', 'Shortened primary and NFO names must share a stem.');
+      }
+    }
+    let lastNameError = null, choice;
+    try {
+      choice = chooseJavTitlePrefix({ title:original.title, providerIdentities:identityFact.providerIdentities,
+        fits:title => {
+          const rendered = renderCandidate(title);
+          if (!rendered) return false;
+          if (title !== original.title) {
+            try { assertShortNames(rendered); }
+            catch (error) {
+              if (!['CLEAN_ARCA_TARGET_COLLISION', 'CLEAN_ARCA_JAV_SHORT_STEM_MISMATCH'].includes(error?.code)) throw error;
+              lastNameError = error;
+              return false;
+            }
+          }
+          return true;
+        } });
+    } catch (error) {
+      if (error?.code === 'CLEAN_ARCA_JAV_TITLE_UNFITTING' && lastNameError) throw lastNameError;
+      throw error;
+    }
+    const rendered = renderCandidate(choice.title);
+    return Object.freeze({ ...rendered, shortened:choice.shortened, rule:choice.rule || null,
+      targetCollisionChecked:false });
   }
 
   function buildPlan(request) {
@@ -1944,7 +2031,7 @@ function createCleanArcaInventoryPort(options) {
       targetEndpointId:request.shelf.target.endpointId,targetDirectory,observations})});
   }
 
-  return Object.freeze({ assess, resolveTargetLocation, resolvePolicyTargetLocation:request=>resolveTargetLocation(request,true), prepare, inspectJavCorrectionPlacement, materialize, slotHandle, prepareSlot, observeEmptyStageSlot,
+  return Object.freeze({ assess, resolveTargetLocation, resolvePolicyTargetLocation:request=>resolveTargetLocation(request,true), prepare, previewJavTitle, inspectJavCorrectionPlacement, materialize, slotHandle, prepareSlot, observeEmptyStageSlot,
     stage, verifyStaged, switchPlacement, readFinal, readFinalAsync, settleInput, settleInputAsync });
 }
 

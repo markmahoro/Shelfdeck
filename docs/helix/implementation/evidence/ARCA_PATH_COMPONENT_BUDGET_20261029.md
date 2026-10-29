@@ -60,7 +60,7 @@ SSOT §6.5.3、§10.5.3 由 Arca 冻结 Final Inventory Decision 并持有 Place
 
 过程节点的隔离投影结果是“检查上架可行性 / 执行失败”，描述回退为“这一步没有完成；ShelfDeck 记录的失败代码是 CLEAN_ARCA_TARGET_SEGMENT_INVALID。”，失败原因显示“系统没有保存可展示的文字原因”。当前详细诊断查询主要读取 On-deck 或 Libra 执行，未把 Acceptance 的字节数字接成该条目的可操作提示；前端即使收到仅含字节数字的 diagnostics，也不渲染这些字段。以上是代码路径与合成投影，不是完整 Host/浏览器现场验收；这一 UI 缺口和无效重试入口不能标为通过。
 
-## 供确认的最小合同修订方案（设计稿，未批准、未实施）
+## 历史设计稿（2026-10-29 用户已授权主动截断；下述“默认拒绝/另行启用”已被新决定取代）
 
 **待确认范围：仅首次 JAV single On-deck 的新 Decision；Movie、Series、US Adult、JAV Correction 和既有 Decision 保持各自现行合同。** 若用户选择保留当前精确渲染/超长报错，不做以下变更，本工作项继续受长标题阻断。
 
@@ -72,3 +72,17 @@ SSOT §6.5.3、§10.5.3 由 Arca 冻结 Final Inventory Decision 并持有 Place
 6. **UI 与发布。** Shelf 规则保存前可见实际短名示例及缩写结果；新条目的“需要处理”状态指出路径长度或冲突，并提供真实可达的下一步，不能把恒定失败的“重试上架”当解决方案。按 Playbook §11.1/§12.3 和 Beta 基线 §7.1 覆盖正常、缩写、冲突、失败和完成态及键盘/窄屏；由于是跨层及用户可见命名变化，须用户指定 UI 负责人审核**具体版本**。本地测试、真实 CIFS 资格、UI、完整 Gate 和生产发布各自单独记录，任何一项缺失都不能宣称已验收。
 
 本段仅供主整合向用户说明并取得明确决定；未修改 SSOT、Policy、UI、运行逻辑或生产。若用户确认的是不同的预算、缩写或冲突语义，应先改设计而非按本草案猜测实施。
+
+## 2026-10-29 授权后的合同及整合影响
+
+用户明确决定“超长名称授权shelfdeck帮忙主动截断”。适用新 JAV single Decision 时默认主动执行，不增加启用开关；主整合已在提交 `3e707a033837ca3bf2a0c6e26a65603e15678069` 的唯一 SSOT 合入“JAV新入藏超长名称（2026-10-29，用户授权；实施与资格另行验收）”段，并改正上一段对过长名称的冲突表述。本开发分支保持原 SSOT，整合以该主提交为准；这不表示运行逻辑、平台资格或生产已完成。JAV Correction、Aftercare、既有 Accepted/Decision 和其他内容类型仍按旧合同；完整身份及来源事实不变。
+
+生成物影响：此决定不新增 Shelf Placement Policy 字段，也不要求用户修改现有模板；若实现需要在冻结 Decision、Endpoint 能力或 Reservation 中增加版本化事实、typed I/O、Result、错误码、schema、Registry/manifest、数据库或公共接口，必须先由 Arca 明确其所有权和恢复合同并传播现有生成物，不能仅靠私有文件写入或推断相同字节为同一收藏。规则使用 `unicode-segmenter@0.17.3` 固定 Unicode 17.0 / UAX #29 revision 47；需锁定依赖，并在 Windows 和 Linux 验证同一输入产出相同结果。当前两平台 Node 在本地分别为 25.9.0 和 Docker 20.20.2；固定分段依赖避免直接依赖运行时 ICU 变化。
+
+必须覆盖合成 HALT/EMLB 从准备、Stage、Verify 到 Placement 的全程，完整番号及原始事实、Primary/NFO stem、实际扩展名、全部目录/成员及临时后缀字节界限；多字节、组合字符、ZWJ、无效 Unicode、固定部分过长、原名成员超限、不匹配模板、非 JAV、Correction、Aftercare 和旧冻结 Decision。冲突覆盖相同短名前缀的不同完整标题、同号不同 Entry、相同文件字节的不同所有者、目标已占用、大小写/Unicode等价、同目标并发以及 Stage/Placement 各中断点；用户界面还需验证有效的冲突提示和可达操作。真实 CIFS、固定版本 UI 负责人审核及完整 Gate 必须单独记录。
+
+当前实现的 `on-deck-store.js` `targetAvailability` 只按 endpoint ID 与目标路径字符串相等比较未终态的 Run；`clean-arca-inventory-port.js` 的 Stage/Placement 把目标已有相同 fingerprint 的文件当可复用。这两处事实不能证明截短后不同 Entry 或文件系统等价路径的所有权，也不能单凭目录已存在区分本 Run 的崩溃恢复。必须补齐可竞争安全的 Arca 所有权/Reservation 与恢复证明后才能把截短接入正式落位；名称算法单元测试不能替代这些证明。
+
+隔离分支新增纯 `jav-title-prefix` 计算草案、固定依赖，以及复用现有 Arca 命名渲染的内部只读 `previewJavTitle`；它尚未接入 Acceptance、Decision、Stage 或 UI，不能据此声称系统已经主动截短。预览明确返回 `targetCollisionChecked=false`，不授予 Reservation/写入权限；仅在确需截短时从唯一 canonical typed `jav_code` 提取完整番号，不更改原事实。Windows Node 25 与隔离 Linux Node 20 各 9 项纯计算测试通过，Windows 另有 4 项实际渲染预览测试通过；Linux 14 个相关测试文件合计 237 PASS（含现有拒绝长标题行为、Stage/Placement、JAV Correction、Series Reservation 及 US Adult 回归）。两组 HALT/EMLB 已验证实际渲染预览中的目录、扩展名、Primary/NFO stem 和后缀预算，源事实与目标目录保持原样；尚未以截短结果贯通正式 Stage→Verify→Placement。碰撞同前缀、组合字符、ZWJ、非法 Unicode、号码前导零与后缀、固定字段不足、字幕限定词和原名成员过长有单元覆盖；完整并发归属、真实 Endpoint 等价、崩溃证明、实际 UI/Owner 审核、真实 CIFS 与完整发布 Gate 仍未完成。
+
+合同传播记录：本分支曾临时物化自己的 SSOT 源定位，P2 因四个既有表合同的引用行号变化报 `TABLE_CONTRACT_DRIFT`；已撤回本分支的临时 SSOT/全局生成物，原分支 P2 复验通过（138/117/239/62，unresolved 0）。主整合反馈其 `3e707a033` 已统一更新四份相关表合同及生成物并通过 P2；本分支不会提交或覆盖主整合的全局生成物。两次结果分开记录，不以子分支基线通过冒充整合候选验证。

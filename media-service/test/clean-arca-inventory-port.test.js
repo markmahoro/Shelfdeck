@@ -115,6 +115,70 @@ for(const [code,title,folderBytes,fileBytes,temporaryBytes,maxBytes] of [
   }finally{fs.rmSync(f.root,{recursive:true,force:true});}
 });
 
+for(const [code,title] of [
+  ['HALT-094','HALT-094 '+'題'.repeat(74)+'A'],
+  ['EMLB-094','EMLB-094 '+'題'.repeat(85)],
+]) test(`read-only ${code} naming preview uses the actual placement renderer without changing the frozen fact`,()=>{
+  const f=componentBudgetFixture(title,2026);
+  try{
+    f.packageValue.resolvedIdentitySnapshot.factValue.providerIdentities=[{provider:'jav',namespace:'jav_code',providerKey:code}];
+    const before=JSON.stringify(f.packageValue),preview=f.port.previewJavTitle(f.request);
+    assert.equal(preview.shortened,true);assert.equal(preview.rule,'arca.jav-title-prefix@1');
+    assert.equal(preview.targetCollisionChecked,false);
+    assert.ok(path.basename(preview.targetDirectory).startsWith(code+' '));
+    assert.ok(Buffer.byteLength(path.basename(preview.targetDirectory)+'.shelfdeck-stage-'+'0'.repeat(16))<=255);
+    const primary=preview.members.find(item=>item.role==='primary_payload').finalName;
+    const nfo=preview.members.find(item=>item.role==='metadata_sidecar').finalName;
+    assert.equal(path.basename(primary,'.mkv'),path.basename(nfo,'.nfo'));
+    assert.ok(primary.endsWith(' (2026).mkv'));assert.ok(nfo.endsWith(' (2026).nfo'));
+    for(const item of preview.members)assert.ok(Buffer.byteLength(item.finalName+'.restore-'+'0'.repeat(16))<=255);
+    assert.equal(JSON.stringify(f.packageValue),before);
+    assert.deepEqual(fs.readdirSync(f.targetRoot),[]);
+    assert.throws(()=>f.port.prepare(f.request),{code:'CLEAN_ARCA_TARGET_SEGMENT_INVALID'});
+  }finally{fs.rmSync(f.root,{recursive:true,force:true});}
+});
+
+test('JAV naming preview refuses mismatched stems and historical ownership scopes',()=>{
+  const code='IPX-178',f=componentBudgetFixture(code+' '+'題'.repeat(90),null);
+  try{
+    f.packageValue.resolvedIdentitySnapshot.factValue.providerIdentities=[{provider:'jav',namespace:'jav_code',providerKey:code}];
+    f.shelf.placement.value.nfoTemplate='other-{stem}.nfo';
+    assert.throws(()=>f.port.previewJavTitle(f.request),{code:'CLEAN_ARCA_JAV_SHORT_STEM_MISMATCH'});
+    for(const extra of [{aftercareCaseId:'care'},{correctionId:'correction'},{finalInventoryDecision:{}}])
+      assert.throws(()=>f.port.previewJavTitle({...f.request,...extra}),{code:'CLEAN_ARCA_JAV_TITLE_PREVIEW_SCOPE'});
+    assert.deepEqual(fs.readdirSync(f.targetRoot),[]);
+  }finally{fs.rmSync(f.root,{recursive:true,force:true});}
+});
+
+test('JAV naming preview budgets actual subtitle qualifiers and container extensions',()=>{
+  const code='IPX-178',f=componentBudgetFixture(code+' '+'題'.repeat(100),2026);
+  try{
+    f.packageValue.resolvedIdentitySnapshot.factValue.providerIdentities=[{provider:'jav',namespace:'jav_code',providerKey:code}];
+    const subtitle=path.join(path.dirname(f.files.primary),'input.en.forced.sdh.ass');
+    fs.writeFileSync(subtitle,'synthetic subtitle');
+    f.packageValue.productMaterialManifest.members.push(member(subtitle,'subtitle','synthetic-mount'));
+    const preview=f.port.previewJavTitle(f.request),primary=preview.members.find(item=>item.role==='primary_payload').finalName;
+    const captions=preview.members.find(item=>item.role==='subtitle').finalName;
+    assert.equal(captions,path.basename(primary,'.mkv')+'.en.forced.sdh.ass');
+    assert.ok(Buffer.byteLength(captions+'.restore-'+'0'.repeat(16))<=255);
+    assert.ok(Buffer.byteLength(path.basename(preview.targetDirectory)+'.shelfdeck-stage-'+'0'.repeat(16))<=255);
+    assert.deepEqual(fs.readdirSync(f.targetRoot),[]);
+  }finally{fs.rmSync(f.root,{recursive:true,force:true});}
+});
+
+test('JAV naming preview cannot truncate an over-budget member that keeps its source name',()=>{
+  const code='IPX-178',f=componentBudgetFixture(code+' '+'題'.repeat(100),null);
+  try{
+    f.packageValue.resolvedIdentitySnapshot.factValue.providerIdentities=[{provider:'jav',namespace:'jav_code',providerKey:code}];
+    const original=path.join(path.dirname(f.files.primary),'a'.repeat(231));
+    fs.writeFileSync(original,'original related content');
+    f.packageValue.productMaterialManifest.members.push(member(original,'sidecar','synthetic-mount'));
+    assert.throws(()=>f.port.previewJavTitle(f.request),{code:'CLEAN_ARCA_JAV_TITLE_UNFITTING'});
+    assert.equal(fs.readFileSync(original,'utf8'),'original related content');
+    assert.deepEqual(fs.readdirSync(f.targetRoot),[]);
+  }finally{fs.rmSync(f.root,{recursive:true,force:true});}
+});
+
 test('a prefix-only UTF-8 shortening can collapse distinct titles even while retaining the JAV code',()=>{
   const common='IPX-178 '+'題'.repeat(72),titles=[common+'A',common+'B'];
   const prefix=(value,budget)=>{
