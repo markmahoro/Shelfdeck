@@ -1,11 +1,14 @@
 'use strict';
 const {packageContentProfile}=require('./helix/domains/arca/model/product-content-profile');
+const {chooseJavTitlePrefix}=require('./helix/domains/arca/model/jav-title-prefix');
+const {splitGraphemes}=require('unicode-segmenter/grapheme');
 const {relatedPrimaryName}=require('./helix/domains/arca/model/related-primary-name');
 const {assertRequiredUsAdultActor}=require('./helix/contracts/us-adult-actor-package');
 const {assertUsAdultInventoryPresentation}=require('./helix/contracts/us-adult-inventory-presentation');
 const {originalNameProvenance,buildUsAdultTitle,buildUsAdultName}=require('./helix/contracts/us-adult-presentation');
 
 const fs = require('node:fs');
+const { pipeline } = require('node:stream/promises');
 const {offloadProductKeys}=require('./helix/contracts/offload-product-targets');
 const {seriesPlacementContext,seriesMemberStem}=require('./helix/domains/arca/model/series-placement');
 const path = require('node:path');
@@ -51,6 +54,16 @@ function fail(code, message, details) {
 function requireContinuation(request) {
   if (typeof request?.shouldContinue === 'function' && request.shouldContinue() === false) {
     fail('CLEAN_ARCA_EFFECT_FENCED', 'Inventory effect lost its current modification authority.');
+  }
+}
+
+function pathExistsOrThrow(location) {
+  try {
+    fs.lstatSync(location);
+    return true;
+  } catch (error) {
+    if (error?.code === 'ENOENT') return false;
+    throw error;
   }
 }
 
@@ -176,7 +189,19 @@ function observationDigest(observed) {
     fingerprintVersion:observed.fingerprintVersion,contentFingerprint:observed.contentFingerprint});
 }
 
-function safeSegment(value) {
+const JAV_DIRECTORY_BUDGET = 255 - Buffer.byteLength('.shelfdeck-stage-' + '0'.repeat(16));
+const JAV_MEMBER_BUDGET = 255 - Buffer.byteLength('.restore-' + '0'.repeat(16));
+
+function newJavOnDeck(request) {
+  const packageValue = request?.onDeckProductPackage;
+  const fact = packageValue?.resolvedIdentitySnapshot?.factValue?.resolvedProductIdentity ||
+    packageValue?.resolvedIdentitySnapshot?.factValue;
+  return !request?.aftercareCaseId && !request?.correctionId &&
+    fact?.contentProfile === 'jav' && fact.identityKind === 'jav_code' &&
+    fact.structureKind === 'single' && packageValue.productStructureSnapshot?.structureKind === 'single';
+}
+
+function safeSegment(value, preserveLength = false) {
   const segment = String(value || '').trim()
     .replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_')
     .replace(/[. ]+$/g, '');
@@ -184,7 +209,13 @@ function safeSegment(value) {
     fail('CLEAN_ARCA_TARGET_SEGMENT_INVALID',
       'Final Inventory path contains an invalid segment.');
   }
-  return segment.slice(0, 180);
+  if (preserveLength && Array.from(segment).some((character) => {
+    const point = character.codePointAt(0);
+    return point >= 0xd800 && point <= 0xdfff;
+  })) {
+    fail('CLEAN_ARCA_TARGET_SEGMENT_INVALID', 'Final Inventory path contains invalid Unicode.');
+  }
+  return preserveLength ? segment : segment.slice(0, 180);
 }
 
 function displayIdentityEntry(identityFact, key) {
@@ -284,7 +315,8 @@ function subtitleQualifiers(fileName) {
 }
 
 function finalMemberName(member, source, identity, placement, series = null) {
-  const segment=identity.usAdultNaming?exactUsAdultSegment:safeSegment;
+  const segment=identity.usAdultNaming?exactUsAdultSegment:
+    identity.javTitleBudget ? value=>safeSegment(value,true) : safeSegment;
   if(series&&member.role==='sidecar'){
     const relatedName=relatedPrimaryName(series.packageValue,member,primary=>
       finalMemberName(primary,primary.location?.location||primary.workspaceMaterialHandle?.relativePath||'video.mkv',identity,placement,series));
@@ -382,6 +414,19 @@ async function cooperativeCopyFile(source, target, flags = 0) {
   await fs.promises.copyFile(source, target, flags);
 }
 
+async function copyPinnedExclusive(source, target) {
+  const fd = fs.openSync(target, 'wx', 0o600);
+  try {
+    await pipeline(fs.createReadStream(source, { highWaterMark:1024*1024 }),
+      fs.createWriteStream(target, { fd, autoClose:false, highWaterMark:1024*1024 }));
+    fs.fsyncSync(fd);
+    return fd;
+  } catch (error) {
+    try { fs.closeSync(fd); } catch {}
+    throw error;
+  }
+}
+
 function createCleanArcaInventoryPort(options) {
   if (!options?.schemaManifest || !options.unitOfWork ||
       typeof options.workspaceRoot !== 'string' || !options.workspaceRoot) {
@@ -394,6 +439,38 @@ function createCleanArcaInventoryPort(options) {
   const copyFile = options.copyFile || cooperativeCopyFile;
   const computeFingerprint = options.computeFingerprint ||
     computeBoundedMaterialFingerprint;
+  const shortStageLeases = new Map();
+
+  function releaseShortStage(slotId) {
+    const lease = shortStageLeases.get(slotId);
+    if (!lease) return;
+    shortStageLeases.delete(slotId);
+    clearTimeout(lease.timer);
+    for (const fd of lease.descriptors.values()) { try { fs.closeSync(fd); } catch {} }
+  }
+
+  function requireShortStage(slotId, sourceMaterialKey, observed) {
+    const fd = shortStageLeases.get(slotId)?.descriptors.get(sourceMaterialKey);
+    if (fd === undefined) fail('CLEAN_ARCA_SHORT_STAGE_UNCERTAIN',
+      'The original in-process Stage descriptor is unavailable; files were retained.');
+    const held = fs.fstatSync(fd, { bigint:true });
+    if (!held.isFile() || held.dev !== observed.stat.dev || held.ino !== observed.stat.ino ||
+        held.size !== observed.stat.size || held.mtimeNs !== observed.stat.mtimeNs || held.ctimeNs !== observed.stat.ctimeNs) {
+      fail('CLEAN_ARCA_SHORT_STAGE_UNCERTAIN', 'The live staged member changed; its files were retained.');
+    }
+    return held;
+  }
+
+  function requireShortSlotDirectory(handle) {
+    let observed;
+    try { observed=fs.lstatSync(handle.slotDirectory); }
+    catch(error) {
+      if(error?.code==='ENOENT') fail('CLEAN_ARCA_SHORT_STAGE_UNCERTAIN', 'The shortened staging slot disappeared.');
+      throw error;
+    }
+    if (!observed.isDirectory() || observed.isSymbolicLink())
+      fail('CLEAN_ARCA_SHORT_STAGE_UNCERTAIN', 'The shortened staging slot is not a direct directory.');
+  }
 
   async function restorePresentationMember(request, plan, stagedLocation) {
     if (!isLibraryPresentationRole(plan.member.role) ||
@@ -514,7 +591,7 @@ function createCleanArcaInventoryPort(options) {
         contentFingerprint:bounded.contentFingerprint }) });
   }
 
-  function resolveTargetLocation(request, policyOnly = false) {
+  function resolveTargetLocationWithIdentity(request, policyOnly = false, identityOverride = null) {
     const targetRoot = path.resolve(request?.shelf?.target?.rootLocation || '');
     const shelf = request?.shelf;
     const packageValue = request?.onDeckProductPackage;
@@ -532,14 +609,16 @@ function createCleanArcaInventoryPort(options) {
     if(request.inventoryUsAdultPresentation!==undefined&&
         (packageValue.resolvedIdentitySnapshot?.factValue?.resolvedProductIdentity||packageValue.resolvedIdentitySnapshot?.factValue)?.contentProfile!=='western_adult')
       fail('CLEAN_ARCA_INVENTORY_INPUT','Inventory actor naming cannot change a different content profile.');
-    const identity = inventoryDisplayIdentity(packageValue,request);
+    const identity = identityOverride || inventoryDisplayIdentity(packageValue,request);
     const placement = { ...DEFAULT_SHELF_PLACEMENT_POLICY, ...(shelf.placement?.value || {}) };
     if(identity.usAdultNaming)placement.collisionPolicy='reject';
     const renderedFolder = renderTemplate(placement.folderTemplate, {
       title:identity.title,
       year:identity.year === null ? '' : String(identity.year),
     }).replace(/\s+\(\s*\)$/, '');
-    const folder = (identity.usAdultNaming?exactUsAdultSegment:safeSegment)(identity.edition
+    const segment = identity.usAdultNaming ? exactUsAdultSegment :
+      identity.javTitleBudget ? value => safeSegment(value, true) : safeSegment;
+    const folder = segment(identity.edition
       ? renderedFolder + ' - ' + identity.edition
       : renderedFolder);
     if(request.inventoryArtifactScopes!==undefined&&!request.aftercareCaseId)
@@ -558,8 +637,62 @@ function createCleanArcaInventoryPort(options) {
     return Object.freeze({ targetRoot, targetDirectory, identity, placement, series });
   }
 
+  function resolveTargetLocation(request, policyOnly = false) {
+    if (!newJavOnDeck(request)) return resolveTargetLocationWithIdentity(request, policyOnly);
+    const packageValue = request.onDeckProductPackage;
+    const original = inventoryDisplayIdentity(packageValue, request);
+    const fact = packageValue.resolvedIdentitySnapshot.factValue.resolvedProductIdentity ||
+      packageValue.resolvedIdentitySnapshot.factValue;
+    let lastNameError = null;
+    const render = (title, shortened) => {
+      const identity = Object.freeze({ ...original, title, javTitleBudget:true });
+      const resolved = resolveTargetLocationWithIdentity(request, policyOnly, identity);
+      if (Buffer.byteLength(path.basename(resolved.targetDirectory), 'utf8') > JAV_DIRECTORY_BUDGET) return null;
+      const members = packageValue.productMaterialManifest.members.map(member => {
+        const source = sourcePath(member);
+        return { member, source, name:finalMemberName(member, source, identity, resolved.placement, resolved.series) };
+      });
+      if (!members.some(item => item.member.role === 'primary_payload')) {
+        fail('CLEAN_ARCA_PRIMARY_MISSING', 'Product Material Manifest has no primary payload.');
+      }
+      const counts = new Map();
+      for (const item of members) counts.set(item.name, (counts.get(item.name) || 0) + 1);
+      const names = members.map(item => counts.get(item.name) > 1 && item.member.role === 'subtitle'
+        ? safeSegment(path.basename(item.source), true) : item.name);
+      if (names.some(name => Buffer.byteLength(name, 'utf8') > JAV_MEMBER_BUDGET)) return null;
+      if (shortened) {
+        if (new Set(names).size !== names.length) {
+          lastNameError = new CleanArcaInventoryPortError('CLEAN_ARCA_TARGET_COLLISION',
+            'Shortened Inventory members must not share a final target.');
+          return null;
+        }
+        const primaryStems = members.flatMap((item, index) => item.member.role === 'primary_payload'
+          ? [path.basename(names[index], path.extname(names[index]))] : []);
+        const nfoStems = members.flatMap((item, index) => item.member.role === 'metadata_sidecar'
+          ? [path.extname(names[index]).toLowerCase() === '.nfo'
+            ? path.basename(names[index], path.extname(names[index])) : null] : []);
+        if (nfoStems.some(stem => stem === null || primaryStems.some(primary => primary !== stem))) {
+          lastNameError = new CleanArcaInventoryPortError('CLEAN_ARCA_JAV_SHORT_STEM_MISMATCH',
+            'Shortened primary and NFO names must share a stem.');
+          return null;
+        }
+      }
+      return resolved;
+    };
+    let choice;
+    try {
+      choice = chooseJavTitlePrefix({ title:original.title, providerIdentities:fact.providerIdentities, splitGraphemes,
+        fits:title => Boolean(render(title, title !== original.title)) });
+    } catch (error) {
+      if (error?.code === 'CLEAN_ARCA_JAV_TITLE_UNFITTING' && lastNameError) throw lastNameError;
+      throw error;
+    }
+    const result = render(choice.title, choice.shortened);
+    return Object.freeze({ ...result, shortenedJavTitle:choice.shortened });
+  }
+
   function buildPlan(request) {
-    const { targetRoot, targetDirectory, identity, placement, series } = resolveTargetLocation(request);
+    const { targetRoot, targetDirectory, identity, placement, series, shortenedJavTitle } = resolveTargetLocation(request);
     const shelf = request.shelf;
     const packageValue = request.onDeckProductPackage;
     const primary = packageValue.productMaterialManifest.members
@@ -577,11 +710,11 @@ function createCleanArcaInventoryPort(options) {
     const uniquified = draftPlans.map((item) => {
       const colliding = draftPlans.filter((other) => other.name === item.name).length > 1;
       if (!colliding || item.member.role !== 'subtitle') return item;
-      return Object.freeze({ ...item, name: safeSegment(path.basename(item.source)) });
+      return Object.freeze({ ...item, name: safeSegment(path.basename(item.source), Boolean(identity.javTitleBudget)) });
     });
     const duplicateNames = new Set(uniquified.map((item) => item.name)
       .filter((name, index, values) => values.indexOf(name) !== index));
-    if (duplicateNames.size > 0 && placement.collisionPolicy === 'reject') {
+    if (duplicateNames.size > 0 && (shortenedJavTitle || placement.collisionPolicy === 'reject')) {
       fail('CLEAN_ARCA_TARGET_COLLISION',
         'Final Inventory Decision maps multiple members to one target.', {
           names:[...duplicateNames].sort(),
@@ -621,12 +754,13 @@ function createCleanArcaInventoryPort(options) {
     return Object.freeze({
       targetRoot,
       targetDirectory,
+      shortenedJavTitle:Boolean(shortenedJavTitle),
       plans: Object.freeze(plans),
     });
   }
 
   async function buildPlanAsync(request) {
-    const { targetRoot, targetDirectory, identity, placement, series } = resolveTargetLocation(request);
+    const { targetRoot, targetDirectory, identity, placement, series, shortenedJavTitle } = resolveTargetLocation(request);
     const packageValue = request.onDeckProductPackage;
     const primary = packageValue.productMaterialManifest.members
       .find((member) => member.role === 'primary_payload');
@@ -643,11 +777,11 @@ function createCleanArcaInventoryPort(options) {
     const uniquified = draftPlans.map((item) => {
       const colliding = draftPlans.filter((other) => other.name === item.name).length > 1;
       if (!colliding || item.member.role !== 'subtitle') return item;
-      return Object.freeze({ ...item, name: safeSegment(path.basename(item.source)) });
+      return Object.freeze({ ...item, name: safeSegment(path.basename(item.source), Boolean(identity.javTitleBudget)) });
     });
     const duplicateNames = new Set(uniquified.map((item) => item.name)
       .filter((name, index, values) => values.indexOf(name) !== index));
-    if (duplicateNames.size > 0 && placement.collisionPolicy === 'reject') {
+    if (duplicateNames.size > 0 && (shortenedJavTitle || placement.collisionPolicy === 'reject')) {
       fail('CLEAN_ARCA_TARGET_COLLISION',
         'Final Inventory Decision maps multiple members to one target.', {
           names:[...duplicateNames].sort(),
@@ -691,6 +825,7 @@ function createCleanArcaInventoryPort(options) {
     return Object.freeze({
       targetRoot,
       targetDirectory,
+      shortenedJavTitle:Boolean(shortenedJavTitle),
       plans: Object.freeze(plans),
     });
   }
@@ -1120,6 +1255,7 @@ function createCleanArcaInventoryPort(options) {
 
   function prepareSlot(request) {
     const handle = slotHandle(request);
+    const shortened=newJavOnDeck(request)&&resolveTargetLocation(request).shortenedJavTitle;
     if (fs.existsSync(handle.targetDirectory) &&
         !fs.statSync(handle.targetDirectory).isDirectory()) {
       fail('CLEAN_ARCA_TARGET_OCCUPIED',
@@ -1130,7 +1266,9 @@ function createCleanArcaInventoryPort(options) {
       fail('CLEAN_ARCA_STAGE_SLOT_INVALID',
         'Target staging slot is not a directory.');
     }
+    if (shortened && pathExistsOrThrow(handle.slotDirectory)) requireShortSlotDirectory(handle);
     fs.mkdirSync(handle.slotDirectory, { recursive: true });
+    if (shortened) requireShortSlotDirectory(handle);
     return handle;
   }
 
@@ -1142,6 +1280,24 @@ function createCleanArcaInventoryPort(options) {
         canonicalJson(request.targetCommitSlotHandle) !== canonicalJson(handle)) {
       fail('CLEAN_ARCA_STAGE_SLOT_DRIFT',
         'Product staging received a stale Target Commit Slot.');
+    }
+    if (built.shortenedJavTitle) {
+      if (pathExistsOrThrow(handle.targetDirectory)) {
+        fail('CLEAN_ARCA_JAV_SHORT_TARGET_OCCUPIED',
+          'The shortened Final Inventory target already exists.', {
+            sourceDirectory:handle.targetDirectory,
+            conflicts:[{ target:handle.targetDirectory, name:path.basename(handle.targetDirectory) }], conflictCount:1,
+          });
+      }
+      for (const plan of built.plans) {
+        const staged = path.resolve(handle.slotDirectory, plan.name);
+        const temporary = staged + '.tmp-' +
+          canonicalDigest({ run:request.onDeckRunId, key:plan.member.materialKey }).slice(0, 16);
+        if (pathExistsOrThrow(staged) || pathExistsOrThrow(temporary)) {
+          fail('CLEAN_ARCA_SHORT_STAGE_UNCERTAIN',
+            'The shortened target has an unclassified staged member; its files were retained.');
+        }
+      }
     }
     // Resolve target conflicts before creating or changing any staged material.
     // A known occupied target is a terminal precondition, not an uncertain copy.
@@ -1165,7 +1321,8 @@ function createCleanArcaInventoryPort(options) {
         });
     }
     prepareSlot(request);
-    const stagedMembers = [];
+    const stagedMembers = [], pinned = built.shortenedJavTitle ? new Map() : null;
+    try {
     for (const plan of built.plans) {
       requireContinuation(request);
       const target = path.resolve(handle.slotDirectory, plan.name);
@@ -1176,6 +1333,9 @@ function createCleanArcaInventoryPort(options) {
       const finalExisting = fs.existsSync(plan.target)
         ? await computeFingerprint(plan.target)
         : null;
+      if (built.shortenedJavTitle && finalExisting) {
+        fail('CLEAN_ARCA_SHORT_STAGE_UNCERTAIN', 'A final member appeared during staging; its files were retained.');
+      }
       const finalExact = finalExisting &&
         Number(finalExisting.stat.size) === plan.sizeBytes &&
         finalExisting.contentFingerprint === plan.contentFingerprint;
@@ -1200,6 +1360,9 @@ function createCleanArcaInventoryPort(options) {
       const existing = fs.existsSync(target)
         ? await computeFingerprint(target)
         : null;
+      if (built.shortenedJavTitle && existing) {
+        fail('CLEAN_ARCA_SHORT_STAGE_UNCERTAIN', 'A staged member appeared during staging; its files were retained.');
+      }
       let exact = existing && Number(existing.stat.size) === plan.sizeBytes &&
         existing.contentFingerprint === plan.contentFingerprint;
       if (existing && !exact) {
@@ -1218,18 +1381,35 @@ function createCleanArcaInventoryPort(options) {
         const temporary = target + '.tmp-' +
           canonicalDigest({ run:request.onDeckRunId, key:plan.member.materialKey })
             .slice(0, 16);
-        await fs.promises.rm(temporary, { force:true });
+        if (!built.shortenedJavTitle) await fs.promises.rm(temporary, { force:true });
         try {
-          await copyFile(plan.source, temporary, fs.constants.COPYFILE_EXCL);
+          if (pinned) pinned.set(plan.member.materialKey, await copyPinnedExclusive(plan.source, temporary));
+          else await copyFile(plan.source, temporary, fs.constants.COPYFILE_EXCL);
           const observed = await computeFingerprint(temporary);
           if (Number(observed.stat.size) !== plan.sizeBytes ||
               observed.contentFingerprint !== plan.contentFingerprint) {
             fail('CLEAN_ARCA_STAGE_COPY_VERIFY',
               'Staged Inventory bytes failed verification.');
           }
-          await fs.promises.rename(temporary, target);
+          if (built.shortenedJavTitle) {
+            const held = fs.fstatSync(pinned.get(plan.member.materialKey), { bigint:true });
+            if (!held.isFile() || held.dev !== observed.stat.dev || held.ino !== observed.stat.ino ||
+                held.size !== observed.stat.size || held.mtimeNs !== observed.stat.mtimeNs || held.ctimeNs !== observed.stat.ctimeNs)
+              fail('CLEAN_ARCA_SHORT_STAGE_UNCERTAIN', 'The copied member no longer matches its live descriptor.');
+            try { await fs.promises.link(temporary, target); }
+            catch (error) {
+              if (error?.code === 'EEXIST') fail('CLEAN_ARCA_SHORT_STAGE_UNCERTAIN',
+                'A staged member appeared during exclusive publication; its files were retained.');
+              throw error;
+            }
+            const linked = fs.lstatSync(target, { bigint:true }), original = fs.lstatSync(temporary, { bigint:true });
+            if (!linked.isFile() || !original.isFile() || linked.dev !== held.dev || linked.ino !== held.ino ||
+                original.dev !== held.dev || original.ino !== held.ino)
+              fail('CLEAN_ARCA_SHORT_STAGE_UNCERTAIN', 'The staged link no longer matches its live descriptor.');
+            await fs.promises.unlink(temporary);
+          } else await fs.promises.rename(temporary, target);
         } catch (error) {
-          await fs.promises.rm(temporary, { force:true }).catch(() => undefined);
+          if (!built.shortenedJavTitle) await fs.promises.rm(temporary, { force:true }).catch(() => undefined);
           throw error;
         }
       }
@@ -1237,6 +1417,12 @@ function createCleanArcaInventoryPort(options) {
       const observed = finalExact
         ? finalExisting : finalSemantic
           ? finalObserved : await computeFingerprint(target);
+      if (pinned) {
+        const held = fs.fstatSync(pinned.get(plan.member.materialKey), { bigint:true });
+        if (!held.isFile() || held.dev !== observed.stat.dev || held.ino !== observed.stat.ino ||
+            held.size !== observed.stat.size || held.mtimeNs !== observed.stat.mtimeNs || held.ctimeNs !== observed.stat.ctimeNs)
+          fail('CLEAN_ARCA_SHORT_STAGE_UNCERTAIN', 'The staged member changed before its Manifest was created.');
+      }
       const identityBase = {
         schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v2',
         schemaVersion: 2,
@@ -1294,7 +1480,17 @@ function createCleanArcaInventoryPort(options) {
       sourceProductManifestDigest:
         request.onDeckProductPackage.productMaterialManifest.manifestDigest,
     };
-    return Object.freeze({ ...base, manifestDigest:canonicalDigest(base) });
+    const manifest=Object.freeze({ ...base, manifestDigest:canonicalDigest(base) });
+    if (pinned) {
+      const timer=setTimeout(()=>releaseShortStage(handle.slotId), 60*60*1000);
+      timer.unref();
+      shortStageLeases.set(handle.slotId,{descriptors:pinned,timer});
+    }
+    return manifest;
+    } catch (error) {
+      if (pinned) for (const fd of pinned.values()) { try { fs.closeSync(fd); } catch {} }
+      throw error;
+    }
   }
 
   async function verifyStaged(request) {
@@ -1308,6 +1504,7 @@ function createCleanArcaInventoryPort(options) {
         'Staged Inventory Manifest is stale.');
     }
     const built = await buildPlanAsync(request);
+    if (built.shortenedJavTitle) requireShortSlotDirectory(handle);
     const planBySource = new Map(built.plans.map((item) =>
       [item.member.materialKey, item]));
     const observed = [];
@@ -1320,11 +1517,15 @@ function createCleanArcaInventoryPort(options) {
       }
       const stagedLocation = path.resolve(handle.slotDirectory,
         path.basename(finalLocation));
+      if (built.shortenedJavTitle && (!pathExistsOrThrow(stagedLocation) ||
+          !fs.lstatSync(stagedLocation).isFile())) {
+        fail('CLEAN_ARCA_SHORT_STAGE_UNCERTAIN', 'A shortened staged member is missing or unclassified.');
+      }
       const location = fs.existsSync(stagedLocation)
         ? stagedLocation : finalLocation;
       const plan = planBySource.get(member.sourceMaterialKey);
       const stagedExists = fs.existsSync(stagedLocation);
-      if (plan && stagedExists) {
+      if (plan && stagedExists && !built.shortenedJavTitle) {
         await restorePresentationMember(request, plan, stagedLocation);
       }
       const packageMember = request.onDeckProductPackage.productMaterialManifest.members.find(
@@ -1336,9 +1537,11 @@ function createCleanArcaInventoryPort(options) {
         priorPlacementCoversTarget(request, plan, handle);
       const fingerprint = semanticPresentation
         ? await readStableNfo(location) : await computeFingerprint(location);
+      if (built.shortenedJavTitle) requireShortStage(handle.slotId, member.sourceMaterialKey, fingerprint);
       const identityChanged = Number(fingerprint.stat.size) !==
         member.physicalIdentity.sizeBytes || fingerprint.contentFingerprint !==
-        member.physicalIdentity.contentFingerprint;
+        member.physicalIdentity.contentFingerprint ||
+        (built.shortenedJavTitle && String(fingerprint.stat.ino) !== String(member.physicalIdentity.inode));
       const packageChanged = Number(fingerprint.stat.size) !== Number(packageMember?.sizeBytes) ||
         fingerprint.contentFingerprint !== packageMember?.physicalIdentity.contentFingerprint;
       if (identityChanged || (!semanticFinal && packageChanged)) {
@@ -1371,6 +1574,102 @@ function createCleanArcaInventoryPort(options) {
     });
   }
 
+  function placementReceipt(request, handle, verification) {
+    const base = {
+      schemaRef: 'helix://contracts/types/PlacementSwitchReceipt/v1',
+      schemaVersion: 1,
+      receiptId: canonicalDigest({ schema:'arca.placement-switch-receipt-id@1', onDeckRunId:request.onDeckRunId }),
+      receiptKind: 'placement_switched', ownerDomain: 'arca',
+      scopeType: request.aftercareCaseId ? 'aftercare_case' : 'on_deck_run',
+      scopeId: request.aftercareCaseId || request.onDeckRunId,
+      scopeDigest: canonicalDigest({ handle, verification }), effectReceiptRef: null,
+      committedAtMs: Number.isSafeInteger(request.observedAtMs) ? request.observedAtMs : 0,
+      targetCommitSlotId: handle.slotId, finalBindingSetDigest: request.targetBindings.bindingSetDigest,
+      replacedInputSetDigest: request.replacedInputSetDigest, transactionRevision: 1,
+    };
+    return Object.freeze(base);
+  }
+
+  async function switchShortenedJav(request, built, handle, verification) {
+    requireShortSlotDirectory(handle);
+    const manifest = request.stagedInventoryManifest;
+    const { manifestDigest, ...manifestBody } = manifest || {};
+    if (!manifest || manifest.manifestKind !== 'staged_inventory' || manifest.ownerDomain !== 'arca' ||
+        manifestDigest !== canonicalDigest(manifestBody) ||
+        manifestDigest !== verification.stagedInventoryManifestDigest ||
+        manifest.targetCommitSlotId !== handle.slotId ||
+        manifest.sourceProductManifestDigest !== request.onDeckProductPackage.productMaterialManifest.manifestDigest ||
+        !Array.isArray(manifest.stagedMembers) || manifest.memberCount !== built.plans.length ||
+        manifest.stagedMembers.length !== built.plans.length ||
+        manifest.membersDigest !== canonicalDigest({schema:'arca.staged-inventory-members@1',items:manifest.stagedMembers})) {
+      fail('CLEAN_ARCA_SHORT_PUBLICATION_UNCERTAIN', 'The exact staged Manifest is required for a shortened target.');
+    }
+    const members = new Map(manifest.stagedMembers.map(member => [member.sourceMaterialKey, member]));
+    if (members.size !== built.plans.length) {
+      fail('CLEAN_ARCA_SHORT_PUBLICATION_UNCERTAIN', 'The staged Manifest contains duplicate source members.');
+    }
+    const staged = [];
+    for (const plan of built.plans) {
+      requireContinuation(request);
+      const member = members.get(plan.member.materialKey), location = path.resolve(handle.slotDirectory, plan.name);
+      if (!member || member.role !== plan.member.role || member.location !== plan.target ||
+          member.endpointId !== request.shelf.target.endpointId || !contained(handle.slotDirectory, location) ||
+          !fs.lstatSync(location).isFile()) {
+        fail('CLEAN_ARCA_SHORT_PUBLICATION_UNCERTAIN', 'The staged member no longer matches its frozen target.');
+      }
+      const observed = await computeFingerprint(location), identity = member.physicalIdentity;
+      requireShortStage(handle.slotId, plan.member.materialKey, observed);
+      if (!identity || identity.mountScopeId !== request.shelf.target.mountScopeId ||
+          String(observed.stat.ino) !== String(identity.inode) || Number(observed.stat.size) !== identity.sizeBytes ||
+          observed.fingerprintAlgorithm !== identity.fingerprintAlgorithm || observed.fingerprintVersion !== identity.fingerprintVersion ||
+          observed.contentFingerprint !== identity.contentFingerprint || !fingerprintsMatchPlan(observed, plan)) {
+        fail('CLEAN_ARCA_SHORT_PUBLICATION_UNCERTAIN', 'The staged member changed after verification.');
+      }
+      staged.push({ plan, location, observed });
+    }
+    requireContinuation(request);
+    try { fs.mkdirSync(handle.targetDirectory); }
+    catch (error) {
+      if (error?.code === 'EEXIST') fail('CLEAN_ARCA_SHORT_PUBLICATION_UNCERTAIN',
+        'The shortened target already exists and its publication is unclassified.');
+      throw error;
+    }
+    for (const item of staged) {
+      requireContinuation(request);
+      requireShortSlotDirectory(handle);
+      try { fs.linkSync(item.location, item.plan.target); }
+      catch (error) {
+        if (error?.code === 'EEXIST') fail('CLEAN_ARCA_SHORT_PUBLICATION_UNCERTAIN',
+          'A final member appeared during exclusive publication; all files were retained.');
+        throw error;
+      }
+      const final = await computeFingerprint(item.plan.target), current = fs.lstatSync(item.location, { bigint:true });
+      requireShortStage(handle.slotId, item.plan.member.materialKey, final);
+      if (!current.isFile() || current.dev !== final.stat.dev || current.ino !== final.stat.ino ||
+          String(final.stat.ino) !== String(item.observed.stat.ino) || !fingerprintsMatchPlan(final, item.plan)) {
+        fail('CLEAN_ARCA_SHORT_PUBLICATION_UNCERTAIN', 'Published and staged member identities no longer agree.');
+      }
+    }
+    for (const item of staged) {
+      requireContinuation(request);
+      requireShortSlotDirectory(handle);
+      const observed=await computeFingerprint(item.location);
+      requireShortStage(handle.slotId, item.plan.member.materialKey, observed);
+      const source = fs.lstatSync(item.location, { bigint:true }), target = fs.lstatSync(item.plan.target, { bigint:true });
+      if (!source.isFile() || !target.isFile() || source.dev !== target.dev || source.ino !== target.ino ||
+          String(source.ino) !== String(item.observed.stat.ino)) {
+        fail('CLEAN_ARCA_SHORT_PUBLICATION_UNCERTAIN', 'The staged alias changed before cleanup.');
+      }
+      fs.unlinkSync(item.location);
+    }
+    requireShortSlotDirectory(handle);
+    if (fs.readdirSync(handle.slotDirectory).length !== 0) {
+      fail('CLEAN_ARCA_SHORT_PUBLICATION_UNCERTAIN', 'The staged slot contains an unclassified member.');
+    }
+    fs.rmdirSync(handle.slotDirectory);
+    return placementReceipt(request, handle, verification);
+  }
+
   async function switchPlacement(request) {
     const built = await buildPlanAsync(request);
     const handle = slotHandle(request);
@@ -1382,6 +1681,10 @@ function createCleanArcaInventoryPort(options) {
         'Placement switch requires exact passed staging verification.');
     }
     requireContinuation(request);
+    if (built.shortenedJavTitle) {
+      try { return await switchShortenedJav(request, built, handle, verification); }
+      finally { releaseShortStage(handle.slotId); }
+    }
     if (fs.existsSync(handle.targetDirectory) &&
         !fs.statSync(handle.targetDirectory).isDirectory()) {
       fail('CLEAN_ARCA_TARGET_OCCUPIED',
@@ -1494,27 +1797,7 @@ function createCleanArcaInventoryPort(options) {
         fs.readdirSync(unusedSlot).length === 0) {
       fs.rmdirSync(unusedSlot);
     }
-    const base = {
-      schemaRef: 'helix://contracts/types/PlacementSwitchReceipt/v1',
-      schemaVersion: 1,
-      receiptId: canonicalDigest({
-        schema: 'arca.placement-switch-receipt-id@1',
-        onDeckRunId: request.onDeckRunId,
-      }),
-      receiptKind: 'placement_switched',
-      ownerDomain: 'arca',
-      scopeType: request.aftercareCaseId ? 'aftercare_case' : 'on_deck_run',
-      scopeId: request.aftercareCaseId || request.onDeckRunId,
-      scopeDigest: canonicalDigest({ handle, verification }),
-      effectReceiptRef: null,
-      committedAtMs: Number.isSafeInteger(request.observedAtMs)
-        ? request.observedAtMs : 0,
-      targetCommitSlotId: handle.slotId,
-      finalBindingSetDigest: request.targetBindings.bindingSetDigest,
-      replacedInputSetDigest: request.replacedInputSetDigest,
-      transactionRevision: 1,
-    };
-    return Object.freeze(base);
+    return placementReceipt(request, handle, verification);
   }
 
   function finalRealityMember(request, plan, observed, verification) {

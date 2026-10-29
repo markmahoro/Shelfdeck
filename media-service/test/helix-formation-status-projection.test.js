@@ -47,13 +47,14 @@ test('Arca Formation completion requires one On-deck Commit, Shelf Entry, and ma
   database.close();
   try {
     let workState = { open:false, latestState:'failed', failureCode:'P4_EVENT_INPUT_PREPARATION_FAILED' };
+    let blockedCode = 'CLEAN_ARCA_STAGE_TARGET_OCCUPIED';
     const projection = createFormationStatusProjection({ schemaManifest, unitOfWork:createSqliteUnitOfWork({ kernel }),
       workResultReader:{ listWorks(scope) {
         assert.equal(scope.processId, 'run-blocked');
         return [{ work_id:'work-blocked', created_at_ms:1 }];
       }, readFailures(workId) {
         assert.equal(workId, 'work-blocked');
-        return [{ code:'CLEAN_ARCA_STAGE_TARGET_OCCUPIED', diagnostics:{ target:'occupied' } }];
+        return [{ code:blockedCode, diagnostics:{ target:'occupied' } }];
       }, scopedWorkStatus(scope) {
         assert.equal(scope.processId, 'run-pending');
         return workState;
@@ -68,6 +69,9 @@ test('Arca Formation completion requires one On-deck Commit, Shelf Entry, and ma
     assert.equal(result.get('offer-blocked').failureCode, 'CLEAN_ARCA_STAGE_TARGET_OCCUPIED');
     assert.equal(result.get('offer-blocked').retryAvailable, false);
     assert.equal(result.get('offer-blocked').canRecheck, true);
+    blockedCode='CLEAN_ARCA_SHORT_STAGE_UNCERTAIN';
+    const uncertain=projection.read(['offer-blocked']).get('offer-blocked');
+    assert.equal(uncertain.failureCode,blockedCode);assert.equal(uncertain.retryAvailable,false);assert.equal(uncertain.canRecheck,false);
     assert.equal(result.get('offer-complete').stage, 'completed');
     assert.equal(result.get('offer-complete').onDeckCommitReceipt.receiptId, 'commit-complete');
     assert.equal(result.has('offer-without-receipt'), false);

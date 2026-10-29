@@ -7,7 +7,7 @@ const {canonicalDigest}=require('../../src/helix/contracts/canonical-json');
 const {initializeCleanData}=require('../../scripts/helix-operational-safety');
 const {createCleanServiceHost}=require('../../src/clean-service-host');
 const secretRoot='jav-host-fixture-root-0123456789abcdef0123456789';
-async function journey(t,{operations=null,manual=false,manualFilenameStem=null,nfoRepair=false,posterRepair=false,fanartRepair=false,posterRepairFailure=false,posterRepairRecovery=false,correctedPosterRepair=false,parts=false,soloPart=null,incompatible=false,inputCodec='hevc',correctionAdmission=false,correctionWork=false,correctionProcessLoss=false,correctionOverlap=false,correctionAtomicCommit=false,correctionPeople=false,correctionPerception=false,correctionAdmin=false,correctionSourceFailure=false,correctionAssetsFailure=false,correctionCancelApi=false,correctionRecoveryCommand=false,correctionRecoveryContinue=false,correctionTerminalRecovery=false,correctionPublicRecovery=false,correctionPhaseFailure=null,correctionRepeatCancel=false,directoryCleanup=false,sourceCase=null}={}) {
+async function journey(t,{operations=null,manual=false,manualFilenameStem=null,nfoRepair=false,posterRepair=false,fanartRepair=false,posterRepairFailure=false,posterRepairRecovery=false,correctedPosterRepair=false,parts=false,soloPart=null,incompatible=false,inputCodec='hevc',correctionAdmission=false,correctionWork=false,correctionProcessLoss=false,correctionOverlap=false,correctionAtomicCommit=false,correctionPeople=false,correctionPerception=false,correctionAdmin=false,correctionSourceFailure=false,correctionAssetsFailure=false,correctionCancelApi=false,correctionRecoveryCommand=false,correctionRecoveryContinue=false,correctionTerminalRecovery=false,correctionPublicRecovery=false,correctionPhaseFailure=null,correctionRepeatCancel=false,directoryCleanup=false,sourceCase=null,sourceFailureEvidenceOnly=false}={}) {
   const expectedCode=sourceCase?.javCode||'IPX-177',expectedSite=sourceCase?.selectedSite||'javdb';
   const retirementLoss=['retirement','retirement_conflict'].includes(correctionProcessLoss);
   const cleanupLoss=['cleanup_uncommitted','cleanup_committed'].includes(correctionProcessLoss);
@@ -63,6 +63,12 @@ async function journey(t,{operations=null,manual=false,manualFilenameStem=null,n
   await request('POST','/v1/admin/material-fields',{idempotencyKey:'jav-field',fieldId,name:'JAV source',contentProfileHint:'jav',
     policy:{extractionPolicyId:'jav-extraction',revision:1,policySchemaRef:'helix://contracts/domain-types/ExtractionPolicy/v1',policy,
       policyDigest:canonicalDigest({extractionPolicyId:'jav-extraction',revision:1,...policy})},access:{...access,accessDigest:canonicalDigest(access)}});
+  let conflictFile=null,conflictInode=null;
+  if(sourceCase?.longTargetConflict){
+    const existing=path.join(target,expectedCode+' '+'題'.repeat(71));fs.mkdirSync(existing);
+    conflictFile=path.join(existing,'existing.txt');fs.writeFileSync(conflictFile,'outside fixture');
+    conflictInode=fs.statSync(conflictFile,{bigint:true}).ino;
+  }
   await request('PATCH','/v1/admin/routing/material-fields/'+fieldId,{idempotencyKey:'jav-route',fieldId,expectedPolicyId:null,expectedRevision:0,
     policy:{routingPolicyId:'jav-route',mode:'sorting',targets:[{shelfId:'jav-shelf',rank:1,matchExpression:{nodeKind:'predicate',factKind:'content_profile',operator:'eq',expectedValue:'jav'}}]}});
   if(manual||sourceCase||process.env.HELIX_JAV_TTL_CRASH_ROOT)await request('POST','/v1/admin/settings/automatic-operation/actions/enable-full',{idempotencyKey:'jav-settlement-authorization',expectedRevision:0,coverExclusiveRelatedInput:true});
@@ -77,6 +83,37 @@ async function journey(t,{operations=null,manual=false,manualFilenameStem=null,n
     pendingEvents:db.prepare("SELECT capability_ref,state FROM fx_workflow_events WHERE state NOT IN ('succeeded','failed','skipped')").all(),
     works:db.prepare('SELECT work_id,work_kind,state FROM fx_supporting_works').all()});
   let deadline=Date.now()+20000;
+  if(sourceCase?.longTargetConflict){
+    deadline=Date.now()+90000;
+    while(Date.now()<deadline&&!runtimeError&&!db.prepare("SELECT on_deck_run_id FROM arca_ondeck_runs WHERE state='blocked'").get())
+      await new Promise(resolve=>setTimeout(resolve,100));
+    assert.equal(runtimeError,null,diagnostics());assert.ok(db.prepare("SELECT on_deck_run_id FROM arca_ondeck_runs WHERE state='blocked'").get(),diagnostics());
+    assert.equal(db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n,0);
+    const failure=db.prepare("SELECT failure_code FROM fx_event_attempts WHERE failure_code='CLEAN_ARCA_JAV_SHORT_TARGET_OCCUPIED'").get();assert.ok(failure,diagnostics());
+    assert.equal(fs.statSync(conflictFile,{bigint:true}).ino,conflictInode);assert.equal(fs.readFileSync(conflictFile,'utf8'),'outside fixture');
+    assert.deepEqual(fs.readFileSync(videoPath),video);
+    const subject=db.prepare('SELECT subject_id FROM libra_runs').get(),detail=await request('GET','/v1/admin/formation/'+subject.subject_id);
+    assert.equal(detail.executorIssue.errorCode,'CLEAN_ARCA_JAV_SHORT_TARGET_OCCUPIED');
+    assert.equal(detail.executorIssue.canRetry,false);assert.equal(detail.executorIssue.canRecheck,true);
+    fs.unlinkSync(conflictFile);fs.rmdirSync(path.dirname(conflictFile));
+    await request('POST','/v1/admin/formation/acceptance/'+detail.executorIssue.offerId+'/actions/retry',{idempotencyKey:'jav-short-conflict-recheck'});
+    deadline=Date.now()+65000;
+    while(Date.now()<deadline&&!runtimeError&&db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n===0)
+      await new Promise(resolve=>setTimeout(resolve,100));
+    assert.equal(runtimeError,null,diagnostics());assert.equal(db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n,1,diagnostics());
+    assert.deepEqual(primaryBytes(),video);
+    t.diagnostic(JSON.stringify({longJavTargetConflict:true,existingFilePreservedBeforeUserChange:true,
+      onDeckCommitsBeforeRecheck:0,recheckCommittedAfterUserChange:true}));
+    return;
+  }
+  if(sourceFailureEvidenceOnly){
+    const failure=()=>db.prepare("SELECT a.evidence_digest FROM fx_event_attempts a JOIN fx_workflow_events e ON e.event_id=a.event_id WHERE e.capability_ref='libra.product_identity.evidence.observe@1' AND a.failure_code='JAV_SOURCE_UNAVAILABLE' LIMIT 1").get();
+    while(Date.now()<deadline&&!runtimeError&&!failure())await new Promise(resolve=>setTimeout(resolve,100));
+    assert.equal(runtimeError,null,diagnostics());const attempt=failure();assert.ok(attempt?.evidence_digest,diagnostics());
+    const store=require('../../src/helix/integrations/failure-evidence-store').createFailureEvidenceStore(path.join(dataDir,'diagnostics','execution-failures'));
+    assert.deepEqual(store.read(attempt.evidence_digest).diagnostics,{stage:'page',statusCode:503});
+    return;
+  }
   if(incompatible) {
     const second=fs.readFileSync(secondVideoPath);
     while(Date.now()<deadline&&!runtimeError&&!db.prepare("SELECT libra_run_id FROM libra_runs WHERE state='frozen'").get())await new Promise(resolve=>setTimeout(resolve,100));
@@ -156,6 +193,20 @@ async function journey(t,{operations=null,manual=false,manualFilenameStem=null,n
   assert.deepEqual(canonical,{identity_kind:'jav_code',provider:'jav',provider_key:expectedCode});
   const materials=db.prepare('SELECT location,role FROM arca_inventory_materials').all();
   const primary=materials.find(material=>material.role==='primary_payload');assert.ok(primary);
+  if(sourceCase?.longTitle){
+    const nfo=materials.find(material=>material.role==='metadata_sidecar');assert.ok(nfo);
+    const directory=path.dirname(primary.location),primaryName=path.basename(primary.location),nfoName=path.basename(nfo.location);
+    assert.equal(path.dirname(nfo.location),directory);assert.ok(path.basename(directory).startsWith(expectedCode+' '));
+    assert.equal(path.basename(primaryName,'.mkv'),path.basename(nfoName,'.nfo'));
+    assert.ok(Buffer.byteLength(path.basename(directory)+'.shelfdeck-stage-'+'0'.repeat(16))<=255);
+    for(const item of materials)assert.ok(Buffer.byteLength(path.basename(item.location)+'.restore-'+'0'.repeat(16))<=255);
+    const saved=db.prepare('SELECT decision_json,target_location FROM arca_final_inventory_decisions').get(),decision=JSON.parse(saved.decision_json);
+    assert.equal(saved.target_location,directory);assert.equal(decision.members.find(item=>item.role==='primary_payload').targetLocation,primary.location);
+    const control=db.prepare("SELECT c.state,c.owner_domain,c.owner_scope_type FROM fx_material_controls c JOIN arca_inventory_materials m ON m.material_key=c.material_key WHERE m.role='primary_payload'").get();
+    assert.deepEqual(control,{state:'controlled',owner_domain:'arca',owner_scope_type:'shelf_entry'});
+    t.diagnostic(JSON.stringify({longJavTitle:true,finalDecisionFrozen:true,completeJavCode:expectedCode,
+      primaryNfoSameStem:true,oneOnDeckCommit:true}));
+  }
   if(!identity.javSourceQualification.observation.peopleHints.some(item=>item.role==='actor')) {
     const cast=JSON.parse(db.prepare("SELECT fact_json FROM libra_product_fact_revisions WHERE fact_kind='media_cast'").get().fact_json);
     assert.equal(cast.relationCount,1);assert.equal(cast.relations[0].personId,'person-jav-unknown-actor');
@@ -835,6 +886,12 @@ test('FC2 official access failure advances to one JavMenu source without mixing 
   javCode:'FC2-718323',filenameStem:'FC2-PPV-718323',sites:['fc2_official','javmenu'],selectedSite:'javmenu',title:'Fixture FC2 fallback film',primaryDenied:true}}));
 test('FC2 temporary unavailability exhausts its bounded retries before choosing one complete JavMenu source',{timeout:120000},t=>journey(t,{sourceCase:{
   javCode:'FC2-718323',filenameStem:'FC2-PPV-718323',sites:['fc2_official','javmenu'],selectedSite:'javmenu',title:'Fixture FC2 fallback film',primaryDenied:true,primaryHttpStatus:503}}));
+test('JAV Host persists safe page failure diagnostics for the actual source attempt',{timeout:60000},t=>journey(t,{sourceFailureEvidenceOnly:true,sourceCase:{
+  javCode:'FC2-718323',filenameStem:'FC2-PPV-718323',sites:['fc2_official','javmenu'],selectedSite:'javmenu',title:'Fixture FC2 fallback film',primaryDenied:true,primaryHttpStatus:503}}));
+test('new JAV long title completes formal On-deck with its complete code and common stem',{timeout:120000},t=>journey(t,{sourceCase:{
+  javCode:'IPX-177',sites:['javdb'],selectedSite:'javdb',title:'題'.repeat(85),longTitle:true}}));
+test('new JAV long-title target conflict retains the existing directory and exposes recheck',{timeout:120000},t=>journey(t,{sourceCase:{
+  javCode:'IPX-177',sites:['javdb'],selectedSite:'javdb',title:'題'.repeat(85),longTargetConflict:true}}));
 for(const sourceCase of [
   {javCode:'FC2-718323',filenameStem:'FC2-PPV-718323',sites:['fc2_official'],selectedSite:'fc2_official',credit:{name:'Fixture Seller',role:'seller'}},
   {javCode:'HEYDOUGA-4030-2113',filenameStem:'HEY-4030-2113',sites:['heydouga_official'],selectedSite:'heydouga_official'},

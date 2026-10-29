@@ -849,6 +849,11 @@ function createFormationQuery(options) {
     if (value.errorCode === 'CLEAN_ARCA_TARGET_ROOT_UNAVAILABLE') {
       return '媒体整理完成，目标收藏架目录不可用，上架失败';
     }
+    if (value.errorCode === 'CLEAN_ARCA_JAV_CODE_REQUIRED') return '影片番号无法核对，不能生成上架名称';
+    if (value.errorCode === 'CLEAN_ARCA_JAV_TITLE_UNFITTING') return '影片名称无法在目标目录中安全缩短';
+    if (value.errorCode === 'CLEAN_ARCA_JAV_SHORT_STEM_MISMATCH') return '收藏架命名规则无法生成对应的影片和资料文件';
+    if (value.errorCode === 'CLEAN_ARCA_JAV_NAME_INVALID') return '上架名称包含无效字符';
+    if (value.errorCode === 'CLEAN_ARCA_JAV_TARGET_COLLISION') return '影片资料的目标名称冲突';
     return '媒体整理完成，收藏架验收或上架失败';
   }
   function technicalIssue(item) {
@@ -871,7 +876,9 @@ function createFormationQuery(options) {
       const failureCode = item.arcaStatus.failureCode || 'ARCA_ONDECK_BLOCKED',
         canRetry = item.arcaStatus.retryAvailable !== false,
         canRecheck = item.arcaStatus.canRecheck === true,
-        label = failureCode === 'CLEAN_ARCA_STAGE_TARGET_OCCUPIED' ? '目标位置存在冲突，已停止上架'
+        label = failureCode === 'CLEAN_ARCA_SHORT_STAGE_UNCERTAIN' ? '暂存文件状态无法确认，已停止上架'
+          : failureCode === 'CLEAN_ARCA_JAV_SHORT_TARGET_OCCUPIED' ? '目标目录已存在，已停止上架'
+          : failureCode === 'CLEAN_ARCA_STAGE_TARGET_OCCUPIED' ? '目标位置存在冲突，已停止上架'
           : failureCode === 'CLEAN_ARCA_TARGET_OCCUPIED' ? '目标位置已被占用，已停止上架'
             : '上架自动恢复已停止，需要处理';
       return Object.freeze({ ...item, classification:'attention_required',
@@ -887,7 +894,9 @@ function createFormationQuery(options) {
       executorIssue:Object.freeze({ phase:value.failurePhase, errorCode:value.errorCode,
         attemptCount:value.terminalAttemptCount, owner:value.ownerDomain,
         recoveryState:value.recoveryState, recoveryGeneration:value.recoveryGeneration,
-        automaticRecoveryUsed:value.automaticRecoveryUsed, canRetry:true, offerId:value.offerId }) });
+        automaticRecoveryUsed:value.automaticRecoveryUsed,
+        canRetry:!['CLEAN_ARCA_JAV_NAME_INVALID','CLEAN_ARCA_JAV_CODE_REQUIRED','CLEAN_ARCA_JAV_TITLE_UNFITTING',
+          'CLEAN_ARCA_JAV_SHORT_STEM_MISMATCH','CLEAN_ARCA_JAV_TARGET_COLLISION'].includes(value.errorCode), offerId:value.offerId }) });
   }
   function currentFacts(items, includeProcessSummary = true) {
     if (!options.detailSource?.getMany || !items.length) return items;
