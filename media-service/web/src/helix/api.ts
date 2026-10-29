@@ -266,7 +266,7 @@ export type FormationSubject = {
   myRating: number | null;
   myRatingSource: string | null;
   myRatingRevision: number | null;
-  ratingState?: 'pending'|'ready';
+  ratingState?: 'pending'|'ready'|'failed'|'cancelled';
   ratingResolutionStatus?: 'found'|'not_found'|null;
   ratingReasonCode?: string|null;
   productIdentityIssue: null | { contentProfile?:'jav'|'western_adult'; sourceLocation?:string|null; claimedCode?:string|null; result:'not_found'|'ambiguous'|'conflicting'; reasonCode:string; candidateSetDigest:string|null; candidates:Array<{ providerKey:string; displayTitle:string; originalTitle:string|null; releaseYear:number|null }> };
@@ -879,7 +879,7 @@ export const helixAdminApi = {
   listPerceptionRecords(filters: { cursor?: string; limit?: number; sourceKind?: string; rating?: number; resolutionStatus?: string; targetType?: string; targetId?: string } = {}) {
     const query = new URLSearchParams();
     Object.entries(filters).forEach(([key, value]) => { if (value !== undefined && value !== '') query.set(key, String(value)); });
-    return request<{ items: PerceptionRecord[]; nextCursor: string | null; currentRating?: { state:'ready'|'pending'; rating:number|null; sourceKind:string|null; expectedRevision:number; resolutionStatus?:string; resolutionRevision?:number }; currentWatched?: { state:'ready'|'pending'; watchedState:boolean|null; sourceKind:string|null; expectedRevision:number } }>(`/v1/admin/perception/records${query.size ? `?${query}` : ''}`);
+    return request<{ items: PerceptionRecord[]; nextCursor: string | null; currentRating?: { state:'ready'|'pending'|'failed'|'cancelled'; rating:number|null; sourceKind:string|null; expectedRevision:number; resolutionStatus?:string|null; resolutionRevision?:number|null; reasonCode?:string|null }; currentWatched?: { state:'ready'|'pending'|'failed'|'cancelled'; watchedState:boolean|null; sourceKind:string|null; expectedRevision:number; reasonCode?:string|null } }>(`/v1/admin/perception/records${query.size ? `?${query}` : ''}`);
   },
   rate(targetType: 'subject' | 'shelf_entry', targetId: string, expectedRevision: number, rating: number | null) {
     return request<{ operationRef: string; state: string; expectedResultRevision: number }>('/v1/admin/perception/records', {

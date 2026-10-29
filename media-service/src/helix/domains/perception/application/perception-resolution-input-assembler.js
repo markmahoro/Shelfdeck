@@ -13,7 +13,7 @@ function bounded(value, bytes, code) { if(Buffer.byteLength(canonicalJson(value)
 
 function createPerceptionResolutionInputAssembler(options) {
   if(!options?.store || typeof options.store.readResolutionCandidates!=='function') fail('P6_PERCEPTION_RESOLUTION_ASSEMBLER_DEPENDENCIES','Perception Repository reader is required.');
-  function assemble({ queryHandle, ruleSnapshot },readCandidates) {
+  function validateInput(queryHandle,ruleSnapshot){
       const query=queryHandle?.typedInput;
       if(!queryHandle || queryHandle.providerDomain!=='perception' || !query || queryHandle.queryContract!==query.queryContract ||
           queryHandle.queryVersion!==query.queryVersion || queryHandle.typedInputSchemaRef!==query.querySchemaRef ||
@@ -25,6 +25,10 @@ function createPerceptionResolutionInputAssembler(options) {
       validateRule(ruleSnapshot,query.factKind);
       if(query.directTargetScope&&ruleSnapshot.directTargetPolicyRef!=='perception.jav-retained-target@1')
         fail('P6_PERCEPTION_RULE_SNAPSHOT_INVALID','Scoped direct query requires its declared Rule policy.');
+      return query;
+  }
+  function assemble({ queryHandle, ruleSnapshot },readCandidates) {
+      const query=validateInput(queryHandle,ruleSnapshot);
       const snapshot=readCandidates(query,ruleSnapshot);
       const records=snapshot.records.map((record)=>{
         const facts={}; if(record.rating!==null)facts.rating=record.rating; if(record.watchedState!==null)facts.watchedState=record.watchedState;
@@ -51,6 +55,14 @@ function createPerceptionResolutionInputAssembler(options) {
   const readCandidates=(query,rule)=>options.store.readResolutionCandidates(query,rule);
   return Object.freeze({
     assemble:input=>assemble(input,readCandidates),
+    assembleBatch({queryHandles,ruleSnapshot}) {
+      if(!Array.isArray(queryHandles)||queryHandles.length>100||typeof options.store.readResolutionCandidatesBatch!=='function')
+        fail('P6_PERCEPTION_QUERY_BATCH_INVALID','A Resolution batch requires at most 100 typed Queries and the bounded Store reader.');
+      const queries=queryHandles.map(handle=>validateInput(handle,ruleSnapshot));
+      const snapshots=options.store.readResolutionCandidatesBatch(queries,ruleSnapshot);
+      if(!Array.isArray(snapshots)||snapshots.length!==queries.length)fail('P6_PERCEPTION_QUERY_BATCH_INVALID','The candidate batch changed its query cardinality.');
+      return Object.freeze(queryHandles.map((queryHandle,index)=>assemble({queryHandle,ruleSnapshot},()=>snapshots[index])));
+    },
     assemblePair({queryHandles,ruleSnapshot}) {
       if(!Array.isArray(queryHandles)||queryHandles.length!==2||
         new Set(queryHandles.map(handle=>handle?.typedInput?.factKind)).size!==2)

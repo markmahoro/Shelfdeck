@@ -10,11 +10,15 @@ function definition(schemaManifest){return createRepositoryDefinition({repositor
   latest_attempt:{kind:'select-filtered-page',tableId:'fx_work_attempts',columns:['failure_code'],fixedKeyColumns:['work_id'],
     orderBy:[{column:'ordinal',direction:'desc'}],maxItems:1},
   find_work:{kind:'select-one',tableId:'fx_supporting_works',columns:['work_id','owner_domain','process_type','process_id','work_kind','basis_digest','state'],keyColumns:['work_id']},
+  find_works_many:{kind:'select-in',tableId:'fx_supporting_works',keyColumn:'work_id',maxItems:100,
+    columns:['work_id','owner_domain','process_type','process_id','work_kind','basis_digest','state']},
   find_definition:{kind:'select-one',tableId:'fx_supporting_works',columns:['work_id','definition_json','definition_digest'],keyColumns:['work_id']},
   list_process_works:{kind:'select-all',tableId:'fx_supporting_works',columns:['work_id','owner_domain','process_type','process_id','work_kind','state','created_at_ms','updated_at_ms'],keyColumns:['owner_domain','process_type','process_id','work_kind'],safeIntegers:true},
   page_owner_works:{kind:'select-page-after',tableId:'fx_supporting_works',columns:['work_id','owner_domain','process_type','process_id','work_kind','state'],fixedKeyColumns:['owner_domain','work_kind','state'],keyColumn:'work_id',maxItems:100},
   list_owner_works:{kind:'select-all',tableId:'fx_supporting_works',columns:['work_id','owner_domain','process_type','process_id','work_kind','state'],keyColumns:['owner_domain','work_kind']},
   list_attempts:{kind:'select-all',tableId:'fx_work_attempts',columns:['attempt_id','work_id','ordinal','state','failure_code','finished_at_ms'],keyColumns:['work_id'],safeIntegers:true},
+  find_attempts_many:{kind:'select-in',tableId:'fx_work_attempts',keyColumn:'work_id',maxItems:100,
+    columns:['attempt_id','work_id','ordinal','state','failure_code','finished_at_ms'],safeIntegers:true},
   list_events:{kind:'select-all',tableId:'fx_workflow_events',columns:['event_id','plan_id','node_id','work_id','attempt_id','owner_domain',
     'capability_ref','state','result_id'],keyColumns:['work_id']},
   find_plan:{kind:'select-one',tableId:'fx_workflow_plans',columns:['plan_id','planner_version','graph_digest','state'],keyColumns:['plan_id'],safeIntegers:true},
@@ -63,6 +67,16 @@ function createWorkResultReader(options){if(!options?.schemaManifest||!options.u
       const latest=attempts[0]||null,previous=attempts[1]||null;
       return Object.freeze({...row,latestAttempt:latest?Object.freeze(latest):null,previousAttempt:previous?Object.freeze(previous):null});
     }}]).work_status_read;},
+    statusMany(workIds){
+      if(!Array.isArray(workIds)||workIds.length>100||workIds.some(id=>typeof id!=='string'||!id))throw new TypeError('Work status batch requires at most 100 exact Work IDs.');
+      const ids=[...new Set(workIds)];if(!ids.length)return new Map();
+      return options.unitOfWork.execute([{participantId:'work_status_batch',owner:'execution-foundation',repositories:[repository],execute(context){
+        const repo=context.repository(repository.repositoryId),works=repo.invoke('find_works_many',{values:ids}),attempts=repo.invoke('find_attempts_many',{values:ids}),byWork=new Map();
+        for(const attempt of attempts){const group=byWork.get(attempt.work_id)||[];group.push(attempt);byWork.set(attempt.work_id,group);}
+        return new Map(works.map(row=>{const list=(byWork.get(row.work_id)||[]).sort((a,b)=>Number(b.ordinal)-Number(a.ordinal));
+          return [row.work_id,Object.freeze({...row,latestAttempt:list[0]?Object.freeze(list[0]):null,previousAttempt:list[1]?Object.freeze(list[1]):null})];}));
+      }}]).work_status_batch;
+    },
     listWorks(scope){
       if(!scope||typeof scope.ownerDomain!=='string'||typeof scope.processType!=='string'||typeof scope.processId!=='string'||typeof scope.workKind!=='string'){
         throw new TypeError('Work Result Reader listWorks requires an exact owner/process/work scope.');

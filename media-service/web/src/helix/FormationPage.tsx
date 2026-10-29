@@ -80,6 +80,8 @@ function ratingText(item:FormationSubject, acquisitionIncomplete:boolean) {
   if (item.myRating) return `${item.myRating} 星 · ${item.myRatingSource === 'douban' ? '豆瓣' : 'ShelfDeck'}`;
   if (item.productIdentityIssue) return item.contentProfile === 'series' ? '剧集身份待确认' : '影片身份待确认';
   if (item.ratingState === 'pending') return '正在匹配豆瓣评分';
+  if (item.ratingState === 'failed') return '评分匹配失败';
+  if (item.ratingState === 'cancelled') return '评分匹配已取消';
   if (item.ratingReasonCode === 'requested_fact_absent') return '豆瓣记录没有评分';
   if (item.ratingReasonCode === 'strongest_value_conflict') return '豆瓣评分记录有冲突';
   if (acquisitionIncomplete && item.ratingResolutionStatus === 'not_found') return '豆瓣同步未完成，暂不能确认';

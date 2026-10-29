@@ -473,7 +473,11 @@ function createProcurementExecutionRuntime(options) {
     inspectFieldRoot: options.inspectFieldRoot });
   const workLifecycle = createWorkLifecycle({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
     nextWorkAttemptId: (workId, ordinal) => workId + ':attempt:' + ordinal,
-    onProcessCancelled: (scope) => executorIncidentObserver.reconcileRecoveryReservations(scope) });
+    onProcessCancelled: (scope) => {
+      executorIncidentObserver.reconcileRecoveryReservations(scope);
+      if(scope.ownerDomain==='perception'&&scope.processType==='perception_resolution'&&scope.processId.startsWith('subject:'))
+        options.onFormationSubjectChanged?.(scope.processId.slice('subject:'.length));
+    } });
   libraProcessServices=libraConstruction.createProcessServices({...libraOptions,peopleReferenceQuery,now,workResultReader,contractValidator,onLibraPriorityChanged:resourcePriorityBridge.refresh,
     onTaskCancellationChanged:subjectId=>options.onFormationSubjectChanged?.(subjectId),
     onRecommendationActorConfirmed:receipt=>{options.onFormationSubjectChanged?.(receipt.subjectId);host?.wake();},
@@ -1112,6 +1116,9 @@ function createProcurementExecutionRuntime(options) {
     if(request.ownerDomain==='perception'&&request.processType==='perception_resolution'){
       if(request.workAttemptState==='failed'&&request.workAttemptFailureCode==='P4_EXECUTION_INPUT_BASIS_SUPERSEDED'){
         perceptionProcessServices.reconcileSupersededResolution(request.processId);
+      }
+      if(['failed','cancelled'].includes(request.workAttemptState)&&request.processId.startsWith('subject:')){
+        options.onFormationSubjectChanged?.(request.processId.slice('subject:'.length));
       }
       if(request.workAttemptState==='succeeded'){
         perceptionProcessServices.reconcileResolution(request.processId);

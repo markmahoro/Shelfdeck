@@ -145,15 +145,21 @@ function createPerceptionProcessServices(options){
       queryHandles:factKinds.map(kind=>queryHandle(queryFor(snapshot,kind),at,targetType==='shelf_entry'?'arca':'libra'))});
     return freeze(Object.fromEntries(contexts.map((context,index)=>[factKinds[index],ensureResolutionContext(context,targetType,targetId,factKinds[index])])));
   }
+  function resolutionWork(context,targetType,targetId,factKind){const processId=(factKind==='watched'?'watched/':'')+targetType+':'+targetId,base=resolutionBasis(context);
+    return {base,processId,work:definition('resolution','perception_resolution',processId,canonicalDigest(base),RESOLUTION_RESULT)};}
+  function repairResolutionWork(value){return definition('resolution','perception_resolution',value.processId,
+    canonicalDigest({...value.base,recoveryBasis:RESOLUTION_INPUT_CONTRACT_REPAIR_BASIS}),RESOLUTION_RESULT);}
+  function terminalResolutionWork(status){
+    if(status?.state==='failed')return {kind:'failed',reasonCode:status.latestAttempt?.failure_code||'resolution_failed'};
+    if(status?.state==='cancelled')return {kind:'cancelled',reasonCode:'resolution_cancelled'};
+    return null;
+  }
   function ensureResolutionContext(context,targetType,targetId,factKind){const existing=store.getResolution(context.query.queryContract,context.query.queryInputDigest);
     if(existing&&existing.recordSetDigest===context.recordSet.recordSetDigest&&existing.ruleDigest===context.ruleSnapshot.ruleDigest)return freeze({kind:'terminal',resolution:existing,queryResult:versionedQueryResult(existing,30*24*60*60*1000)});
-    const processId=(factKind==='watched'?'watched/':'')+targetType+':'+targetId,base=resolutionBasis(context),basisDigest=canonicalDigest(base);
-    const priorStatus=workStatus(definition('resolution','perception_resolution',processId,basisDigest,RESOLUTION_RESULT).workId);
-    if(priorStatus?.state==='failed'&&priorStatus.latestAttempt?.failure_code==='P4_EXECUTION_INPUT_BASIS_SUPERSEDED')
-      return freeze({kind:'failed',workId:priorStatus.work_id,reasonCode:'P4_EXECUTION_INPUT_BASIS_SUPERSEDED',queryInputDigest:context.query.queryInputDigest});
-    const retryBasisDigest=priorStatus?.state==='failed'&&priorStatus.latestAttempt?.failure_code===RESOLUTION_INPUT_CONTRACT_REPAIR_CODE
-      ? canonicalDigest({...base,recoveryBasis:RESOLUTION_INPUT_CONTRACT_REPAIR_BASIS}) : basisDigest;
-    const work=definition('resolution','perception_resolution',processId,retryBasisDigest,RESOLUTION_RESULT),submitted=submit(work);return freeze({kind:'pending',workId:work.workId,replayed:submitted.replayed,queryInputDigest:context.query.queryInputDigest});}
+    const value=resolutionWork(context,targetType,targetId,factKind),priorStatus=workStatus(value.work.workId),repair=priorStatus?.state==='failed'&&priorStatus.latestAttempt?.failure_code===RESOLUTION_INPUT_CONTRACT_REPAIR_CODE,
+      work=repair?repairResolutionWork(value):value.work,status=repair?workStatus(work.workId):priorStatus,terminal=terminalResolutionWork(status);
+    if(terminal)return freeze({...terminal,workId:work.workId,queryInputDigest:context.query.queryInputDigest});
+    const submitted=submit(work);return freeze({kind:'pending',workId:work.workId,replayed:submitted.replayed,queryInputDigest:context.query.queryInputDigest});}
   function reconcileResolution(processId){const value=resolutionTarget(processId);return ensureResolution(value.targetType,value.targetId,value.factKind);}
   function supersededResolutionDisposition(processId,workId){
     const status=workStatus(workId);if(!status||Number(status.latestAttempt?.ordinal||0)>=3)return 'failed';
@@ -179,19 +185,44 @@ function createPerceptionProcessServices(options){
   }
   function resolveDecisionFact(input){const value=ensureResolution(input.targetType,input.targetId);if(value.kind!=='terminal')return value;const r=value.resolution;return freeze({kind:r.resultKind,providerDomain:'perception',contract:{contractRef:r.queryContract,factKind:r.factKind,version:1},inputAnchorsDigest:r.queryInputDigest,revision:r.revision,
     ...(r.resultKind==='found'?{value:r.resolvedValue,evidence:[r.resolvedProvenance]}:{reasonCode:r.reasonCode,evidence:[]}),resolvedAtMs:r.committedAtMs,freshness:{status:'fresh',resolvedAtMs:r.committedAtMs,validForMs:30*24*60*60*1000},resolution:r,queryResult:value.queryResult});}
-  function readCurrentRating(targetType,targetId){const context=resolutionContext(targetType,targetId),resolution=store.getResolution(context.query.queryContract,context.query.queryInputDigest),direct=store.findCurrentTargetRating(targetType,targetId);
-    if(!resolution||resolution.recordSetDigest!==context.recordSet.recordSetDigest||resolution.ruleDigest!==context.ruleSnapshot.ruleDigest)return freeze({state:'pending',rating:null,sourceKind:null,expectedRevision:direct?.sourceRecordRevision||0,reasonCode:'resolution_pending'});
-    const winner=resolution.resultKind==='found'?store.getRecord(resolution.winningPerceptionId):null;
+  function currentResolution(context,resolution){return Boolean(resolution&&resolution.queryInputDigest===context.query.queryInputDigest&&
+    resolution.recordSetDigest===context.recordSet.recordSetDigest&&resolution.ruleDigest===context.ruleSnapshot.ruleDigest);}
+  function ratingProjection(context,resolution,winner,direct,status){
+    if(!currentResolution(context,resolution)){const terminal=terminalResolutionWork(status);return freeze({state:terminal?.kind||'pending',rating:null,sourceKind:null,
+      expectedRevision:direct?.sourceRecordRevision||0,resolutionStatus:null,reasonCode:terminal?.reasonCode||'resolution_pending',resolutionRevision:null,resolutionDigest:null});}
     return freeze({state:'ready',rating:resolution.resultKind==='found'?resolution.resolvedValue.value:null,sourceKind:winner?.sourceKind||null,
-      expectedRevision:direct?.sourceRecordRevision||0,resolutionStatus:resolution.resultKind,reasonCode:resolution.reasonCode||null,resolutionRevision:resolution.revision,resolutionDigest:resolution.factDigest});}
-  function readCurrentRatings(targetType,targetInputs){const targets=targetInputs.map((item)=>typeof item==='string'?target(targetType,item):freeze({...item,targetType,targetId:item.targetId})),queries=targets.map((item)=>({targetId:item.targetId,query:queryFor(item)})),rows=store.readCurrentResolvedRatings(queries.map((item)=>item.query.queryInputDigest)),byDigest=new Map(rows.map((item)=>[item.queryInputDigest,item])),direct=store.findCurrentTargetRatings(targetType,queries.map((item)=>item.targetId)),values=new Map();
-    for(const item of queries){const row=byDigest.get(item.query.queryInputDigest),resolution=row?.resolution;if(!resolution||resolution.ruleDigest!==ruleSnapshot.ruleDigest){values.set(item.targetId,freeze({state:'pending',rating:null,sourceKind:null,expectedRevision:direct.get(item.targetId)?.sourceRecordRevision||0,resolutionStatus:null,reasonCode:'resolution_pending',resolutionRevision:null,resolutionDigest:null}));continue;}
-      values.set(item.targetId,freeze({state:'ready',rating:resolution.resultKind==='found'?resolution.resolvedValue.value:null,sourceKind:row.winner?.sourceKind||null,expectedRevision:direct.get(item.targetId)?.sourceRecordRevision||0,resolutionStatus:resolution.resultKind,reasonCode:resolution.reasonCode||null,resolutionRevision:resolution.revision,resolutionDigest:resolution.factDigest}));}
+      expectedRevision:direct?.sourceRecordRevision||0,resolutionStatus:resolution.resultKind,reasonCode:resolution.reasonCode||null,resolutionRevision:resolution.revision,resolutionDigest:resolution.factDigest});
+  }
+  function readCurrentRating(targetType,targetId){const context=resolutionContext(targetType,targetId),resolution=store.getResolution(context.query.queryContract,context.query.queryInputDigest),direct=store.findCurrentTargetRating(targetType,targetId);
+    let status=null;if(!currentResolution(context,resolution)){const value=resolutionWork(context,targetType,targetId,'rating'),base=workStatus(value.work.workId);
+      status=base?.state==='failed'&&base.latestAttempt?.failure_code===RESOLUTION_INPUT_CONTRACT_REPAIR_CODE?workStatus(repairResolutionWork(value).workId):base;}
+    const winner=resolution?.resultKind==='found'&&currentResolution(context,resolution)?store.getRecord(resolution.winningPerceptionId):null;
+    return ratingProjection(context,resolution,winner,direct,status);}
+  function readCurrentRatings(targetType,targetInputs){
+    if(!Array.isArray(targetInputs)||typeof options.workResultReader.statusMany!=='function')throw new TypeError('Batched Rating projections require the bounded Work status reader.');
+    const values=new Map();
+    for(let offset=0;offset<targetInputs.length;offset+=100){
+      const targets=targetInputs.slice(offset,offset+100).map(item=>typeof item==='string'?target(targetType,item):freeze({...item,targetType,targetId:item.targetId})),
+        handles=targets.map(item=>queryHandle(queryFor(item),now(),targetType==='shelf_entry'?'arca':'libra')),
+        contexts=assembler.assembleBatch({queryHandles:handles,ruleSnapshot}),rows=store.readCurrentResolvedRatings(contexts.map(item=>item.query.queryInputDigest)),
+        byDigest=new Map(rows.map(item=>[item.queryInputDigest,item])),direct=store.findCurrentTargetRatings(targetType,targets.map(item=>item.targetId)),
+        entries=contexts.map((context,index)=>{const row=byDigest.get(context.query.queryInputDigest),value=resolutionWork(context,targetType,targets[index].targetId,'rating');return {context,row,value,targetId:targets[index].targetId};}),
+        unresolved=entries.filter(item=>!currentResolution(item.context,item.row?.resolution)),statuses=options.workResultReader.statusMany(unresolved.map(item=>item.value.work.workId)),
+        repairs=unresolved.filter(item=>{const status=statuses.get(item.value.work.workId);return status?.state==='failed'&&status.latestAttempt?.failure_code===RESOLUTION_INPUT_CONTRACT_REPAIR_CODE;}),
+        repairStatuses=options.workResultReader.statusMany(repairs.map(item=>repairResolutionWork(item.value).workId));
+      for(const item of entries){const base=statuses.get(item.value.work.workId),status=base?.state==='failed'&&base.latestAttempt?.failure_code===RESOLUTION_INPUT_CONTRACT_REPAIR_CODE
+        ?repairStatuses.get(repairResolutionWork(item.value).workId):base;
+        values.set(item.targetId,ratingProjection(item.context,item.row?.resolution,item.row?.winner,direct.get(item.targetId),status));}
+    }
     return values;}
   function readCurrentWatched(targetType,targetId){const context=resolutionContext(targetType,targetId,'watched'),
     resolution=store.getResolution(context.query.queryContract,context.query.queryInputDigest),direct=store.findCurrentTargetRating(targetType,targetId,'watched');
-    if(!resolution||resolution.recordSetDigest!==context.recordSet.recordSetDigest||resolution.ruleDigest!==context.ruleSnapshot.ruleDigest)
-      return freeze({state:'pending',watchedState:null,sourceKind:null,expectedRevision:direct?.sourceRecordRevision||0,reasonCode:'resolution_pending'});
+    if(!currentResolution(context,resolution)){
+      const value=resolutionWork(context,targetType,targetId,'watched'),base=workStatus(value.work.workId),status=base?.state==='failed'&&base.latestAttempt?.failure_code===RESOLUTION_INPUT_CONTRACT_REPAIR_CODE
+        ?workStatus(repairResolutionWork(value).workId):base,terminal=terminalResolutionWork(status);
+      return freeze({state:terminal?.kind||'pending',watchedState:null,sourceKind:null,expectedRevision:direct?.sourceRecordRevision||0,
+        resolutionStatus:null,reasonCode:terminal?.reasonCode||'resolution_pending',resolutionRevision:null,resolutionDigest:null});
+    }
     const winner=resolution.resultKind==='found'?store.getRecord(resolution.winningPerceptionId):null;
     return freeze({state:'ready',watchedState:resolution.resultKind==='found'?resolution.resolvedValue.value:null,sourceKind:winner?.sourceKind||null,
       expectedRevision:direct?.sourceRecordRevision||0,resolutionStatus:resolution.resultKind,reasonCode:resolution.reasonCode||null,resolutionRevision:resolution.revision,resolutionDigest:resolution.factDigest});

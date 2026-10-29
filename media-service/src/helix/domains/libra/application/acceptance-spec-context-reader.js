@@ -52,6 +52,7 @@ function createAcceptanceSpecContextReader(options){
     if(!routingContext||!routingDecision||routingDecision.result!=='resolved')return Object.freeze({kind:'unresolved',reasonCode:'routing_not_resolved'});
     const standardResult=options.readArcaShelfStandard(routingDecision.targetShelfId);if(!standardResult||standardResult.resultKind!=='found')return Object.freeze({kind:'unresolved',reasonCode:'shelf_standard_unavailable'});
     const perception=options.resolvePerceptionRating(subjectId);if(!perception||perception.kind==='pending')return Object.freeze({kind:'pending_perception',workId:perception?.workId||null});
+    if(['failed','cancelled'].includes(perception.kind))return Object.freeze({kind:'perception_'+perception.kind,workId:perception.workId||null,reasonCode:perception.reasonCode||null});
     if(!['found','not_found'].includes(perception.kind)||!perception.resolution||!perception.queryResult)throw new Error('Perception Resolution public result is invalid.');
     const episodeKeys=deliveryEpisodeKeys(routingContext.subject,scopeRunId);
     if(routingContext.subject.contentProfile==='series'&&!episodeKeys.length)
