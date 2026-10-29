@@ -6,7 +6,7 @@
 
 2026-10-29 主整合已将Series候选`f253017d2`与演员Observation、Reset基线合并到固定待提交tree `23b114916969c167f5bc186833bf2298515746a0`；包边界、语义、Manifest、P2静态检查及P2定向3项通过。合并后的Foundation/演员Observation隔离Linux 148项、Series共享资料/Perception/诊断62项通过；不等于最终版本验收。UI负责人对`2a58c1606`的开发预检通过（US浏览器64项、Series浏览器56项），最终混合版本仍须复核。
 
-JAV长标题候选`619ffc464`的真实Linux Host在Stage写完回执前、Stage提交后Verify前、Placement写完回执前三处中断后均未完成原责任恢复；文件保留且无On-deck Commit不等于成功。Series线程正按既有Arca边界修复并复验，当前阻断上线。演员People/Cast合同已进入独立实现，新增数据结构将要求重新审查最终Reset保留和旧生产结构转换；电影端到端仍在开发。
+JAV长标题候选`619ffc464`的真实Linux Host在Stage写完回执前、Stage提交后Verify前、Placement写完回执前三处中断后均未完成原责任恢复；试验性修订已在三处恢复唯一Commit。进一步实测发现成员写入中、完整Manifest尚未持久化的第四个窗口仍停滞，当前正以Arca独立逐成员证据和明确未知现场处理修复；现有候选仍阻断上线。演员People/Cast合同已进入独立实现，新增数据结构将要求重新审查最终Reset保留和旧生产结构转换；电影端到端仍在开发。
 
 主整合`8c414f2ff`对当前244表Reset在隔离Linux复跑105项通过，覆盖239源转换、收藏/人物/Workspace依赖与停止态管理；拟新增的演员和JAV结构仍须重新资格，未对生产执行Reset。[Evidence](implementation/evidence/ARCA_WITHDRAWN_OFFER_RESET_AUDIT_20261029.md)。
 

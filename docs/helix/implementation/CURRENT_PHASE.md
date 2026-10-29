@@ -19,7 +19,7 @@ DDOB-019 的冲突目标为已有 active Shelf Entry 所控的同番号正式文
 
 最新合并检查点：主整合固定待提交tree `23b114916969c167f5bc186833bf2298515746a0`包含Series候选`f253017d2`、演员Observation及Reset基线；静态四项与P2定向3项通过，合并后隔离Linux Foundation/演员Observation 148项、共享Series/Perception/诊断62项通过。UI负责人对`2a58c1606`开发预检通过，最终混合版本仍须独立复核。
 
-JAV长标题`619ffc464`不是发布合格候选：真实Host的Stage回执前、Stage已提交/Verify前和Placement回执前三个进程中断窗口均保留原文件却未完成Effect责任；修复和三个原边界复验进行中。演员系统建档和电影自定义Spec仍在开发，新增People/Cast数据结构若改变目标DDL，须重新验证从实际239表源的Reset结构与精确保留闭包。
+JAV长标题`619ffc464`不是发布合格候选：真实Host的Stage回执前、Stage已提交/Verify前和Placement回执前三个进程中断窗口初版未完成Effect责任，试验性修订已恢复唯一Commit；成员写入中、完整Manifest尚未持久化的第四窗口仍停滞。Arca正在实现同Effect逐成员证据及无法证明时明确attention；须固定版本复验所有窗口，Reset不得借此删除正式根下文件。演员系统建档和电影自定义Spec仍在开发，新增People/Cast数据结构若改变目标DDL，须重新验证从实际239表源的Reset结构与精确保留闭包。
 
 演员线程阶段提交`bfc11236e`的真实Frame Effect恢复、People姓名比较和Libra人物请求输入已整合；保留主线Artifact kind，Linux 79项、Windows 25项及静态四项通过。仍使用技术fixture，实际视频/Host、系统建档、Cast和最终Reset未完成。
 
