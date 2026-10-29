@@ -1342,7 +1342,7 @@
       "relativePath": "domain-types/MetadataFetchIntent/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "cf96d490aa2c7beda3cca6e737baf38153ff4a29a8925080ed2ddb9f37cbe643"
+        "value": "aa82e0eb687f85e13e17eeb3a8f911ce75a420db178d1266bd206e04d3396038"
       },
       "usedBy": [
         {

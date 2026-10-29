@@ -202,12 +202,12 @@
       "relativePath": "types/ArtifactAcquisitionResult/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "bdfbaee9faa2d6e78119c99cfa1f53c973ad325142244f99f8e6f59fb97d1ff6"
+        "value": "ae3d01a0545afbb676f818b8d07f9a6411771b4d03e046e8caec3f51a3f660b0"
       },
       "source": {
         "section": "8.6.19",
         "line": 11336,
-        "lineDigest": "ea33e4f1ab71653ee27aeddb037283b7cb9dba6ec8186c4990fbff5a8f6e792a"
+        "lineDigest": "800e3f558333067b86ea53d6ac01402c7e34543787564aae5649c04a3a1fcf66"
       }
     },
     {
@@ -957,7 +957,7 @@
       "relativePath": "types/MetadataObservation/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "8cd36a15fb54234891ea780e4a45994e23d2b6caa546946b301c3a3dd9121b4f"
+        "value": "fe0f23edb5f85aeeba147674bc9b523e411aef58e18ed9d15ce92a09b883a6ac"
       },
       "source": {
         "section": "8.6.19",

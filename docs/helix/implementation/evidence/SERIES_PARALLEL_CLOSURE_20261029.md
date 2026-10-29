@@ -81,3 +81,9 @@
 4. 经对应生产授权后，沿七条原有 Offer 的 `POST /v1/admin/formation/acceptance/{offerId}/actions/retry` 逐项提交新 idempotencyKey；每条核对新代 Work、旧失败保持、三项正式 Shared Inventory/Control、一次 On-deck Commit 和正常源结算。API/Receipt 重放不能第二次入藏。现场不可观察按原预算等待；真正围栏/内容冲突继续 attention，不手删 partial、改库或 Reset。
 
 真实 CIFS 初始 hardlink/open EINVAL 的服务端/内核时序机制仍未在本轮独立复现；本轮通过实际 Linux 文件系统和精确 IO 故障注入证明恢复行为。七条生产最终结果、最终镜像、完整固定候选门禁与具体版本 UI 仍由主整合线程收口。本 Evidence 不宣称生产已修或 Phase 2 已退出。
+
+## 主整合：三个生成合同（2026-10-29）
+
+本生产候选沿上述三个提交构成；主整合按既有确认只纳入Series恢复、同集剧情和季海报的SSOT条款，从 `1cf810220` 复用两个生成器的精确最小变化，再重建三个Schema及相应source map、result inventory和registry摘要。三个Schema的原字节SHA分别仍为上文列出的 `6937b648…`、`8e0a20f5…`、`08f75bfb…`，与已验证的Linux冻结副本一致；生产基线239表/62事务不变，没有DDL、迁移、演员或自定义标准代码。
+
+本机P2、manifest、source map检查无finding；13项合同验证测试通过，并按实际生成结果更新P2精确聚合摘要断言为 `b81829dfdfe449d25dde7c1ee6af5ff274237bd4f125fe1c81c30db4008c18cf`。这是开发反馈，不代替固定候选的完整Linux架构/Service/Web、镜像、具体版本UI和真实CIFS资格。以上并行线程的首跑失败与日志继续保留；线上七条结果尚未知。
