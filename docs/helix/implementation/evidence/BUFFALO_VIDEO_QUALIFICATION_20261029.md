@@ -235,3 +235,16 @@ Work ID/幂等键绑定完整不可变 Basis/producer Result 集。读取支持 
 - 同快照Workspace既有功能/Frame Capability/Frame Engine回归42 PASS/0skip/0FAIL，11.232秒，catalogue-workspace-regression-linux-1.log。四项Package/Semantic/Manifest/P2静态均通过，139 Capability/118 Result/244 table/66 transaction/153 domain/257 refs/0 unresolved。
 - 先前reviewed proposal快照的初版16项也独立通过，保留catalogue-observation-port-linux-1.log；之后采用97c并新增恢复负例，没有将两组相加。首次用Windows tar解97c时因遗留中文VBS文件名返回失败，该integration-1目录没有用于任何资格；改为独立GIT_INDEX_FILE+checkout-index成功导出后才运行integration-2，不修改开发index或掩盖失败。
 - Linux镜像和隔离限制仍同前；CPU与目录为确定性fixture。当前使用真实Registry/Workspace journal及Runtime-shaped Context，**没有声称已通过实际Foundation Work→Event Runtime/Permit/Supervisor或完整Service Host旅程**。重命名中断为受控异常注入，真实进程退出/停止恢复、模型/索引精确依赖共载、NAS资源资格、People与正式Commit仍待完成。没有使用NAS或生产。
+
+## 2026-10-29 Observe file descriptor read-bound correction
+
+整合审查指出9f1af5e47的stat(size)之后仍用path readFileSync：文件可能在两者间增长/替换，旧大小预检不能证明读取有界。核查后确认没有更强外层独占保证；上节9f的Root读前大小检查因此不能作为最终严格读取资格，主整合暂缓叠加该提交。
+
+新kind专用readArtifactFile用O_RDONLY/O_NOFOLLOW打开同一fd，BigInt fstat确认常规文件与8MiB边界；固定64KiB块readSync，总请求最多MAX+1，读到超限立即失败，finally关闭fd。读取完检查fd与当前path的dev/inode/size及fd前后mtimeNs/ctimeNs；路径更换或读取期间修改明确拒绝。普通Artifact读取、recovery、exactReality和reality观察的该kind均走同一helper；其他kind维持原读法，未扩大其资源范围或改变Owner/Handle/digest/取消规则。
+
+- 97c独立Linux快照上的Observe完整资格与既有Root回归共39 PASS/0skip/0FAIL，64.219秒；catalogue-bounded-read-linux-1.log SHA256 8a362ea45d173518015a7db37633395af3cbe021f74a67d51b8939b4c5a7ec0b。
+- 将path替换精确放在recovery第二个size-stat返回后，再完整复验Observe的8项，8 PASS/0skip/0FAIL，63.270秒；catalogue-bounded-read-linux-2.log SHA256 ca84c487e17c2c72ff7d87bed998d2ab2fc48b67deeefad7ea2f1f448c319779。注入包括fd stat后增长到MAX+4096（总请求与返回字节恰MAX+1、零readFileSync）、path size-stat后大文件替换（零完整文件读取）、fd已打开后同字节更换inode（明确拒绝物理关联改变）。原取消、损坏、落盘中断及重放仍通过。
+- 独立negative control仅把该Root实现换回9f stat-only原文并补入已审查的kind声明，不动正式源码/有效快照。新三项回归如预期全部FAIL（0PASS/3FAIL/5非目标skip，exit1）：前两项实际触及被spy拦截的无界readFileSync，第三项旧实现没有要求的fd/物理关联拒绝；没有真的无界分配大文件。catalogue-bounded-read-negative-control.log SHA256 fc764dfa64802d8a88b832097ba1c5576a5dfa0a701c1b2ed4794f30d756b4f8。它是证明负例能捕获旧缺陷的失败对照，不是整体测试PASS，也不抹去9f的资格限制。
+- 最终补齐结束时path与fd的size/mtimeNs/ctimeNs一致性及path大小上限检查后，Linux完整39项再次39 PASS/0skip/0FAIL，65.388秒；catalogue-bounded-read-linux-3.log SHA256 2677178df942c38f1d860ef23847eef0a8d8542c4d4c7b2d23210e2bc9124fc1。Package/Semantic/Manifest/P2复验均通过，计数及类型引用不变。此前日志与失败对照全部保持，不以最终结果覆盖。
+
+没有NAS、生产或模型共载副作用；完整Runtime/Permit/Service Host及People链仍按前节保持开放。

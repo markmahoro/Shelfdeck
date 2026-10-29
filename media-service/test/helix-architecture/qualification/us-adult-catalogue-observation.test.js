@@ -91,3 +91,40 @@ test('corrupt or oversized recovery files fail before recomputation or successfu
   await assert.rejects(()=>f.port.execute(f.context),{code:'CLEAN_WORKSPACE_ARTIFACT_BYTE_LIMIT'});assert.equal(f.counters.computes,1);
   assert.throws(()=>f.workspace.readArtifactBytes(handle),{code:'CLEAN_WORKSPACE_ARTIFACT_BYTE_LIMIT'});
 });
+
+test('growth after descriptor stat is rejected by a strict MAX+1 read ceiling rather than readFileSync',async t=>{
+  const f=await fixture(t),result=await f.port.execute(f.context),handle=result.result.observationArtifactHandle,
+    root=path.resolve(f.root,'workspace-root'),file=path.resolve(root,handle.storageRef.slice('workspace://'.length)),maximum=8*1024*1024;
+  assert.ok(file.startsWith(root+path.sep));
+  const fstat=fs.fstatSync.bind(fs),read=fs.readSync.bind(fs),readFile=fs.readFileSync.bind(fs);
+  let grew=false,requested=0,readBytes=0,unbounded=0;
+  t.mock.method(fs,'fstatSync',(fd,options)=>{const value=fstat(fd,options);
+    if(!grew){grew=true;fs.truncateSync(file,maximum+4096);}return value;});
+  t.mock.method(fs,'readSync',(...args)=>{requested+=args[3];const count=read(...args);readBytes+=count;return count;});
+  t.mock.method(fs,'readFileSync',(target,...args)=>{if(target===file){unbounded++;throw Error('Unbounded Artifact read');}return readFile(target,...args);});
+  assert.throws(()=>f.workspace.readArtifactBytes(handle),{code:'CLEAN_WORKSPACE_ARTIFACT_BYTE_LIMIT'});
+  assert.equal(grew,true);assert.equal(requested,maximum+1);assert.equal(readBytes,maximum+1);assert.equal(unbounded,0);
+});
+
+test('path replacement after size stat cannot make recovery read an oversized replacement',async t=>{
+  const f=await fixture(t),result=await f.port.execute(f.context),handle=result.result.observationArtifactHandle,
+    root=path.resolve(f.root,'workspace-root'),file=path.resolve(root,handle.storageRef.slice('workspace://'.length)),maximum=8*1024*1024;
+  assert.ok(file.startsWith(root+path.sep));
+  const stat=fs.statSync.bind(fs),read=fs.readSync.bind(fs),readFile=fs.readFileSync.bind(fs);let replaced=false,readBytes=0,unbounded=0,pathStats=0;
+  t.mock.method(fs,'statSync',(target,...args)=>{const value=stat(target,...args);
+    if(target===file&&++pathStats===2&&!replaced){replaced=true;const replacement=file+'.replacement';fs.writeFileSync(replacement,'');
+      fs.truncateSync(replacement,maximum+4096);fs.renameSync(replacement,file);}return value;});
+  t.mock.method(fs,'readSync',(...args)=>{const count=read(...args);readBytes+=count;return count;});
+  t.mock.method(fs,'readFileSync',(target,...args)=>{if(target===file){unbounded++;throw Error('Unbounded Artifact read');}return readFile(target,...args);});
+  await assert.rejects(()=>f.port.execute(f.context),{code:'CLEAN_WORKSPACE_ARTIFACT_BYTE_LIMIT'});
+  assert.equal(replaced,true);assert.equal(pathStats,2);assert.equal(readBytes,0);assert.equal(unbounded,0);assert.equal(f.counters.computes,1);
+});
+
+test('same-byte path replacement after opening the descriptor still invalidates its physical association',async t=>{
+  const f=await fixture(t),result=await f.port.execute(f.context),handle=result.result.observationArtifactHandle,
+    root=path.resolve(f.root,'workspace-root'),file=path.resolve(root,handle.storageRef.slice('workspace://'.length));
+  assert.ok(file.startsWith(root+path.sep));const fstat=fs.fstatSync.bind(fs);let replaced=false;
+  t.mock.method(fs,'fstatSync',(fd,options)=>{const value=fstat(fd,options);
+    if(!replaced){replaced=true;const replacement=file+'.replacement';fs.copyFileSync(file,replacement);fs.renameSync(replacement,file);}return value;});
+  assert.throws(()=>f.workspace.readArtifactBytes(handle),{code:'CLEAN_WORKSPACE_ARTIFACT_REALITY_DRIFT'});assert.equal(replaced,true);
+});

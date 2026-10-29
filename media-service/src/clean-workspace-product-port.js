@@ -28,6 +28,35 @@ function assertArtifactByteBound(artifactKind, sizeBytes) {
   }
 }
 
+function readArtifactFile(target, artifactKind) {
+  if (artifactKind !== 'face_catalogue_observation') return fs.readFileSync(target);
+  const fd = fs.openSync(target, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0));
+  try {
+    const before = fs.fstatSync(fd, { bigint: true });
+    if (!before.isFile()) fail('CLEAN_WORKSPACE_ARTIFACT_REALITY_DRIFT', 'Catalogue Artifact is not a regular file.');
+    assertArtifactByteBound(artifactKind, Number(before.size));
+    const maximum = CATALOGUE_OBSERVATION_MAX_BYTES, chunk = Buffer.allocUnsafe(64 * 1024), chunks = [];
+    let total = 0;
+    while (total <= maximum) {
+      const count = fs.readSync(fd, chunk, 0, Math.min(chunk.length, maximum + 1 - total), null);
+      if (count === 0) break;
+      total += count;
+      assertArtifactByteBound(artifactKind, total);
+      chunks.push(Buffer.from(chunk.subarray(0, count)));
+    }
+    const after = fs.fstatSync(fd, { bigint: true }), current = fs.lstatSync(target, { bigint: true });
+    assertArtifactByteBound(artifactKind, Number(after.size));
+    assertArtifactByteBound(artifactKind, Number(current.size));
+    if (!current.isFile() || current.dev !== after.dev || current.ino !== after.ino ||
+        current.size !== after.size || current.mtimeNs !== after.mtimeNs || current.ctimeNs !== after.ctimeNs ||
+        after.dev !== before.dev || after.ino !== before.ino || after.size !== BigInt(total) ||
+        after.size !== before.size || after.mtimeNs !== before.mtimeNs || after.ctimeNs !== before.ctimeNs) {
+      fail('CLEAN_WORKSPACE_ARTIFACT_REALITY_DRIFT', 'Catalogue Artifact changed while its bounded descriptor was read.');
+    }
+    return Buffer.concat(chunks, total);
+  } finally { fs.closeSync(fd); }
+}
+
 function relative(value) {
   if (typeof value !== 'string' || !value || value.includes('\\') ||
       value.startsWith('/') || /^[A-Za-z]:/.test(value) ||
@@ -586,9 +615,9 @@ function createCleanWorkspaceProductPort(options) {
     return Object.freeze({ ...basis, evidenceDigest: canonicalDigest(basis) });
   }
 
-  function exactReality(target, expectedDigest, expectedSize) {
+  function exactReality(target, expectedDigest, expectedSize, artifactKind) {
     if (!fs.existsSync(target)) return false;
-    const bytes = fs.readFileSync(target);
+    const bytes = readArtifactFile(target, artifactKind);
     return bytes.length === expectedSize && digestBytes(bytes) === expectedDigest;
   }
 
@@ -770,7 +799,7 @@ function createCleanWorkspaceProductPort(options) {
       material.owner_domain === 'libra' && material.process_id === libraRunId && material.state === 'active' &&
       artifact.state === 'active' && material.digest_algorithm === artifact.digest_algorithm &&
       material.digest_hex === artifact.digest_hex && Number(material.size_bytes) === Number(artifact.size_bytes) &&
-      Number(artifact.size_bytes) === fs.statSync(target).size && digestBytes(fs.readFileSync(target)) === artifact.digest_hex;
+      Number(artifact.size_bytes) === fs.statSync(target).size && digestBytes(readArtifactFile(target, artifactKind)) === artifact.digest_hex;
     const absent = !fileExists && !material && rows.artifacts.length === 0;
     const evidence = Object.freeze({
       schema:'libra.workspace-artifact-reality@1', workspaceId, libraRunId, relativePath, artifactKind,
@@ -808,14 +837,14 @@ function createCleanWorkspaceProductPort(options) {
       );
     if (prior.state === 'committed') {
       if (prior.outputDigest !== digestHex ||
-          !exactReality(identity.target, digestHex, bytes.length)) {
+          !exactReality(identity.target, digestHex, bytes.length, request.artifactKind)) {
         fail('CLEAN_WORKSPACE_EFFECT_REALITY_DRIFT',
           'Committed Workspace Artifact reality drifted.');
       }
     } else {
       fs.mkdirSync(path.dirname(identity.target), { recursive: true });
       if (fs.existsSync(identity.target) &&
-          !exactReality(identity.target, digestHex, bytes.length)) {
+          !exactReality(identity.target, digestHex, bytes.length, request.artifactKind)) {
         fail('CLEAN_WORKSPACE_EFFECT_OUTPUT_DRIFT',
           'Stable Workspace Artifact effect identity produced different bytes.');
       }
@@ -1087,7 +1116,7 @@ function createCleanWorkspaceProductPort(options) {
     return materializeArtifact({
       ...request,
       relativePath: identity.relativePath,
-      bytes: fs.readFileSync(identity.target),
+      bytes: readArtifactFile(identity.target, request.artifactKind),
       skipPhysicalHook: true,
     });
   }
@@ -1294,7 +1323,7 @@ function createCleanWorkspaceProductPort(options) {
     }
     let bytes;
     if (prior.replayed && fs.existsSync(target)) {
-      bytes = fs.readFileSync(target);
+      bytes = readArtifactFile(target, request.artifactKind);
     } else {
       const outcome = await request.acquireBytes();
       if (outcome?.resultKind === 'not_available') {
@@ -1479,7 +1508,7 @@ function createCleanWorkspaceProductPort(options) {
         'Workspace Artifact read escaped its controlled root.');
     }
     assertArtifactByteBound(artifactHandle.artifactKind, fs.statSync(target).size);
-    const bytes = fs.readFileSync(target);
+    const bytes = readArtifactFile(target, artifactHandle.artifactKind);
     if (bytes.length !== artifactHandle.sizeBytes ||
         digestBytes(bytes) !== artifactHandle.digestHex) {
       fail('CLEAN_WORKSPACE_ARTIFACT_REALITY_DRIFT',
