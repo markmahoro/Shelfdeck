@@ -520,6 +520,38 @@ test('Resolution retries only the same still-current basis, with bounded Work At
   });
 });
 
+for(const change of ['target','record_set'])test('current Resolution reads reject an input change after projection: '+change,()=>{
+  fixture(({store,unitOfWork})=>{
+    const {createPerceptionProjections}=require('../../src/helix/domains/perception/planning/perception-planners');
+    const targetId='post-projection-subject',anchor={anchorKind:'subject_id',anchorValue:targetId,confidenceClass:'exact',evidenceDigest:hash('post-projection-anchor')};
+    let target={targetType:'subject',targetId,targetRevision:1,title:'Post Projection',year:2024,providerIdentity:null};
+    register(store);start(store);page(store,{records:[record('post-first',{rating:5,anchors:[anchor]})]});
+    const services=createPerceptionProcessServices({schemaManifest,unitOfWork,perceptionStore:store,workResultReader:{status:()=>null},targetProjectionReader:()=>target});
+    const scope=()=>({processId:'subject:'+targetId}),parameters=value=>({processId:'subject:'+targetId,commitEventId:'post-projection-event',executionBasisDigest:value.basisDigest});
+    const projection=createPerceptionProjections({processServices:services}).find(item=>item.projectionRef.endsWith('/ResolutionCommitHandle/v1')).projection;
+    const initial=services.resolutionProcessContext('subject:'+targetId),oldDraft=resolvePerception(initial,{draftId:'post-old',producedAtMs:1});
+    const oldHandle=projection.project({ownerScope:scope(),sourceResult:oldDraft,parameters:parameters(oldDraft)});
+    if(change==='target')target={...target,targetRevision:2};
+    else{
+      register(store,'post-source-2');start(store,{perceptionAcquisitionId:'post-acquisition-2',perceptionSourceId:'post-source-2'});
+      page(store,{perceptionAcquisitionId:'post-acquisition-2',perceptionSourceId:'post-source-2',acquisitionCommitReceiptId:'post-commit-2',commitMarker:'post-marker-2',
+        records:[record('post-conflicting',{rating:1,anchors:[anchor]})]});
+    }
+    const oldResult=unitOfWork.execute([store.createResolutionCommitParticipant(oldHandle,oldDraft)]).perception_resolution_commit;
+    assert.equal(oldResult.queryInputDigest,oldDraft.queryInputDigest);assert.equal(oldResult.recordSetDigest,oldDraft.recordSetDigest);
+    assert.equal(services.readCurrentRating('subject',targetId).state,'pending');
+    assert.equal(services.resolveDecisionFact({targetType:'subject',targetId}).kind,'pending');
+    const current=services.resolutionProcessContext('subject:'+targetId),next=resolvePerception(current,{draftId:'post-current',producedAtMs:2}),
+      nextHandle=projection.project({ownerScope:scope(),sourceResult:next,parameters:parameters(next)});
+    assert.equal(nextHandle.expectedRevision,change==='target'?0:1);
+    unitOfWork.execute([store.createResolutionCommitParticipant(nextHandle,next)]);
+    const ready=services.readCurrentRating('subject',targetId);
+    assert.equal(ready.state,'ready');assert.equal(ready.rating,change==='target'?5:null);
+    assert.equal(ready.resolutionStatus,change==='target'?'found':'not_found');
+    assert.notEqual(next.basisDigest,oldDraft.basisDigest);
+  });
+});
+
 test('projects historical title-year aliases into title-only Resolution evidence', () => {
   fixture(({ store }) => {
     register(store); start(store);

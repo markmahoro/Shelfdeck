@@ -114,6 +114,44 @@ test('Resolution supersedes an older public target after Resolve and admits its 
   }finally{await host.close();database.close();}
 });
 
+test('current Resolution does not expose a Target changed after Commit projection',async(t)=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-resolution-post-projection-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+  const dataDir=path.join(root,'data'),admin=path.join(root,'admin');fs.mkdirSync(admin,{recursive:true});fs.writeFileSync(path.join(admin,'index.html'),'<div id="root"></div>');
+  const initialized=initializeCleanData({dataDir,confirmation:'INITIALIZE_HELIX_CLEAN_V1',secretRoot:SECRET}),targetId='post-projection-entry';
+  const database=new Database(path.join(dataDir,'shelfdeck.db'),{readonly:true}),errors=[];let revision=1,observed=null;
+  function targetProjection(type,id){if(type!=='shelf_entry'||id!==targetId)return null;
+    const body={targetType:type,targetId:id,targetRevision:revision,title:'Post Projection Race',year:2024,providerIdentity:'tmdb_movie:991125',shelfEntrySnapshotDigest:canonicalDigest({targetId,revision})};
+    return Object.freeze({...body,targetDigest:canonicalDigest(body)});}
+  const host=await createCleanServiceHost({dataDir,adminDistDir:admin,secretRoot:SECRET,perceptionTargetProjectionReader:targetProjection,
+    unitOfWorkDecorator(value){return Object.freeze({...value,execute(participants,...args){
+      if(!observed&&participants.some(item=>item.participantId==='perception_resolution_commit')){
+        revision=2;const result=value.execute(participants,...args),committed=result.perception_resolution_commit;
+        const schemaManifest=require('../src/helix/foundation/persistence/generated/clean-schema.manifest.json');
+        const {createAcquisitionResumeIntent}=require('../src/helix/domains/perception/capabilities/acquisition-resume-intent');
+        const {createPerceptionProcessServices}=require('../src/helix/domains/perception/application/perception-process-services');
+        const options={schemaManifest,unitOfWork:value,targetProjectionReader:targetProjection,workResultReader:{status:()=>null}};
+        const services=createPerceptionProcessServices({...options,acquisitionResumeIntent:createAcquisitionResumeIntent(options)});
+        const snapshot=committed.factKind==='rating'?services.readCurrentRating('shelf_entry',targetId):services.readCurrentWatched('shelf_entry',targetId);
+        const current=services.resolutionContext('shelf_entry',targetId,committed.factKind);
+        observed={committed,snapshot,currentQueryDigest:current.query.queryInputDigest,effectId:result.domain_commit_marker.effectId};
+        return result;
+      }
+      return value.execute(participants,...args);
+    }});},onExecutionRuntimeError:error=>errors.push(error)});
+  try{
+    const cookie=await session(host,initialized.adminApiKey),response=await host.inject({method:'POST',url:'/v1/admin/perception/records',headers:{cookie},payload:{targetType:'shelf_entry',targetId,expectedRevision:0,rating:4,idempotencyKey:'post-projection-rating'}});
+    assert.equal(response.statusCode,202,response.body);
+    const deadline=Date.now()+30_000;let old,successor;
+    while(Date.now()<deadline){if(observed){old=database.prepare('SELECT w.work_id,w.process_id,w.state FROM fx_effect_journal j JOIN fx_event_attempts a ON a.event_attempt_id=j.event_attempt_id JOIN fx_workflow_events e ON e.event_id=a.event_id JOIN fx_supporting_works w ON w.work_id=e.work_id WHERE j.effect_id=?').get(observed.effectId);
+      if(old)successor=database.prepare("SELECT work_id FROM fx_supporting_works WHERE process_id=? AND work_id<>? AND work_kind='resolution' AND state='succeeded' LIMIT 1").get(old.process_id,old.work_id);
+      if(old?.state==='succeeded'&&successor)break;}await pause(25);}
+    assert.ok(observed&&old&&successor);assert.equal(observed.snapshot.state,'pending');
+    assert.notEqual(observed.committed.queryInputDigest,observed.currentQueryDigest);
+    assert.equal(database.prepare('SELECT count(*) count FROM fx_commit_markers WHERE effect_id=?').get(observed.effectId).count,1);
+    assert.deepEqual(errors.map(error=>error.code),[]);
+  }finally{await host.close();database.close();}
+});
+
 for(const phase of ['before_commit','after_commit','before_commit_same_basis'])test('Resolution recovers the exact Effect after an interruption '+phase,async(t)=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-resolution-effect-race-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
   const dataDir=path.join(root,'data'),admin=path.join(root,'admin');fs.mkdirSync(admin,{recursive:true});fs.writeFileSync(path.join(admin,'index.html'),'<div id="root"></div>');
