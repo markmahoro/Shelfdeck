@@ -3,13 +3,14 @@
 const {assertCurrentTargetBaseline}=require('../persistence/custom-target-store');
 const pending=reasonCode=>Object.freeze({kind:'pending',reasonCode});
 
-// This composition is deliberately unwired: current production projections,
-// Material Control and all Runtime admission boundaries must be connected and
-// verified before it can govern production dispatch.
+// This composition is deliberately unwired: current production projections
+// and all Runtime admission boundaries must be connected and verified before it
+// can govern production dispatch.
 function createLibraCustomTargetDispatchGuard(options){
   if(typeof options?.targetReader?.read!=='function'||typeof options.replacementReadiness?.check!=='function'||
-      typeof options.customTargetStore?.current!=='function'||typeof options.readCurrentCustomTargetBaseline!=='function')
-    throw new TypeError('Custom dispatch requires current target, drain and Owner baseline readers.');
+      typeof options.customTargetStore?.current!=='function'||typeof options.readCurrentCustomTargetBaseline!=='function'||
+      typeof options.inputControlReader?.check!=='function')
+    throw new TypeError('Custom dispatch requires target, drain, Owner baseline and input Control readers.');
   return Object.freeze({check(scope){
     if(!scope||typeof scope!=='object')throw new TypeError('Exact dispatch scope is required.');
     if(scope.ownerDomain!=='libra'||scope.processType!=='libra_run')return Object.freeze({kind:'not_applicable'});
@@ -32,6 +33,10 @@ function createLibraCustomTargetDispatchGuard(options){
       const baseline=options.readCurrentCustomTargetBaseline(Object.freeze({subjectId:target.subjectId,
         libraRunId:intent.basis.libraRunId,productScopeDigest:target.productScopeDigest}),{readFence:drained.readFence});
       assertCurrentTargetBaseline(intent,baseline);
+      const inputControl=options.inputControlReader.check(Object.freeze({subjectId:target.subjectId,libraRunId:scope.processId}),
+        {readFence:drained.readFence});
+      if(inputControl.kind==='pending')return pending(inputControl.reasonCode);
+      if(inputControl.kind!=='ready'||inputControl.readFence!==drained.readFence)throw new Error('Run input Control projection is invalid.');
       options.targetReader.read(scope.processId,{readFence:drained.readFence});
       return Object.freeze({kind:'ready',readFence:drained.readFence});
     }catch(error){

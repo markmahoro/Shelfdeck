@@ -679,4 +679,4 @@ function createRunDiscardStore(options) {
   return Object.freeze({inspect,commit,readCommitted,transactionId:TRANSACTION_ID});
 }
 
-module.exports=Object.freeze({LibraRunDiscardStoreError,createRunDiscardStore});
+module.exports=Object.freeze({LibraRunDiscardStoreError,createRunDiscardStore,reconstructManifest});

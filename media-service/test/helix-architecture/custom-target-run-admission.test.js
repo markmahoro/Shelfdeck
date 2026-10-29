@@ -455,11 +455,17 @@ test('old Work cannot start a planning Attempt when target confirmation invalida
   assert.equal(reader.read(old).kind,'target_not_current');
 }));
 
+function inputControlReader(h,materialControlProjectionPort){
+  const {createLibraRunInputControlReader}=require('../../src/helix/domains/libra/public');
+  const port=materialControlProjectionPort||require('../../src/helix/foundation/persistence/material-control').createMaterialControlProjectionPort(h.options);
+  return createLibraRunInputControlReader({...h.options,materialControlProjectionPort:port});
+}
 function customDispatchGuard(h,baseline=h.readCurrentCustomTargetBaseline,readArcaFormationStatus){
   const {createCurrentRunTargetReader}=require('../../src/helix/domains/libra/application/current-run-target-reader');
   const {createLibraCustomTargetDispatchGuard}=require('../../src/helix/domains/libra/public');
   return createLibraCustomTargetDispatchGuard({targetReader:createCurrentRunTargetReader(h.options),
-    replacementReadiness:replacementReadiness(h,undefined,readArcaFormationStatus),customTargetStore:h.targets,readCurrentCustomTargetBaseline:baseline});
+    replacementReadiness:replacementReadiness(h,undefined,readArcaFormationStatus),customTargetStore:h.targets,
+    inputControlReader:inputControlReader(h),readCurrentCustomTargetBaseline:baseline});
 }
 const dispatchScope=id=>({ownerDomain:'libra',processType:'libra_run',processId:id,workKind:'product_gap',workId:'work',eventId:'event'});
 
@@ -489,6 +495,49 @@ test('custom dispatch refuses unavailable or concurrently changed Owner baseline
   });
   assert.deepEqual(concurrent.check(scope),{kind:'pending',reasonCode:'owner_view_changed'});
   assert.throws(()=>customDispatchGuard(h,null),TypeError);
+}));
+
+test('a custom Run cannot dispatch after its admitted input Control belongs to another Owner',()=>runHarness(h=>{
+  const replacement=h.advance(h.unitOfWork.captureReadFence()),guard=customDispatchGuard(h),scope=dispatchScope(replacement.libraRunId);
+  assert.equal(guard.check(scope).kind,'ready');
+  h.db.prepare("UPDATE fx_material_controls SET owner_domain='arca',owner_scope_type='on_deck',owner_scope_id='other' WHERE owner_domain='libra'").run();
+  assert.deepEqual(guard.check(scope),{kind:'pending',reasonCode:'input_control_changed'});
+}));
+
+test('changed input Binding and changed Control revision cannot authorize a custom Run',()=>{
+  for(const change of ['binding','control_revision'])runHarness(h=>{
+    const replacement=h.advance(h.unitOfWork.captureReadFence()),guard=customDispatchGuard(h),scope=dispatchScope(replacement.libraRunId);
+    assert.equal(guard.check(scope).kind,'ready');
+    if(change==='binding')h.db.prepare("UPDATE libra_material_bindings SET location='/another-location' WHERE authority_kind='primary_control'").run();
+    else h.db.prepare('UPDATE fx_material_controls SET control_revision=control_revision+1').run();
+    assert.deepEqual(guard.check(scope),{kind:'pending',reasonCode:change==='binding'?'input_binding_changed':'input_control_changed'});
+  });
+});
+
+test('input Control unavailability, malformed projections and corrupt immutable evidence never authorize dispatch',()=>runHarness(h=>{
+  const replacement=h.advance(h.unitOfWork.captureReadFence()),scope={subjectId:'subject',libraRunId:replacement.libraRunId};
+  const unavailable=inputControlReader(h,{getMaterialControlProjections:keys=>keys.map(materialKey=>({materialKey,resultKind:'unavailable'}))});
+  assert.deepEqual(unavailable.check(scope),{kind:'pending',reasonCode:'input_control_unavailable'});
+  const malformed=inputControlReader(h,{getMaterialControlProjections:()=>[]});
+  assert.throws(()=>malformed.check(scope),{code:'LIBRA_RUN_INPUT_EVIDENCE_INVALID'});
+  const stored=h.db.prepare('SELECT run_material_manifest_id FROM libra_runs WHERE libra_run_id=?').get(replacement.libraRunId);
+  h.db.prepare('UPDATE libra_run_material_members SET member_digest=? WHERE run_material_manifest_id=?').run(D('corrupt-member'),stored.run_material_manifest_id);
+  assert.throws(()=>inputControlReader(h).check(scope),{code:'LIBRA_RUN_INPUT_EVIDENCE_INVALID'});
+}));
+
+test('a Control change during projection invalidates the entire input read fence',()=>runHarness(h=>{
+  const replacement=h.advance(h.unitOfWork.captureReadFence()),actual=require('../../src/helix/foundation/persistence/material-control')
+    .createMaterialControlProjectionPort(h.options),reader=inputControlReader(h,{getMaterialControlProjections:keys=>{
+      const result=actual.getMaterialControlProjections(keys);h.db.prepare('UPDATE fx_material_controls SET control_revision=control_revision+1').run();return result;
+    }});
+  assert.throws(()=>reader.check({subjectId:'subject',libraRunId:replacement.libraRunId}),{code:'P3_UOW_READ_FENCE_CHANGED'});
+}));
+
+test('a forged Run execution basis fails reconstruction even when the input manifest itself is intact',()=>runHarness(h=>{
+  const replacement=h.advance(h.unitOfWork.captureReadFence()),run=h.db.prepare('SELECT execution_basis_record_json FROM libra_runs WHERE libra_run_id=?').get(replacement.libraRunId),
+    basis=JSON.parse(run.execution_basis_record_json);basis.relatedDispositionScope.relatedReferenceSetDigest=D('forged-related-scope');
+  h.db.prepare('UPDATE libra_runs SET execution_basis_record_json=? WHERE libra_run_id=?').run(canonicalJson(basis),replacement.libraRunId);
+  assert.throws(()=>inputControlReader(h).check({subjectId:'subject',libraRunId:replacement.libraRunId}),{code:'LIBRA_RUN_INPUT_EVIDENCE_INVALID'});
 }));
 
 test('an old standard Run is blocked by the confirmed Head even before replacement admission',()=>runHarness(h=>{
