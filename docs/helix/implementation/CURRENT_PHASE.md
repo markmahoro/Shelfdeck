@@ -24,8 +24,8 @@
 | 标准发布 | 复核生产身份、容量、备份与回退；使用build-image、upload-nas-image和deploy-nas，dry run与SHA通过后按既有用户请求执行。 |
 | 七条恢复 | 假如…？、真探、亿万、越狱、继承之战、当你沉睡时、飞天大盗：逐项冻结原Offer/build/Scope、失败/Effect、Control和文件基线，经原重试入口核验唯一Commit与历史保护；真实冲突继续attention。 |
 | CUSTOM-TARGET-RESET-RETENTION | 隔离模拟证实仅作dependent表分类会遗漏已保留Custom Spec的精确Intent/Preview；Libra按实际保留Spec提供Owner依赖闭包，验证同Subject多版本、未入藏、缺失/篡改与中断恢复。原开发Schema因声明不匹配保持fail-closed；不能仅靠FK通过放行Reset。 |
-| JAV-AFTERCARE-REPLACEMENT-IDENTITY | 基线及候选在可控相同inode/同字节替换时复现Effect已提交、inventory no-change及后继冲突；在Arca既有职责内核查修复，保留真实外部冲突和重放保护。首次全架构现场已失，不声称其根因已确定。 |
-| SERIES-RESOLUTION-COMMIT-FENCE | 精确27a首轮并发Series Host报告Resolution Commit Handle未fence精确Draft；独立核查基线、输入/Effect/Result及后继责任，不以单项通过或修改断言掩盖。 |
+| JAV-AFTERCARE-REPLACEMENT-IDENTITY | 基线及候选在可控相同inode/同字节替换时复现Effect已提交、inventory no-change及后继冲突；首次全架构现场已失，不声称其根因已确定。初版c2修复仍会把首次执行前的同字节外部目标及外部构造的Stage/目标硬链接当作自身成果，Windows/Linux各2负例失败，故不可入候选；现有Effect intent/continue_forward本身不证明文件归属。继续在Arca Owner和恢复合同内核查持久归属证据、正确重放/拒绝、真实CIFS hard link资格。 |
+| SERIES-RESOLUTION-COMMIT-FENCE | 精确27a并发Series Host自然复现：Draft冻结后当前Query变化导致Commit Handle不匹配，Effect已reconcile_required但无Marker/Result；生产基线的受控输入亦复现。150秒持续版本变化的合成观察未收敛，不能外推首次门禁或线上状态。独立实现须保全同一Effect责任、冻结Query/Record Set/Rule、后继Work与冲突负例，不得放宽fence。[隔离调查](evidence/SERIES_RESOLUTION_COMMIT_FENCE_INVESTIGATION_20261029.md) |
 
 2026-10-29固定Series候选：`1d8a45843f9c8982c91bb0a367eb0adfa1c5c310`，基于a2bf2d6fd，三个Schema与既有Linux验证副本字节一致、239表/62事务不变。本机合同13项通过；标准镜像首次下载既有模型失败，核验本机生产基线模型SHA后重建成功并上传校验，tar SHA256 `b57b0de41449109adbeb39f4d12ca6ab81a66d1a9ca6062c5d964b4b3271ca8d`。首个固定检出因Windows路径过长失败，第二个因换行不一致不合格，第三个与构建输入4541文件逐字节一致；独立Linux完整架构门禁仍在执行。
 
