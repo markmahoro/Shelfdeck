@@ -215,3 +215,11 @@ Windows 和隔离 Linux Docker 的 14 个相关文件各 **374 PASS / 0 skip**�
 真实临时 SQLite 中先用实际发布器、Run Creator 和 Foundation 事务完成一次接续，并重建服务重复调用；覆盖 Spec 已发布后中断、Run 已提交但取消中断、发布前/后基线变化、读取 Head 时并发变化及缺失 Head。另一次关闭 SQLite Kernel、重新打开同一临时数据库并重建 Store/Creator/接续器后，使用同一 Spec 恢复到 replacement；这是受控正常关闭重开及注入异常，非进程强杀、真实用户或真实媒体验收。最初四项测试因无接续器失败；首次实现错误地在事务外调用 `assertReadFence`，四项再次失败，改为在实际只读 UoW 验证后通过。Windows 与隔离 Linux Docker 的 12 个相关文件各 **202 PASS / 0 skip**，扫描仍为既有 2 + 1 finding，Linux 镜像与依赖限制同前。
 
 目前只能对精确 scope 显式调用，尚未由现有 Runtime 启动/恢复流程触发，也没有新增轮询；真实完整 Preview View、标准目标恢复与变化、Arca 独立 custom 接纳及后续唯一 Commit 仍未完成。自动调度和用户入口继续关闭，Fresh Reset 的旧 Offer 重投责任仍未证明。
+
+## Lifecycle 与外部策略观察的 Owner 围栏（2026-10-29）
+
+独立提交 `886fa5885bf85b1a43b3bc2636e6ebacb602a5ab` 为 Run Lifecycle Transition 增加可选 opaque fence，并保留精确已提交回执及并发先提交后的重放；实际 Run Coordinator 将 Guard 的 fence 传入 freshness、终末冻结和 secondary target 事务。外部策略不可用的观察与耗尽后冻结是两个写事务：分别重新取得 Guard 和 fence，避免第一次观察的合法写入使第二次沿用旧 fence；两次间目标变化只保留已提交的观察，不冻结 Run。暂停中的 Run 可在相同目标、旧责任排空、基线和 Control 检查下执行生命周期复核，但普通 Work/Event 检查仍要求 active。
+
+新增临时 SQLite 竞态先复现 Lifecycle 及策略观察不使用 fence；修复后陈旧读取不写新 revision/marker，不可用观察前变化不写观察，观察后冻结前变化保留观察且 Run 仍 active；精确提交重放及并发先提交不会再写第二次。实际 Run Coordinator 注入变化时返回等待，不提交 freshness revision。暂停测试通过受控数据库状态变化验证两类检查的区别，尚非完整暂停/恢复旅程。首轮一个负例因测试连接未关闭导致 Windows 清理 EPERM，修正测试清理后确认原始 fence 缺陷；策略测试首轮使用无效 reasonCode，修正为正式 reason 后复现缺陷。Windows 与隔离 Linux 的 17 个相关文件各 **408 PASS / 0 skip**；静态扫描仍有既有 2 + 1 finding，Linux 非精确依赖镜像。
+
+仍未将 Guard 接入正式组合根；终止/Discard 与已拒绝 Offer 收尾、Scheduler/Resource Governor、启动接续、完整 View、标准恢复、Arca 独立接纳和 Aftercare 等须继续按各 Owner 合同闭合，不据此开放入口或宣称端到端完成。未访问生产，Fresh Reset 的旧 Offer 未 ACK 重投责任仍开放。
