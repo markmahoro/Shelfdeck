@@ -207,3 +207,11 @@ UI 负责人独立复核 `db824ddb3b7f1204bff5c965a9490e672bd6b542` 的开发版
 真实临时 SQLite 测试使用实际 Custom Guard、旧执行排空检查、Run Coordinator 和 Foundation Work Admission：旧 Event/Effect 未排空不产生新 Work；写入前修改 Owner 数据导致零新 Work；fresh view 可准入。Workspace Coordinator 测试使用受控空间/Run 夹具，pending 或提交前并发变化时 Workspace/Registry 均为零，fresh view 原子提交；成功分支在创建后故意以测试异常截断，未声称后续 US 业务通过。Reference Store 与实际 Product Staging 测试先复现忽略 fence，修复后陈旧 view 零写入，精确已提交结果在围栏变化或并发先提交后可重放，篡改 Owner 引用拒绝。Guard 仍不证明文件存在或真实媒体可读。
 
 Windows 和隔离 Linux Docker 的 14 个相关文件各 **374 PASS / 0 skip**；包边界及禁止语义扫描仍仅有既有全局 2 + 1 finding。Linux 使用既有非精确依赖镜像，非最终镜像。该 Guard 尚未装入正式组合根，且 Lifecycle/冻结、Scheduler/Resource Governor、实际确认自动接续、目标恢复标准及 Arca 接纳/唯一 Commit 等仍需闭合；不开放半成品用户入口、不把此局部事务能力称作全局屏障。Fresh Reset 对旧未 ACK Offer 的证明缺口保持开放，未改生产或 Reset 声明。
+
+## 已确认 Custom Intent 的可重入接续（2026-10-29）
+
+独立提交 `cf78739417a1ee1cdb24d4322bbaf365a9b5360b` 增加未接线的 Libra Movie 接续器：从精确 Subject/产品范围读取当前持久 Target Head、Intent/Preview/原标准，重建旧 Run 的当前技术状态，调用现有 Custom Spec Publication，再重新获取并验证当前 Head 和 opaque fence，调用原有 Run Replacement Admission。已提交 Spec 以原回执和完整 Owner 记录重建；已提交 replacement 在原 Receipt、替代关系和 Basis 验证后重放同一 Run，并重新执行幂等旧 Work 取消。基线变化、Head/读取变化或 Arca 已接纳保持待处理，不清除用户 Intent、不创建第二个 Spec 或 Run。
+
+真实临时 SQLite 中先用实际发布器、Run Creator 和 Foundation 事务完成一次接续，并重建服务重复调用；覆盖 Spec 已发布后中断、Run 已提交但取消中断、发布前/后基线变化、读取 Head 时并发变化及缺失 Head。另一次关闭 SQLite Kernel、重新打开同一临时数据库并重建 Store/Creator/接续器后，使用同一 Spec 恢复到 replacement；这是受控正常关闭重开及注入异常，非进程强杀、真实用户或真实媒体验收。最初四项测试因无接续器失败；首次实现错误地在事务外调用 `assertReadFence`，四项再次失败，改为在实际只读 UoW 验证后通过。Windows 与隔离 Linux Docker 的 12 个相关文件各 **202 PASS / 0 skip**，扫描仍为既有 2 + 1 finding，Linux 镜像与依赖限制同前。
+
+目前只能对精确 scope 显式调用，尚未由现有 Runtime 启动/恢复流程触发，也没有新增轮询；真实完整 Preview View、标准目标恢复与变化、Arca 独立 custom 接纳及后续唯一 Commit 仍未完成。自动调度和用户入口继续关闭，Fresh Reset 的旧 Offer 重投责任仍未证明。
