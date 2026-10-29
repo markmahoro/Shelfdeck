@@ -4,7 +4,10 @@
 
 主整合线程的真实 NAS CIFS 隔离重测中，`series-shared-presentation.test.js` 为 8 PASS / 8 FAIL；八个失败均为 `PHYSICAL_MATERIAL_STAT_FENCE_CHANGED`，栈位于 Series `writeExact` 的 producer temporary 完整快照检查。该路径先新建并写入私有 `.partial`、fsync/close，再逐项严格核对路径与文件描述符的 inode、size、mtimeNs、ctimeNs；首次不一致时尚未通过该步骤进入 `linkSync`，但临时文件已可能存在，不能称为“无物理副作用”。
 
-一次另行探针在 0ms 观察到路径和 fd 的 mtime/ctime 不一致，100ms、500ms、1000ms、3000ms 样本读到一致数值；这只说明该样本后来稳定，不能证明其他文件、真实 Host 或本次线上任务必然收敛。主线程随后一个真实布局 Host 样本因首次 runtime error 而中断，尚未到达 Series publish。其测试私有 DB+WAL 副本只读查询中唯一未完成 Event 是 `arca.acceptance.accept.commit@1`，Attempt executing 且无 Effect 行；异常日志未保存 eventId/effectId，不能据此将该错误归因于 Series Presentation 或证明其他文件无副作用。
+一次另行探针在 0ms 观察到路径和 fd 的 mtime/ctime 不一致，100ms、500ms、1000ms、3000ms 样本读到一致数值；这只说明该样本后来稳定，不能证明其他文件、真实 Host 或本次线上任务必然收敛。两次真实布局 Host 样本必须分别保留：
+
+- 前一诊断 `nas-cifs-host-diagnostic.log` 在首次 runtime error 后退出，报告稳定快照读取前发生变化。该样本测试数据库的只读查询 `nas-cifs-host-effects.json` 显示，`arca.series_presentation.files.publish@1` 已执行到 Event `series-publish-65b432c08f34a68c907cffb3`；其 Event Attempt 仍为 executing，关联的 `material_commit` Effect `0190571d614e1751536437d7e52f432ff6bedd19d0362909f0a9d3281b4708e8` 为 `reconcile_required`。这证明该样本已到达 Series publish 且有未决 Effect；当前证据不证明其后续收敛，日志断言也未保留该 runtime error 的 eventId/effectId，不能仅凭时间邻近推定错误与该 Effect 的精确因果。
+- 后一观测 `nas-cifs-host-observed.log` 因 NAS 异常断连而中断，没有完整测试结果。其测试私有 DB+WAL 副本只读查询 `nas-host-observed-snapshot-query.json` 和 `nas-host-observed-unfinished-detail.json` 未查询到 Series publish Event/Effect，唯一未完成 Event 为 `arca.acceptance.accept.commit@1`，Attempt executing 且该 Event 无 Effect 行；On-deck Receipt 为 0，日志未保存关联的 runtime error ID。不能把这个未完成 Event 当作前一诊断的 publish，也不能据此推断其他文件没有副作用。
 
 `TOP_DOWN_ARCHITECTURE_CONFIRMATION.md` 2026-10-28 Series 恢复条款要求：稳定快照暂不可得时为 `unobservable`，只重观察原 Effect，不派发 Capability、不伪报 absent/matching；超过同一持久恢复预算时可以终结未提交技术 Effect，但物理结果仍未知，业务责任与历史必须保留。当前 Host 的默认恢复重查间隔为 30 秒。代码顺序为 Event Attempt、Effect intent、Capability dispatch；缺 Effect 的特定 Event 不证明其他 Event 的物理状态。
 
