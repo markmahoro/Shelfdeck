@@ -96,6 +96,81 @@ function observeSemanticNfoReconciliation({location,metadata,cast,identity,mount
   return Object.freeze({identity:identityFromObservation(observed,mountScopeId),semanticEvidenceDigest:canonicalDigest({kind:'readable_nfo',contentFingerprint:observed.contentFingerprint})});
 }
 function atomicCopy(source,target){fs.mkdirSync(path.dirname(target),{recursive:true});if(fs.existsSync(target)){if(fullSha(source)===fullSha(target))return;throw Object.assign(new Error('Aftercare target already exists with different bytes.'),{code:'ARCA_AFTERCARE_TARGET_CONFLICT'});}const temporary=target+'.aftercare-'+process.pid+'.tmp';let temporaryOwned=false;try{if(fs.existsSync(temporary)){if(fullSha(source)!==fullSha(temporary))throw Object.assign(new Error('Aftercare copy staging path contains different bytes.'),{code:'ARCA_AFTERCARE_TARGET_CONFLICT'});temporaryOwned=true;}else {temporaryOwned=true;fs.copyFileSync(source,temporary,fs.constants.COPYFILE_EXCL);}fs.renameSync(temporary,target);}catch(error){if(temporaryOwned&&fs.existsSync(temporary))fs.rmSync(temporary,{force:true});throw error;}}
+function missingArtifactStage(location,retiredLocation){return location+'.aftercare-'+canonicalDigest(retiredLocation).slice(0,40)+'.tmp';}
+function artifactStageStat(location){
+  const stat=fs.lstatSync(location,{bigint:true});
+  if(!stat.isFile()||stat.isSymbolicLink())throw Object.assign(new Error('Aftercare Artifact stage is not a regular file.'),{code:'ARCA_AFTERCARE_TARGET_CONFLICT'});
+  return stat;
+}
+function artifactStageStatIfPresent(location){try{return artifactStageStat(location);}catch(error){if(error.code==='ENOENT')return null;throw error;}}
+function sameArtifactFile(a,b){return a.dev===b.dev&&a.ino===b.ino&&a.size===b.size&&a.mtimeNs===b.mtimeNs;}
+function sameArtifactSnapshot(a,b){return sameArtifactFile(a,b)&&a.ctimeNs===b.ctimeNs;}
+function assertArtifactStage(location,source,expected){
+  const before=artifactStageStat(location);
+  if(expected&&!sameArtifactSnapshot(before,expected))throw Object.assign(new Error('Aftercare Artifact stage changed.'),{code:'ARCA_AFTERCARE_TARGET_CONFLICT'});
+  if(fullSha(location)!==fullSha(source)||!sameArtifactSnapshot(before,artifactStageStat(location)))
+    throw Object.assign(new Error('Aftercare Artifact stage does not match the source.'),{code:'ARCA_AFTERCARE_TARGET_CONFLICT'});
+  return before;
+}
+function removeOwnedArtifactStage(location,expected){
+  if(!expected)return;
+  const actual=artifactStageStatIfPresent(location);if(!actual)return;
+  if(!sameArtifactSnapshot(expected,actual))throw Object.assign(new Error('Aftercare Artifact stage changed before cleanup.'),{code:'ARCA_AFTERCARE_TARGET_CONFLICT'});
+  fs.unlinkSync(location);
+}
+function cleanupMissingArtifactAlias(source,location,retiredLocation,revalidate){
+  const temporary=missingArtifactStage(location,retiredLocation);
+  if(!artifactStageStatIfPresent(temporary))return;
+  const stage=assertArtifactStage(temporary,source),target=artifactStageStat(location);
+  if(!sameArtifactSnapshot(stage,target))throw Object.assign(new Error('Aftercare Artifact stage is not the published target.'),{code:'ARCA_AFTERCARE_TARGET_CONFLICT'});
+  revalidate();
+  if(!sameArtifactSnapshot(target,artifactStageStat(location)))throw Object.assign(new Error('Aftercare Artifact target changed before stage cleanup.'),{code:'ARCA_AFTERCARE_TARGET_CONFLICT'});
+  removeOwnedArtifactStage(temporary,stage);
+}
+function copyMissingArtifact(source,location,retiredLocation,oldMaterial,mountScopeId,fingerprint,revalidate){
+  const temporary=missingArtifactStage(location,retiredLocation);
+  let stage=null,published=null;
+  try{
+    fs.mkdirSync(path.dirname(location),{recursive:true});
+    if(fs.existsSync(location))throw Object.assign(new Error('Aftercare Artifact target reappeared during publication.'),{code:'ARCA_AFTERCARE_TARGET_CONFLICT'});
+    if(!fs.existsSync(temporary))fs.copyFileSync(source,temporary,fs.constants.COPYFILE_EXCL);
+    stage=assertArtifactStage(temporary,source);
+    let identity=physicalIdentity(temporary,mountScopeId,fingerprint);
+    stage=assertArtifactStage(temporary,source,stage);
+    if(identity.materialKey===oldMaterial.material_key){
+      // Pin the reused inode while recreating the stage; the identity formula stays unchanged.
+      const descriptor=fs.openSync(temporary,'r');
+      try{
+        if(!sameArtifactSnapshot(stage,fs.fstatSync(descriptor,{bigint:true})))throw Object.assign(new Error('Aftercare Artifact stage changed before inode reservation.'),{code:'ARCA_AFTERCARE_TARGET_CONFLICT'});
+        revalidate();
+        if(fs.existsSync(location))throw Object.assign(new Error('Aftercare Artifact target reappeared during publication.'),{code:'ARCA_AFTERCARE_TARGET_CONFLICT'});
+        stage=assertArtifactStage(temporary,source,stage);
+        if(!sameArtifactSnapshot(stage,fs.fstatSync(descriptor,{bigint:true})))throw Object.assign(new Error('Aftercare Artifact stage changed before inode reservation.'),{code:'ARCA_AFTERCARE_TARGET_CONFLICT'});
+        fs.unlinkSync(temporary);stage=null;
+        fs.copyFileSync(source,temporary,fs.constants.COPYFILE_EXCL);
+        stage=assertArtifactStage(temporary,source);
+        identity=physicalIdentity(temporary,mountScopeId,fingerprint);
+        stage=assertArtifactStage(temporary,source,stage);
+        if(identity.materialKey===oldMaterial.material_key)throw Object.assign(new Error('Aftercare Artifact replacement reused its frozen identity.'),{code:'ARCA_AFTERCARE_TARGET_CONFLICT'});
+      }finally{fs.closeSync(descriptor);}
+    }
+    revalidate();stage=assertArtifactStage(temporary,source,stage);
+    // Linking is an exclusive publication: an externally created target is never replaced.
+    try{fs.linkSync(temporary,location);}catch(error){if(error.code==='EEXIST')throw Object.assign(new Error('Aftercare Artifact target reappeared during publication.'),{code:'ARCA_AFTERCARE_TARGET_CONFLICT'});throw error;}
+    const linkedStage=artifactStageStat(temporary);
+    if(!sameArtifactFile(stage,linkedStage)||!sameArtifactSnapshot(linkedStage,artifactStageStat(location))){stage=null;throw Object.assign(new Error('Aftercare Artifact target changed during publication.'),{code:'ARCA_AFTERCARE_TARGET_CONFLICT'});}
+    stage=assertArtifactStage(temporary,source,linkedStage);published=stage;
+    fs.unlinkSync(temporary);stage=null;
+    const finalSnapshot=artifactStageStat(location);
+    if(!sameArtifactFile(published,finalSnapshot))throw Object.assign(new Error('Aftercare Artifact target changed during publication.'),{code:'ARCA_AFTERCARE_TARGET_CONFLICT'});
+    published=assertArtifactStage(location,source,finalSnapshot);
+    return published;
+  }catch(error){
+    try{removeOwnedArtifactStage(temporary,stage);}catch(cleanupError){throw Object.assign(new Error('Aftercare Artifact stage cleanup failed.'),{code:'ARCA_AFTERCARE_ROLLBACK_FAILED',cause:error,cleanupError,published});}
+    error.aftercarePublishedSnapshot=published;
+    throw error;
+  }
+}
 function sameBoundedMedia(left,right,mountScopeId,fingerprint){if(!fs.existsSync(left)||!fs.existsSync(right))return false;const a=physicalIdentity(left,mountScopeId,fingerprint),b=physicalIdentity(right,mountScopeId,fingerprint);return a.sizeBytes===b.sizeBytes&&a.contentFingerprint===b.contentFingerprint;}
 async function atomicCopyMedia(source,target,mountScopeId,fingerprint){await fs.promises.mkdir(path.dirname(target),{recursive:true});if(fs.existsSync(target)){if(sameBoundedMedia(source,target,mountScopeId,fingerprint))return;throw Object.assign(new Error('Aftercare media target already exists with different bounded identity.'),{code:'ARCA_AFTERCARE_TARGET_CONFLICT'});}const temporary=target+'.copying';let temporaryOwned=false;try{if(fs.existsSync(temporary)){if(!sameBoundedMedia(source,temporary,mountScopeId,fingerprint))throw Object.assign(new Error('Aftercare media staging path contains different bounded identity.'),{code:'ARCA_AFTERCARE_TARGET_CONFLICT'});temporaryOwned=true;await fs.promises.rename(temporary,target);}if(!fs.existsSync(target)){temporaryOwned=true;await fs.promises.copyFile(source,temporary,fs.constants.COPYFILE_EXCL);await fs.promises.rename(temporary,target);}}catch(error){if(temporaryOwned&&fs.existsSync(temporary))await fs.promises.rm(temporary,{force:true});throw error;}}
 function exactInventoryMaterial(location,material,mountScopeId,fingerprint){
@@ -207,14 +282,17 @@ function permitsMissingArtifactReplacement(care,artifactKind){
   const codes=new Set(careFindingCodes(care?.careRequirement));
   return codes.has('custody:artifact_missing')&&codes.has('presentation:'+artifactKind+'_missing');
 }
-function rollbackArtifactReplacement({source,location,retiredLocation,oldMaterial,mountScopeId,fingerprint}){
-  if(exactArtifactBytes(location,source)&&!exactInventoryMaterial(location,oldMaterial,mountScopeId,fingerprint))fs.rmSync(location,{force:true});
+function rollbackArtifactReplacement({source,location,retiredLocation,oldMaterial,mountScopeId,fingerprint,publishedSnapshot,restrictPublished=false}){
+  const owned=!restrictPublished||(publishedSnapshot&&fs.existsSync(location)&&sameArtifactSnapshot(publishedSnapshot,artifactStageStat(location)));
+  if(owned&&exactArtifactBytes(location,source)&&!exactInventoryMaterial(location,oldMaterial,mountScopeId,fingerprint))fs.rmSync(location,{force:true});
   if(oldMaterial&&fs.existsSync(retiredLocation)&&!fs.existsSync(location)){
     if(!exactInventoryMaterial(retiredLocation,oldMaterial,mountScopeId,fingerprint))throw Object.assign(new Error('Aftercare Artifact rollback old identity changed.'),{code:'ARCA_AFTERCARE_ROLLBACK_IDENTITY_CHANGED'});
     fs.renameSync(retiredLocation,location);
   }
 }
 function materializeArtifactWithRollback({source,location,retiredLocation,oldMaterial,mountScopeId,fingerprint,revalidate,allowMissingOld=false,copy=atomicCopy,rename=fs.renameSync}){
+  const missingCopy=allowMissingOld&&oldMaterial&&copy===atomicCopy;
+  let publishedSnapshot=null;
   const currentIsSource=exactArtifactBytes(location,source),currentIsOld=exactInventoryMaterial(location,oldMaterial,mountScopeId,fingerprint),
     retiredIsOld=exactInventoryMaterial(retiredLocation,oldMaterial,mountScopeId,fingerprint);
   if(fs.existsSync(location)&&!currentIsSource&&!currentIsOld)throw Object.assign(new Error('Aftercare Artifact target changed outside this Case.'),{code:'ARCA_AFTERCARE_TARGET_CONFLICT'});
@@ -225,13 +303,16 @@ function materializeArtifactWithRollback({source,location,retiredLocation,oldMat
   try{
     if(!currentIsSource){
       if(currentIsOld)rename(location,retiredLocation);
-      copy(source,location);
+      if(missingCopy)publishedSnapshot=copyMissingArtifact(source,location,retiredLocation,oldMaterial,mountScopeId,fingerprint,revalidate);
+      else copy(source,location);
     }
+    else if(missingCopy)cleanupMissingArtifactAlias(source,location,retiredLocation,revalidate);
     const identity=physicalIdentity(location,mountScopeId,fingerprint);
+    if(allowMissingOld&&oldMaterial&&identity.materialKey===oldMaterial.material_key)throw Object.assign(new Error('Aftercare Artifact replacement reused its frozen identity.'),{code:'ARCA_AFTERCARE_TARGET_CONFLICT'});
     revalidate();
     return identity;
   }catch(error){
-    try{rollbackArtifactReplacement({source,location,retiredLocation,oldMaterial,mountScopeId,fingerprint});}catch(rollbackError){throw Object.assign(new Error('Aftercare Artifact rollback failed.'),{code:'ARCA_AFTERCARE_ROLLBACK_FAILED',cause:error,rollbackError});}
+    try{rollbackArtifactReplacement({source,location,retiredLocation,oldMaterial,mountScopeId,fingerprint,publishedSnapshot:publishedSnapshot||error.aftercarePublishedSnapshot,restrictPublished:Boolean(missingCopy)});}catch(rollbackError){throw Object.assign(new Error('Aftercare Artifact rollback failed.'),{code:'ARCA_AFTERCARE_ROLLBACK_FAILED',cause:error,rollbackError});}
     throw error;
   }
 }
