@@ -1,6 +1,7 @@
 'use strict';
 // Bounded technical grouping. The caller supplies the Owner's frozen policy.
 const {createHash} = require('node:crypto');
+const {assertFrameEvidence}=require('../contracts/buffalo-frame-evidence');
 const DIMENSION = 512, MAX_FRAMES = 40, MAX_FACES = MAX_FRAMES * 32;
 const hash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 function fail(message) { throw Object.assign(new TypeError(message), {code:'BUFFALO_VIDEO_EVIDENCE_INVALID'}); }
@@ -10,6 +11,18 @@ function unit(vector) {
   const norm = Math.hypot(...vector);
   if (!Number.isFinite(norm) || norm < 1e-8) fail('A nonzero face feature is required.');
   return vector.map(x => x / norm);
+}
+function frameFaces(frames){
+  if(!Array.isArray(frames)||frames.length>40)fail('A bounded completed frame Evidence set is required.');
+  return frames.flatMap(record=>{
+    assertFrameEvidence(record);
+    return record.faces.map(face=>{
+      const [x0,y0,x1,y1]=face.rectangle;
+      return {frameOrdinal:record.frame.ordinal,faceOrdinal:face.faceOrdinal,timestampMs:record.frame.timestampMs,stratum:record.frame.stratum,
+        imageDigest:record.frame.imageDigest,quality:Math.max(0,Math.min(1,face.confidence*Math.min(x1-x0,y1-y0)/160)),
+        vector:face.vector,faceEvidenceDigest:face.faceEvidenceDigest};
+    });
+  });
 }
 function distance(a, b) { return Math.max(0, Math.min(2, 1 - a.reduce((sum, x, i) => sum + x * b[i], 0))); }
 function validateFaces(faces) {
@@ -88,4 +101,4 @@ function candidateEvidence(cluster, faces) {
     observations:Object.freeze(candidate.observations.map(Object.freeze))}))
     .sort((a, b) => b.supportingStrata - a.supportingStrata || a.minimumDistance - b.minimumDistance || byteOrder(a.identity, b.identity)));
 }
-module.exports = Object.freeze({clusterFaces, candidateEvidence, distance, unit});
+module.exports = Object.freeze({clusterFaces, candidateEvidence, distance, unit, frameFaces});

@@ -3,10 +3,10 @@
 const crypto = require('crypto');
 
 const EXPECTED_COUNTS = Object.freeze({
-  capabilities: 138,
-  resultFamilies: 117,
-  tables: 243,
-  transactions: 65
+  capabilities: 139,
+  resultFamilies: 118,
+  tables: 244,
+  transactions: 66
 });
 
 const RETIRED_RESULT_FAMILIES = new Set(['FieldObservationPage', 'ObservationCommitResult', 'LayoutEvidence']);
@@ -95,7 +95,7 @@ function ownerForTable(tableName) {
 }
 
 function transactionOwner(name) {
-  if(['US Adult Analysis Basis Freeze','US Adult Actor Choice Intent','US Adult Match Completion Freeze'].includes(name))return 'libra';
+  if(['US Adult Analysis Basis Freeze','US Adult Catalogue Basis Freeze','US Adult Actor Choice Intent','US Adult Match Completion Freeze'].includes(name))return 'libra';
   if (name === 'Domain Fact Commit') return 'polymorphic-domain-owner';
   if (name === 'Field Observation Page Commit' || name === 'Field Eligibility Reconcile Commit') return 'procurement';
   if (name === 'Perception Acquisition Page Commit' || name === 'Perception Resolution Commit' || name === 'Perception Acquisition Resume Intent') return 'perception';

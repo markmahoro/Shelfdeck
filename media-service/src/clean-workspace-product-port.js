@@ -66,6 +66,7 @@ const ARTIFACT_KINDS = Object.freeze([
   'nfo',
   'poster',
   'fanart',
+  'face_catalogue_observation',
   'western_frame_set',
   'face_embedding_set',
   'face_cluster_set',

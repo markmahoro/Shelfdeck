@@ -5,6 +5,7 @@ const {policy}=require('../../../src/helix/domains/libra/model/us-adult-catalogu
 const {catalogueSearchPolicy}=require('../../../src/helix/contracts/face-catalogue-search-policy');
 const {representativeImagePolicy}=require('../../../src/helix/contracts/buffalo-representative-policy');
 const {createCapabilityContractValidator}=require('../../../src/helix/foundation/capability/contract-validator');
+const {sourceMediaObservationWork}=require('../../../src/helix/domains/libra/planning/media-production-work');
 const contracts='../../../src/helix/contracts/';
 const contractValidator=createCapabilityContractValidator({schemas:[
   ...['UsAdultCatalogueAnalysisBasis','FaceCatalogueGeneration','FaceModelRef','SamplingPlan','ClusterParameters'].map(type=>require(contracts+'domain-types/'+type+'/v1/schema.json')),
@@ -30,12 +31,14 @@ function fixture(){
     sourceProbeRecord={workId:'probe-work',attemptId:'probe-attempt',planId:'probe-plan',eventId:'probe-event',resultId:'probe-result',outcomeKind:'succeeded',
       capabilityRef:'shared.material.media.probe@1',resultSchemaRef:'helix://contracts/capabilities/shared.material.media.probe/v1/result',
       inputBindings,inputBindingDigest:D(inputBindings),result:probe,resultDigest:D(probe)};
-  return {snapshot:{run:{libraRunId:'run',subjectId:'subject',stateRevision:2,executionBasisDigest:D('execution')},spec:{contentProfile:'western_adult'},
+  const value={snapshot:{run:{libraRunId:'run',subjectId:'subject',state:'active',stateRevision:2,executionBasisDigest:D('execution'),acceptanceSpecId:'spec',
+      runMaterialManifestId:'manifest',runMaterialManifestDigest:D('manifest'),runScopeDigest:D('scope'),createdAtMs:1},spec:{contentProfile:'western_adult'},
       materialInputForm:'stream_file',members:[{role:'primary_payload',materialKey:identity.materialKey,physicalIdentity:identity}],resolvedIdentityDigest:D('resolved')},
     sourceHandle,sourceProbeRecord,workspaceId:'workspace',catalogueGeneration:createGeneration({datasetVersion:'test-v1',manifestDigest:D('manifest'),
       members:MEMBER_NAMES.map(name=>({name,bytes:10,sha256:D(name)}))}),catalogueSearchPolicy:catalogueSearchPolicy(),representativeImagePolicy:representativeImagePolicy(),clusterThreshold:0.6,clusterAmbiguityMargin:0.05,
     selectionPolicy:policy({maximumDistance:0.5,minimumDistanceMargin:0.05,minimumRepresentativeStrata:2,minimumCoverageStrata:3}),
     resourceBudget:{cpuSlots:1,memoryBytes:2147483648,maximumFrames:40,maximumFacesPerFrame:32,maximumFrameBytes:10485760,
       maximumWorkspaceBytes:268435456,frameDeadlineMs:30000,imageDeadlineMs:60000,analysisDeadlineMs:900000},contractValidator};
+  sourceProbeRecord.workId=sourceMediaObservationWork(value.snapshot).workId;return value;
 }
 module.exports=Object.freeze({fixture,contractValidator,D});

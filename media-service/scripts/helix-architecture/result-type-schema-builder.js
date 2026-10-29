@@ -692,6 +692,7 @@ const contracts = {
   ProductIdentityEvidenceObservation: [null, 'observationId,intentId,libraRunId,subjectId,sourceKind,result,reasonCode,candidates,candidateMatchCount,verifiedIdentity,sourceAssociationDigest,evidenceDigest,observationDigest'],
   RoutingFactObservation: [null, 'observationId,intentId,subjectId,sourceKind,sourceRef,result,reasonCode?,facts,candidateMatchCount,evidenceDigest,observationDigest'],
   DecisionBasisRevision: ['DomainFactEnvelope', 'subjectId,queryResultSetDigest,routingInputDigest,specInputDigest'],
+  FaceCatalogueObservationHandle: [null,'analysisId,libraRunId,workspaceId,runExecutionBasisDigest,basisDigest,mode,completedBatchSetDigest,observationSourceSetDigest,modelRefDigest,catalogueGenerationDigest,searchPolicyDigest,clusterParameterDigest,resultKind,frameCount,faceCount,groupCount,queryCount,observationDigest,observationArtifactHandle,outputTargetDigest,handleDigest'],
   FrameArtifactSet: ['ManifestEnvelope', 'libraRunId,workspaceId,sourceMaterialDigest,samplingPlanDigest,outputTargetDigest,frameCount,frameMemberSetDigest,frameSetArtifactHandle'],
   WesternAnalysisResult: ['EvidenceEnvelope', 'libraRunId,runExecutionBasisDigest,frameArtifactSetDigest,embeddingSetDigest,clusterSetDigest,analysisSpecDigest,analysisVariantRef,resultArtifactHandle,resultDigest'],
   ArtifactAcquisitionResult: [null, 'resultKind,artifactHandle?,reasonCode?,evidence'],
@@ -824,6 +825,7 @@ function buildResultTypeSchema(name, [base, fieldList]) {
   if (name === 'ProductIdentityEvidenceObservation') return productIdentityEvidenceObservationSchema();
   if (name === 'RoutingFactObservation') return routingFactObservationSchema();
   if (name === 'DecisionBasisRevision') return decisionBasisRevisionSchema();
+  if (name === 'FaceCatalogueObservationHandle') return require('../../src/helix/contracts/us-adult-catalogue-work-types').observationHandleSchema();
   if (name === 'FrameArtifactSet') return frameArtifactSetSchema();
   if (name === 'WesternAnalysisResult') return westernAnalysisResultSchema();
   if (name === 'ProductMetadataDraft') return productMetadataDraftSchema();

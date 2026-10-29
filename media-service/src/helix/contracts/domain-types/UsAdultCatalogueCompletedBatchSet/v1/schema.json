@@ -1,0 +1,310 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/UsAdultCatalogueCompletedBatchSet/v1",
+  "title": "UsAdultCatalogueCompletedBatchSet@1",
+  "x-helix-ssotRefs": [
+    "8.6.18"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "x-helix-maxCanonicalBytes": 65536,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/domain-types/UsAdultCatalogueCompletedBatchSet/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "analysisId": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "libraRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "basisDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "mode": {
+      "enum": [
+        "initial",
+        "initial_and_supplement"
+      ]
+    },
+    "batches": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "stage": {
+            "enum": [
+              "initial",
+              "supplement"
+            ]
+          },
+          "batchDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "workId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "frameArtifactSet": {
+            "$ref": "helix://contracts/types/FrameArtifactSet/v1"
+          },
+          "faceEmbeddingSetHandle": {
+            "$ref": "helix://contracts/types/FaceEmbeddingSetHandle/v1"
+          },
+          "faceClusterSetHandle": {
+            "$ref": "helix://contracts/types/FaceClusterSetHandle/v1"
+          },
+          "sourceResultRefs": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "workId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "attemptId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "planId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "eventId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "resultId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "capabilityRef": {
+                      "const": "libra.media.frames.extract@1"
+                    },
+                    "resultSchemaRef": {
+                      "const": "helix://contracts/capabilities/libra.media.frames.extract/v1/result"
+                    },
+                    "resultDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "inputBindingDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "workId",
+                    "attemptId",
+                    "planId",
+                    "eventId",
+                    "resultId",
+                    "capabilityRef",
+                    "resultSchemaRef",
+                    "resultDigest",
+                    "inputBindingDigest"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "workId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "attemptId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "planId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "eventId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "resultId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "capabilityRef": {
+                      "const": "shared.face.embedding.compute@1"
+                    },
+                    "resultSchemaRef": {
+                      "const": "helix://contracts/capabilities/shared.face.embedding.compute/v1/result"
+                    },
+                    "resultDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "inputBindingDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "workId",
+                    "attemptId",
+                    "planId",
+                    "eventId",
+                    "resultId",
+                    "capabilityRef",
+                    "resultSchemaRef",
+                    "resultDigest",
+                    "inputBindingDigest"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "workId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "attemptId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "planId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "eventId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "resultId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "capabilityRef": {
+                      "const": "shared.face.cluster.compute@1"
+                    },
+                    "resultSchemaRef": {
+                      "const": "helix://contracts/capabilities/shared.face.cluster.compute/v1/result"
+                    },
+                    "resultDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "inputBindingDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "workId",
+                    "attemptId",
+                    "planId",
+                    "eventId",
+                    "resultId",
+                    "capabilityRef",
+                    "resultSchemaRef",
+                    "resultDigest",
+                    "inputBindingDigest"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        "required": [
+          "stage",
+          "batchDigest",
+          "workId",
+          "frameArtifactSet",
+          "faceEmbeddingSetHandle",
+          "faceClusterSetHandle",
+          "sourceResultRefs"
+        ]
+      }
+    },
+    "setDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "analysisId",
+    "libraRunId",
+    "basisDigest",
+    "mode",
+    "batches",
+    "setDigest"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "mode": {
+            "const": "initial"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "batches": {
+            "minItems": 1,
+            "maxItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "mode": {
+            "const": "initial_and_supplement"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "batches": {
+            "minItems": 2,
+            "maxItems": 2
+          }
+        }
+      }
+    }
+  ]
+}

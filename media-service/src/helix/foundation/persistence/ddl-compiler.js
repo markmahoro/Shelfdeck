@@ -404,7 +404,7 @@ function compileTable(contract, allContracts) {
       contract.tableId === 'arca_jav_identity_corrections' && json.column === 'committed_context_json' && json.maxBytes === 4 * 1024 * 1024 ||
         contract.tableId === 'arca_staged_manifest_records' && json.column === 'manifest_json' && json.maxBytes === 8 * 1024 * 1024 ||
         contract.tableId === 'arca_inventory_verification_records' && json.column === 'verification_json' && json.maxBytes === 8 * 1024 * 1024;
-    if (!json.requiresJsonValidCheck || (!episodeRecordSet && ![4096, 16384, 65536, 131072, 262144, 1048576].includes(json.maxBytes))) {
+    if (!json.requiresJsonValidCheck || (!episodeRecordSet && ![4096, 16384, 32768, 65536, 131072, 262144, 1048576].includes(json.maxBytes))) {
       throw new Error('P3_DDL_UNSUPPORTED_JSON_CONTRACT:' + contract.tableId + '.' + json.column);
     }
     const jsonColumn = contract.columns.find((column) => column.name === json.column);

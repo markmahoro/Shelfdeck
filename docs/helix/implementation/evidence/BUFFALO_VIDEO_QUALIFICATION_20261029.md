@@ -130,3 +130,92 @@ NAS私有实验根继续为`/vol1/1000/docker/shelfdeck-buffalo-qualification-20
 最终生产container/image/StartedAt与原基线一致，running/Restart0/OOM=false；Sense仍exited；本任务容器均已退出。2模型/7目录成员最终SHA与Phase 1及首轮记录一致。本次没有挂载生产DB、写People/Reference/收藏/源文件，也没有执行部署/Reset或恢复自动观察；不冒称重新逐行核验全库/全部媒体。
 
 剩余门槛：新Basis Store、正式Work/Capability/Artifact/Effect/Permit及可恢复补采，目录/模型同进程共载和真实Host停止/重启/迟到结果，独立真值充分的视频识别/4K/SMB资格；随后Phase 5人物完整发布、Reference统一更新、单演员出演及唯一Commit。当前切片不是Phase 4 Exit或核心功能完成。
+
+## 2026-10-29 Catalogue Basis 持久化切片
+
+本切片属于演员线程 Phase 4；主整合职责已经由用户移交新线程“ShelfDeck 本轮整合与生产交付”（01a18642-b03d-7ba1-9215-5405de01680e）。本证据不是新活动计划，不改变独立生产补丁优先级。
+
+- 新 Libra-owned `libra_us_adult_catalogue_bases` 每Run一份32KiB不可变Basis，独立于People Reference页面；真实UnitOfWork在首次冻结时核对active Run、精确state revision、execution basis、正式identity Fact与同Run active Workspace。相同值重放；冲突值拒绝；插入中断回滚。
+- 历史读取和冻结幂等重放不授予执行资格。`readForExecution`每次重核active Run、execution basis、identity、Workspace；取消后拒绝迟到执行；priority-only revision前进不重写Basis。
+- 两个独立SQLite连接/CPU测试线程实际并发竞争：同值汇合为一行，异值仅一个成功，其余明确冲突。测试线程不是产品Worker或独立调度服务。
+- Fresh Reset真实保留库复制：Arca依赖闭包选择的精确Run连同Basis保留；没有收藏依赖的任务Basis从在线副本清除，源库不变，FK/integrity通过。未把整个Subject的所有旧Run当保留根。
+- 当前Schema244表/66事务；DDL SHA256 `294bb8243aca2857729f70fa07fbc59b69efad5da5854a5db528386e19179bc6`，P2 digest `b848201c2518224a06b1c4e4dd46928f0345d26e8aef1403fdfbfc8779a5e5fe`。32KiB JSON限定由SSOT/生成器/validator/DDL共同承认，未放宽为无上限JSON。
+- Schema分类检查同时发现原243表声明漏四表。按现有SSOT明确分类：未Accepted Offer撤回回执及当前Custom Head为clear，精确Custom Intent/Preview为dependent；不加入Subject级扩张边。未来已Commit custom Spec的opaque精确Intent依赖仍由Phase 3/主整合验证，此处分类不是该生命周期已通过的证明。
+
+验证固定源码为ignored `E:/my_project/emby_third_party-helix/.codex/buffalo-video-phase4-20261029/index-gate-4`，从Git index导出，排除18个原Phase3未提交文件；这些文件的交接SHA全部保持。
+
+| 验证 | 结果与限制 |
+| --- | --- |
+| 本机原生Store/Reset copy/canonical transaction crash | 223 PASS/0 FAIL/0 skip；含当前66事务通用故障注入，不能代替真实产品旅程。 |
+| 独立源码P2/table/transaction静态 | 14 PASS/0 FAIL；P2上述digest及零finding。 |
+| 实际本机Linux Docker Store/Reset copy/DDL | 19 PASS/0 FAIL/0 skip，7.590秒；镜像`sha256:afb5fad462130beb66162fff081e96d089adf49ee7e2bb600e9fdac72aea0357`，只借Linux Node/SQLite依赖，不作为产品候选；源码只读、network none、1CPU/768MiB、tmpfs64MiB，无生产挂载、无模型加载。 |
+| NAS store-1首轮 | 工具exit1，日志只包含前四项完成且无总计；原因证据不足，不记PASS，也不推断OOM/timeout。原日志SHA `af44f450f4f06ac4765e025407ff894ed7dec03f8a4bd2f1fb94607306250b18`保留。 |
+
+Linux本机日志：同ignored根`store-local-linux-1.log`。NAS源码包`store-1.tar.gz`为5,642,301 bytes，SHA`b2b0ee115eb6a1413a27ffcb4dec3dd4fb0788b042073e30c07da2f5eb9538f8`；其失败不被本机新证据覆盖。最终容器均退出，生产image/StartedAt/Restart0/OOMfalse保持。
+
+首跑问题保留：fixture漏Workspace revision导致FK拒绝；恢复副本fixture漏传标准targetSchema导致regeneration拒绝；validator漏32KiB及新增事务Owner的机械传播被门禁拒绝；固定SourceMap更新后Capability出处摘要未传播也被拒绝，完整生成后通过。没有省略校验或移交业务Owner来过测试。
+
+剩余：正式Work/Capability/Artifact/Effect/Permit和20+20条件补采、模型/索引共载、完整Host取消恢复与视频真值/资源资格；随后Phase 5。当前不具备生产部署或自动演员业务完成资格。
+
+
+## 2026-10-29 冻结批次 Work、Capability 与 Workspace Artifact 切片
+
+在2f9fc0702持久化基础上新增首采/补采两个独立稳定Work及正式WorkflowPlan，沿现有三项原子Capability依次抽帧、512维embedding、聚类。每Event只产生自己的Artifact，不在一个Effect中偷偷提交三份文件。短片去重后没有补采点则不构造空Work；补采准入仍由后续Owner完整初轮评估决定，本切片的Work构造器不自己启动补采。
+
+- 每批固定点、global ordinal、Sampling Plan、Model、batchDigest与原Basis关联。Nominal Work/Plan及真实runtime形状的basisRefs、abortSignal均依Foundation合同，不另造ExecutionContext字段。
+- 向量仅保存一份，closed frameGeometry保留所有采样帧（含无脸）、原图SHA、校正画布、时间/区段、face/vector对应及完整重建摘要。恢复校验不把漏帧、向量缺失、错坐标或跨batch当成成功。重复图像不增加独立区段覆盖。
+- 新frame-only Artifact Port沿现有Workspace存储/producer Effect路径，不用空桩实现冒充完整旧引擎。真实SQLite与物理文件测试产生恰好frame/embedding/cluster三份Artifact，幂等重放不再次调用抽帧/CPU、不多建Artifact；no-face批次同样保留完整帧证据。
+- 单批累计空间quota明确冻结为floor((maximumWorkspaceBytes-maximumRepresentativeImageBytes)/2)，两批均有限且为一张代表图保留空间。抽帧base64/metadata、实际Frame Artifact、embedding及cluster累计字节分别核验；超额为BUFFALO_FRAME_WORKSPACE_BUDGET_EXCEEDED，不能写成无脸/无匹配。此逻辑不替代实际进程heap/cgroup/控制面资源资格。
+- 取消后旧CPU结果不返回成功Outcome；本地测试包括Artifact已生产而Run刚被取消的竞态。正式Runtime的Effect/Permit/恢复调度和完整Host供给仍须接线验证；直接测试调用Capability边界不是已完成Supporting Work旅程。
+
+固定源码为ignored index-gate-8（Git index导出，排除18个Phase3原文件）。实际本机Linux Docker沿固定依赖镜像afb5fad462130beb66162fff081e96d089adf49ee7e2bb600e9fdac72aea0357，network none、源码只读、1CPU/768MiB、tmpfs64MiB：78项，77 PASS、1 skip、0 FAIL，20.812秒。唯一skip是此前旧模型真实图测试未提供显式模型/图片；新切片测试中CPU/FFmpeg使用确定性技术fixture，不据此声明真实buffalo视频质量或原生模型已接进Host。
+
+日志frame-local-linux-4.log SHA256 bc6e5cb51a8cae9d307e29e27ccab28db7798f9b55b59bf21b8188a8a971ce7e。packages、forbidden semantics、manifests、P2四项静态全PASS；P2仍为138/117/244/66，digest b848201c2518224a06b1c4e4dd46928f0345d26e8aef1403fdfbfc8779a5e5fe。这里没有新Capability种类、表或事务；新三Capability Adapter尚未替换正式Host注册。
+
+首跑失败保留：cluster误多声明disk_io被正式Resource Demand拒绝；测试误读Model Ref中不存在的dimension字段；新Workspace fixture误传constructor字段；静态发现Capability反向依赖Planner，现将同一Libra的纯target编译提取到Model，Planner/Capability分别读自己的公开事实；离线技术目录的USearch/只读SQLite依赖漏登记补齐到integrations allowlist，业务Store权限不变；66事务的旧shard locator机械更新，源码face-member措辞去除旧模型术语。所有首败保留，不添加宽泛语义豁免或开放跨Owner查询。
+
+当前未调用NAS模型：主整合正在真实CIFS资格，要求等独立空窗。下一步为跨首采/补采的合并分组、离线检索及完整技术Observation、Libra候选评估，再接People/演员；模型+索引共载、真实CPU/视频/控制面、Host停止恢复和Phase 5均开放。生产与主整合目录未改动，不宣称Phase 4 Exit。
+
+
+## 2026-10-29 合并补采与目录技术 Observation 切片
+
+新增独立技术 Observer，将首采和补采已验真的embedding Artifact恢复后，按相同冻结参数对全部帧重新分组，再查询每组独立代表特征。不是把两批“赢家”相互投票，亦不在此创建Person或发布出演。
+
+原生和Linux负例以完整真实形状的Frame Evidence和正式CPU分组实现构造：首采两个独立区段为insufficient_evidence，补采第三个区段后合并为同一group/三个代表，Libra既有策略才得到qualified_candidate。单片仍选一位；新技术数据不含gender资格或排名规则。
+
+closed技术Observation保留完整frame/face/vector摘要、group成员、全部代表query的原始100邻居内结果、最多5候选/完整有界别名、Dataset verification proof和整份摘要，最大8MiB。没有截断成“无匹配”；合法但过大的完整Evidence明确BUDGET_EXCEEDED。保留空脸帧，漏帧、漏query、跨batch/目录、错feature和改距离均拒绝。零脸可以形成明确no_faces且不声称查询目录；有真实邻居但无阈值内候选才是no_match，空的无效检索响应/文件变化/迟到CPU回复仍失败。输入仅为受控Workspace的既有特征/帧证据，不读原始视频、无网络或片源搜索。
+
+每批空间配额为后续两份最多8MiB Observation及一张最多10MiB代表图预留空间后等分；该规则进入batchDigest，两批Artifact/两份Observation/代表图的最大空间总和不超过冻结的maximumWorkspaceBytes。不改变整体内存/控制面资格仍开放的事实。
+
+固定index-gate-9实际本机Linux Docker，沿相同1CPU/768MiB隔离条件：57 PASS/0skip/0FAIL，12.082秒；该组覆盖Observation/Artifact/批次/capability、技术分组、目录查询模块/CPU取消及Libra资格策略。目录加载和查询使用确定性技术fixture，不能写成真实数据库/模型共载或身份准确率证明。catalogue-local-linux-1.log SHA256 22a10f1fe608c7aaa84d3814898a605b85ca209226bdcf11a84ba60531bbbf4f。两个合法正交20帧批次+完整大别名响应已真正触发8MiB边界；最初测试草稿只触发向量proof错误、未触及quota，已更换为上述有效输入，不用覆盖不足的PASS冒充容量通过。
+
+下一正式合同增量已经确定：Foundation单Result JSON上限64KiB，不能把8MiB Observation塞入fx_event_result_bindings或放大其上限。目录Observe应为一项workspace_write Capability，单Event生成独立face_catalogue_observation Artifact，Result只回有界typed Handle；新增唯一Artifact/output kind、该Handle和精确completed-batch输入合同，不复用旧western_analysis payload或伪造PersonMatchEvidence。后续先补对应SSOT/生成合同，再接正式调度和恢复，本切片仅技术模块及其Owner投影，还未激活新Capability或Host路径。
+
+NAS按主整合通知保持暂停：SSH/健康超时尚未确认原因，本线程不介入生产；未启动共载测试或新容器。Phase 4/5仍开放。
+## 2026-10-29 Actor-local Observation Result codec checkpoint
+
+按用户的新分工，本线程只实施演员链；唯一 SSOT/计划/全局生成物和最终部署由新的整合线程管理。以下是局部可移植实现，不是已激活的新 Capability 或 Phase 4 Exit。
+
+- 增加完整 Observation 的受控输出 Target 编译、小型 typed Handle 构建及 Libra 完整字节读取/资格评估 codec；Result 不内联目录原始查询。唯一相对路径、完整 Basis/CompletedBatchSet、同 Run/Workspace、模型/目录代际、原始字节与摘要、producer provenance/target、计数都连续核对。
+- Artifact 字节只能由正式 Workspace Port 读取后交 codec；纯 codec 不接任意磁盘路径、不发布新文件、不创建 People 或 Cast。本次夹具产生的三个 Frame/Embedding/Cluster 是正式 Port 文件，第四个 Observation Handle 为 proposed fixture；当前 kind 尚未在原分支激活，不能将此称为完整 Event 旅程。
+- 固定 index-gate-13 源码，在实际本机 Linux Docker 复验 23 PASS/0skip/0FAIL，21.026秒；同前固定依赖镜像 sha256:afb5fad462130beb66162fff081e96d089adf49ee7e2bb600e9fdac72aea0357，network none、1CPU/768MiB、readonly source/root、tmpfs64MiB。原始 log catalogue-result-local-linux-2.log SHA256 b2c806dd92f2df770f98b212d2bf8cedb9abe9c73a0658b87ee4410cb93cf592。前一轮23项PASS日志独立保留，追加目标路径/provenance负例后重跑，没有用重跑抹去首跑。
+- 覆盖完整来源重建、摘要/输入/代际/计数替换、非canonical JSON、改写目标路径或producer、初轮Observer及既有Frame Work回归。CPU/目录仍用确定性fixture，不代表真实模型/索引共载或精确新依赖镜像资格。
+- NAS测试仍暂停，等待主整合给出的资源窗口；未操作生产、重新观察、部署或Reset。完整Host接线、补采准入/取消恢复、People自动建档与真正单演员Commit仍开放。
+
+## 2026-10-29 Libra catalogue coordination checkpoint
+
+增加未激活的 Libra Catalogue Coordinator 和目录 Work 构造：正式 Probe 后冻结 Basis，初轮三项来源全部成功才准入目录 Observation；初轮完整 Owner 评估未合格且有剩余唯一时间点时，才准入补采及包含两批全部特征的第二次 Observation。第二次依赖初轮目录 Work 与补采 Frame Work，不把两轮各自选出的姓名投票。短片没有剩余采样点时明确结束目录未解决，不提交空 Work。
+
+Work ID/幂等键绑定完整不可变 Basis/producer Result 集。读取支持 Work 重规划：正式 Foundation status 的 latestAttempt 必须成功，结果必须来自该 Attempt；Capability 内使用真实 ExecutionContext 的 workAttemptId/planId，不能混入旧 Attempt 的成功帧或另一 Plan。重复当前 Result、缺项、摘要/绑定变化均明确拒绝。底层身份摘要和来源 Result 不重新编造。
+
+人工 Actor Choice 在准入前和最终读取后优先；Run/身份/Workspace 被收回、读文件失败、目录 Work 失败保留各自错误，不能当作无候选再加采样。Observation Handle 的8MiB上限在读取 bytes 前验证。输出只为 catalogue_candidate / catalogue_unresolved / pending / failed / manual_choice_present，不创建 People、Cast 或收藏事实，未接现行 Host 注册。
+
+首跑负例暴露一个新缺陷：两批都无脸时，旧聚类payload仅含schema/clusters，两个空数组字节相同，但不同路径/provenance产生同一按内容定位的Artifact ID，正式 Workspace Registry 拒绝不完整重放。没有改 Foundation Artifact ID、归属或放宽 Registry。新 frames-only buffalo 技术 payload 使用 closed shared.buffalo-cluster-set@1，完整包含 sourceEmbeddingDigest/clusterParameterDigest/clusters；恢复须精确命中输入，Workspace quota计算采用实际新payload。原非buffalo入口不被当成备用；本轮新版没有旧payload恢复分支。两批无脸已通过正式三种源 Artifact 落盘及不同Handle/完整重放验证。
+
+验证与限制：
+
+- index-gate-14实际本机Linux Docker，受影响Catalogue/Frame/CPU/原业务Work等19文件共99 PASS/0skip/0FAIL，65.294秒。log catalogue-coordinator-local-linux-1.log SHA256 515f217b5af59f8de88b8ded4d02a24728a507f0103b64fcf7922f7b2ccfc46d。
+- 增加短片和读前字节上限负例后，固定index-gate-15实际Linux定向36 PASS/0skip/0FAIL，56.555秒。log catalogue-coordinator-local-linux-2.log SHA256 8b37b0238ba9aa3c470460afffbecc8b9e214705078a1cbf72518c0d06445afd。两组有重叠，不相加声称独立用例数。镜像、readonly/1CPU/768MiB/network none/tmpfs64MiB沿前节相同，不包含新依赖原生共载资格。
+- 首轮本机逻辑日志 native-1 因新增夹具未加载实际Probe/result wrapper而失败；native-2 因补采夹具缺少ExecutionContext ownerScope而失败；native-3记录上述真实两批无脸Artifact冲突；三个原日志保留，native-4修复后10项通过。没有放宽正式schema、Root/Owner或停止守卫。随后 Linux 又覆盖新增负例。
+- 目录/CPU为确定性fixture；第四份Observation为显式 proposed Handle/内存字节，三种源Artifact使用真实SQLite Registry及Workspace Port。这不是正式Observe Capability/Effect/恢复旅程、真实模型/索引共载、旧Reference切换、People建档或Phase 4 Exit。
+- Phase 3原18个未提交文件逐字节保持；共享SSOT/builder/global generated contract未由演员线程改动。等主整合提供正式接线基准后完成新Capability/Artifact/Host旅程；NAS资源窗口继续保持暂停。

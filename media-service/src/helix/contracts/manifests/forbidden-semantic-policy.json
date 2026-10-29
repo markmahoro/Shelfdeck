@@ -155,7 +155,7 @@
     },
     {
       "id": "canonical-procurement-transaction-inventory",
-      "relativePath": "contracts/manifests/transaction-inventory/entries-001-065.json",
+      "relativePath": "contracts/manifests/transaction-inventory/entries-001-066.json",
       "purpose": "evidence-locator",
       "allowedLocationTypes": ["content"],
       "allowedRuleIds": ["legacy.admission"]

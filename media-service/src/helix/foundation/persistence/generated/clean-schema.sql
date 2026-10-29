@@ -3133,6 +3133,23 @@ CREATE TABLE "libra_us_adult_analysis_bases" (
   FOREIGN KEY ("workspace_id") REFERENCES "libra_workspaces" ("workspace_id") ON DELETE RESTRICT
 );
 
+CREATE TABLE "libra_us_adult_catalogue_bases" (
+  "analysis_id" TEXT PRIMARY KEY,
+  "libra_run_id" TEXT,
+  "subject_id" TEXT,
+  "workspace_id" TEXT,
+  "basis_schema_ref" TEXT,
+  "basis_json" TEXT,
+  "basis_digest" TEXT CHECK (length("basis_digest") = 64 AND "basis_digest" NOT GLOB '*[^0-9a-f]*'),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  UNIQUE ("libra_run_id"),
+  CHECK (json_valid("basis_json")),
+  CHECK (length(CAST("basis_json" AS BLOB)) <= 32768),
+  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("workspace_id") REFERENCES "libra_workspaces" ("workspace_id") ON DELETE RESTRICT
+);
+
 CREATE TABLE "libra_us_adult_match_completions" (
   "analysis_id" TEXT PRIMARY KEY,
   "libra_run_id" TEXT,

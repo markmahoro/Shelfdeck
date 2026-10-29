@@ -98,6 +98,7 @@ function validateDomainInputSchemas(options) {
       UsAdultActorChoiceReceipt:['intentId','choiceRevision','recordDigest'],
       UsAdultActorChoiceRecord:['intentId','subjectId','recordDigest'],
       UsAdultActorChoiceDecision:['decisionId','record','decisionDigest'],
+      UsAdultCatalogueCompletedBatchSet:['schemaRef','schemaVersion','analysisId','libraRunId','basisDigest','mode','batches','setDigest'],
       UsAdultAnalysisBasis:['analysisId','libraRunId','runExecutionBasisDigest','pageSetDigest','basisDigest'],
       UsAdultPersonSnapshot:['personId','personRevision','referenceProjection','snapshotDigest'],
       PeopleReferenceLibraryPage:['libraryDigest','items','nextCursor','pageDigest'],

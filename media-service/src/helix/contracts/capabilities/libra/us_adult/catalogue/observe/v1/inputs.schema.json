@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/libra.us_adult.catalogue.observe/v1/inputs",
+  "title": "libra.us_adult.catalogue.observe@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "usAdultCatalogueAnalysisBasis": {
+      "$ref": "#/$defs/usAdultCatalogueAnalysisBasis"
+    },
+    "usAdultCatalogueCompletedBatchSet": {
+      "$ref": "#/$defs/usAdultCatalogueCompletedBatchSet"
+    },
+    "workspaceArtifactOutputTarget": {
+      "$ref": "#/$defs/workspaceArtifactOutputTarget"
+    }
+  },
+  "required": [
+    "usAdultCatalogueAnalysisBasis",
+    "usAdultCatalogueCompletedBatchSet",
+    "workspaceArtifactOutputTarget"
+  ],
+  "$defs": {
+    "usAdultCatalogueAnalysisBasis": {
+      "$ref": "helix://contracts/domain-types/UsAdultCatalogueAnalysisBasis/v1",
+      "x-helix-typeExpression": "UsAdultCatalogueAnalysisBasis"
+    },
+    "usAdultCatalogueCompletedBatchSet": {
+      "$ref": "helix://contracts/domain-types/UsAdultCatalogueCompletedBatchSet/v1",
+      "x-helix-typeExpression": "UsAdultCatalogueCompletedBatchSet"
+    },
+    "workspaceArtifactOutputTarget": {
+      "$ref": "helix://contracts/domain-types/WorkspaceArtifactOutputTarget/v1",
+      "x-helix-typeExpression": "WorkspaceArtifactOutputTarget"
+    }
+  }
+}

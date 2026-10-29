@@ -10,14 +10,14 @@ const { readTableSourceEntries } = require('../../scripts/helix-architecture/tab
 const contractsRoot = path.resolve(__dirname, '../../src/helix/contracts');
 const contracts = buildTableContracts(readTableSourceEntries(contractsRoot));
 
-test('builds all 243 sole-Owner table contracts with accepted owner counts', () => {
-  assert.equal(contracts.length, 243);
-  assert.equal(new Set(contracts.map((contract) => contract.tableId)).size, 243);
+test('builds all 244 sole-Owner table contracts with accepted owner counts', () => {
+  assert.equal(contracts.length, 244);
+  assert.equal(new Set(contracts.map((contract) => contract.tableId)).size, 244);
   const counts = Object.fromEntries([...new Set(contracts.map((contract) => contract.owner))].map((owner) => [
     owner, contracts.filter((contract) => contract.owner === owner).length
   ]));
   assert.deepEqual(counts, {
-    'execution-foundation': 28, 'material-control-authority': 2, procurement: 18, libra: 73,
+    'execution-foundation': 28, 'material-control-authority': 2, procurement: 18, libra: 74,
     arca: 77, perception: 10, people: 19, 'platform-settings': 16
   });
 });
@@ -102,7 +102,7 @@ test('closes every PK, declared FK, JSON contract, and current revision pointer'
       if(contract.tableId==='arca_us_actor_refresh_pages'&&json.column==='page_json'){assert.equal(json.maxBytes,512*1024);continue;}
       if(contract.tableId==='arca_series_root_relocations'&&json.column==='plan_json'){assert.equal(json.maxBytes,4*1024*1024);continue;}
       if(contract.tableId==='libra_episode_metadata_reviews'&&json.column==='record_json'){assert.equal(json.maxBytes,3*1024*1024);continue;}
-      assert.ok([4 * 1024, 16 * 1024, 64 * 1024, 128 * 1024, 256 * 1024, 1024 * 1024].includes(json.maxBytes));
+      assert.ok([4 * 1024, 16 * 1024, 32 * 1024, 64 * 1024, 128 * 1024, 256 * 1024, 1024 * 1024].includes(json.maxBytes));
     }
     const covered = new Set(contract.revisionContract.pointerTargets.flatMap((target) => [...target.sourceColumns, ...target.consistencyColumns]));
     for (const pointer of contract.revisionContract.currentPointerColumns) assert.ok(covered.has(pointer), `${contract.tableId}.${pointer}`);

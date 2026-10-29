@@ -19,19 +19,19 @@
       "manifestId": "helix.inventory.capabilities",
       "kind": "capability-inventory",
       "relativePath": "capability-inventory.json",
-      "targetCount": 138
+      "targetCount": 139
     },
     {
       "manifestId": "helix.inventory.result-families",
       "kind": "result-family-inventory",
       "relativePath": "result-family-inventory.json",
-      "targetCount": 117
+      "targetCount": 118
     },
     {
       "manifestId": "helix.inventory.tables",
       "kind": "table-inventory",
       "relativePath": "table-inventory.json",
-      "targetCount": 243
+      "targetCount": 244
     },
     {
       "manifestId": "helix.inventory.routes",
@@ -47,7 +47,7 @@
       "manifestId": "helix.inventory.canonical-transactions",
       "kind": "transaction-inventory",
       "relativePath": "transaction-inventory.json",
-      "targetCount": 65
+      "targetCount": 66
     },
     {
       "manifestId": "helix.inventory.ui-surfaces",

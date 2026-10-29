@@ -101,8 +101,8 @@ function validateTableContracts(options) {
       entry.id === 'arca_jav_identity_corrections' && json.column === 'committed_context_json' && json.maxBytes === 4 * 1024 * 1024 ||
         entry.id === 'arca_staged_manifest_records' && json.column === 'manifest_json' && json.maxBytes === 8 * 1024 * 1024 ||
         entry.id === 'arca_inventory_verification_records' && json.column === 'verification_json' && json.maxBytes === 8 * 1024 * 1024;
-      if ((!episodeRecordSet && ![4 * 1024, 16 * 1024, 64 * 1024, 128 * 1024, 256 * 1024, 1024 * 1024].includes(json.maxBytes)) || json.requiresJsonValidCheck !== true) findings.push(finding(
-        'INVALID_JSON_COLUMN_CONTRACT', 'JSON columns require json_valid and an SSOT-bounded 4/16/64/256 KiB or 1 MiB byte limit.', { tableId: entry.id, column: json.column }
+      if ((!episodeRecordSet && ![4 * 1024, 16 * 1024, 32 * 1024, 64 * 1024, 128 * 1024, 256 * 1024, 1024 * 1024].includes(json.maxBytes)) || json.requiresJsonValidCheck !== true) findings.push(finding(
+        'INVALID_JSON_COLUMN_CONTRACT', 'JSON columns require json_valid and an SSOT-bounded 4/16/32/64/128/256 KiB or 1 MiB byte limit.', { tableId: entry.id, column: json.column }
       ));
     }
     const coveredPointers = new Set();

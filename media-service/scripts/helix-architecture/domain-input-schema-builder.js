@@ -282,6 +282,7 @@ const dtoContracts = {
   UsAdultPersonSnapshot:'',
   UsAdultAnalysisBasis:'',
   UsAdultCatalogueAnalysisBasis:'',
+  UsAdultCatalogueCompletedBatchSet:'',
   UsAdultActorChoiceRecord:'',
   UsAdultActorChoiceDecision:'',
   UsAdultActorChoiceReceipt:'',
@@ -344,6 +345,7 @@ function idField(name) {
 
 function buildSchema(name, role, fields) {
   if(name==='FaceCatalogueGeneration')return require('../../src/helix/contracts/face-catalogue-generation').schema();
+  if(name==='UsAdultCatalogueCompletedBatchSet')return require('../../src/helix/contracts/us-adult-catalogue-work-types').completedBatchSetSchema();
   if(name==='UsAdultCatalogueAnalysisBasis')return require('../../src/helix/domains/libra/model/us-adult-catalogue-analysis-basis').schema();
   if(name==='SeriesRootRelocationReference')return exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},revision:{const:1},digest:digest(),relocationId:id(),scopeId:id(),planDigest:digest()});
   if(['SeriesPresentationScope','SeriesPresentationManifest','SeriesPresentationReclamationBasis'].includes(name)){
@@ -1815,7 +1817,7 @@ function workspaceArtifactOutputTargetSchema() {
       targetId: id(), libraRunId: id(), executionBasisDigest: digest(), workspaceId: id(),
       expectedWorkspaceRevision: positiveInteger(), expectedWorkspaceStateDigest: digest(),
       rootSnapshot: applicationRef('PlatformWorkspaceRootSnapshot'),
-      workspaceScopeDigest: digest(), targetRelativePath: text(), outputKind: enumText('frame_set', 'western_analysis'),
+      workspaceScopeDigest: digest(), targetRelativePath: text(), outputKind: enumText('frame_set', 'western_analysis', 'face_catalogue_observation'),
       sourceInputDigest: digest(), effectScopeDigest: digest(), targetDigest: digest()
     }),
     'x-helix-maxCanonicalBytes': 16 * 1024

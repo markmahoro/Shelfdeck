@@ -53,7 +53,7 @@ function buildOwnerRetentionPolicy(manifest, { seriesRetention, metadataRetentio
     'libra_offload_context_materials']);
   children('libra_runs', 'libra_run_id', ['libra_run_revisions', 'libra_run_outcomes', 'libra_product_fact_revisions',
     'libra_product_identity_selection_intents', 'libra_acquisition_candidate_evidence', 'libra_us_adult_analysis_bases',
-    'libra_us_adult_match_completions', 'libra_workspaces']);
+    'libra_us_adult_match_completions', 'libra_us_adult_catalogue_bases', 'libra_workspaces']);
   children('libra_run_material_manifests', 'run_material_manifest_id', ['libra_run_material_members', 'libra_run_material_episode_claims']);
   children('libra_product_fact_revisions', 'product_fact_id', ['libra_product_fact_source_refs']);
   // Run's exact immutable mapping FK selects only its confirmation and Review.

@@ -39,7 +39,7 @@ function codes(result) {
 test('committed source map exactly matches live SSOT extraction', () => {
   const result = validateSsotSourceMap({ repositoryRoot, mapPath: actualMapPath });
   assert.equal(result.ok, true);
-  assert.deepEqual(result.counts, { capabilities: 138, resultFamilies: 117, tables:243, transactions: 65 });
+  assert.deepEqual(result.counts, { capabilities: 138, resultFamilies: 117, tables:244, transactions: 66 });
   assert.equal(result.shardCount, 29);
 });
 
