@@ -6,6 +6,7 @@ const crypto = require('node:crypto');
 const { canonicalDigest, canonicalJson } = require('./helix/contracts/canonical-json');
 const { createRepositoryDefinition } = require('./helix/foundation/persistence/owner-repository');
 const { fingerprintBuffer } = require('./helix/integrations/bounded-material-fingerprint');
+const { MAX_BYTES: CATALOGUE_OBSERVATION_MAX_BYTES } = require('./helix/contracts/buffalo-catalogue-observation');
 
 class CleanWorkspaceProductPortError extends Error {
   constructor(code, message, details = {}) {
@@ -18,6 +19,13 @@ class CleanWorkspaceProductPortError extends Error {
 
 function fail(code, message, details) {
   throw new CleanWorkspaceProductPortError(code, message, details);
+}
+
+function assertArtifactByteBound(artifactKind, sizeBytes) {
+  if (artifactKind === 'face_catalogue_observation' &&
+      (!Number.isSafeInteger(sizeBytes) || sizeBytes < 1 || sizeBytes > CATALOGUE_OBSERVATION_MAX_BYTES)) {
+    fail('CLEAN_WORKSPACE_ARTIFACT_BYTE_LIMIT', 'Catalogue Observation bytes exceed their declared Artifact bound.');
+  }
 }
 
 function relative(value) {
@@ -788,6 +796,7 @@ function createCleanWorkspaceProductPort(options) {
       fail('CLEAN_WORKSPACE_EFFECT_INPUT',
         'Workspace Artifact output bytes are required.');
     }
+    assertArtifactByteBound(request.artifactKind, bytes.length);
     const digestHex = digestBytes(bytes);
     const prior = runtimeAuthority
       ? Object.freeze({ replayed:false, state:'intended', outputDigest:null, externalReceiptRef:null })
@@ -1074,6 +1083,7 @@ function createCleanWorkspaceProductPort(options) {
       fail('CLEAN_WORKSPACE_EFFECT_REALITY_DRIFT',
         'Workspace Artifact target is not one immutable file.');
     }
+    assertArtifactByteBound(request.artifactKind, fs.statSync(identity.target).size);
     return materializeArtifact({
       ...request,
       relativePath: identity.relativePath,
@@ -1468,6 +1478,7 @@ function createCleanWorkspaceProductPort(options) {
       fail('CLEAN_WORKSPACE_PATH_ESCAPE',
         'Workspace Artifact read escaped its controlled root.');
     }
+    assertArtifactByteBound(artifactHandle.artifactKind, fs.statSync(target).size);
     const bytes = fs.readFileSync(target);
     if (bytes.length !== artifactHandle.sizeBytes ||
         digestBytes(bytes) !== artifactHandle.digestHex) {

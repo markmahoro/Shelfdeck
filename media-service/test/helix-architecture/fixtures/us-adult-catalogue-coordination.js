@@ -76,7 +76,7 @@ function coordination(t,overrides={}){
     artifacts.set(artifact.artifactHandleId,{handle:artifact,bytes});records.set(work.workId,[record(work,CAPABILITY,handle)]);succeeded(work);
     return {work,completedBatches,handle,observation};
   }
-  return {...f,options,store,validator,statuses,records,submissions,artifacts,workspace,identity,choice,source,
+  return {...f,options,workspaceOptions:f.options,store,validator,statuses,records,submissions,artifacts,workspaceState:workspace,identity,choice,source,
     completeFrames,completeObservation,reconcile:()=>createUsAdultCatalogueCoordinator(options).reconcile(f.args.snapshot,identity,workspace)};
 }
 module.exports=Object.freeze({coordination});

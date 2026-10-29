@@ -219,3 +219,19 @@ Work ID/幂等键绑定完整不可变 Basis/producer Result 集。读取支持 
 - 首轮本机逻辑日志 native-1 因新增夹具未加载实际Probe/result wrapper而失败；native-2 因补采夹具缺少ExecutionContext ownerScope而失败；native-3记录上述真实两批无脸Artifact冲突；三个原日志保留，native-4修复后10项通过。没有放宽正式schema、Root/Owner或停止守卫。随后 Linux 又覆盖新增负例。
 - 目录/CPU为确定性fixture；第四份Observation为显式 proposed Handle/内存字节，三种源Artifact使用真实SQLite Registry及Workspace Port。这不是正式Observe Capability/Effect/恢复旅程、真实模型/索引共载、旧Reference切换、People建档或Phase 4 Exit。
 - Phase 3原18个未提交文件逐字节保持；共享SSOT/builder/global generated contract未由演员线程改动。等主整合提供正式接线基准后完成新Capability/Artifact/Host旅程；NAS资源窗口继续保持暂停。
+
+## 2026-10-29 Reviewed Observe planner and durable Artifact checkpoint
+
+主整合提供共享合同基准97c4913b96cbe6509c65a2c42ae5ee106905eb17（139/118/244/66）后，另建固定Git index导出的独立catalogue-runtime-integration-2快照，再仅叠加演员接线源文件；不覆盖当前工作区或共享SSOT/生成物。97c的Reset仍fail-closed，不因此获得生产或Reset资格。
+
+- 增加目录Observation单Event Planner/精确Owner projections、Capability registration/语义校验以及受控Artifact发布Adapter。输入为完整冻结Basis/三种成功源Result组成的CompletedBatchSet/唯一输出Target。Libra的资格评估与技术Artifact读取分开，Capability不创建或选择Person。
+- 新Observation通过现有Workspace Port真实落盘与Registry登记，typed小Handle完整绑定字节/producer/target。恢复优先验证既有不可变Artifact，不重新计算或查询目录；输入替换、取消后迟到、损坏及丢失均明确失败，没有错误转空候选或旧包兼容分支。
+- 增加只对新face_catalogue_observation kind生效的8MiB物理字节边界：materialize、恢复及读取在接受/读取完整bytes前验证；未改变Artifact ID、Owner或Root权限。主分支kind枚举仍由主整合管理，本线程只交相应Root Port实现差异。
+- 独立快照沿主整合的真实生成manifest/types，不在测试中放宽现有schema。显式qualification/us-adult-catalogue-observation.test.js验证完整nominal Plan、Owner projections、第四个真实Artifact、同值重放、重命名落盘后/Registry前中断恢复、取消前回执、损坏与超限恢复。此文件需在已包含139/118合同的基准显式运行；原138分支未激活该Capability，不能静默skip或伪装成旧结果。
+
+实际Linux验证：
+
+- 在97c独立快照，目录qualification/原codec/coordinator共18 PASS/0skip/0FAIL，82.284秒；catalogue-observation-port-linux-2.log SHA256 03129b056b149f8e29d79ba6aa7b1b1b400b20a0c76aba1080514b4dbe4cef22。
+- 同快照Workspace既有功能/Frame Capability/Frame Engine回归42 PASS/0skip/0FAIL，11.232秒，catalogue-workspace-regression-linux-1.log。四项Package/Semantic/Manifest/P2静态均通过，139 Capability/118 Result/244 table/66 transaction/153 domain/257 refs/0 unresolved。
+- 先前reviewed proposal快照的初版16项也独立通过，保留catalogue-observation-port-linux-1.log；之后采用97c并新增恢复负例，没有将两组相加。首次用Windows tar解97c时因遗留中文VBS文件名返回失败，该integration-1目录没有用于任何资格；改为独立GIT_INDEX_FILE+checkout-index成功导出后才运行integration-2，不修改开发index或掩盖失败。
+- Linux镜像和隔离限制仍同前；CPU与目录为确定性fixture。当前使用真实Registry/Workspace journal及Runtime-shaped Context，**没有声称已通过实际Foundation Work→Event Runtime/Permit/Supervisor或完整Service Host旅程**。重命名中断为受控异常注入，真实进程退出/停止恢复、模型/索引精确依赖共载、NAS资源资格、People与正式Commit仍待完成。没有使用NAS或生产。
