@@ -293,8 +293,14 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
     translatedEpisodePlot:process.env.HELIX_SERIES_EPISODE_PLOT_TRANSLATION==='1',
     localEpisodeMissing:episodeMapping&&process.env.HELIX_SERIES_MAPPING_FROZEN==='1'}),providerCalls=[],artifactCalls=[],sharedArtifactCalls=[],appendCommitAudits=[],repairCommitAudits=[],offdeckCommitAudits=[];let unitOfWork,runtimeError,db,sharedRetryAttempted=false,sharedMaintenanceUnavailable=false,sharedRetirementFailure=false;
   let unreadableAlias=null,aliasReadAttempts=0,aliasInterruptions=0,unobservableReads=0;
-  const manualAliasRetry=process.env.HELIX_SERIES_SHARED_UNREADABLE_ALIAS==='manual';
-  const aliasRecoveryJourney=['1','transient','manual'].includes(process.env.HELIX_SERIES_SHARED_UNREADABLE_ALIAS);
+  // #25 alias injection is the base 2-Episode Host only. Append / concurrent /
+  // sourcePoster / repair matrix rows own different stop and Commit shapes; leaking
+  // the env into them produces false Host failures under the §3.1 name filter.
+  const aliasMatrixEligible=episodeCount===2&&!append&&!anchored&&!concurrent&&!sourcePoster&&!multiSeason&&
+    !manualIdentity&&!external&&!offdeck&&!mediaRepair&&!migrate&&!repair&&!real&&!mixed&&!parts&&!shared&&
+    !bounded&&!procurementOnly&&!episodeMapping;
+  const manualAliasRetry=aliasMatrixEligible&&process.env.HELIX_SERIES_SHARED_UNREADABLE_ALIAS==='manual';
+  const aliasRecoveryJourney=aliasMatrixEligible&&['1','transient','manual'].includes(process.env.HELIX_SERIES_SHARED_UNREADABLE_ALIAS);
   let failedAliasWork=null,failedAliasAttempt=null,publishedAliasIdentity=null;
   if(aliasRecoveryJourney){
     const originalOpen=fs.openSync;

@@ -48,9 +48,11 @@ function failureDiagnostics(error) {
       result.truncated = result.truncated === true || result.conflictCount > conflicts.length;
     }
   }
-  if (['json_request','image_request'].includes(details.stage)) result.stage = details.stage;
-  if (Number.isInteger(details.statusCode) && details.statusCode >= 100 && details.statusCode <= 599)
-    result.statusCode = details.statusCode;
+  // JAV page/cover stages and TMDB json/image stages share one bounded HTTP vocabulary.
+  if (['json_request','image_request','page','cover'].includes(details.stage)) result.stage = details.stage;
+  const statusCode = Number.isInteger(details.statusCode) ? details.statusCode
+    : Number.isInteger(details.status) ? details.status : null;
+  if (statusCode !== null && statusCode >= 100 && statusCode <= 599) result.statusCode = statusCode;
   if (error?.code === 'LIBRA_MEDIA_FFMPEG_TIMEOUT') {
     if (details.stage === 'playback_decode') result.stage = details.stage;
     for (const key of ['elapsedMs','timeoutMs','stallTimeoutMs','stderrBytes']) {

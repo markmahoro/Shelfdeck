@@ -153,6 +153,14 @@ test('TMDB timeout wrapped by a Secret lease is a retryable timeout Outcome', ()
   assert.equal(identityObservationFailed(network).failureClass, 'integration');
   assert.deepEqual(identityObservationFailed(network).evidence.diagnostics, {causeCode:'PLATFORM_INTEGRATION_NETWORK_FAILED',networkCode:'ECONNRESET',stage:'json_request'});
   assert.equal(JSON.stringify(identityObservationFailed(network)).includes('synthetic-secret'), false);
+  const javUnavailable = Object.assign(new Error('JAV source is temporarily unavailable.'), {
+    code: 'JAV_SOURCE_UNAVAILABLE',
+    details: { retryable: true, siteRef: 'fc2_official', status: 503, stage: 'page', body: 'SECRET' },
+  });
+  const javOutcome = identityObservationFailed(javUnavailable);
+  assert.equal(javOutcome.code, 'JAV_SOURCE_UNAVAILABLE');
+  assert.deepEqual(javOutcome.evidence, {errorCode:'JAV_SOURCE_UNAVAILABLE',diagnostics:{stage:'page',statusCode:503}});
+  assert.equal(JSON.stringify(javOutcome).includes('SECRET'), false);
   assert.throws(() => identityObservationFailed(Object.assign(new Error('schema'), {
     code: 'P4_CAPABILITY_SCHEMA_REJECTED',
   })), (thrown) => thrown.code === 'P4_CAPABILITY_SCHEMA_REJECTED');
