@@ -171,3 +171,11 @@ UI 负责人随后对 `a4d716878` 的独立开发版复核确认忙碌状态、�
 另新增未接线的 Libra Custom Target Dispatch Guard，组合当前 Run 目标、全部旧执行/精确 Withdrawal 排空证明、当前标准与 Arca 责任。将同一 fence 传过当前基线读取，并在实际 Foundation Work Admission 测试事务核验；确认前后目标替换、旧 Effect 未排空、基线变化、Accepted 信号及跨读取并发均不形成新工作。测试含 101 个受控 Offer 的跨页 Accepted 信号、读取中插入 Arca Accepted 信号、Arca 自有 Withdrawal Store 写入/Formation 投影及允许和过期 fence 的实际 Foundation Admission。Accepted 信号及部分 Package 使用刻意简化的 SQLite 关系夹具（为插入不完整信号暂时关闭测试连接 FK），不代表完整 Accepted 旅程；Withdrawal 使用 Arca Store 写入，但不代表真实媒体。Windows 与隔离 Linux 各运行八文件 **235 PASS / 0 skip**；Linux 镜像及依赖限制同前。包边界与禁止语义扫描仍只有已披露的基线 2 + 1 finding，新增文件无 finding。
 
 该组合依赖此前的当前目标读取 `a650487af`、Replacement 排空 `8a4303fec`、当前标准读取 `c2e3a7976`、Arca 精确 Offer 投影 `65378760d` 和 Foundation 围栏原语（包括 Work Admission `8b8a19532`、Event 接口 `6698071f6` 等）；不是可独立启用的完整功能。实际 Runtime 尚未接入这些组件；当前真实 Acceptance Spec 上下文、Material Control、所有 Scheduler/Resource Governor 与 Workspace/Plan/Event 边界、旧责任恢复及完整用户旅程仍待整合。没有改变全局 Manifest/SSOT 或访问生产，不能称作全局调度屏障、Beta 完成或生产验收。
+
+## Custom Run 的输入 Binding 与 Control 围栏（2026-10-29）
+
+在上述组合上先新增负例：目标、排空与基线仍为 ready，但模拟输入 Material Control 已转到另一 Owner，旧 Guard 错误返回 ready。独立提交 `79ee21e7f7be2dfc44b9dea0718f3209c3c0c836` 复用 Libra 原有 Run Manifest 重建校验，在同一 opaque fence 下验证 Movie Run 的不可变完整 Execution Basis、Manifest 及成员摘要，逐项对比当前 Primary Binding 和 Foundation 官方 Material Control 投影的精确 Subject、revision、digest；不读取其他 Owner 的私有表，也不修改 Control。Control 不可取得、Owner/revision 或 Binding 变化均保持 pending；不可变证据或投影形状损坏直接拒绝。Guard 要求相同 fence 下的目标、旧责任、基线和输入 Control 均通过，才返回局部 ready。
+
+新增测试覆盖 Control 转属、同 Owner revision 变化、Binding 位置变化、不可取得/错误投影、成员摘要损坏、其他 Run Basis 篡改及投影读取中并发 Control 变化；Foundation Work Admission 继续在实际写事务验证相同 fence。测试直接修改临时 SQLite 以模拟竞态与损坏，未转移真实材料。Windows 与隔离 Linux 的 11 个相关文件各 **296 PASS / 0 skip**；原有 `run-discard-store` 重建方法仅增加供同 Owner 复用的导出，其生命周期测试同时通过。包边界和禁止语义检查仍仅有既有 2 + 1 finding；Linux 镜像及依赖限制同前。
+
+该提交依赖 `814c30f42` 及其所列基础，仍是未接线的局部检查：不证明文件当前存在/可读、Related 的完整责任、全部旧 Effect 和每个 Scheduler/Resource Governor/Workspace/Plan/Event 边界，也不替代 Arca 的独立接纳。真实 Owner 上下文、全部边界和完整用户旅程仍须主整合验证，不能开放自定义入口或宣称全局屏障已完成。
