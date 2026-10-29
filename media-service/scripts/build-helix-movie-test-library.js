@@ -230,11 +230,17 @@ function parseArguments(argv) {
   return options;
 }
 
+function isForbiddenRemoteRoot(root) {
+  return /^z:/i.test(root) || /^[\\/]{2}/.test(root);
+}
+
 function normalizedRoot(root) {
+  // Check Windows path syntax before the host platform can reinterpret it as a relative name.
+  if (typeof root === 'string' && isForbiddenRemoteRoot(root)) throw new Error('Remote/NAS paths are forbidden for this local test library.');
   const resolved = path.resolve(root);
   const parsed = path.parse(resolved);
   if (FORBIDDEN_ROOTS.has(resolved) || resolved === parsed.root) throw new Error('A filesystem root cannot be used as the test library.');
-  if (/^z:\\/i.test(resolved) || /^\\\\/.test(resolved)) throw new Error('Remote/NAS paths are forbidden for this local test library.');
+  if (isForbiddenRemoteRoot(resolved)) throw new Error('Remote/NAS paths are forbidden for this local test library.');
   return resolved;
 }
 
