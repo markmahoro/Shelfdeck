@@ -1,0 +1,2 @@
+EXACT_REUSED_SNAPSHOT={"round":0,"before":{"inode":"1955264","size":"29","mtimeNs":"946684800000000000","ctimeNs":"1793268651749031303"},"after":{"inode":"1955264","size":"29","mtimeNs":"946684800000000000","ctimeNs":"1793268651749031303"},"identitySame":true,"decision":"replay_publication"}
+SUMMARY={"equal":1,"different":0,"nonreused":0}

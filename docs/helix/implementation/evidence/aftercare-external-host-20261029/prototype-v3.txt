@@ -1,0 +1,218 @@
+TAP version 13
+# Subtest: unproven external target-only remains untouched
+ok 1 - unproven external target-only remains untouched
+  ---
+  duration_ms: 23.922257
+  ...
+# Subtest: unproven external stage-only remains untouched
+ok 2 - unproven external stage-only remains untouched
+  ---
+  duration_ms: 16.415583
+  ...
+# Subtest: unproven external target-and-stage remains untouched
+ok 3 - unproven external target-and-stage remains untouched
+  ---
+  duration_ms: 17.717752
+  ...
+# Subtest: forged Case, Effect, Attempt, input and source cannot reuse an existing Stage proof
+ok 4 - forged Case, Effect, Attempt, input and source cannot reuse an existing Stage proof
+  ---
+  duration_ms: 23.893046
+  ...
+# Subtest: a forged durable Stage row cannot cross a real synthetic Case and Effect scope
+ok 5 - a forged durable Stage row cannot cross a real synthetic Case and Effect scope
+  ---
+  duration_ms: 24.603439
+  ...
+# Subtest: external target appearing immediately at publication is never overwritten or adopted
+ok 6 - external target appearing immediately at publication is never overwritten or adopted
+  ---
+  duration_ms: 24.355247
+  ...
+# Subtest: a staged file changed externally after proof is preserved and cannot be published
+ok 7 - a staged file changed externally after proof is preserved and cannot be published
+  ---
+  duration_ms: 21.217155
+  ...
+# Subtest: Arca evidence transactions do not mutate synthetic Foundation facts or Control
+ok 8 - Arca evidence transactions do not mutate synthetic Foundation facts or Control
+  ---
+  duration_ms: 19.507493
+  ...
+# Subtest: stale source-handle fences Stage creation without writes
+ok 9 - stale source-handle fences Stage creation without writes
+  ---
+  duration_ms: 16.073943
+  ...
+# Subtest: stale source-result fences Stage creation without writes
+ok 10 - stale source-result fences Stage creation without writes
+  ---
+  duration_ms: 16.993305
+  ...
+# Subtest: stale case-reservation fences Stage creation without writes
+ok 11 - stale case-reservation fences Stage creation without writes
+  ---
+  duration_ms: 18.285541
+  ...
+# Subtest: stale old-control fences Stage creation without writes
+ok 12 - stale old-control fences Stage creation without writes
+  ---
+  duration_ms: 17.423467
+  ...
+# Subtest: foreign active Material Control rejects the whole synthetic Inventory transaction
+ok 13 - foreign active Material Control rejects the whole synthetic Inventory transaction
+  ---
+  duration_ms: 26.046723
+  ...
+# Subtest: process exit at after_stage_create preserves its exact recovery boundary
+ok 14 - process exit at after_stage_create preserves its exact recovery boundary
+  ---
+  duration_ms: 107.876029
+  ...
+# Subtest: process exit at after_stage_write preserves its exact recovery boundary
+ok 15 - process exit at after_stage_write preserves its exact recovery boundary
+  ---
+  duration_ms: 103.840341
+  ...
+# Subtest: process exit at inside_stage_transaction preserves its exact recovery boundary
+ok 16 - process exit at inside_stage_transaction preserves its exact recovery boundary
+  ---
+  duration_ms: 109.972205
+  ...
+# Subtest: process exit at after_stage_evidence preserves its exact recovery boundary
+ok 17 - process exit at after_stage_evidence preserves its exact recovery boundary
+  ---
+  duration_ms: 119.90509
+  ...
+# Subtest: process exit at before_link preserves its exact recovery boundary
+ok 18 - process exit at before_link preserves its exact recovery boundary
+  ---
+  duration_ms: 122.02876
+  ...
+# Subtest: process exit at after_link preserves its exact recovery boundary
+ok 19 - process exit at after_link preserves its exact recovery boundary
+  ---
+  duration_ms: 116.914814
+  ...
+# Subtest: process exit at inside_publication_transaction preserves its exact recovery boundary
+ok 20 - process exit at inside_publication_transaction preserves its exact recovery boundary
+  ---
+  duration_ms: 113.987366
+  ...
+# Subtest: process exit at after_publication_evidence preserves its exact recovery boundary
+ok 21 - process exit at after_publication_evidence preserves its exact recovery boundary
+  ---
+  duration_ms: 114.723449
+  ...
+# Subtest: an actually reused old inode is pinned while the copied Stage is reallocated
+ok 22 - an actually reused old inode is pinned while the copied Stage is reallocated
+  ---
+  duration_ms: 122.75575
+  ...
+# Subtest: actual inode collision interrupted at after_collision_unlink preserves authority
+ok 23 - actual inode collision interrupted at after_collision_unlink preserves authority
+  ---
+  duration_ms: 121.47231
+  ...
+# Subtest: actual inode collision interrupted at after_collision_recopy preserves authority
+ok 24 - actual inode collision interrupted at after_collision_recopy preserves authority
+  ---
+  duration_ms: 110.12039
+  ...
+# Subtest: SQLite interruption at inside_effect_observed does not expose a partial commit
+ok 25 - SQLite interruption at inside_effect_observed does not expose a partial commit
+  ---
+  duration_ms: 112.370609
+  ...
+# Subtest: SQLite interruption at after_effect_observed does not expose a partial commit
+ok 26 - SQLite interruption at after_effect_observed does not expose a partial commit
+  ---
+  duration_ms: 111.628059
+  ...
+# Subtest: SQLite interruption at inside_foundation_settle does not expose a partial commit
+ok 27 - SQLite interruption at inside_foundation_settle does not expose a partial commit
+  ---
+  duration_ms: 115.149278
+  ...
+# Subtest: SQLite interruption at after_foundation_settle does not expose a partial commit
+ok 28 - SQLite interruption at after_foundation_settle does not expose a partial commit
+  ---
+  duration_ms: 116.765538
+  ...
+# Subtest: SQLite interruption at inside_foundation_result does not expose a partial commit
+ok 29 - SQLite interruption at inside_foundation_result does not expose a partial commit
+  ---
+  duration_ms: 110.613955
+  ...
+# Subtest: SQLite interruption at after_foundation_result does not expose a partial commit
+ok 30 - SQLite interruption at after_foundation_result does not expose a partial commit
+  ---
+  duration_ms: 112.518036
+  ...
+# Subtest: SQLite interruption at inside_inventory_transaction does not expose a partial commit
+ok 31 - SQLite interruption at inside_inventory_transaction does not expose a partial commit
+  ---
+  duration_ms: 111.250036
+  ...
+# Subtest: SQLite interruption at after_inventory_transaction does not expose a partial commit
+ok 32 - SQLite interruption at after_inventory_transaction does not expose a partial commit
+  ---
+  duration_ms: 114.192844
+  ...
+# Subtest: cleanup interruption at before_cleanup_unlink cannot remove the target
+ok 33 - cleanup interruption at before_cleanup_unlink cannot remove the target
+  ---
+  duration_ms: 116.179514
+  ...
+# Subtest: cleanup interruption at after_cleanup_unlink cannot remove the target
+ok 34 - cleanup interruption at after_cleanup_unlink cannot remove the target
+  ---
+  duration_ms: 113.050235
+  ...
+# Subtest: a replaced stage and target after proof are never recovered by matching bytes alone
+ok 35 - a replaced stage and target after proof are never recovered by matching bytes alone
+  ---
+  duration_ms: 23.919631
+  ...
+# Subtest: actual inode reuse after both published aliases are replaced remains unclassified
+not ok 36 - actual inode reuse after both published aliases are replaced remains unclassified
+  ---
+  duration_ms: 25.537699
+  location: '/src/.codex/aftercare-stage-prototype-20261029/prototype.test.cjs:199:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'replay_publication'
+    - 'unknown_publication_changed'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'unknown_publication_changed'
+  actual: 'replay_publication'
+  operator: 'strictEqual'
+  stack: |-
+    /src/.codex/aftercare-stage-prototype-20261029/prototype.test.cjs:209:12
+    withFixture (/src/.codex/aftercare-stage-prototype-20261029/prototype.test.cjs:7:14)
+    TestContext.<anonymous> (/src/.codex/aftercare-stage-prototype-20261029/prototype.test.cjs:199:94)
+    Test.runInAsyncScope (node:async_hooks:206:9)
+    Test.run (node:internal/test_runner/test:796:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:526:18)
+    Test.postRun (node:internal/test_runner/test:889:19)
+    Test.run (node:internal/test_runner/test:835:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:526:7)
+  ...
+# Subtest: a committed historical Result replay never asserts current target reality
+ok 37 - a committed historical Result replay never asserts current target reality
+  ---
+  duration_ms: 25.942962
+  ...
+1..37
+# tests 37
+# suites 0
+# pass 36
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2865.153816

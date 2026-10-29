@@ -1,0 +1,382 @@
+TAP version 13
+# Subtest: isolated JAV Host uses real HEVC video and controlled single-site HTTP through Workspace artifacts and one Arca Commit
+ok 1 - isolated JAV Host uses real HEVC video and controlled single-site HTTP through Workspace artifacts and one Arca Commit # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.795227
+  ...
+# Subtest: shelved JAV missing NFO is repaired by Arca from accepted facts while preserving its code video and unique On-deck receipt
+ok 2 - shelved JAV missing NFO is repaired by Arca from accepted facts while preserving its code video and unique On-deck receipt # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.107188
+  ...
+# Subtest: shelved JAV missing poster is repaired from its pinned accepted source with full crop proof and unchanged video NFO identity and receipt
+ok 3 - shelved JAV missing poster is repaired from its pinned accepted source with full crop proof and unchanged video NFO identity and receipt # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.055428
+  ...
+# Subtest: shelved JAV required fanart is repaired as an uncropped fanart with its own typed receipt and unchanged collection identity
+ok 4 - shelved JAV required fanart is repaired as an uncropped fanart with its own typed receipt and unchanged collection identity # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.046901
+  ...
+# Subtest: shelved JAV poster source failure records a no-write failed Effect and keeps the original inventory video and NFO
+ok 5 - shelved JAV poster source failure records a no-write failed Effect and keeps the original inventory video and NFO # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.048484
+  ...
+# Subtest: shelved JAV fanart source failure retains its failed Effects and original poster video and inventory without a target write
+ok 6 - shelved JAV fanart source failure retains its failed Effects and original poster video and inventory without a target write # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.090105
+  ...
+# Subtest: JAV poster maintenance recovers in a new Case after its own source condition changes and preserves every original failed Effect
+ok 7 - JAV poster maintenance recovers in a new Case after its own source condition changes and preserves every original failed Effect # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.115514
+  ...
+# Subtest: JAV special-source poster maintenance FC2-718323 preserves its own source and optional credited role
+ok 8 - JAV special-source poster maintenance FC2-718323 preserves its own source and optional credited role # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.067581
+  ...
+# JAV_EXTERNAL_TARGET={"mode":"target-only","eventState":"executing","effectState":"intended","caseState":"active","oldInode":"1965529","targetInode":"1965444","sameInode":false,"bytes":286,"stageCreated":false,"oldMaterialKey":"af1a190a2647b37ec5783d6c29a25d21f932e9181ed9df247cdde9fd8c92ab9b"}
+# JAV_DIAGNOSTIC_ROOT=/scratch/helix-jav-host-mHYfoW
+# Subtest: JAV special-source poster maintenance GETCHU-4052694 preserves its own source and optional credited role
+ok 9 - JAV special-source poster maintenance GETCHU-4052694 preserves its own source and optional credited role
+  ---
+  duration_ms: 54894.523392
+  ...
+# Subtest: corrected JAV missing poster uses the current Arca metadata source and never returns to its original film
+ok 10 - corrected JAV missing poster uses the current Arca metadata source and never returns to its original film # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.199578
+  ...
+# Subtest: corrected JAV missing fanart uses only the current accepted film and preserves its poster and video
+ok 11 - corrected JAV missing fanart uses only the current accepted film and preserves its poster and video # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.06684
+  ...
+# Subtest: JAV correction confirmed source drift leaves a proven no-write failure and preserves the original collection gate
+ok 12 - JAV correction confirmed source drift leaves a proven no-write failure and preserves the original collection gate # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.033485
+  ...
+# Subtest: JAV Recovery Intent command preserves terminal execution and atomically admits one new lineage with replay and late-failure rollback
+ok 13 - JAV Recovery Intent command preserves terminal execution and atomically admits one new lineage with replay and late-failure rollback # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.024829
+  ...
+# Subtest: JAV failed source recovery uses new Foundation Work and Effects to complete the same correction while retaining failed history and video
+ok 14 - JAV failed source recovery uses new Foundation Work and Effects to complete the same correction while retaining failed history and video # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.021903
+  ...
+# Subtest: JAV public cancellation rejects forged or stale requests and permits a fresh confirmed correction through cleanup
+ok 15 - JAV public cancellation rejects forged or stale requests and permits a fresh confirmed correction through cleanup # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.041611
+  ...
+# Subtest: FC2 official access failure advances to one JavMenu source without mixing fields or producing duplicate media
+ok 16 - FC2 official access failure advances to one JavMenu source without mixing fields or producing duplicate media # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.106607
+  ...
+# Subtest: FC2 temporary unavailability exhausts its bounded retries before choosing one complete JavMenu source
+ok 17 - FC2 temporary unavailability exhausts its bounded retries before choosing one complete JavMenu source # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.106327
+  ...
+# Subtest: JAV class source journey FC2-718323 keeps exact single-site provenance through one Commit
+ok 18 - JAV class source journey FC2-718323 keeps exact single-site provenance through one Commit # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.074425
+  ...
+# Subtest: JAV class source journey HEYDOUGA-4030-2113 keeps exact single-site provenance through one Commit
+ok 19 - JAV class source journey HEYDOUGA-4030-2113 keeps exact single-site provenance through one Commit # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.029317
+  ...
+# Subtest: JAV class source journey 082713-417 keeps exact single-site provenance through one Commit
+ok 20 - JAV class source journey 082713-417 keeps exact single-site provenance through one Commit # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.026161
+  ...
+# Subtest: JAV class source journey 259LUXU-1022 keeps exact single-site provenance through one Commit
+ok 21 - JAV class source journey 259LUXU-1022 keeps exact single-site provenance through one Commit # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.024858
+  ...
+# Subtest: JAV class source journey GETCHU-4052694 keeps exact single-site provenance through one Commit
+ok 22 - JAV class source journey GETCHU-4052694 keeps exact single-site provenance through one Commit # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.022504
+  ...
+# Subtest: JAV class source journey GYUTTO-242158 keeps exact single-site provenance through one Commit
+ok 23 - JAV class source journey GYUTTO-242158 keeps exact single-site provenance through one Commit # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.048544
+  ...
+# Subtest: JAV class source journey MKBD-S112 keeps exact single-site provenance through one Commit
+ok 24 - JAV class source journey MKBD-S112 keeps exact single-site provenance through one Commit # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.0208
+  ...
+# Subtest: JAV class source journey IBW-112Z keeps exact single-site provenance through one Commit
+ok 25 - JAV class source journey IBW-112Z keeps exact single-site provenance through one Commit # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.021672
+  ...
+# Subtest: JAV class source journey T38-071 keeps exact single-site provenance through one Commit
+ok 26 - JAV class source journey T38-071 keeps exact single-site provenance through one Commit # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.018256
+  ...
+# Subtest: JAV class source journey N1234 keeps exact single-site provenance through one Commit
+ok 27 - JAV class source journey N1234 keeps exact single-site provenance through one Commit # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.019337
+  ...
+# Subtest: JAV class source journey ABP-001 keeps exact single-site provenance through one Commit
+ok 28 - JAV class source journey ABP-001 keeps exact single-site provenance through one Commit # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.018025
+  ...
+# Subtest: JAV class source journey ABP-002 keeps exact single-site provenance through one Commit
+ok 29 - JAV class source journey ABP-002 keeps exact single-site provenance through one Commit # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.018335
+  ...
+# Subtest: JAV class source journey T28-557 keeps exact single-site provenance through one Commit
+ok 30 - JAV class source journey T28-557 keeps exact single-site provenance through one Commit # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.017404
+  ...
+# Subtest: unrecognized JAV input waits in the workbench; exact manual preview and confirmation resume to Commit and preserve receipt replay
+ok 31 - unrecognized JAV input waits in the workbench; exact manual preview and confirmation resume to Commit and preserve receipt replay # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.016411
+  ...
+# Subtest: explicit CID filename preserves its original Claim and waits for a real manually confirmed JAV identity before one Commit
+ok 32 - explicit CID filename preserves its original Claim and waits for a real manually confirmed JAV identity before one Commit # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.016492
+  ...
+# Subtest: unrecognized JAV input accepts an exact FC2 official manual preview and keeps its first identity locked through Commit
+ok 33 - unrecognized JAV input accepts an exact FC2 official manual preview and keeps its first identity locked through Commit # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.013817
+  ...
+# Subtest: JAV A/B actual inputs form one Package, remux in order and establish exactly one Arca Commit
+ok 34 - JAV A/B actual inputs form one Package, remux in order and establish exactly one Arca Commit # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.014148
+  ...
+# Subtest: one actual JAV B input remains a single-file journey and reaches Commit without an A requirement
+ok 35 - one actual JAV B input remains a single-file journey and reaches Commit without an A requirement # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.01534
+  ...
+# Subtest: one actual JAV A input remains a single-file journey and reaches Commit without a B requirement
+ok 36 - one actual JAV A input remains a single-file journey and reaches Commit without a B requirement # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.014808
+  ...
+# Subtest: incompatible JAV actual parts require attention with genuine rejected-Plan evidence and retain responsibility without a fake Outcome
+ok 37 - incompatible JAV actual parts require attention with genuine rejected-Plan evidence and retain responsibility without a fake Outcome # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.019568
+  ...
+# Subtest: JAV H.264 A/B inputs merge before a real HEVC Transcode and one final Arca Commit
+ok 38 - JAV H.264 A/B inputs merge before a real HEVC Transcode and one final Arca Commit # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.01582
+  ...
+# Subtest: owned real JAV Entry admits an independent correction atomically, rolls stale Control back and replays without preview cache
+ok 39 - owned real JAV Entry admits an independent correction atomically, rolls stale Control back and replays without preview cache # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.01529
+  ...
+# Subtest: admitted JAV correction resumes through formal source verification and Workspace asset Work while preserving the original collection
+ok 40 - admitted JAV correction resumes through formal source verification and Workspace asset Work while preserving the original collection # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.033585
+  ...
+# Subtest: Correction Owner transaction atomically commits identity Inventory Control and Receipt and rolls back late participant failures
+ok 41 - Correction Owner transaction atomically commits identity Inventory Control and Receipt and rolls back late participant failures # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.05662
+  ...
+# Subtest: actual JAV correction process loss after NFO bytes recovers the original Effect and frozen source without rewriting the video
+ok 42 - actual JAV correction process loss after NFO bytes recovers the original Effect and frozen source without rewriting the video # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.057151
+  ...
+# Subtest: conflicting correction bytes after actual process loss require attention and preserve both the conflict and original collection
+ok 43 - conflicting correction bytes after actual process loss require attention and preserve both the conflict and original collection # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.022965
+  ...
+# Subtest: actual loss inside a producer write rebuilds its declared short temporary under the original Effect and never publishes truncated NFO
+ok 44 - actual loss inside a producer write rebuilds its declared short temporary under the original Effect and never publishes truncated NFO # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.021061
+  ...
+# Subtest: actual loss after the last staged file resumes formal staging under its original material Effect and preserves current collection
+ok 45 - actual loss after the last staged file resumes formal staging under its original material Effect and preserves current collection # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.016091
+  ...
+# Subtest: overlapping correction publication keeps the current original poster and identity visible before the final commit
+ok 46 - overlapping correction publication keeps the current original poster and identity visible before the final commit # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.01559
+  ...
+# Subtest: actual loss after atomic correction Receipt resumes the same bound Effect without a second identity Inventory or collection Commit
+ok 47 - actual loss after atomic correction Receipt resumes the same bound Effect without a second identity Inventory or collection Commit # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.013997
+  ...
+# Subtest: actual process exit inside Correction Owner transaction rolls back all heads Control and Receipt then recovers the same Effect
+ok 48 - actual process exit inside Correction Owner transaction rolls back all heads Control and Receipt then recovers the same Effect # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.018005
+  ...
+# Subtest: corrected JAV cast is registered and linked by formal system Evidence only in the maintenance window
+ok 49 - corrected JAV cast is registered and linked by formal system Evidence only in the maintenance window # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.015009
+  ...
+# Subtest: direct rating on the same JAV Entry remains resolved after identity correction through public Perception APIs
+ok 50 - direct rating on the same JAV Entry remains resolved after identity correction through public Perception APIs # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.014178
+  ...
+# Subtest: direct rating on the exact accepted Subject remains available on its corrected JAV Entry without rewriting the Record
+ok 51 - direct rating on the exact accepted Subject remains available on its corrected JAV Entry without rewriting the Record # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.014879
+  ...
+# Subtest: public JAV correction preview confirm and owned status reach Commit and exact confirmation replays after cache loss
+ok 52 - public JAV correction preview confirm and owned status reach Commit and exact confirmation replays after cache loss # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.01544
+  ...
+# Subtest: corrected JAV old empty Inventory directory is automatically archived through public recycle facts without a second On-deck Commit
+ok 53 - corrected JAV old empty Inventory directory is automatically archived through public recycle facts without a second On-deck Commit # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.014949
+  ...
+# Subtest: corrected JAV old directory with an unknown file waits for exact public confirmation before archive
+ok 54 - corrected JAV old directory with an unknown file waits for exact public confirmation before archive # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.014067
+  ...
+# Subtest: actual process loss after two formal retirement unlinks resumes the original material Effect and retains the current video
+ok 55 - actual process loss after two formal retirement unlinks resumes the original material Effect and retains the current video # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.013567
+  ...
+# Subtest: foreign retained alias after retirement process loss fails the original cleanup Effect and keeps committed identity and video
+ok 56 - foreign retained alias after retirement process loss fails the original cleanup Effect and keeps committed identity and video # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.014568
+  ...
+# Subtest: actual process loss after two Workspace reclaim unlinks resumes the original workspace Effect and preserves committed video
+ok 57 - actual process loss after two Workspace reclaim unlinks resumes the original workspace Effect and preserves committed video # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.01542
+  ...
+# Subtest: Workspace reclaim lifecycle COMMIT before journal recovery replays the same bound Receipt
+ok 58 - Workspace reclaim lifecycle COMMIT before journal recovery replays the same bound Receipt # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.013657
+  ...
+# Subtest: process loss inside Workspace lifecycle transaction rolls back Registry Artifact Result and marker together
+ok 59 - process loss inside Workspace lifecycle transaction rolls back Registry Artifact Result and marker together # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.014087
+  ...
+# Subtest: foreign Workspace bytes after partial reclaim fail the original Effect and retain cleanup gate and video
+ok 60 - foreign Workspace bytes after partial reclaim fail the original Effect and retain cleanup gate and video # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.0358
+  ...
+# Subtest: actual process loss inside cleanup completion leaves no Receipt and preserves the gate until owner replay
+ok 61 - actual process loss inside cleanup completion leaves no Receipt and preserves the gate until owner replay # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.044697
+  ...
+# Subtest: actual process loss after cleanup COMMIT preserves one Receipt and released gate across restart
+ok 62 - actual process loss after cleanup COMMIT preserves one Receipt and released gate across restart # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.020149
+  ...
+# Subtest: JAV collection operation offdeck uses Arca scope and preserves unrelated files and original identity receipts
+ok 63 - JAV collection operation offdeck uses Arca scope and preserves unrelated files and original identity receipts # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.01566
+  ...
+# Subtest: JAV collection operation deregister uses Arca scope and preserves unrelated files and original identity receipts
+ok 64 - JAV collection operation deregister uses Arca scope and preserves unrelated files and original identity receipts # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.015621
+  ...
+# Subtest: JAV terminal asset failure recovers through a fresh server scene and retains its old Source Result despite changed optional site metadata
+ok 65 - JAV terminal asset failure recovers through a fresh server scene and retains its old Source Result despite changed optional site metadata # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.016302
+  ...
+# Subtest: JAV terminal formal retirement failure admits a new cleanup Intent and finishes partial aliases with immutable failed history
+ok 66 - JAV terminal formal retirement failure admits a new cleanup Intent and finishes partial aliases with immutable failed history # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.014528
+  ...
+# Subtest: JAV terminal Workspace reclaim failure admits a new cleanup Intent and finishes partial reclamation with immutable failed history
+ok 67 - JAV terminal Workspace reclaim failure admits a new cleanup Intent and finishes partial reclamation with immutable failed history # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.013226
+  ...
+# Subtest: JAV public recovery validates current scope, rejects spoofed and stale commands, replays receipt and completes the same visible task
+ok 68 - JAV public recovery validates current scope, rejects spoofed and stale commands, replays receipt and completes the same visible task # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.013847
+  ...
+# Subtest: JAV terminal phase recovery: stage retains failed effects and completes the same task through the public API
+ok 69 - JAV terminal phase recovery: stage retains failed effects and completes the same task through the public API # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.013496
+  ...
+# Subtest: JAV terminal phase recovery: publish retains failed effects and completes the same task through the public API
+ok 70 - JAV terminal phase recovery: publish retains failed effects and completes the same task through the public API # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.014428
+  ...
+# Subtest: JAV terminal phase recovery: verify retains failed effects and completes the same task through the public API
+ok 71 - JAV terminal phase recovery: verify retains failed effects and completes the same task through the public API # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.015961
+  ...
+# Subtest: JAV terminal phase recovery: commit retains failed effects and completes the same task through the public API
+ok 72 - JAV terminal phase recovery: commit retains failed effects and completes the same task through the public API # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.013807
+  ...
+# Subtest: JAV terminal phase recovery: producer retains failed effects and completes the same task through the public API
+ok 73 - JAV terminal phase recovery: producer retains failed effects and completes the same task through the public API # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.014418
+  ...
+# Subtest: JAV repeated source-only recovery failures remain safely cancellable through their complete immutable lineage
+ok 74 - JAV repeated source-only recovery failures remain safely cancellable through their complete immutable lineage # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.01534
+  ...
+1..74
+# tests 74
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 73
+# todo 0
+# duration_ms 65213.566788

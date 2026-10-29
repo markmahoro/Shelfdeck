@@ -1,0 +1,216 @@
+TAP version 13
+# REUSED_IDENTITY_STAT={"before":{"inode":"1965397","size":"29","mtimeNs":"1793269330859438821","ctimeNs":"1793269330883439937"},"after":{"inode":"1965397","size":"29","mtimeNs":"1793269330883439937","ctimeNs":"1793269330883439937"},"fingerprint":"4f8e1ee06be131cfe8a3aa07144c1927a2920f5a3bc4263c7ca5762f728af7e5","proofEffect":"00733a966c1890b32e9ab0a6152bf2a198ea937c161533f1ab4b92063b08f468"}
+# Subtest: unproven external target-only remains untouched
+ok 1 - unproven external target-only remains untouched
+  ---
+  duration_ms: 115.274009
+  ...
+# Subtest: unproven external stage-only remains untouched
+ok 2 - unproven external stage-only remains untouched
+  ---
+  duration_ms: 109.772357
+  ...
+# Subtest: unproven external target-and-stage remains untouched
+ok 3 - unproven external target-and-stage remains untouched
+  ---
+  duration_ms: 113.750428
+  ...
+# Subtest: forged Case, Effect, Attempt, input and source cannot reuse an existing Stage proof
+ok 4 - forged Case, Effect, Attempt, input and source cannot reuse an existing Stage proof
+  ---
+  duration_ms: 170.893691
+  ...
+# Subtest: a forged durable Stage row cannot cross a real synthetic Case and Effect scope
+ok 5 - a forged durable Stage row cannot cross a real synthetic Case and Effect scope
+  ---
+  duration_ms: 149.557451
+  ...
+# Subtest: external target appearing immediately at publication is never overwritten or adopted
+ok 6 - external target appearing immediately at publication is never overwritten or adopted
+  ---
+  duration_ms: 159.222393
+  ...
+# Subtest: a staged file changed externally after proof is preserved and cannot be published
+ok 7 - a staged file changed externally after proof is preserved and cannot be published
+  ---
+  duration_ms: 199.912274
+  ...
+# Subtest: same-byte outside Stage replacement cannot reuse a live pinned descriptor
+ok 8 - same-byte outside Stage replacement cannot reuse a live pinned descriptor
+  ---
+  duration_ms: 173.97981
+  ...
+# Subtest: outside replacement after Effect observation cannot gain a commit marker
+ok 9 - outside replacement after Effect observation cannot gain a commit marker
+  ---
+  duration_ms: 178.616701
+  ...
+# Subtest: an external target arriving before Stage evidence causes no adoption or cleanup
+ok 10 - an external target arriving before Stage evidence causes no adoption or cleanup
+  ---
+  duration_ms: 143.1608
+  ...
+# Subtest: a duplicate live Effect cannot create a second Stage or evidence
+ok 11 - a duplicate live Effect cannot create a second Stage or evidence
+  ---
+  duration_ms: 163.086773
+  ...
+# Subtest: Arca evidence transactions do not mutate synthetic Foundation facts or Control
+ok 12 - Arca evidence transactions do not mutate synthetic Foundation facts or Control
+  ---
+  duration_ms: 159.653779
+  ...
+# Subtest: stale source-handle fences Stage creation without writes
+ok 13 - stale source-handle fences Stage creation without writes
+  ---
+  duration_ms: 106.781965
+  ...
+# Subtest: stale source-result fences Stage creation without writes
+ok 14 - stale source-result fences Stage creation without writes
+  ---
+  duration_ms: 106.196399
+  ...
+# Subtest: stale case-reservation fences Stage creation without writes
+ok 15 - stale case-reservation fences Stage creation without writes
+  ---
+  duration_ms: 130.493094
+  ...
+# Subtest: stale old-control fences Stage creation without writes
+ok 16 - stale old-control fences Stage creation without writes
+  ---
+  duration_ms: 131.85775
+  ...
+# Subtest: foreign active Material Control rejects the whole synthetic Inventory transaction
+ok 17 - foreign active Material Control rejects the whole synthetic Inventory transaction
+  ---
+  duration_ms: 171.338863
+  ...
+# Subtest: process exit at after_stage_create preserves its exact recovery boundary
+ok 18 - process exit at after_stage_create preserves its exact recovery boundary
+  ---
+  duration_ms: 205.511538
+  ...
+# Subtest: process exit at after_stage_write preserves its exact recovery boundary
+ok 19 - process exit at after_stage_write preserves its exact recovery boundary
+  ---
+  duration_ms: 250.013574
+  ...
+# Subtest: process exit at inside_stage_transaction preserves its exact recovery boundary
+ok 20 - process exit at inside_stage_transaction preserves its exact recovery boundary
+  ---
+  duration_ms: 242.12998
+  ...
+# Subtest: process exit at after_stage_evidence preserves its exact recovery boundary
+ok 21 - process exit at after_stage_evidence preserves its exact recovery boundary
+  ---
+  duration_ms: 262.857209
+  ...
+# Subtest: process exit at before_link preserves its exact recovery boundary
+ok 22 - process exit at before_link preserves its exact recovery boundary
+  ---
+  duration_ms: 239.866765
+  ...
+# Subtest: process exit at after_link preserves its exact recovery boundary
+ok 23 - process exit at after_link preserves its exact recovery boundary
+  ---
+  duration_ms: 236.211023
+  ...
+# Subtest: process exit at inside_publication_transaction preserves its exact recovery boundary
+ok 24 - process exit at inside_publication_transaction preserves its exact recovery boundary
+  ---
+  duration_ms: 275.444814
+  ...
+# Subtest: process exit at after_publication_evidence preserves its exact recovery boundary
+ok 25 - process exit at after_publication_evidence preserves its exact recovery boundary
+  ---
+  duration_ms: 243.260426
+  ...
+# Subtest: an actually reused old inode is pinned while the copied Stage is reallocated
+ok 26 - an actually reused old inode is pinned while the copied Stage is reallocated
+  ---
+  duration_ms: 265.998305
+  ...
+# Subtest: actual inode collision interrupted at after_collision_unlink preserves authority
+ok 27 - actual inode collision interrupted at after_collision_unlink preserves authority
+  ---
+  duration_ms: 316.341304
+  ...
+# Subtest: actual inode collision interrupted at after_collision_recopy preserves authority
+ok 28 - actual inode collision interrupted at after_collision_recopy preserves authority
+  ---
+  duration_ms: 239.05135
+  ...
+# Subtest: SQLite interruption at inside_effect_observed does not expose a partial commit
+ok 29 - SQLite interruption at inside_effect_observed does not expose a partial commit
+  ---
+  duration_ms: 213.410994
+  ...
+# Subtest: SQLite interruption at after_effect_observed does not expose a partial commit
+ok 30 - SQLite interruption at after_effect_observed does not expose a partial commit
+  ---
+  duration_ms: 230.965797
+  ...
+# Subtest: SQLite interruption at inside_foundation_settle does not expose a partial commit
+ok 31 - SQLite interruption at inside_foundation_settle does not expose a partial commit
+  ---
+  duration_ms: 280.689478
+  ...
+# Subtest: SQLite interruption at after_foundation_settle does not expose a partial commit
+ok 32 - SQLite interruption at after_foundation_settle does not expose a partial commit
+  ---
+  duration_ms: 234.563426
+  ...
+# Subtest: SQLite interruption at inside_foundation_result does not expose a partial commit
+ok 33 - SQLite interruption at inside_foundation_result does not expose a partial commit
+  ---
+  duration_ms: 256.398133
+  ...
+# Subtest: SQLite interruption at after_foundation_result does not expose a partial commit
+ok 34 - SQLite interruption at after_foundation_result does not expose a partial commit
+  ---
+  duration_ms: 224.633223
+  ...
+# Subtest: SQLite interruption at inside_inventory_transaction does not expose a partial commit
+ok 35 - SQLite interruption at inside_inventory_transaction does not expose a partial commit
+  ---
+  duration_ms: 262.953286
+  ...
+# Subtest: SQLite interruption at after_inventory_transaction does not expose a partial commit
+ok 36 - SQLite interruption at after_inventory_transaction does not expose a partial commit
+  ---
+  duration_ms: 249.734111
+  ...
+# Subtest: cleanup interruption at before_cleanup_unlink cannot remove the target
+ok 37 - cleanup interruption at before_cleanup_unlink cannot remove the target
+  ---
+  duration_ms: 292.328475
+  ...
+# Subtest: cleanup interruption at after_cleanup_unlink cannot remove the target
+ok 38 - cleanup interruption at after_cleanup_unlink cannot remove the target
+  ---
+  duration_ms: 273.302964
+  ...
+# Subtest: a replaced stage and target after proof are never recovered by matching bytes alone
+ok 39 - a replaced stage and target after proof are never recovered by matching bytes alone
+  ---
+  duration_ms: 151.815124
+  ...
+# Subtest: actual inode reuse after both published aliases are replaced remains unclassified
+ok 40 - actual inode reuse after both published aliases are replaced remains unclassified
+  ---
+  duration_ms: 152.738858
+  ...
+# Subtest: a committed historical Result replay never asserts current target reality
+ok 41 - a committed historical Result replay never asserts current target reality
+  ---
+  duration_ms: 175.789675
+  ...
+1..41
+# tests 41
+# suites 0
+# pass 41
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 8394.846221

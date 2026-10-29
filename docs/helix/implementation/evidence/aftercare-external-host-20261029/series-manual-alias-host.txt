@@ -1,0 +1,161 @@
+TAP version 13
+# Subtest: Routing Owner freezes the accepted Series profile and Season on both source intents
+ok 1 - Routing Owner freezes the accepted Series profile and Season on both source intents # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.529697
+  ...
+# Subtest: Routing rejects a stale frozen Season number
+ok 2 - Routing rejects a stale frozen Season number # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.069721
+  ...
+# Subtest: Routing rejects a stale frozen Season digest
+ok 3 - Routing rejects a stale frozen Season digest # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.038603
+  ...
+# Subtest: Routing rejects a stale frozen Season profile
+ok 4 - Routing rejects a stale frozen Season profile # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.035677
+  ...
+# Subtest: Routing rejects a stale frozen Season structure
+ok 5 - Routing rejects a stale frozen Season structure # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.036108
+  ...
+# Subtest: Actual Routing Adapter queries TV and verifies Season before publishing requested facts
+ok 6 - Actual Routing Adapter queries TV and verifies Season before publishing requested facts # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.031599
+  ...
+# Subtest: Routing preserves technical failure for Movie object
+ok 7 - Routing preserves technical failure for Movie object # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.04235
+  ...
+# Subtest: Routing preserves technical failure for foreign TV
+ok 8 - Routing preserves technical failure for foreign TV # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.032521
+  ...
+# Subtest: Routing preserves technical failure for foreign Season
+ok 9 - Routing preserves technical failure for foreign Season # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.060584
+  ...
+# Subtest: Routing preserves technical failure for invalid JSON schema
+ok 10 - Routing preserves technical failure for invalid JSON schema # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.064952
+  ...
+# Subtest: Routing preserves technical failure for transport failure
+ok 11 - Routing preserves technical failure for transport failure # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.038632
+  ...
+# Subtest: Absent Season and title/year mismatch remain unresolved business observations
+ok 12 - Absent Season and title/year mismatch remain unresolved business observations # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.053841
+  ...
+# Subtest: Series Routing refuses a raw Provider result from another namespace or Season
+ok 13 - Series Routing refuses a raw Provider result from another namespace or Season # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.02636
+  ...
+# Subtest: Series NFO Routing observes only show-level facts and never Episode or actor identity
+ok 14 - Series NFO Routing observes only show-level facts and never Episode or actor identity # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.043471
+  ...
+# Subtest: Closed Routing schemas retain Movie shape and fence Series profile, Season and Provider namespace
+ok 15 - Closed Routing schemas retain Movie shape and fence Series profile, Season and Provider namespace # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.028464
+  ...
+# Subtest: Isolated Host schedules 2 Episodes through metadata and Direct On-deck Commit with a fresh package replacing its existing Season poster
+ok 16 - Isolated Host schedules 2 Episodes through metadata and Direct On-deck Commit with a fresh package replacing its existing Season poster # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.34038
+  ...
+# Subtest: Isolated Host schedules 2 Episodes through metadata and Direct On-deck Commit with separate same-title Seasons
+ok 17 - Isolated Host schedules 2 Episodes through metadata and Direct On-deck Commit with separate same-title Seasons # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.059242
+  ...
+# Subtest: Isolated Host schedules 2 Episodes through metadata and Direct On-deck Commit with complete placement migration
+ok 18 - Isolated Host schedules 2 Episodes through metadata and Direct On-deck Commit with complete placement migration # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.109086
+  ...
+# Subtest: Isolated Host schedules 2 Episodes through metadata and Direct On-deck Commit with same-directory placement rename
+ok 19 - Isolated Host schedules 2 Episodes through metadata and Direct On-deck Commit with same-directory placement rename # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.044504
+  ...
+# Subtest: Isolated Host schedules 2 Episodes through metadata and Direct On-deck Commit with scoped NFO repair
+ok 20 - Isolated Host schedules 2 Episodes through metadata and Direct On-deck Commit with scoped NFO repair # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.074069
+  ...
+# Subtest: Isolated Host schedules 2 Episodes through metadata and Direct On-deck Commit with scoped NFO and poster repair
+ok 21 - Isolated Host schedules 2 Episodes through metadata and Direct On-deck Commit with scoped NFO and poster repair # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.032682
+  ...
+# Subtest: Isolated Host schedules 2 Episodes through metadata and Direct On-deck Commit with mixed Direct and Remux
+ok 22 - Isolated Host schedules 2 Episodes through metadata and Direct On-deck Commit with mixed Direct and Remux # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.025879
+  ...
+# Subtest: Isolated Host schedules 1 Episodes through metadata and Direct On-deck Commit with bounded Episode parts
+ok 23 - Isolated Host schedules 1 Episodes through metadata and Direct On-deck Commit with bounded Episode parts # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.021872
+  ...
+# Subtest: Isolated Host schedules 2 Episodes through metadata and Direct On-deck Commit with a bounded shared Primary
+ok 24 - Isolated Host schedules 2 Episodes through metadata and Direct On-deck Commit with a bounded shared Primary # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.14875
+  ...
+# Subtest: Isolated Host schedules 2 Episodes through metadata and Direct On-deck Commit with an exact per-Episode cap
+ok 25 - Isolated Host schedules 2 Episodes through metadata and Direct On-deck Commit with an exact per-Episode cap # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.054823
+  ...
+# Subtest: Isolated Host schedules 2 Episodes through metadata and Direct On-deck Commit
+ok 26 - Isolated Host schedules 2 Episodes through metadata and Direct On-deck Commit
+  ---
+  duration_ms: 51448.884747
+  ...
+# {"unreadableProducerAliasRecovered":true,"manualAliasRetry":true,"failedHistoryPreserved":true,"aliasReadAttempts":0,"unobservableReads":0,"sharedRoles":3,"onDeckCommits":1}
+# Subtest: Isolated Host schedules 24 Episodes through metadata and Direct On-deck Commit
+ok 27 - Isolated Host schedules 24 Episodes through metadata and Direct On-deck Commit # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.127076
+  ...
+# Subtest: Isolated Host schedules 2 Episodes through metadata and Direct On-deck Commit and appends E03 from an unanchored Candidate
+ok 28 - Isolated Host schedules 2 Episodes through metadata and Direct On-deck Commit and appends E03 from an unanchored Candidate # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.04146
+  ...
+# Subtest: Isolated Host schedules 2 Episodes through metadata and Direct On-deck Commit and appends E03 from an explicit Series anchor
+ok 29 - Isolated Host schedules 2 Episodes through metadata and Direct On-deck Commit and appends E03 from an explicit Series anchor # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.019918
+  ...
+# Subtest: Isolated Host schedules 2 Episodes through metadata and Direct On-deck Commit with concurrent non-overlapping E03
+ok 30 - Isolated Host schedules 2 Episodes through metadata and Direct On-deck Commit with concurrent non-overlapping E03 # SKIP test name does not match pattern
+  ---
+  duration_ms: 0.017063
+  ...
+1..30
+# tests 30
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 29
+# todo 0
+# duration_ms 59683.477001
