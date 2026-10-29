@@ -168,11 +168,12 @@ function createLibraRunCoordinator(options){
   function terminalWork(snapshot, work, status, blockerKind='capability_exhausted') {
     const failed = status?.state === 'failed';
     if (failed && options.libraRunLifecycleService) {
-      return options.libraRunLifecycleService.freezeFailedWork(
+      return guardedRunWrite(options.runExecutionGuard,snapshot.run,readFence=>options.libraRunLifecycleService.freezeFailedWork(
         snapshot.run.libraRunId,
         work.workId,
         blockerKind,
-      );
+        {readFence},
+      ));
     }
     return Object.freeze({
       kind: 'work_cancelled',
@@ -195,7 +196,7 @@ function createLibraRunCoordinator(options){
   }
   function freezeBusinessTerminal(snapshot, work, resultRecord, failureCode) {
     if (options.libraRunLifecycleService?.freezeTerminalResult) {
-      return options.libraRunLifecycleService.freezeTerminalResult(
+      return guardedRunWrite(options.runExecutionGuard,snapshot.run,readFence=>options.libraRunLifecycleService.freezeTerminalResult(
         snapshot.run.libraRunId,
         work.workId,
         'product_unachievable',
@@ -205,7 +206,8 @@ function createLibraRunCoordinator(options){
           failureCode,
           resultDigest: resultRecord.resultDigest,
         }),
-      );
+        {readFence},
+      ));
     }
     return Object.freeze({ kind:'product_unachievable', libraRunId:snapshot.run.libraRunId,
       workId:work.workId, reasonCode:failureCode });
@@ -282,7 +284,7 @@ function createLibraRunCoordinator(options){
     if (sizeCapWaived(snapshot) || !options.libraRunLifecycleService?.freezeTerminalResult) return null;
     const verification = verifyRecord?.result;
     if (classifyVerifyGap(verification) !== 'volume_only') return null;
-    return options.libraRunLifecycleService.freezeTerminalResult(
+    return guardedRunWrite(options.runExecutionGuard,snapshot.run,readFence=>options.libraRunLifecycleService.freezeTerminalResult(
       snapshot.run.libraRunId, work.workId, 'product_unachievable',
       Object.freeze({
         eventId: verifyRecord.eventId,
@@ -290,7 +292,8 @@ function createLibraRunCoordinator(options){
         failureCode: 'size_cap_requires_admission',
         resultDigest: verifyRecord.resultDigest,
       }),
-    );
+      {readFence},
+    ));
   }
   function transcodeIntent(work) {
     return options.workResultReader.read(work.workId).find((item) =>
@@ -457,7 +460,8 @@ function createLibraRunCoordinator(options){
       if(assessmentResults.length!==1)throw new Error('Terminal Transcode Assessment lacks one Compatibility Result.');
       const compatibility=assessmentResults[0].result;
       if(compatibility.disposition==='integrity_rejected')return options.libraRunLifecycleService
-        ?options.libraRunLifecycleService.freezeFailedWork(snapshot.run.libraRunId,assessment.workId,'source_integrity_rejected')
+        ?guardedRunWrite(options.runExecutionGuard,snapshot.run,readFence=>options.libraRunLifecycleService.freezeFailedWork(
+          snapshot.run.libraRunId,assessment.workId,'source_integrity_rejected',{readFence}))
         :Object.freeze({kind:'integrity_rejected',libraRunId:snapshot.run.libraRunId,workId:assessment.workId,
           reasonCodes:compatibility.reasonCodes});
       if(compatibility.disposition==='strategy_rejected')continue;
@@ -689,7 +693,8 @@ function createLibraRunCoordinator(options){
       if(scoped.kind!=='ready')return Object.freeze({kind:'pending',phase:'run_scope_requirements',libraRunId,
         workId:scoped.workId||null,reasonCode:scoped.reasonCode||null});
     }
-    const lifecycle = options.libraRunLifecycleService?.reconcile(libraRunId);
+    const lifecycle = options.libraRunLifecycleService&&guardedRunWrite(options.runExecutionGuard,snapshot.run,
+      readFence=>options.libraRunLifecycleService.reconcile(libraRunId,{readFence}),{purpose:'lifecycle'});
     if (lifecycle && lifecycle.kind !== 'ready') {
       if (['freshness_confirmed', 'resume'].includes(lifecycle.kind)) {
         return reconcile(libraRunId);
@@ -788,9 +793,9 @@ function createLibraRunCoordinator(options){
     if(metadataStage.kind==='unresolved' && metadataStage.reasonCode==='product_metadata_required_cast_missing' &&
         !snapshot.run.secondaryTarget && options.libraRunLifecycleService?.enterSecondaryTarget) {
       const terminal=unresolvedMetadataTerminal(metadataStage);
-      return options.libraRunLifecycleService.enterSecondaryTarget(libraRunId,terminal.work.workId,{
+      return guardedRunWrite(options.runExecutionGuard,snapshot.run,readFence=>options.libraRunLifecycleService.enterSecondaryTarget(libraRunId,terminal.work.workId,{
         eventId:terminal.resultRecord.eventId,resultDigest:terminal.resultRecord.resultDigest,
-        failureCode:terminal.failureCode,failureClass:'business_unachievable'});
+        failureCode:terminal.failureCode,failureClass:'business_unachievable'},{readFence}));
     }
     if(metadataStage.kind==='unresolved'){
       const pending = ensureDefectProductEvidence(snapshot);

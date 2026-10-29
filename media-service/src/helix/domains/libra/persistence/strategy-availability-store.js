@@ -10,7 +10,7 @@ function createStrategyAvailabilityStore(options) {
     insert:{kind:'insert',tableId:'libra_strategy_availability',columns:['libra_run_id','strategy_kind','condition_digest','check_ordinal',
       'evidence_schema_ref','evidence_json','evidence_digest','checked_at_ms']},
   }});
-  return Object.freeze({observe(request,expectedRun){return options.unitOfWork.execute([{participantId:'libra_strategy_observation',owner:'libra',
+  return Object.freeze({observe(request,expectedRun,{readFence=null}={}){return options.unitOfWork.execute([{participantId:'libra_strategy_observation',owner:'libra',
     repositories:[repository],execute(context){const repo=context.repository(repository.repositoryId),run=repo.invoke('run',{libra_run_id:request.libraRunId});
     if(!run||run.state!=='active'||run.state_digest!==expectedRun.state_digest||Number(run.state_revision)!==Number(expectedRun.state_revision))
       throw Object.assign(new Error('Strategy observation belongs to a stale Run.'),{code:'LIBRA_STRATEGY_EVIDENCE_STALE'});
@@ -26,6 +26,6 @@ function createStrategyAvailabilityStore(options) {
     repo.invoke('insert',{libra_run_id:request.libraRunId,strategy_kind:request.strategyKind,condition_digest:request.conditionDigest,
       check_ordinal:value.checkOrdinal,evidence_schema_ref:value.schemaRef,evidence_json:canonicalJson(value),evidence_digest:value.evidenceDigest,checked_at_ms:value.checkedAtMs});
     return value;
-  }}]).libra_strategy_observation;}});
+  }}],{readFence}).libra_strategy_observation;}});
 }
 module.exports=Object.freeze({createStrategyAvailabilityStore});

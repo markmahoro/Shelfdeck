@@ -21,12 +21,13 @@ function createCurrentRunTargetReader(options){
         'spec_revision','spec_digest','record_digest','spec_json'],keyColumns:['acceptance_spec_id']},
       find_custom_target_head:customTargetHeadStatement,
     }});
-  return Object.freeze({read(libraRunId,{readFence=options.unitOfWork.captureReadFence()}={}){
+  return Object.freeze({read(libraRunId,{readFence=options.unitOfWork.captureReadFence(),allowSuspended=false}={}){
     if(typeof libraRunId!=='string'||!libraRunId)throw new TypeError('Exact Libra Run is required.');
     const result=options.unitOfWork.execute([{participantId:'libra_current_run_target_read',owner:'libra',repositories:[repository],execute(context){
       const repo=context.repository(repository.repositoryId),run=repo.invoke('run',{libra_run_id:libraRunId});
       if(!run)fail();
-      if(run.state!=='active')return Object.freeze({kind:'run_not_active',libraRunId,state:run.state});
+      if(run.state!=='active'&&!(allowSuspended===true&&run.state==='suspended'))
+        return Object.freeze({kind:'run_not_active',libraRunId,state:run.state});
       const row=repo.invoke('spec',{acceptance_spec_id:run.acceptance_spec_id});let basis,spec;
       try{basis=JSON.parse(run.execution_basis_record_json);spec=JSON.parse(row?.spec_json);}catch{fail();}
       if(!row||!basis||!spec||canonicalJson(spec)!==row.spec_json||!SHA.test(run.execution_basis_digest||'')||

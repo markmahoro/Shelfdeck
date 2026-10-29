@@ -23,6 +23,7 @@ const {WAIVABLE_MEDIA_CODES}=require('../model/defect-admission-contracts');
 const {createStrategyAvailabilityStore}=require('../persistence/strategy-availability-store');
 const {createTaskCancellationStore}=require('../persistence/task-cancellation-store');
 const {createSubjectAbandonStore}=require('../persistence/subject-abandon-store');
+const {guardedRunWrite}=require('./run-execution-write-guard');
 
 class LibraRunAdminError extends Error {
   constructor(code, message, details = {}) {
@@ -424,16 +425,20 @@ function createLibraRunAdminService(options) {
     waitUnavailableStrategy(libraRunId,strategyKind,reasonCode) {
       const snapshot=current(libraRunId);
       if(snapshot.run.state!=='active')return {kind:'not_active',libraRunId};
-      const conditions=options.readFailureRecoveryConditions?.([strategyKind])||[];
-      const evidence=strategyAvailability.observe({libraRunId,strategyKind,reasonCode,
-        conditionDigest:canonicalDigest(conditions),now:options.now?.()??Date.now()},snapshot.run);
+      const run={libraRunId,executionBasisDigest:snapshot.run.execution_basis_digest};
+      const evidence=guardedRunWrite(options.runExecutionGuard,run,readFence=>{
+        const conditions=options.readFailureRecoveryConditions?.([strategyKind])||[];
+        return strategyAvailability.observe({libraRunId,strategyKind,reasonCode,
+          conditionDigest:canonicalDigest(conditions),now:options.now?.()??Date.now()},snapshot.run,{readFence});
+      });
       if(!evidence||evidence.status==='waiting')return {kind:'waiting_external_integration',libraRunId,reasonCode};
       const decision=buildRunLifecycleDecision({libraRunId,expectedStateRevision:Number(snapshot.run.state_revision),
         expectedStateDigest:snapshot.run.state_digest,transitionKind:'freeze',
         transitionEvidence:evidence,expectedAdmissionHeadRevision:Number(snapshot.head.head_revision),
         expectedActiveScopeSetDigest:snapshot.head.active_scope_set_digest});
-      lifecycle.transition({decision,commitMarker:canonicalDigest({schema:'libra.strategy-availability-marker@1',decisionDigest:decision.decisionDigest}),
-        resultId:canonicalDigest({schema:'libra.strategy-availability-result@1',decisionDigest:decision.decisionDigest})});
+      guardedRunWrite(options.runExecutionGuard,run,readFence=>lifecycle.transition({decision,readFence,
+        commitMarker:canonicalDigest({schema:'libra.strategy-availability-marker@1',decisionDigest:decision.decisionDigest}),
+        resultId:canonicalDigest({schema:'libra.strategy-availability-result@1',decisionDigest:decision.decisionDigest})}));
       options.libraRunExecutionProjection.invalidate(libraRunId);options.wake?.();
       return {kind:evidence.status==='unavailable'?'frozen':'waiting_external_integration',libraRunId,reasonCode};
     },

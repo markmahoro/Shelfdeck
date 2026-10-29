@@ -1864,7 +1864,8 @@ function createRunLifecycleStore(options) {
     transition(request) {
       const decision = buildRunLifecycleDecision(request?.decision),
         marker = request?.commitMarker,
-        resultId = request?.resultId;
+        resultId = request?.resultId,
+        readFence = request?.readFence ?? null;
       if (
         typeof marker !== "string" ||
         !marker ||
@@ -2332,10 +2333,18 @@ function createRunLifecycleStore(options) {
           && decision.transitionEvidence.standingAuthorization;
         const guards = authorization
           ? [createDefectAuthorizationStore(options).guardParticipant(authorization)] : [];
-        options.unitOfWork.execute([preflight, ...guards, read, authority, apply, finish]);
+        if (readFence !== null) options.unitOfWork.execute([preflight]);
+        options.unitOfWork.execute([preflight, ...guards, read, authority, apply, finish], { readFence });
       } catch (error) {
         if (error instanceof Replay)
           return Object.freeze({ result: error.result, replayed: true });
+        if (readFence !== null && error?.code === 'P3_UOW_READ_FENCE_CHANGED') {
+          try { options.unitOfWork.execute([preflight]); }
+          catch (replay) {
+            if (replay instanceof Replay) return Object.freeze({ result: replay.result, replayed: true });
+            throw replay;
+          }
+        }
         throw error;
       }
       return Object.freeze({ result, replayed });

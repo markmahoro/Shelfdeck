@@ -115,11 +115,12 @@ function createCustomTargetReplacementReadiness(options){
   }  function identity(value){return canonicalJson({runId:value.run.libra_run_id,subjectId:value.run.subject_id,
     runState:value.run.state,runBasis:value.run.execution_basis_digest,target:value.target,
     previous:value.chain.map(row=>({id:row.libra_run_id,next:row.superseded_by_run_id,head:Number(row.package_revision_head)}))});}
-  return Object.freeze({check(libraRunId){
+  return Object.freeze({check(libraRunId,{allowSuspended=false}={}){
     if(typeof libraRunId!=='string'||!libraRunId)throw new TypeError('Exact replacement Run is required.');
     const before=readScope(libraRunId);
     if(before.kind==='not_custom')return before;
-    if(before.run.state!=='active')return Object.freeze({kind:'pending',reasonCode:'replacement_run_not_active',libraRunId});
+    if(before.run.state!=='active'&&!(allowSuspended===true&&before.run.state==='suspended'))
+      return Object.freeze({kind:'pending',reasonCode:'replacement_run_not_active',libraRunId});
     // Repeated cancellation is deliberate: a crash after admission must not
     // leave the prior Work running merely because the command was replayed.
     for(const previous of before.chain)options.cancelProcessWorks(Object.freeze({ownerDomain:'libra',processType:'libra_run',

@@ -69,6 +69,28 @@ test('unavailable integration exhausts bounded checks into attention without end
   assert.ok(db.prepare('SELECT state FROM fx_material_controls').all().every(row=>row.state==='controlled'));db.close();
 }));
 
+for(const changeAt of ['observation','freeze'])test('strategy availability '+changeAt+' uses a fresh Owner fence',()=>fixture(input=>{
+  let at=10000;const common={schemaManifest,unitOfWork:input.unitOfWork,now:()=>at,libraRunExecutionProjection:{invalidate(){}},
+    readFailureRecoveryConditions:kinds=>kinds.map(conditionKind=>({conditionKind,snapshotDigest:D('unavailable-provider')}))},
+    create=require('../../src/helix/domains/libra/application/libra-run-admin-service').createLibraRunAdminService;
+  if(changeAt==='freeze'){
+    const seed=create(common);
+    for(const offset of [0,60000,300000,900000,1800000]){at=10000+offset;seed.waitUnavailableStrategy(input.libraRunId,'tmdb','product_metadata_integration_unavailable');}
+    at=3610000;
+  }
+  let checks=0;
+  const service=create({...common,runExecutionGuard:{check(){const readFence=input.unitOfWork.captureReadFence();
+    if(++checks===(changeAt==='observation'?1:2)){const db=new Database(input.databasePath);
+      try{db.prepare('UPDATE libra_subjects SET updated_at_ms=coalesce(updated_at_ms,0)+1').run();}finally{db.close();}}
+    return {kind:'ready',readFence};}}});
+  assert.throws(()=>service.waitUnavailableStrategy(input.libraRunId,'tmdb','product_metadata_integration_unavailable'),
+    {code:'LIBRA_RUN_EXECUTION_DEFERRED',reasonCode:'owner_view_changed'});
+  const db=new Database(input.databasePath,{readonly:true});try{
+    assert.equal(db.prepare('SELECT state FROM libra_runs').get().state,'active');
+    assert.equal(db.prepare('SELECT count(*) n FROM libra_strategy_availability').get().n,changeAt==='observation'?0:6);
+  }finally{db.close();}
+}));
+
 test('UAT-251 exhausted Freshness recovery closes from its actual Assessment without a failed Work',()=>fixture(input=>{
   const db=new Database(input.databasePath);
   try {
@@ -99,6 +121,64 @@ test('UAT-251 exhausted Freshness recovery closes from its actual Assessment wit
 }));
 
 test('atomically confirms owner-row freshness and replays the durable lifecycle Result',()=>fixture((input)=>{const store=createRunLifecycleStore({schemaManifest,unitOfWork:input.unitOfWork}),decision=lifecycleDecision(input,freshness(input),'freshness_confirmed'),first=store.transition({decision,commitMarker:'life-marker',resultId:'life-result'}),replay=store.transition({decision,commitMarker:'life-marker',resultId:'life-result'});assert.equal(first.replayed,false);assert.equal(replay.replayed,true);assert.deepEqual(replay.result,first.result);const db=new Database(input.databasePath,{readonly:true}),run=db.prepare('SELECT state,state_revision,latest_freshness_assessment_id FROM libra_runs').get();assert.equal(run.state,'active');assert.equal(run.state_revision,2);assert.equal(run.latest_freshness_assessment_id,decision.transitionEvidence.assessmentId);assert.equal(db.prepare('SELECT COUNT(*) n FROM libra_run_revisions').get().n,2);assert.equal(db.prepare('SELECT COUNT(*) n FROM fx_outbox').get().n,0);db.close();}));
+
+test('stale Owner fence cannot commit a new Run lifecycle transition',()=>fixture(input=>{
+  const store=createRunLifecycleStore({schemaManifest,unitOfWork:input.unitOfWork}),decision=lifecycleDecision(input,freshness(input),'freshness_confirmed'),
+    fence=input.unitOfWork.captureReadFence(),db=new Database(input.databasePath);
+  try{
+    db.prepare('UPDATE libra_subjects SET updated_at_ms=coalesce(updated_at_ms,0)+1').run();
+    assert.throws(()=>store.transition({decision,commitMarker:'fenced-life',resultId:'fenced-life-result',readFence:fence}),{code:'P3_UOW_READ_FENCE_CHANGED'});
+    assert.equal(db.prepare('SELECT state_revision FROM libra_runs').get().state_revision,1);
+    assert.equal(db.prepare("SELECT count(*) n FROM fx_commit_markers WHERE commit_marker='fenced-life'").get().n,0);
+  }finally{db.close();}
+}));
+
+test('an exact Run lifecycle transition replays after its Owner fence changes',()=>fixture(input=>{
+  const store=createRunLifecycleStore({schemaManifest,unitOfWork:input.unitOfWork}),decision=lifecycleDecision(input,freshness(input),'freshness_confirmed'),
+    request={decision,commitMarker:'fenced-life',resultId:'fenced-life-result',readFence:input.unitOfWork.captureReadFence()},
+    first=store.transition(request),replay=store.transition(request);
+  assert.equal(first.replayed,false);assert.equal(replay.replayed,true);assert.deepEqual(replay.result,first.result);
+}));
+
+test('a concurrent exact lifecycle commit is replayed after the fence race',()=>fixture(input=>{
+  const original=createRunLifecycleStore({schemaManifest,unitOfWork:input.unitOfWork}),decision=lifecycleDecision(input,freshness(input),'freshness_confirmed'),
+    request={decision,commitMarker:'fenced-life',resultId:'fenced-life-result',readFence:input.unitOfWork.captureReadFence()};
+  let injected=false;
+  const unitOfWork={...input.unitOfWork,execute(participants,settings){
+    if(!injected&&participants.some(item=>item.participantId==='run_lifecycle_foundation')){
+      injected=true;original.transition({...request,readFence:null});
+    }
+    return input.unitOfWork.execute(participants,settings);
+  }};
+  const replay=createRunLifecycleStore({schemaManifest,unitOfWork}).transition(request);
+  assert.equal(replay.replayed,true);assert.equal(replay.result.committedStateRevision,2);
+}));
+
+test('actual Run Coordinator fences its lifecycle transition after an Owner change',()=>fixture(input=>{
+  let injected=false;
+  const unitOfWork={...input.unitOfWork,execute(participants,settings){
+    if(!injected&&participants.some(item=>item.participantId==='run_lifecycle_foundation')){
+      injected=true;const db=new Database(input.databasePath);
+      try{db.prepare('UPDATE libra_subjects SET updated_at_ms=coalesce(updated_at_ms,0)+1').run();}finally{db.close();}
+    }
+    return input.unitOfWork.execute(participants,settings);
+  }},options={schemaManifest,unitOfWork,now:()=>2000},
+    lifecycle=require('../../src/helix/domains/libra/application/libra-run-lifecycle-service').createLibraRunLifecycleService(options),
+    coordinator=require('../../src/helix/domains/libra/application/libra-run-coordinator').createLibraRunCoordinator({...options,
+      runExecutionGuard:{check:()=>({kind:'ready',readFence:input.unitOfWork.captureReadFence()})},
+      libraRunLifecycleService:lifecycle,workResultReader:{},workspaceProductPort:{},movieProductionReader:{
+        readRunSnapshot:()=>({run:{libraRunId:input.libraRunId,state:'active',packageRevisionHead:0,
+          executionBasisDigest:input.admitted.executionBasisDigest},spec:{contentProfile:'movie'}}),
+        readFact(){throw new Error('fixture-after-unguarded-lifecycle');}}});
+  let result;try{result=coordinator.reconcile(input.libraRunId);}catch(error){
+    if(error.message!=='fixture-after-unguarded-lifecycle')throw error;
+  }
+  const db=new Database(input.databasePath,{readonly:true});
+  try{
+    assert.equal(result?.kind,'pending');assert.equal(result.reasonCode,'owner_view_changed');assert.equal(injected,true);
+    assert.equal(db.prepare('SELECT state_revision FROM libra_runs').get().state_revision,1);
+  }finally{db.close();}
+}));
 test('freshness validates Control only for primary_control bindings and preserves related_derived obligations',()=>fixture((input)=>{const db=new Database(input.databasePath),primary=db.prepare("SELECT material_key FROM libra_material_bindings WHERE authority_kind='primary_control'").get().material_key,identity={mountScopeId:'mount-1',inode:'12',sizeBytes:50,fingerprintAlgorithm:'middle-256k-sha256',fingerprintVersion:1,contentFingerprint:D('related-content')},materialKey=canonicalDigest({schema:'physical-material-identity@2',...identity});db.prepare('INSERT INTO libra_material_bindings (subject_id,material_key,role,authority_kind,primary_material_key,association_evidence_digest,disposition_basis_digest,mount_scope_id,inode,fingerprint_algorithm,fingerprint_version,content_fingerprint,size_bytes,endpoint_id,location,binding_revision,health_state,evidence_digest,origin_intake_decision_id,origin_offer_id,origin_candidate_package_id,origin_package_revision,origin_package_digest,origin_candidate_delivery_snapshot_digest,origin_related_reference_set_digest,origin_related_disposition_scope_digest,current) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run('subject-1',materialKey,'poster','related_derived',primary,D('association'),D('disposition'),identity.mountScopeId,identity.inode,identity.fingerprintAlgorithm,identity.fingerprintVersion,identity.contentFingerprint,identity.sizeBytes,'endpoint-1','/library/poster.jpg',1,'active',D('related-binding'),'intake-1','offer-1','candidate-1',1,D('package'),D('delivery'),D('related'),D('related-scope'),1);db.close();const assessed=createRunLifecycleStore({schemaManifest,unitOfWork:input.unitOfWork}).assess({libraRunId:input.libraRunId,assessedAtMs:2000});assert.equal(assessed.kind,'assessment');assert.equal(assessed.assessment.readiness,'ready');assert.equal(assessed.assessment.comparison,'same');assert.equal(assessed.assessment.currentBasis.members.length,1);}));
 test('same semantic Acceptance Spec with new provenance keeps the original Run',()=>fixture((input)=>{const db=new Database(input.databasePath),old=db.prepare("SELECT * FROM libra_acceptance_specs WHERE acceptance_spec_id='spec-1'").get(),spec=JSON.parse(old.spec_json),recordDigest=D('record-2');Object.assign(spec,{acceptanceSpecId:'spec-2',specRevision:2,recordDigest,decisionBasisId:'basis-2'});db.prepare('INSERT INTO libra_decision_basis_revisions (decision_basis_id,subject_id,basis_kind,basis_revision,expected_head_revision,expected_head_snapshot_digest,routing_decision_id,query_result_set_digest,routing_input_digest,spec_input_digest,product_scope_digest,input_set_digest,status,basis_digest,committed_at_ms) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run('basis-2','subject-1','acceptance_spec',2,4,D('head-4'),null,D('queries-2'),null,D('spec-input-2'),old.product_scope_digest,D('inputs-2'),'ready',D('basis-2'),2);db.prepare('INSERT INTO libra_acceptance_specs (acceptance_spec_id,subject_id,shelf_id,shelf_routing_projection_revision,shelf_projection_digest,shelf_standard_revision,shelf_standard_digest,decision_basis_id,product_scope_digest,spec_revision,spec_schema_ref,spec_json,spec_digest,record_digest,structure_kind,content_profile,published_at_ms) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run('spec-2','subject-1',old.shelf_id,old.shelf_routing_projection_revision,old.shelf_projection_digest,old.shelf_standard_revision,old.shelf_standard_digest,'basis-2',old.product_scope_digest,2,old.spec_schema_ref,canonicalJson(spec),old.spec_digest,recordDigest,old.structure_kind,old.content_profile,2);const head={subjectId:'subject-1',headRevision:5,currentRoutingDecisionId:null,currentDecisionBasisId:'basis-2',currentAcceptanceSpecId:'spec-2'},headDigest=canonicalDigest({schema:'libra.subject-decision-head@1',...head});db.prepare('UPDATE libra_subject_decision_heads SET head_revision=?,head_digest=?,current_decision_basis_id=?,current_acceptance_spec_id=?,updated_at_ms=? WHERE subject_id=?').run(5,headDigest,'basis-2','spec-2',2,'subject-1');db.close();const assessed=createRunLifecycleStore({schemaManifest,unitOfWork:input.unitOfWork}).assess({libraRunId:input.libraRunId,assessedAtMs:2000});assert.equal(assessed.kind,'assessment');assert.equal(assessed.assessment.currentBasis.acceptanceSpecRef.acceptanceSpecId,'spec-2');assert.notEqual(assessed.assessment.originalBasis.acceptanceSpecRef.recordDigest,assessed.assessment.currentBasis.acceptanceSpecRef.recordDigest);assert.equal(assessed.assessment.originalBasis.acceptanceSpecRef.specDigest,assessed.assessment.currentBasis.acceptanceSpecRef.specDigest);assert.equal(assessed.assessment.comparison,'same');assert.equal(assessed.assessment.dimensionResults.find((item)=>item.dimension==='acceptance_spec').result,'same');assert.equal(assessed.assessment.dimensionResults.find((item)=>item.dimension==='output_requirement').result,'same');}));
 test('owner-row mismatch rolls back Run, head, revision, Result, and marker together',()=>fixture((input)=>{const store=createRunLifecycleStore({schemaManifest,unitOfWork:input.unitOfWork}),evidence=freshness(input);evidence.currentBasis={...evidence.currentBasis,contentProfile:'jav'};evidence.assessmentDigest=canonicalDigest(Object.fromEntries(Object.entries(evidence).filter(([key])=>key!=='assessmentDigest')));const decision=lifecycleDecision(input,evidence,'freshness_confirmed');assert.throws(()=>store.transition({decision,commitMarker:'bad-marker',resultId:'bad-result'}),/Owner rows|Comparable Basis/);const db=new Database(input.databasePath,{readonly:true});assert.equal(db.prepare('SELECT state_revision FROM libra_runs').get().state_revision,1);assert.equal(db.prepare('SELECT head_revision FROM libra_run_admission_heads').get().head_revision,1);assert.equal(db.prepare('SELECT COUNT(*) n FROM fx_commit_markers').get().n,1);assert.equal(db.prepare("SELECT COUNT(*) n FROM fx_commit_markers WHERE commit_marker='bad-marker'").get().n,0);db.close();}));

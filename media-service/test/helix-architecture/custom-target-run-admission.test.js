@@ -491,6 +491,14 @@ test('custom dispatch refuses a caller snapshot from a different Run Basis',()=>
     {kind:'pending',reasonCode:'run_basis_changed'});
 }));
 
+test('a suspended custom Run may check its lifecycle without allowing Work dispatch',()=>runHarness(h=>{
+  const replacement=h.advance(h.unitOfWork.captureReadFence()),guard=customDispatchGuard(h);
+  h.db.prepare("UPDATE libra_runs SET state='suspended' WHERE libra_run_id=?").run(replacement.libraRunId);
+  assert.deepEqual(guard.check(dispatchScope(replacement.libraRunId)),{kind:'pending',reasonCode:'run_not_active'});
+  const lifecycle=guard.check({...dispatchScope(replacement.libraRunId),purpose:'lifecycle'});
+  assert.equal(lifecycle.kind,'ready');assert.ok(lifecycle.readFence);
+}));
+
 function guardedCoordinator(h,libraRunId,{changeBeforeAdmission=false}={}){
   const row=h.db.prepare('SELECT * FROM libra_runs WHERE libra_run_id=?').get(libraRunId),snapshot={
     run:{libraRunId,subjectId:row.subject_id,acceptanceSpecId:row.acceptance_spec_id,

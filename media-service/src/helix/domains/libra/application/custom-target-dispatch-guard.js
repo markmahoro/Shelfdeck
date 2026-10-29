@@ -15,18 +15,20 @@ function createLibraCustomTargetDispatchGuard(options){
     if(!scope||typeof scope!=='object')throw new TypeError('Exact dispatch scope is required.');
     if(scope.ownerDomain!=='libra'||scope.processType!=='libra_run')return Object.freeze({kind:'not_applicable'});
     if(typeof scope.processId!=='string'||!scope.processId)throw new TypeError('Exact Libra Run is required.');
+    if(scope.purpose!==undefined&&scope.purpose!=='lifecycle')throw new TypeError('Libra Run guard purpose is invalid.');
+    const allowSuspended=scope.purpose==='lifecycle';
     try{
-      const initial=options.targetReader.read(scope.processId);
+      const initial=options.targetReader.read(scope.processId,{allowSuspended});
       if(initial.kind==='run_not_active')return pending('run_not_active');
       if(initial.kind==='target_not_current')return pending('target_not_current');
       if(initial.kind!=='target_current'||!initial.readFence)throw new Error('Run target projection is invalid.');
       if(scope.executionBasisDigest!==undefined&&scope.executionBasisDigest!==initial.executionBasisDigest)return pending('run_basis_changed');
       if(initial.targetKind==='standard')return Object.freeze({kind:'ready',readFence:initial.readFence});
       if(initial.targetKind!=='user_custom')throw new Error('Run target kind is invalid.');
-      const drained=options.replacementReadiness.check(scope.processId);
+      const drained=options.replacementReadiness.check(scope.processId,{allowSuspended});
       if(drained.kind==='pending')return pending(drained.reasonCode);
       if(drained.kind!=='ready'||!drained.readFence)throw new Error('Custom replacement drain proof is invalid.');
-      const target=options.targetReader.read(scope.processId,{readFence:drained.readFence});
+      const target=options.targetReader.read(scope.processId,{readFence:drained.readFence,allowSuspended});
       if(target.kind!=='target_current'||target.targetKind!=='user_custom')return pending('target_not_current');
       if(target.executionBasisDigest!==initial.executionBasisDigest)return pending('run_basis_changed');
       const intent=options.customTargetStore.current({subjectId:target.subjectId,productScopeDigest:target.productScopeDigest});
@@ -36,10 +38,10 @@ function createLibraCustomTargetDispatchGuard(options){
         libraRunId:intent.basis.libraRunId,productScopeDigest:target.productScopeDigest}),{readFence:drained.readFence});
       assertCurrentTargetBaseline(intent,baseline);
       const inputControl=options.inputControlReader.check(Object.freeze({subjectId:target.subjectId,libraRunId:scope.processId}),
-        {readFence:drained.readFence});
+        {readFence:drained.readFence,allowSuspended});
       if(inputControl.kind==='pending')return pending(inputControl.reasonCode);
       if(inputControl.kind!=='ready'||inputControl.readFence!==drained.readFence)throw new Error('Run input Control projection is invalid.');
-      options.targetReader.read(scope.processId,{readFence:drained.readFence});
+      options.targetReader.read(scope.processId,{readFence:drained.readFence,allowSuspended});
       return Object.freeze({kind:'ready',readFence:drained.readFence});
     }catch(error){
       if(error?.code==='P3_UOW_READ_FENCE_CHANGED')return pending('owner_view_changed');

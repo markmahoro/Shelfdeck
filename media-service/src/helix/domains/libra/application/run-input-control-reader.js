@@ -29,12 +29,12 @@ function createLibraRunInputControlReader(options){
     }});
   const read=(execute,readFence)=>options.unitOfWork.execute([{participantId:'libra_run_input_control_read',owner:'libra',
     repositories:[repository],execute}],{readFence}).libra_run_input_control_read;
-  return Object.freeze({check(scope,{readFence=options.unitOfWork.captureReadFence()}={}){
+  return Object.freeze({check(scope,{readFence=options.unitOfWork.captureReadFence(),allowSuspended=false}={}){
     if(!scope||typeof scope.subjectId!=='string'||!scope.subjectId||typeof scope.libraRunId!=='string'||!scope.libraRunId)fail();
     const inputs=read(context=>{
       const repo=context.repository(repository.repositoryId),run=repo.invoke('find_run',{libra_run_id:scope.libraRunId});
       if(!run||run.subject_id!==scope.subjectId)fail();
-      if(run.state!=='active')return pending('run_not_active');
+      if(run.state!=='active'&&!(allowSuspended===true&&run.state==='suspended'))return pending('run_not_active');
       let basis;try{basis=JSON.parse(run.execution_basis_record_json);}catch{fail();}
       const header=repo.invoke('find_manifest',{run_material_manifest_id:run.run_material_manifest_id}),
         reconstructed=reconstructManifest(repo,run),ref=basis?.productionMaterialManifestRef;
