@@ -192,3 +192,13 @@ closed技术Observation保留完整frame/face/vector摘要、group成员、全�
 下一正式合同增量已经确定：Foundation单Result JSON上限64KiB，不能把8MiB Observation塞入fx_event_result_bindings或放大其上限。目录Observe应为一项workspace_write Capability，单Event生成独立face_catalogue_observation Artifact，Result只回有界typed Handle；新增唯一Artifact/output kind、该Handle和精确completed-batch输入合同，不复用旧western_analysis payload或伪造PersonMatchEvidence。后续先补对应SSOT/生成合同，再接正式调度和恢复，本切片仅技术模块及其Owner投影，还未激活新Capability或Host路径。
 
 NAS按主整合通知保持暂停：SSH/健康超时尚未确认原因，本线程不介入生产；未启动共载测试或新容器。Phase 4/5仍开放。
+## 2026-10-29 Actor-local Observation Result codec checkpoint
+
+按用户的新分工，本线程只实施演员链；唯一 SSOT/计划/全局生成物和最终部署由新的整合线程管理。以下是局部可移植实现，不是已激活的新 Capability 或 Phase 4 Exit。
+
+- 增加完整 Observation 的受控输出 Target 编译、小型 typed Handle 构建及 Libra 完整字节读取/资格评估 codec；Result 不内联目录原始查询。唯一相对路径、完整 Basis/CompletedBatchSet、同 Run/Workspace、模型/目录代际、原始字节与摘要、producer provenance/target、计数都连续核对。
+- Artifact 字节只能由正式 Workspace Port 读取后交 codec；纯 codec 不接任意磁盘路径、不发布新文件、不创建 People 或 Cast。本次夹具产生的三个 Frame/Embedding/Cluster 是正式 Port 文件，第四个 Observation Handle 为 proposed fixture；当前 kind 尚未在原分支激活，不能将此称为完整 Event 旅程。
+- 固定 index-gate-13 源码，在实际本机 Linux Docker 复验 23 PASS/0skip/0FAIL，21.026秒；同前固定依赖镜像 sha256:afb5fad462130beb66162fff081e96d089adf49ee7e2bb600e9fdac72aea0357，network none、1CPU/768MiB、readonly source/root、tmpfs64MiB。原始 log catalogue-result-local-linux-2.log SHA256 b2c806dd92f2df770f98b212d2bf8cedb9abe9c73a0658b87ee4410cb93cf592。前一轮23项PASS日志独立保留，追加目标路径/provenance负例后重跑，没有用重跑抹去首跑。
+- 覆盖完整来源重建、摘要/输入/代际/计数替换、非canonical JSON、改写目标路径或producer、初轮Observer及既有Frame Work回归。CPU/目录仍用确定性fixture，不代表真实模型/索引共载或精确新依赖镜像资格。
+- NAS测试仍暂停，等待主整合给出的资源窗口；未操作生产、重新观察、部署或Reset。完整Host接线、补采准入/取消恢复、People自动建档与真正单演员Commit仍开放。
+
