@@ -525,6 +525,113 @@ for(const changed of [false,true])test('actual Run Coordinator '+(changed?'defer
   assert.equal(h.db.prepare('SELECT count(*) n FROM fx_supporting_works WHERE process_id=?').get(replacement.libraRunId).n,changed?0:1);
 }));
 
+function continuationHarness(callback){return harness(h=>{
+  const lifecycle=createWorkLifecycle({...h.options,nextWorkAttemptId:()=> 'unused'}),contextReader=createLibraRunContextReader(h.options),
+    scope={subjectId:h.chosen.intent.subjectId,productScopeDigest:h.chosen.intent.basis.productScopeDigest};
+  function continuation({publisher=h.publisher,cancelProcessWorks=scope=>lifecycle.cancelProcess(scope),targets=h.targets}={}){
+    const creator=createLibraRunCreator({...h.options,contextReader,customTargetStore:targets,cancelProcessWorks});
+    return require('../../src/helix/domains/libra/application/custom-target-continuation').createCustomTargetContinuation({
+      ...h.options,customTargetStore:targets,customSpecPublicationStore:publisher,libraRunCreator:creator,now:()=>1200});
+  }
+  return callback({...h,scope,continuation,lifecycle});
+},{prepareRun});}
+
+test('persisted custom Intent continues through actual Spec publication and replacement exactly once',()=>continuationHarness(h=>{
+  const first=h.continuation().reconcile(h.scope),again=h.continuation().reconcile(h.scope);
+  assert.equal(first.kind,'admitted');assert.equal(again.kind,'admitted');assert.equal(again.libraRunId,first.libraRunId);
+  assert.equal(again.replayed,true);assert.equal(h.db.prepare('SELECT count(*) n FROM libra_runs').get().n,2);
+  assert.equal(h.db.prepare('SELECT count(*) n FROM libra_acceptance_specs').get().n,2);
+  assert.equal(h.db.prepare('SELECT state FROM libra_runs WHERE libra_run_id=?').get(h.chosen.intent.basis.libraRunId).state,'superseded');
+}));
+
+test('continuation resumes a published Spec after interruption without assigning a second revision',()=>continuationHarness(h=>{
+  let interrupted=false;
+  const publisher={...h.publisher,publish(request){const result=h.publisher.publish(request);
+    if(!interrupted){interrupted=true;throw new Error('fixture-after-spec');}return result;}};
+  assert.throws(()=>h.continuation({publisher}).reconcile(h.scope),/fixture-after-spec/);
+  assert.equal(h.db.prepare('SELECT count(*) n FROM libra_acceptance_specs').get().n,2);
+  assert.equal(h.db.prepare('SELECT count(*) n FROM libra_runs').get().n,1);
+  assert.equal(h.continuation().reconcile(h.scope).kind,'admitted');
+  assert.equal(h.db.prepare('SELECT count(*) n FROM libra_acceptance_specs').get().n,2);
+  assert.equal(h.db.prepare('SELECT count(*) n FROM libra_runs').get().n,2);
+}));
+
+test('continuation resumes the same admitted Run if cancellation was interrupted',()=>continuationHarness(h=>{
+  let calls=0;const cancelProcessWorks=scope=>{if(++calls===1)throw new Error('fixture-after-run');return h.lifecycle.cancelProcess(scope);};
+  assert.throws(()=>h.continuation({cancelProcessWorks}).reconcile(h.scope),/fixture-after-run/);
+  const run=h.db.prepare('SELECT superseded_by_run_id FROM libra_runs WHERE libra_run_id=?').get(h.chosen.intent.basis.libraRunId).superseded_by_run_id;
+  assert.ok(run);const resumed=h.continuation({cancelProcessWorks}).reconcile(h.scope);
+  assert.equal(resumed.libraRunId,run);assert.equal(resumed.replayed,true);assert.equal(calls,2);
+  assert.equal(h.db.prepare('SELECT count(*) n FROM libra_runs').get().n,2);
+}));
+
+test('continuation keeps a changed standard pending without publishing or replacing',()=>continuationHarness(h=>{
+  h.setBaseline({standardSpecDigest:D('changed-standard')});const result=h.continuation().reconcile(h.scope);
+  assert.equal(result.kind,'pending');assert.equal(result.reasonCode,'custom_target_baseline_changed');
+  assert.equal(h.db.prepare('SELECT count(*) n FROM libra_acceptance_specs').get().n,1);
+  assert.equal(h.db.prepare('SELECT count(*) n FROM libra_runs').get().n,1);
+}));
+
+test('continuation keeps a changed baseline pending after publication until the exact target is valid again',()=>continuationHarness(h=>{
+  let changed=false;const publisher={...h.publisher,publish(request){const result=h.publisher.publish(request);
+    if(!changed){changed=true;h.setBaseline({standardSpecDigest:D('changed-after-publication')});}return result;}};
+  const first=h.continuation({publisher}).reconcile(h.scope);
+  assert.equal(first.kind,'pending');assert.equal(first.reasonCode,'custom_target_baseline_changed');
+  assert.equal(h.db.prepare('SELECT count(*) n FROM libra_acceptance_specs').get().n,2);
+  assert.equal(h.db.prepare('SELECT count(*) n FROM libra_runs').get().n,1);
+  h.setBaseline({standardSpecDigest:h.chosen.intent.basis.baseSpecDigest});
+  assert.equal(h.continuation().reconcile(h.scope).kind,'admitted');
+  assert.equal(h.db.prepare('SELECT count(*) n FROM libra_acceptance_specs').get().n,2);
+}));
+
+test('continuation rejects a view changed while reading its durable Target Head',()=>continuationHarness(h=>{
+  let changed=false;const targets={...h.targets,current(scope){const value=h.targets.current(scope);
+    if(!changed){changed=true;h.db.prepare('UPDATE libra_subjects SET intake_revision=intake_revision+1').run();}return value;}};
+  const result=h.continuation({targets}).reconcile(h.scope);
+  assert.equal(result.kind,'pending');assert.equal(result.reasonCode,'owner_view_changed');
+  assert.equal(h.db.prepare('SELECT count(*) n FROM libra_acceptance_specs').get().n,1);
+  assert.equal(h.db.prepare('SELECT count(*) n FROM libra_runs').get().n,1);
+}));
+
+test('continuation rechecks the Target Head after Spec publication before Run admission',()=>continuationHarness(h=>{
+  let reads=0;const targets={...h.targets,current(scope){const value=h.targets.current(scope);
+    if(++reads===2)h.db.prepare('UPDATE libra_subjects SET intake_revision=intake_revision+1').run();return value;}};
+  const result=h.continuation({targets}).reconcile(h.scope);
+  assert.equal(result.kind,'pending');assert.equal(result.reasonCode,'owner_view_changed');
+  assert.equal(h.db.prepare('SELECT count(*) n FROM libra_acceptance_specs').get().n,2);
+  assert.equal(h.db.prepare('SELECT count(*) n FROM libra_runs').get().n,1);
+}));
+
+test('continuation does not create a target when the durable Head is absent',()=>continuationHarness(h=>{
+  h.db.prepare('DELETE FROM libra_custom_target_heads').run();
+  assert.equal(h.continuation().reconcile(h.scope).kind,'no_custom_target');
+  assert.equal(h.db.prepare('SELECT count(*) n FROM libra_acceptance_specs').get().n,1);
+  assert.equal(h.db.prepare('SELECT count(*) n FROM libra_runs').get().n,1);
+}));
+
+test('continuation reconstructs the same published Spec after closing and reopening SQLite',()=>continuationHarness(h=>{
+  const publication=h.publish(),specId=publication.receipt.resultRef.acceptanceSpecId;
+  h.options.kernel.close();
+  const fs=require('node:fs'),path=require('node:path'),generated=path.resolve(__dirname,'../../src/helix/foundation/persistence/generated'),
+    kernel=require('../../src/helix/foundation/persistence/sqlite-kernel').openSqliteKernel({Database:require('better-sqlite3'),
+      databasePath:h.options.databasePath,schemaDdl:fs.readFileSync(path.join(generated,'clean-schema.sql'),'utf8'),
+      schemaManifest:h.options.schemaManifest,now:()=>1700000000000});
+  try{
+    const unitOfWork=require('../../src/helix/foundation/persistence/sqlite-unit-of-work').createSqliteUnitOfWork({kernel}),
+      options={...h.options,kernel,unitOfWork},targets=require('../../src/helix/domains/libra/persistence/custom-target-store').createCustomTargetStore(options),
+      publisher=require('../../src/helix/domains/libra/persistence/custom-spec-publication-store').createCustomSpecPublicationStore({...options,customTargetStore:targets}),
+      lifecycle=createWorkLifecycle({...options,nextWorkAttemptId:()=> 'unused'}),
+      creator=createLibraRunCreator({...options,contextReader:createLibraRunContextReader(options),customTargetStore:targets,
+        cancelProcessWorks:scope=>lifecycle.cancelProcess(scope)}),
+      continuation=require('../../src/helix/domains/libra/application/custom-target-continuation').createCustomTargetContinuation({...options,
+        customTargetStore:targets,customSpecPublicationStore:publisher,libraRunCreator:creator,now:()=>1200}),
+      result=continuation.reconcile(h.scope);
+    assert.equal(result.kind,'admitted');
+    assert.equal(h.db.prepare('SELECT acceptance_spec_id FROM libra_runs WHERE libra_run_id=?').get(result.libraRunId).acceptance_spec_id,specId);
+    assert.equal(h.db.prepare('SELECT count(*) n FROM libra_acceptance_specs').get().n,2);
+  }finally{kernel.close();}
+}));
+
 test('custom dispatch refuses unavailable or concurrently changed Owner baselines',()=>runHarness(h=>{
   const replacement=h.advance(h.unitOfWork.captureReadFence()),scope=dispatchScope(replacement.libraRunId),
     pending=customDispatchGuard(h,()=>({kind:'unavailable',reasonCode:'handoff_responsibility_pending'}));
