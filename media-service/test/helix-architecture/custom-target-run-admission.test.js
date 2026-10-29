@@ -214,3 +214,145 @@ test('replacement replay validates the complete stored Run basis and custom Spec
   h.db.prepare('UPDATE libra_acceptance_specs SET spec_json=? WHERE acceptance_spec_id=?').run(canonicalJson(spec),h.spec.acceptanceSpecId);
   assert.throws(()=>h.creator.replaceConfirmedCustomTarget(h.chosen.intent,null),{code:'P9_RUN_REPLAY_CORRUPT'});
 }));
+
+function replacementReadiness(h, cancelProcessWorks, readArcaFormationStatus) {
+  const {createCustomTargetReplacementReadiness}=require('../../src/helix/domains/libra/application/custom-target-replacement-readiness');
+  const {createWorkResultReader}=require('../../src/helix/foundation/execution/work-result-reader');
+  const lifecycle=createWorkLifecycle({...h.options,nextWorkAttemptId:()=> 'unused'});
+  return createCustomTargetReplacementReadiness({...h.options,customTargetStore:h.targets,
+    workResultReader:createWorkResultReader(h.options),readArcaFormationStatus,
+    cancelProcessWorks:cancelProcessWorks||((scope)=>lifecycle.cancelProcess(scope))});
+}
+function seedDrainingRun(h,runId) {
+  const db=h.db;
+  db.prepare('INSERT INTO fx_supporting_works(work_id,owner_domain,process_type,process_id,work_kind,state) VALUES(?,?,?,?,?,?)')
+    .run('draining-work','libra','libra_run',runId,'workspace_media_production','running');
+  db.prepare('INSERT INTO fx_work_attempts(attempt_id,work_id,ordinal,state) VALUES(?,?,?,?)').run('draining-attempt','draining-work',1,'running');
+  db.prepare('INSERT INTO fx_workflow_events(event_id,work_id,attempt_id,owner_domain,state) VALUES(?,?,?,?,?)')
+    .run('draining-event','draining-work','draining-attempt','libra','executing');
+  db.prepare('INSERT INTO fx_event_attempts(event_attempt_id,event_id,ordinal,state) VALUES(?,?,?,?)')
+    .run('draining-event-attempt','draining-event',1,'executing');
+  db.prepare('INSERT INTO fx_effect_journal(effect_id,event_attempt_id,effect_class,idempotency_key,state) VALUES(?,?,?,?,?)')
+    .run('draining-effect','draining-event-attempt','workspace_write','draining-effect-key','intended');
+}
+
+test('confirmed custom replacement keeps the old Work and unresolved Effect behind a fenced readiness proof',()=>runHarness(h=>{
+  const old=h.chosen.intent.basis.libraRunId;seedDrainingRun(h,old);
+  const replacement=h.advance(h.unitOfWork.captureReadFence()),guard=replacementReadiness(h);
+  let result=guard.check(replacement.libraRunId);
+  assert.equal(result.kind,'pending');assert.equal(result.reasonCode,'prior_execution_draining');
+  assert.equal(h.db.prepare('SELECT state FROM fx_supporting_works WHERE work_id=?').get('draining-work').state,'running');
+  h.db.prepare("UPDATE fx_workflow_events SET state='succeeded' WHERE event_id='draining-event'").run();
+  h.db.prepare("UPDATE fx_event_attempts SET state='completed',outcome_kind='succeeded' WHERE event_attempt_id='draining-event-attempt'").run();
+  result=guard.check(replacement.libraRunId);
+  assert.equal(result.kind,'pending');assert.equal(result.reasonCode,'prior_execution_draining');
+  assert.equal(h.db.prepare('SELECT state FROM fx_supporting_works WHERE work_id=?').get('draining-work').state,'cancelled');
+  h.db.prepare("UPDATE fx_effect_journal SET state='committed' WHERE effect_id='draining-effect'").run();
+  result=guard.check(replacement.libraRunId);
+  assert.equal(result.kind,'ready');assert.equal(result.previousRunIds[0],old);assert.ok(result.readFence);
+  h.db.prepare('UPDATE libra_subjects SET intake_revision=intake_revision+1').run();
+  const reader=require('../../src/helix/foundation/execution/work-result-reader').createWorkResultReader(h.options);
+  const participant=reader.createExecutionStateReadParticipant([{ownerDomain:'libra',processType:'libra_run',processId:old}],()=>{});
+  assert.throws(()=>h.unitOfWork.execute([participant],{readFence:result.readFence}),{code:'P3_UOW_READ_FENCE_CHANGED'});
+}));
+
+test('replacement readiness retries cancellation and never accepts forged relations or a changed target',()=>runHarness(h=>{
+  const replacement=h.advance(h.unitOfWork.captureReadFence());let calls=0;
+  const lifecycle=createWorkLifecycle({...h.options,nextWorkAttemptId:()=> 'unused'}),guard=replacementReadiness(h,scope=>{
+    calls++;if(calls===1)throw new Error('interrupted cancellation');return lifecycle.cancelProcess(scope);
+  });
+  assert.throws(()=>guard.check(replacement.libraRunId),/interrupted cancellation/);
+  assert.equal(guard.check(replacement.libraRunId).kind,'ready');assert.equal(calls,2);
+  h.db.prepare('DELETE FROM libra_custom_target_heads').run();
+  assert.throws(()=>guard.check(replacement.libraRunId));assert.equal(calls,2);
+}));
+
+test('an old published Offer cannot be mistaken for a drained no-offer replacement',()=>runHarness(h=>{
+  const old=h.chosen.intent.basis.libraRunId,replacement=h.advance(h.unitOfWork.captureReadFence()),guard=replacementReadiness(h);
+  seedPriorOffer(h,old);
+  assert.notEqual(guard.check(replacement.libraRunId).kind,'ready');
+}));
+
+function seedPriorOffer(h,oldRunId) {
+  const old=h.db.prepare('SELECT * FROM libra_runs WHERE libra_run_id=?').get(oldRunId),packageRevision=1,
+    onDeckPackageId=canonicalDigest({schema:'libra.on-deck-package-id@1',libraRunId:oldRunId,packageRevision}),
+    packageDigest=D('prior-package'),offerId=canonicalDigest({schema:'libra.product-offer-id@1',onDeckPackageId,packageDigest}),
+    offer={offerId,onDeckPackageId,packageRevision,packageDigest,shelfId:'shelf',libraRunId:oldRunId,subjectId:old.subject_id,
+      acceptanceSpecId:old.acceptance_spec_id,relatedDispositionSetDigest:D('related-disposition')};
+  h.db.prepare('INSERT INTO libra_product_packages(on_deck_package_id,offer_id,package_revision,libra_run_id,subject_id,shelf_id,acceptance_spec_id,package_digest,related_disposition_set_digest,state) VALUES(?,?,?,?,?,?,?,?,?,?)')
+    .run(onDeckPackageId,offerId,1,oldRunId,old.subject_id,'shelf',old.acceptance_spec_id,packageDigest,offer.relatedDispositionSetDigest,'published');
+  h.db.prepare('UPDATE libra_runs SET package_revision_head=1 WHERE libra_run_id=?').run(oldRunId);
+  const body={eligibility:'ineligible',reasonCode:'target_not_current',libraRunId:oldRunId,runState:old.state,
+    runStateRevision:Number(old.state_revision),runStateDigest:old.state_digest,acceptanceSpecId:old.acceptance_spec_id,
+    packageRevisionHead:1,deliveryReceiptAbsent:true};
+  return {offer,deliveryFence:{...body,fenceDigest:canonicalDigest(body)}};
+}
+
+test('real Arca withdrawal closes the exact old Offer and its acceptance Work must also drain',()=>runHarness(h=>{
+  const old=h.chosen.intent.basis.libraRunId,replacement=h.advance(h.unitOfWork.captureReadFence()),prior=seedPriorOffer(h,old),
+    projection=require('../../src/helix/domains/arca/application/formation-status-projection').createFormationStatusProjection(h.options),
+    guard=replacementReadiness(h,undefined,ids=>projection.read(ids));
+  let result=guard.check(replacement.libraRunId);
+  assert.equal(result.kind,'pending');assert.equal(result.reasonCode,'prior_offer_closure_unproven');
+  const store=require('../../src/helix/domains/arca/persistence/offer-withdrawal-store').createOfferWithdrawalStore(h.options);
+  store.close({...prior,readFence:h.unitOfWork.captureReadFence()});
+  h.db.prepare('INSERT INTO fx_supporting_works(work_id,owner_domain,process_type,process_id,work_kind,state) VALUES(?,?,?,?,?,?)')
+    .run('arca-draining-work','arca','arca_acceptance',prior.offer.offerId,'acceptance_assessment','running');
+  result=guard.check(replacement.libraRunId);
+  assert.equal(result.kind,'pending');assert.equal(result.reasonCode,'prior_execution_draining');
+  h.db.prepare("UPDATE fx_supporting_works SET state='cancelled' WHERE work_id='arca-draining-work'").run();
+  result=guard.check(replacement.libraRunId);
+  assert.equal(result.kind,'ready');assert.deepEqual(result.closedOfferIds,[prior.offer.offerId]);
+}));
+
+test('withdrawal proof is rejected when its exact Offer or digest is altered, and concurrent writes invalidate its fence',()=>runHarness(h=>{
+  const old=h.chosen.intent.basis.libraRunId,replacement=h.advance(h.unitOfWork.captureReadFence()),prior=seedPriorOffer(h,old),
+    store=require('../../src/helix/domains/arca/persistence/offer-withdrawal-store').createOfferWithdrawalStore(h.options),
+    projection=require('../../src/helix/domains/arca/application/formation-status-projection').createFormationStatusProjection(h.options);
+  store.close({...prior,readFence:h.unitOfWork.captureReadFence()});
+  const corrupt=replacementReadiness(h,undefined,ids=>{
+    const statuses=projection.read(ids),status=statuses.get(prior.offer.offerId);
+    statuses.set(prior.offer.offerId,{...status,withdrawalReceipt:{...status.withdrawalReceipt,receiptDigest:D('forged')}});return statuses;
+  });
+  assert.throws(()=>corrupt.check(replacement.libraRunId),{code:'LIBRA_REPLACEMENT_OFFER_EVIDENCE_INVALID'});
+  const changed=replacementReadiness(h,undefined,ids=>{
+    const statuses=projection.read(ids);h.db.prepare('UPDATE libra_subjects SET intake_revision=intake_revision+1').run();return statuses;
+  });
+  assert.throws(()=>changed.check(replacement.libraRunId),{code:'P3_UOW_READ_FENCE_CHANGED'});
+}));
+
+test('a missing custom Run target or a package hidden behind a zero head never opens the readiness gate',()=>{
+  runHarness(h=>{
+    const replacement=h.advance(h.unitOfWork.captureReadFence()),guard=replacementReadiness(h),
+      row=h.db.prepare('SELECT execution_basis_record_json FROM libra_runs WHERE libra_run_id=?').get(replacement.libraRunId),
+      basis=JSON.parse(row.execution_basis_record_json);
+    delete basis.collectionTargetRef;
+    h.db.prepare('UPDATE libra_runs SET execution_basis_record_json=? WHERE libra_run_id=?').run(canonicalJson(basis),replacement.libraRunId);
+    assert.throws(()=>guard.check(replacement.libraRunId));
+  });
+  runHarness(h=>{
+    const old=h.chosen.intent.basis.libraRunId,replacement=h.advance(h.unitOfWork.captureReadFence());
+    seedPriorOffer(h,old);h.db.prepare('UPDATE libra_runs SET package_revision_head=0 WHERE libra_run_id=?').run(old);
+    assert.throws(()=>replacementReadiness(h).check(replacement.libraRunId),{code:'LIBRA_REPLACEMENT_OFFER_EVIDENCE_INVALID'});
+  });
+});
+
+test('all superseded ancestor Runs must drain, and a cyclic replacement relation is rejected',()=>runHarness(h=>{
+  const old=h.chosen.intent.basis.libraRunId,replacement=h.advance(h.unitOfWork.captureReadFence());
+  h.db.prepare('INSERT INTO libra_runs(libra_run_id,subject_id,state,superseded_by_run_id) VALUES(?,?,?,?)')
+    .run('older-run','subject','superseded',old);
+  h.db.prepare('UPDATE libra_runs SET supersedes_run_id=? WHERE libra_run_id=?').run('older-run',old);
+  seedDrainingRun(h,'older-run');
+  const guard=replacementReadiness(h),result=guard.check(replacement.libraRunId);
+  assert.equal(result.kind,'pending');assert.equal(result.reasonCode,'prior_execution_draining');
+  h.db.prepare('UPDATE libra_runs SET supersedes_run_id=? WHERE libra_run_id=?').run(old,'older-run');
+  assert.throws(()=>guard.check(replacement.libraRunId),{code:'LIBRA_REPLACEMENT_RELATION_INVALID'});
+}));
+
+for(const outcome of ['accepted','rejected']) test('a '+outcome+' Libra delivery receipt never substitutes for a withdrawal receipt',()=>runHarness(h=>{
+  const old=h.chosen.intent.basis.libraRunId,replacement=h.advance(h.unitOfWork.captureReadFence()),prior=seedPriorOffer(h,old);
+  h.db.prepare('INSERT INTO libra_delivery_receipts(receipt_id,offer_id,on_deck_package_id,package_digest,result) VALUES(?,?,?,?,?)')
+    .run('delivery',prior.offer.offerId,prior.offer.onDeckPackageId,prior.offer.packageDigest,outcome);
+  const result=replacementReadiness(h,undefined,()=>new Map()).check(replacement.libraRunId);
+  assert.equal(result.kind,'pending');assert.equal(result.reasonCode,'prior_offer_outcome_review_required');
+}));

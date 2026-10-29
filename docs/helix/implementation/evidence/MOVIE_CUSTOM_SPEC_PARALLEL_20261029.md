@@ -50,6 +50,14 @@ MoviePilot Adapter 只查询去重后的前三个标题关键词，合并去重�
 
 新增测试以真实 Planner 生成 Event 绑定，在临时 SQLite 中保存 100 条、超过 64 KiB 的候选记录；重启后使用真实 Foundation Work Result Reader 与 Libra Evidence Store 重建，篡改记录后拒绝。Run Snapshot、身份 Fact 和 Provider 数据为受控夹具，非真实下载或生产证据。先添加未知 Work 状态负例时为 3 PASS / 1 FAIL，补充状态校验后通过。最终本机 Windows Node 及本机隔离 Linux Docker 各运行新读取器、现有寻源管线、局部媒体差异和 Preview/确认共 4 个文件：各 26 PASS / 0 skip。Windows 开发反馈只读复用另一份本机 checkout 的依赖；Linux 使用下述已有镜像与依赖差异，不是精确依赖镜像或整套验收。包边界与禁止语义扫描对新读取器均无新增 finding，项目基线的 2 + 1 finding 仍在。
 
+## Custom Replacement 的排空与旧 Offer 证明（2026-10-29）
+
+新增未接线的 Libra 内部准备度读取器：重新从持久 Intent/Preview/原标准、Custom Spec、Run Admission Decision、Foundation marker/Result 及双向替代关系重建当前目标；对同 Subject 的完整已替代祖先链重复调用 Foundation 精确流程取消入口，重启或取消中断后可重试。按 Foundation 正式事务读取口逐一检查旧 Libra Run 的 open Work、open Event 与未结算 Effect；后两者不能被取消返回值或 Work 终态代替。Run 关系、Target Head、Spec/引用损坏和环状关系拒绝，不释放 Control、不移动或清理任何文件。
+
+每个祖先的实际 Package 列表必须与 Run 的 Package Head 一致。存在旧 Offer 时通过 Arca 公开 Formation Status 投影读取真实 Withdrawal Receipt，复核 Offer/Package/Subject/Spec、关闭原因与摘要，再检查该 Offer 的 Arca Acceptance Work/Event/Effect 是否排空；未取得精确回执不视作已关闭。已 Accepted 或 Rejected 的 Libra Delivery Receipt 暂统一返回待核验，不能冒充 Withdrawal，也不能强行撤回已接纳责任。未存在旧 Offer 时也校验没有被零 Head 隐藏的 Package。输出的 ready 带 Foundation opaque read fence；调用方必须在随后的实际写入事务验证该 fence。这个证明尚未接入全部 Work/Workspace Admission 和 Scheduler，不是全局调度屏障，也不授权开放自定义目标入口。
+
+真实临时 SQLite 中使用实际 Run Admission、取消入口、Foundation execution-state 读取、Arca Withdrawal Store 与公开 Status Projection；覆盖执行中 Event、Work 已取消但 Effect 未结算、取消中断后重试、完整祖先链及环、零 Head 隐藏 Package、Target 引用缺失、旧 Offer 未关闭、精确 Withdrawal、Arca Work 未排空、回执篡改和跨 Owner 读取时并发变化。Provider 和已发布 Package 内容仍为受控夹具。新增 Arca 关闭测试在实现前为 0 PASS / 2 FAIL；引用缺失负例先发现错误的 `not_custom` 分支，修复后通过。最终 Windows 与隔离 Linux Docker 各运行 Run Admission、Offer Withdrawal、Work Lifecycle 三文件，均为 **57 PASS / 0 skip**。新读取器包边界与禁止语义无新增 finding，原有全局 2 + 1 finding 保留。Linux 依旧使用下述已有非本分支依赖镜像，并非整套 Service gate 或 NAS 验收。
+
 ## 需要主线程整合的精确缺口
 
 1. **标准目标与评分变化**：当前 `libra_custom_target_heads` 只能引用非空修改集合的 custom Intent，普通 Spec Admission 在存在该 Head 时拒绝，Promotion Fence 也只允许匹配 custom variant；`collectionTargetRef` 虽声明 `standard`，没有可验证的标准 Intent/Head 发布与替代路径。必须由统一合同/存储明确版本化的当前标准目标、显式恢复标准及语义基线变化后的 CAS/重放/保留语义；不能删除 Head、静默沿用旧放宽项，或把旧 custom 目标自动应用到新评分。普通 Acceptance Spec Coordinator/Run Coordinator 还需要区分实际 custom Spec 与其 `originalTarget` 所对应的当前标准，核验新的 Perception/Shelf/身份公开投影；不能只比较两个不同 variant 的 `specDigest`。主线程统一处理公共 SSOT、生成物与存储。
