@@ -113,6 +113,22 @@ test('Series TV aliases use the actual results response while preserving the Mov
   assert.ok(observed.verifiedIdentity.aliases.some(item=>item.value==='Demo Show'));
   await assert.rejects(harness({show:{id:1399,name:'Demo Show',alternative_titles:{titles:[]}}}).execute(),{code:'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID'});
 });
+
+test('Series identity accepts bounded provider descriptions without copying them into alias evidence',async()=>{
+  const type='界'.repeat(53);
+  assert.equal(Buffer.byteLength(type,'utf8'),159);
+  const show={id:1399,name:'Localized Show',original_name:'Demo Show',first_air_date:'2020-01-01',
+    alternative_titles:{results:[{title:'Demo Show',iso_3166_1:'US',type}]}};
+  const result=await harness({show}).execute({strongProviderKey:'1399'});
+  assert.ok(result[0].aliases.some(item=>item.value==='Demo Show'));
+  assert.equal(JSON.stringify(result).includes(type),false);
+  const invalid={...show,alternative_titles:{results:[{title:'Demo Show',type:{unexpected:true}}]}};
+  await assert.rejects(harness({show:invalid}).execute({strongProviderKey:'1399'}),
+    {code:'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID'});
+  const excessive={...show,alternative_titles:{results:[{title:'Demo Show',type:'x'.repeat(1024*1024)}]}};
+  await assert.rejects(harness({show:excessive}).execute({strongProviderKey:'1399'}),
+    {code:'PLATFORM_INTEGRATION_RESPONSE_BOUND'});
+});
 test('Formal Identity Planner freezes Season on both Owner inputs and their actual projections agree',()=>{
   const value=snapshot();value.relatedReferences=[];
   const work=identityObservationWork(value,'provider_search');
