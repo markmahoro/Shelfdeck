@@ -19,9 +19,9 @@ async function fixture(t){
   const f=coordination(t);f.reconcile();await f.completeFrames('initial');const observed=await f.completeObservation('initial'),
     validator=createValidator({includeProposed:true,capabilitySchemaRefs:[CAPABILITY]}),counters={computes:0},
     target=catalogueObservationTarget({basis:f.basis,completedBatches:observed.completedBatches,workspace:f.workspaceState,rootSnapshot:f.workspace.rootSnapshot()});
-  const options={...f.options,contractValidator:validator,workspaceProductPort:f.workspace,now:()=>1000,
-    createCatalogueObservationPort({context,validateObservation}){
-      return createCleanBuffaloCataloguePort({context,validateObservation,workspaceProductPort:f.workspace,async computeObservation(){
+  const options={...f.options,unitOfWork:f.workspaceOptions.unitOfWork,contractValidator:validator,workspaceProductPort:f.workspace,now:()=>1000,
+    createCatalogueObservationPort({context,validateObservation,capturePublicationFence}){
+      return createCleanBuffaloCataloguePort({context,validateObservation,capturePublicationFence,workspaceProductPort:f.workspace,async computeObservation(){
         counters.computes++;return observed.observation;}});
     }},context={ownerScope:{domain:'libra',processType:'libra_run',processId:'run'},workId:observed.work.workId,
       workAttemptId:'observe-attempt',planId:'observe-plan',eventId:'observe-event',idempotencyKey:'observe-key',capabilityRef:CAPABILITY,
@@ -60,8 +60,8 @@ test('different source generation or Work cannot borrow a frozen Observation tar
 });
 
 test('cancelled execution before publication leaves no successful Result or new Observation file',async t=>{
-  const f=await fixture(t),options={...f.options,createCatalogueObservationPort({context,validateObservation}){
-    return createCleanBuffaloCataloguePort({context,validateObservation,workspaceProductPort:f.workspace,async computeObservation(){
+  const f=await fixture(t),options={...f.options,createCatalogueObservationPort({context,validateObservation,capturePublicationFence}){
+    return createCleanBuffaloCataloguePort({context,validateObservation,capturePublicationFence,workspaceProductPort:f.workspace,async computeObservation(){
       f.db.exec("UPDATE libra_runs SET state='discarded',state_revision=3");return f.observed.observation;}});
   }};
   await assert.rejects(()=>createUsAdultCatalogueObservationCapability(options).execute(f.context),{code:'US_ADULT_CATALOGUE_BASIS_STALE'});
@@ -73,7 +73,7 @@ test('interruption after physical rename recovers the exact Artifact before Resu
   const workspace=createCleanWorkspaceProductPort({...f.workspaceOptions,rootPath:path.join(f.root,'workspace-root'),afterPhysicalEffect(){
     if(!interrupted){interrupted=true;throw Object.assign(Error('Interrupted after rename'),{code:'AFTER_RENAME'});}
   }}),port=createUsAdultCatalogueObservationCapability({...f.options,workspaceProductPort:workspace,
-    createCatalogueObservationPort({context,validateObservation}){return createCleanBuffaloCataloguePort({context,validateObservation,
+    createCatalogueObservationPort({context,validateObservation,capturePublicationFence}){return createCleanBuffaloCataloguePort({context,validateObservation,capturePublicationFence,
       workspaceProductPort:workspace,async computeObservation(){f.counters.computes++;return f.observed.observation;}});}});
   await assert.rejects(()=>port.execute(f.context),{code:'AFTER_RENAME'});assert.equal(f.counters.computes,1);
   assert.equal(f.db.prepare('SELECT count(*) n FROM fx_artifact_registry').get().n,3);

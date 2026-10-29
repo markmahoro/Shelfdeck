@@ -256,3 +256,17 @@ Work ID/幂等键绑定完整不可变 Basis/producer Result 集。读取支持 
 - Linux真实同字节rename负例保持必须执行、不得因EPERM放宽。非Linux只有实际命中EPERM时，对这一物理负例记录diagnostic并明确skip；其他错误仍失败。
 - 新增独立于rename支持的受控path/fd inode不一致注入，所有开发环境均须验证应用拒绝，不能随物理案例一起skip。生产代码无变化。
 - 97c独立快照实际Linux Docker9 PASS/0skip/0FAIL，66.337秒；catalogue-read-portable-linux-1.log SHA256 f4d02e6191d6372c5ab049ed6cacd975bd72b06744904807c5ff26dd0e319d26。本机原生逻辑8 PASS/1明确EPERM skip/0FAIL，4.043秒；catalogue-read-portable-native-1.log SHA256 f5acc6752f4183acd8044469f490cf1f2ef173598bd905d993d4398d45644cdf。原生结果不是Windows运行/发布资格，Linux才是本项目交付验证。
+
+## 2026-10-29 Observation 真实 Event 与中断恢复检查点
+
+在已审查的97c共享合同独立快照上，目录Observation首次接入实际Foundation Work Admission、Scheduler、Plan Publisher、Resource Governor Permit、Event Runtime和Effect Journal。测试使用真实SQLite、受控Workspace文件及Artifact Registry，核对执行时持有CPU和Workspace写Permit、同一Effect及成功Result；前三个Frame/Embedding/Cluster来源Result、Probe、CPU与目录查询仍是确定性fixture，不代表完整Service Host或真实模型/视频旅程。
+
+实际Runtime的中断注入发现：旧Root恢复查询使用自己的journal，而真实Event持有`workspace_write` journal；通用观察只看commit marker，文件已写但未登记时会误判为absent。首跑`catalogue-event-runtime-native-5.log`保留1 PASS/1 FAIL。新Observation专用恢复先由Libra重建精确Work/Plan输入、Effect intent及当前Run资格，再由Root核对原Event/Attempt/Effect/Workspace和8MiB有界实际字节，只有匹配才能继续登记；损坏、错Scope、人工取消和缺少观察能力明确拒绝或保留待观察，不重新计算、不伪造Result。Root不读取Libra私有表。
+
+新增登记事务内的Foundation Event/Work/Workspace状态核验，并在物理写出后由Libra重读自身资格、捕获Foundation opaque read fence；Root在同一登记事务消费fence，拒绝Owner状态在读取与提交之间改变。注入的终态Work、物理写后Run取消、捕获fence后Run取消均未登记新Artifact或成功Result。文件可能已留在系统专用Workspace，但不构成人物、出演或收藏；回收与真正停止态清理仍须完整Host验收。运行中的普通cancelProcess可能先进入draining，本测试分别注入明确终态和Owner事实变化，不把它们冒充完整生产取消旅程。
+
+- 最终Linux Docker固定依赖镜像`sha256:afb5fad462130beb66162fff081e96d089adf49ee7e2bb600e9fdac72aea0357`，network none、只读源/根、1 CPU、768 MiB、tmpfs 64 MiB：Observation真实Runtime/文件恢复及既有Root回归49 PASS/0 skip/0 FAIL，148.329秒。`catalogue-owner-fence-linux-1.log` SHA256 `20471c307296ae85fa42ea05ebdda8bcaa4902ebe897865a543333d70abdab28`。
+- 两个独立负对照各自移除精确事务保护后按预期失败：取消Work时旧代码错误返回succeeded；捕获Owner fence后改Run时旧代码登记了1份Artifact。日志分别为`catalogue-commit-fence-negative-native.log` / `catalogue-owner-fence-negative-native.log`，SHA256 `592aac62a6fa3cbc51838d9f7fe036ee125c46ed97a979aed83a35451d9d5029` / `72b78a2810770b98f9736159a068df0e0d354236a81000494262cb86735667c7`；它们是故意失败的机制对照，不是发布资格。
+- 新增fence后首次native夹具遗漏注入共享UnitOfWork，18项构造失败，保留`catalogue-owner-fence-native-1.log` SHA256 `75ff60df9c1f587ad677b6d9d49dce8aa7b17339ed09da5b1f3803ee2b0c819d`；补全夹具后17 PASS/1非Linux文件替换skip，随后Linux无skip全通过。未放宽正式fence。Package、Semantic、Manifest和P2四项静态通过，139 Capability/118 Result/244表/66事务，257类型引用、0未解析；静态日志SHA256 `847450725690c2bedee7408560f6dcabadcb16ae4d99a3122493f5847e677a47`。
+
+该检查点没有注册正式Host或修改生产。真实Frame三个Event的同类中断恢复、主备模型/目录共载、People姓名解析与自动注册、人工Choice竞争、出演及Arca Commit仍未完成；Phase 4/5不Exit。
