@@ -10,7 +10,7 @@
 | `nas-cifs-retest.log` | `4db97d19bbe4a0f672ca117b13389fb394586e5324288334c7aa88c1e7747fe1` | 按生产拓扑重跑，8项直接文件调用遇`PHYSICAL_MATERIAL_STAT_FENCE_CHANGED`，未通过。 |
 | `nas-cifs-stat-probe-retry.log` | `f47babefd8106b20276c8de21910141a3a56802c53ddfcf6872b21d4e13ece25` | 隔离新文件的fd/path时间戳有短暂不一致与后续变化；不能凭该现象推定内容未变或降低围栏。 |
 | `nas-cifs-host-diagnostic.log` | `d452fc5af2a3b32e8140c1ddae10e2909bbe93fbd59cc8247a9a28bef843e5fe` | 真实Host的Series publish Effect进入`reconcile_required`；首版测试把该恢复通知当作致命异常。 |
-| `nas-cifs-host-observed.log` | `3a7916787dbc71f88edd16f230b012368c73017f9022805c117a4267a6e0265d` | 14:43启动的观察版本在NAS异常期间连接断开，日志没有最终测试结果；不能依据本地进程退出码判定通过。 |
+| `nas-cifs-host-observed.log` | `3a7916787dbc71f88edd16f230b012368c73017f9022805c117a4267a6e0265d` | 14:43启动的观察版本在NAS异常期间连接断开，日志没有最终测试结果；不能依据本地进程退出码判定通过。其测试专用DB、WAL及SHM复制前后源SHA一致，私有副本查询`total_changes=0`、integrity ok：48事件成功、1个Arca接纳事件执行中，尚无Series publish Event或On-deck Commit。 |
 
 上述测试仅在任务专属目录及临时数据运行，未操作生产材料。候选镜像仅加载供测试，未部署；七条线上重试未执行。
 
@@ -41,3 +41,13 @@ Service首个容器命令未展开通配符；首个完整执行787通过、32�
 UI负责人独立结果为浏览器28 PASS/8 FAIL，隔离Linux 231 PASS、Host 3 PASS；两处失败各在四视口复现，整体UI为FAIL。精确错误码及证据已交Series线程；修复后重新绑定实际最终候选复验。
 
 Series线程在上述候选后追加纯Web修复`60f123a71`、浏览器回归`567ad89ca`和Evidence `7265d4b5e`。实现线程报告Linux Web 274通过/0失败、四视口浏览器44通过/0失败，含原失败的重新验证；具体局限见该线程专属Evidence。新候选`7265d4b5ec4077cb21152219a9a53e85a97ac3f9`的标准镜像已在本地构建，tar SHA256 `42ba2e2497b2db51d4a2889599895f337779f5dc30203f545e06100159cb3697`，日志`image-build-7265d4b5e.log` SHA256 `3f7f29cbfdeca447e9caa92062936741097075c238cfa71ae699f2e423de4e70`；UI负责人已收到新镜像的独立复验请求，尚未出具结论。
+
+## 后继bc4固定版本
+
+从7265仅挑入电影测试工具/测试的`db539e9df`后得到`bc4f5c952849ed6079baedde159ddaa5ce1d39c1`，不含US功能；标准镜像tar SHA256 `59bcd40c566af686da84d861ea9b4d8f1cb9c785b3586172320e568e9237a3d6`。固定Linux检出4544个跟踪文件与构建工作区逐字节一致（`linux-bc4-source-compare.log` SHA256 `906274208171696ded1553bb5f5901d26e8700dfe31b20fc4a007f53ea301286`）；Service依赖目录4995文件与实际候选镜像一致（`linux-bc4-dependency-compare.log` `0aa3fbc9fcf5b462cf014ff9f9ad4ebbd63e380b8d9cf4e2bc86bb6152557526`）。
+
+精确版本Linux Web 49文件/274通过，`linux-web-bc4f5c952.log` SHA256 `b0499f5ceb2deb2c3a34e2d104b71da284b63e1228b5b2287bd3ae41f755b82e`；Service 846通过/28跳过/0失败，`linux-service-bc4f5c952.log` `c2f691ffe328c75d3ef2ae2171d244a7b89ffe197dc0fc7f8bab5e58f863ad6f`。跳过包含未配置的真实媒体和专用浏览器fixture，不代表这些场景通过。
+
+UI负责人对bc4适用UI验收PASS：在7265完成四视口浏览器56通过、定向3通过，再核对bc4的178个Web输入、9个页面资源和2878个镜像运行文件与已测版本一致；季poster与剧情以既有Linux Host和正式NFO证据覆盖。完整独立证据位于`E:/my_project/helix-git-consolidation-20261008/series-ui-review-bc4f5c952-20261029/owner-review.json`。这不替代生产验收或其他发布门禁。
+
+前候选1d8a完整架构结果为3402通过/5失败/27跳过，四项与缺少依赖路径有关，补齐后四项定向通过；1081视频Host有一次`P8_ACCEPTANCE_CONTINUITY_BASIS_STALE`，独立重跑通过但原失败原因未确定，Series线程继续查收敛。首跑`linux-architecture-first.log` SHA256 `328e4ac84688453e9492e8681e256979b438a13c87c6f4927c3b65c5d2d3f952`；四项依赖重验`linux-architecture-dependency-diagnostic.log` `d36a37dcfdeca5a552708a5db96f3a784397e503e39791be899e360d54653d16`；Host单项`linux-procurement-targeted.log` `f1d24f3aa423d19a20d06e131ae3608f3c13e96ebd5d25a46a4673625b873bbd`。bc4完整架构重跑仍进行。

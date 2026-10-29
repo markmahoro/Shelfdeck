@@ -7,7 +7,7 @@
 | 线程 / ID | 本轮交付与先后 | 整合边界 |
 | --- | --- | --- |
 | 本轮整合线程 | 计划追踪、共享合同/生成物、独立Series候选及最终门禁/发布 | 自有主整合目录；不改写演员/电影worktree，不携带未完成内容进入Series候选 |
-| 演员线程 01a164c5-1b9a-7312-a8ec-701ea6032526 | 继续Catalogue Basis/Work/Artifact/补采恢复及Phase 4→5闭环 | Store检查点2f9fc0702；增量68b281c33固定Linux 77通过/1样本缺失skip，四项静态通过。NAS验证暂停，正式Host/完整门禁未完成，不作为Series发布基线 |
+| 演员线程 01a164c5-1b9a-7312-a8ec-701ea6032526 | 继续Catalogue Basis/Work/Artifact/补采恢复及Phase 4→5闭环 | Store 2f9fc0702、Artifact 68b281c33及跨批次查询f0f13680b；后者Linux 57通过/0skip。NAS验证暂停，正式Host/完整门禁未完成，不作为Series发布基线 |
 | ShelfDeck 生产待处理条目分诊 01a18626-520c-79a0-8240-066bd0a777a3 | 当前一次快照、逐条分诊；承接JAV路径字节预算修复 | 生产只读，独立开发工作区可修改源码；13:36快照33 attention/5进行中，不等于33个bug |
 | ShelfDeck 剧集上架与自愈修复 01a18627-6d8b-7d72-aa5a-bcb7cbf6ed0f | 7条Series恢复、季poster复用和精确剧情切片已提交；承接具体候选UI问题修复 | a4989adf9、878d814d3、f442a6f2f基于a2bf2d6fd；三个资料Schema及登记摘要由本线程集成，固定候选/生产验收未完成 |
 | ShelfDeck 电影寻源与自定义标准 01a18628-b31a-70c3-abbc-bd29b688cbce | 电影候选与自定义标准Libra基础切片b3929e199已交付；续修US瑕疵预览 | 18文件SHA交接完成；完整API/UI、Arca责任投影和Handoff B等未闭合，Linux精确依赖镜像及真实旅程未完成，不开放半成品 |
@@ -28,13 +28,17 @@
 
 UI修复提交`60f123a71`、浏览器回归`567ad89ca`及专属Evidence `7265d4b5e`已直接快进至新候选`7265d4b5ec4077cb21152219a9a53e85a97ac3f9`；标准镜像tar SHA256 `42ba2e2497b2db51d4a2889599895f337779f5dc30203f545e06100159cb3697`。实现线程报告Linux Web 274通过及四视口44通过，UI负责人正在针对新镜像独立复验，尚无最终UI PASS。两版Service主体不变，但最终候选及所有后续变更仍须完成适用固定版本门禁。
 
+在7265上单独挑入测试工具安全修复后，当前固定候选为`bc4f5c952849ed6079baedde159ddaa5ce1d39c1`，标准镜像tar SHA256 `59bcd40c566af686da84d861ea9b4d8f1cb9c785b3586172320e568e9237a3d6`。4544个跟踪文件与构建输入逐字节一致，Service依赖4995文件与该实际镜像一致；Linux Web 274通过、Service 846通过/28 skip/0失败，跳过包括专用真实媒体与浏览器fixture。UI负责人对bc4镜像适用验收PASS，依据见本包Evidence。上一段7265 UI复验中状态为旧检查点。
+
+前候选完整架构3402通过/5失败/27跳过，静态依赖/语义/Manifest/合同均通过。四项依赖路径问题补齐后定向通过；另一项1081视频Host出现一次`P8_ACCEPTANCE_CONTINUITY_BASIS_STALE`，单项重跑通过，Series线程仍核实并发收敛。精确bc4完整架构重跑仍在执行；不能用定向结果冒充全量通过。
+
 真实CIFS首轮将Workspace/SQLite错误放到共享盘而失败；按生产布局重跑后8项直接文件调用仍遇 `PHYSICAL_MATERIAL_STAT_FENCE_CHANGED`。隔离探针发现首次路径stat与文件描述符时间戳不一致、后续收敛；真实Host已定位同一Series publish Effect进入reconcile_required，最初测试把该预期恢复通知视为异常而提前退出。验证原Effect恢复至唯一Commit的第三轮隔离Host在2026-10-29 14:43启动；随后NAS应用响应超时，隔离测试连接在无最终结果时断开，不能计为通过。用户说明前序其他Docker部署导致系统卡死并重启NAS；独立根因未核实。重启后确认任务容器不存在、生产仍为同一a2bf2d6fd镜像；用户重挂两个原CIFS源后原容器仍见启动时空目录，故精确核验源及容器后重启该容器恢复绑定；容器内SMB及健康已恢复，但管理状态一次超时、swap约2GiB，稳定性仍待核验。候选未部署或线上重试；NAS稳定性复核前暂停新NAS测试和发布。[候选与恢复Evidence](evidence/SERIES_INTEGRATION_GATE_20261029.md)。
 
 UI负责人对前一固定候选的独立走查发现两项阻断：文件状态核对超时仅显示通用失败原因，整理过程弹窗键盘焦点可逃到背景。浏览器28通过/8失败（两项各四视口）；Series线程修复后新候选负责人复验中。前版独立Linux Web 271项通过；Service首轮32失败主要因依赖和隔离/tmpfs配置不完整。补齐环境后835通过/2失败/28跳过：Event deadline定向及八次诊断重放通过但失败原因尚未确定，电影测试工具的Linux路径安全断言为生产基线既有问题，电影线程已独立提交db539e9df，仅覆盖盘符/UNC字符串、不宣称识别已挂载SMB；不抹除完整门禁失败。
 
 ## 生产分诊新增阻断
 
-- ARCA-PATH-COMPONENT-BUDGET：HALT-094和EMLB-094的Arca路径及temporary后缀超出实际CIFS组件字节限制；六次Stage均在复制前失败，旧Final Decision不可静默改写。分诊线程已在隔离开发工作区承接，按Owner与证据确认设计，禁止重试或清理生产现场。
+- ARCA-PATH-COMPONENT-BUDGET：HALT-094和EMLB-094的Arca路径及temporary后缀超出实际CIFS组件字节限制；六次Stage均在复制前失败，旧Final Decision不可静默改写。预防切片b492e3a1a仅在新Decision前拒绝超长路径，不能完成长标题上架或修复旧记录；分诊线程继续核对合同允许时的安全字节截断及新任务真实落位，禁止重试或清理生产现场。
 - US-SIZE-DEFECT-PREVIEW：两条US瑕疵预览未读取已有产品事实；电影/自定义标准线程提交d37bc4272，Linux 78通过/0跳过且覆盖手动/自动及身份、附件、文件安全负例，但依赖镜像与分支锁文件不完全一致，仍须精确依赖、真实媒体及集成版本UI验收；未进行生产接受。
 - SERIES-PRESENTATION-EXPANSION：13个build/15个Season Subject是13:36快照；后续新增条目不自动纳入七条线上操作授权。其他网络/协议/来源错误和正常人工待决分别承接。
 
