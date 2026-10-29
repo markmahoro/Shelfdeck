@@ -46,16 +46,17 @@ function rejectionLabel(code:string){
     LIBRA_DEFECT_ADMISSION_CANDIDATE_STALE:'瑕疵证据已变化，请重新检查。',P3_UOW_READ_FENCE_CHANGED:'处理依据已变化，请重新检查。'};
   return labels[code]||'本次确认未完成，请重新检查。';
 }
-export default function DefectAdmissionDialog({item,candidate,onClose,onComplete,onUnauthorized}:{item:FormationSubject;
-  candidate:DefectAdmissionCandidate;onClose:()=>void;onComplete:()=>Promise<void>;onUnauthorized:()=>void}){
+export default function DefectAdmissionDialog({item,candidate,onClose,onComplete,onUnauthorized,returnFocus,returnFocusFallback}:{item:FormationSubject;
+  candidate:DefectAdmissionCandidate;onClose:()=>void;onComplete:()=>Promise<void>;onUnauthorized:()=>void;returnFocus?:HTMLElement|null;
+  returnFocusFallback?:()=>HTMLElement|null}){
   const target=item.currentRun?.libraRunId||'',saved=pendingCommands.get(target),valid=matches(item,candidate);
   const [current,setCurrent]=useState(saved?.item||item),[preview,setPreview]=useState<DefectAdmissionCandidate|null>(saved?.candidate||(valid?candidate:null)),
     [phase,setPhase]=useState<'editing'|'stale'|'unknown'|'accepted'>(saved?.phase||(valid?'editing':'stale')),
     [error,setError]=useState(saved?.phase==='unknown'?'提交结果尚未确认。':saved?.phase==='accepted'?'瑕疵已接受，状态读取失败。':valid?'':'整理状态已变化，请重新检查。'),
     [busy,setBusy]=useState(false);
-  const busyRef=useRef(false),dialog=useRef<HTMLElement>(null),origin=useRef<HTMLElement|null>(document.activeElement instanceof HTMLElement?document.activeElement:null),
-    close=useRef(onClose);
-  close.current=onClose;
+  const busyRef=useRef(false),dialog=useRef<HTMLElement>(null),origin=useRef<HTMLElement|null>(returnFocus||(document.activeElement instanceof HTMLElement?document.activeElement:null)),
+    close=useRef(onClose),focusFallback=useRef(returnFocusFallback);
+  close.current=onClose;focusFallback.current=returnFocusFallback;
   useEffect(()=>{
     const node=dialog.current;if(!node)return;document.body.classList.add('modal-open');node.focus();
     const keys=(event:KeyboardEvent)=>{
@@ -70,7 +71,11 @@ export default function DefectAdmissionDialog({item,candidate,onClose,onComplete
     };
     document.addEventListener('keydown',keys,true);
     return()=>{document.removeEventListener('keydown',keys,true);document.body.classList.remove('modal-open');
-      requestAnimationFrame(()=>{if(!node.isConnected&&origin.current?.isConnected)origin.current.focus();});};
+      requestAnimationFrame(()=>{
+        if(node.isConnected||document.activeElement!==document.body)return;
+        const previous=origin.current;if(previous?.isConnected)previous.focus({preventScroll:true});
+        if(document.activeElement!==previous)focusFallback.current?.()?.focus({preventScroll:true});
+      });};
   },[]);
   function beginBusy(){
     busyRef.current=true;dialog.current?.focus({preventScroll:true});setBusy(true);setError('');

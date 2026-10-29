@@ -1,18 +1,20 @@
 import {expect,test,type Page} from '@playwright/test';
 const GiB=1073741824;
-async function fixture(page:Page,mode:'stale'|'unknown'|'measured'|'forecast'|'held'|'unknown-held') {
+async function fixture(page:Page,mode:'stale'|'unknown'|'measured'|'forecast'|'held'|'unknown-held'|'preview-error'|'preview-ineligible',open=true) {
   const item={formationViewId:'view-us',subjectId:'subject-us',displayIdentity:'测试影片',contentProfile:'western_adult',structureKind:'single',
     classification:'attention_required',status:'active',myRating:null,myRatingSource:'douban',myRatingRevision:null,addedAtMs:1,
     primaryMaterialCount:1,organizingRequirement:'HEVC',organizingAction:'',organizingSteps:[],currentPlan:null,executorIssue:null,
     handoffB:null,productIdentityIssue:null,unresolvedReasonCode:null,targetShelfId:null,targetShelfName:null,routingState:'resolved',
     nextAction:{label:'需要处理',state:'attention_required',progress:null},currentRun:{libraRunId:'run-us',state:'frozen',stateRevision:3,
       stateDigest:'a'.repeat(64),priorityClass:'normal',packageRevisionHead:0,currentIdentityRevision:1}};
-  const state={submitted:false,changed:false},writes:Array<Record<string,unknown>>=[];
+  const state={submitted:false,changed:false,failPreview:false},writes:Array<Record<string,unknown>>=[];
   let release=()=>{};const held=new Promise<void>(resolve=>{release=resolve;});
   const summary={totalCount:1,inProgressCount:0,attentionRequiredCount:1,completedCount:0,endedCount:0};
   await page.route('**/v1/**',async route=>{
     const req=route.request(),url=new URL(req.url()),path=url.pathname;
     if(path.endsWith('/defect-admission-candidate')){
+      if(state.failPreview&&mode==='preview-error')return route.fulfill({status:503,json:{error:{code:'SERVICE_UNAVAILABLE',message:'暂时无法读取预览。'}}});
+      if(state.failPreview&&mode==='preview-ineligible')return route.fulfill({json:{eligibility:'ineligible',message:'当前证据不支持瑕疵上架。',ineligibleReasons:['identity'],missingEvidence:[]}});
       const candidate={eligibility:'eligible',candidateRevision:1,libraRunId:'run-us',frozenRunStateRevision:3,
         frozenRunStateDigest:'a'.repeat(64),terminalEvidenceDigest:'b'.repeat(64),candidateDigest:(state.changed?'d':'c').repeat(64),
         waivedRequirementCodes:['max_size_exceeded'],defects:[{defectCode:'size_cap_exceeded',sourceFailureCode:'size',waivedRequirementCodes:['max_size_exceeded']}],
@@ -36,9 +38,41 @@ async function fixture(page:Page,mode:'stale'|'unknown'|'measured'|'forecast'|'h
     return route.fulfill({json:{items:[],summary,counts:{},nextCursor:null,state:'ready',completionState:'complete'}});
   });
   await page.goto('/formation');
-  const accept=page.getByRole('button',{name:'接受瑕疵',exact:true});await expect(accept).toBeEnabled();await accept.press('Enter');
-  const dialog=page.getByRole('dialog',{name:'确认接受瑕疵入库'});await expect(dialog).toBeVisible();
-  return {dialog,writes,state,release};
+  const accept=page.getByRole('button',{name:'接受瑕疵',exact:true});await expect(accept).toBeEnabled();
+  const dialog=page.getByRole('dialog',{name:'确认接受瑕疵入库'});if(open){await accept.press('Enter');await expect(dialog).toBeVisible();}
+  return {dialog,writes,state,release,accept};
+}
+
+for(const method of ['escape','scrim','cancel','close'] as const){
+  test(`closing an idle dialog by ${method} returns focus to its trigger`,async({page})=>{
+    const {dialog,writes,accept}=await fixture(page,'measured');
+    if(method==='escape')await page.keyboard.press('Escape');
+    if(method==='scrim')await page.locator('.dialog-scrim').click({position:{x:2,y:2}});
+    if(method==='cancel')await dialog.getByRole('button',{name:'取消',exact:true}).press('Enter');
+    if(method==='close')await dialog.getByRole('button',{name:'关闭'}).press('Enter');
+    await expect(dialog).toBeHidden();await expect(accept).toBeFocused({timeout:2000});expect(writes).toHaveLength(0);
+    await page.keyboard.press('Enter');await expect(dialog).toBeVisible();
+  });
+}
+
+test('closing an idle dialog returns focus to a page action if its trigger disappeared',async({page})=>{
+  const {dialog,accept}=await fixture(page,'measured');await accept.evaluate(node=>node.remove());
+  await page.keyboard.press('Escape');await expect(dialog).toBeHidden();
+  await expect(page.getByRole('button',{name:'刷新',exact:true})).toBeFocused({timeout:2000});
+});
+
+test('a successful admission focuses its outcome when the trigger is no longer present',async({page})=>{
+  const {dialog}=await fixture(page,'measured');await dialog.getByRole('button',{name:'确认接受',exact:true}).press('Enter');
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole('status').filter({hasText:'瑕疵已接受，系统正在继续整理'})).toBeFocused({timeout:2000});
+});
+
+for(const mode of ['preview-error','preview-ineligible'] as const){
+  test(`${mode} keeps focus at the trigger when no dialog opens`,async({page})=>{
+    const {dialog,accept,writes,state}=await fixture(page,mode,false);state.failPreview=true;await accept.press('Enter');
+    await expect(page.getByRole('alert')).toBeVisible();await expect(dialog).toBeHidden();
+    await expect(accept).toBeFocused({timeout:2000});expect(writes).toHaveLength(0);
+  });
 }
 
 test('measured size and list order are accurate before any confirmation',async({page},info)=>{
