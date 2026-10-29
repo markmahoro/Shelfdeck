@@ -86,3 +86,15 @@ SSOT §6.5.3、§10.5.3 由 Arca 冻结 Final Inventory Decision 并持有 Place
 隔离分支新增纯 `jav-title-prefix` 计算草案、固定依赖，以及复用现有 Arca 命名渲染的内部只读 `previewJavTitle`；它尚未接入 Acceptance、Decision、Stage 或 UI，不能据此声称系统已经主动截短。预览明确返回 `targetCollisionChecked=false`，不授予 Reservation/写入权限；仅在确需截短时从唯一 canonical typed `jav_code` 提取完整番号，不更改原事实。Windows Node 25 与隔离 Linux Node 20 各 9 项纯计算测试通过，Windows 另有 4 项实际渲染预览测试通过；Linux 14 个相关测试文件合计 237 PASS（含现有拒绝长标题行为、Stage/Placement、JAV Correction、Series Reservation 及 US Adult 回归）。两组 HALT/EMLB 已验证实际渲染预览中的目录、扩展名、Primary/NFO stem 和后缀预算，源事实与目标目录保持原样；尚未以截短结果贯通正式 Stage→Verify→Placement。碰撞同前缀、组合字符、ZWJ、非法 Unicode、号码前导零与后缀、固定字段不足、字幕限定词和原名成员过长有单元覆盖；完整并发归属、真实 Endpoint 等价、崩溃证明、实际 UI/Owner 审核、真实 CIFS 与完整发布 Gate 仍未完成。
 
 合同传播记录：本分支曾临时物化自己的 SSOT 源定位，P2 因四个既有表合同的引用行号变化报 `TABLE_CONTRACT_DRIFT`；已撤回本分支的临时 SSOT/全局生成物，原分支 P2 复验通过（138/117/239/62，unresolved 0）。主整合反馈其 `3e707a033` 已统一更新四份相关表合同及生成物并通过 P2；本分支不会提交或覆盖主整合的全局生成物。两次结果分开记录，不以子分支基线通过冒充整合候选验证。
+
+## 2026-10-29 旧两条、停机与 Reset 的只读核对
+
+结论：**当前没有验证出只重建 HALT-094 和 EMLB-094 的现成合规入口；新截断规则也不会自行改写它们的冻结 Decision。** 上次只读现场显示两条都已到 Arca On-deck，已冻结的目标过长；普通重试继续使用同一 Decision/目标，即使换 Work generation 也不会换成新短名。Libra `libra-run-admin-service.js` 的取消/Discard 在已被 Arca 接收时返回 `handoff_b_already_accepted`，不是两条 Accepted 责任退回并重采的入口。尚未证明有 Arca 单条安全终结、保留现场后重新准入的完整路径；不能因为预期没有最终文件或未见 Commit，就直接删 Slot、释放 Control、改库或重新投递。
+
+**只做开发不需要停 NAS。** 若之后按当前标准把经过完整资格验证的修复发布生产，`docs/v2/PRODUCTION_DEPLOYMENT.md` 2026-10-27 首节要求旧进程安全 Stop、连接关闭后的完整恢复备份；这与是否 Reset 是两个不同决定。此处未授权、安排或执行停机、部署、重试或其他生产动作。
+
+**Fresh-generation Formation Reset 不是这两条的定向修复。** 主整合当前 SSOT“Fresh-generation Formation Reset（2026-10-26）”替代早期管理退役流程，以已完成 Arca On-deck Commit 为保护边界：按各 Owner 定义保留收藏依赖、配置、People 与收藏维护责任；无收藏依赖的未入藏任务、观察、Candidate/Offer、未提交 On-deck、执行历史与占用会从在线代际清除，历史保留在校验的离线备份。它覆盖所有相关未入藏任务，而不仅是这两条；不为其他任务承诺继续旧进度。当前 `formation-reset-runtime-port.js` 的预览与执行要求 stopped、quiesced 和完整代际 Fence，`clean-runtime-operations.js` 的 Reset 请求只接受 idempotencyKey、previewDigest、confirmed，不含挑选两条的范围字段。`formation-reset-preflight.js` 绑定全表保留/清除计数、受保护摘要、存储与容量；未执行生产预检，实际涉及数量、阻断项与耗时未知。
+
+Reset 合同保留来源和正式收藏目录的当前实际文件，系统专用 Workspace/暂存/缓存只按停止态冻结清单和独立清理回执处理；位于 Shelf 目标下的旧 Slot 不能未经具体清单和归属证明当成可删除的系统临时目录。Reset 成功后仍停止，只有另经授权恢复正常供给才会按当前 Field 重新观察；重新观察并不保证这两条必定重采或入藏，仍取决于来源存在、Field 覆盖及启用状态、排除/Control、扫描和后续验收，且主动截断修复必须先真正完成并经资格验证。当前两条来源的最新可见性、生产当时其他未入藏任务与是否存在精确清理阻断均未重新查询。
+
+历史 `docs/v2/PRODUCTION_DEPLOYMENT.md` 曾描述带 `--subject-ids` 的旧 `formation-reset-nas.js` 用法；当前 SSOT 已由 Fresh-generation 合同取代旧管理退役主流程，不能只凭历史参数宣称存在当前可对这两条执行的安全 Reset，更不能调用旧物理删除工具替代现行 Operator。若要另做两条定向处理，须先有 Arca/相关 Owner 明确授权与冻结范围、完整 Effect/Control/文件现实和可恢复合同，再在隔离副本验证；目前没有该证明或本次生产处置授权。
