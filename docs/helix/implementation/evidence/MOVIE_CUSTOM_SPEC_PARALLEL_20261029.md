@@ -97,3 +97,9 @@ UI 负责人对开发版本 `d37bc4272` 的提前走查为 FAIL，指出确认�
 Foundation 的 Work Admission 新增可选 opaque read fence，并由实际写入 Work 和 Admission Receipt 的同一 Unit of Work 验证：读取后 Owner 状态变化会原子拒绝，且不留下 Work 或回执。精确已提交命令的重放先核验原回执，因此后续 Owner 变化不妨碍重放；这不放宽新提交的校验。真实临时 SQLite 测试先复现原实现忽略 fence、错误接受陈旧读取，再验证变化发生于旧 Effect 排空和新 Work 准入之间时拒绝，重新排空并获取新 fence 后通过。
 
 提交 `8b8a19532` 的 Work Admission、Replacement Run Admission、Work Lifecycle 和 Arca Offer Withdrawal 四个测试文件，在 Windows Node 和隔离 Linux Docker 各为 **70 PASS / 0 skip**。这是供 Owner 编排选择使用的原子准入原语，尚未接入全部 Run、Workspace Admission 或 Scheduler；在途旧 Event/Effect 和已 Accepted/Rejected Offer 的处理仍须按各 Owner 合同完成，不能视为全局调度屏障或开放入口的证据。
+
+## Arca 精确 Offer 责任读取（2026-10-29）
+
+新增 Arca public 内部投影，以精确 Offer ID、Package ID/digest 和完整 Offer 身份读取 Arca 自己的 Acceptance Attempt、Decision、Receipt、Custody 与 Withdrawal。查询同时检查 Offer 和 Package 两个索引方向，避免关联错误被当作记录不存在；只要任一 Accepted 状态或 Custody 存在就返回接纳证据存在，不把单条证据宣称为完整 Accepted Receipt 或入藏。Withdrawal 必须重建并与完整 Offer 一致，与接纳证据共存或身份冲突时拒绝。调用方须在跨 Owner 读取之前捕获 opaque fence，并在实际写入事务验证；测试真实 SQLite 中读取后并发写入 Custody 会拒绝后续 Libra 写入且零副作用。
+
+该投影尚未组合成覆盖 Subject/产品范围的完整责任查询，也未接入 Custom Target Baseline、用户入口或 Runtime；不能凭单个 Offer 无 Accepted 证据断言其他 Offer、已有收藏或后续接纳不存在。真实未投递/处理中/Rejected/Accepted 边界仍需要整合旅程核验，不能用该读取释放材料或替代排空。新测试先因缺少公开读取入口失败，最终投影、Withdrawal、Baseline 及 Replacement Admission 四文件在 Windows 与隔离 Linux Docker 各 **53 PASS / 0 skip**；Attempt/Decision/Custody/Receipt 为受控 Owner 数据夹具，Withdrawal 使用真实 Arca Store。包边界与禁止语义无新增 finding，原有全局 2 + 1 finding 保留；Linux 仍不是精确依赖镜像。
