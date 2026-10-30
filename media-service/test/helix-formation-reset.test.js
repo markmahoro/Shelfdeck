@@ -1239,6 +1239,148 @@ test('Formation Reset deletes current and previously orphaned eventless Formatio
   } finally { close(value); }
 });
 
+function seedRetirementHistoryEvidence(database, { subjectId, receiptId, requestDigest, resultDigest, terminalAtMs = 10 }) {
+  const resultRef = { resultKind:'administratively_retired', subjectId };
+  database.prepare(`INSERT INTO fx_command_receipts
+    (command_receipt_id,owner_domain,command_contract,caller_scope,idempotency_key,request_digest,
+     target_type,target_id,result_schema_ref,result_ref_json,result_digest,committed_at_ms)
+    VALUES (?,'libra','libra.formation-retirement@1','administrative-formation-reset',?,?,
+     'subject',?,'libra.formation-retirement-receipt@1',?,?,?)`)
+    .run(receiptId, `${receiptId}-key`, requestDigest, subjectId, JSON.stringify(resultRef), resultDigest, terminalAtMs);
+  database.prepare(`INSERT INTO fx_commit_markers
+    (commit_marker,effect_id,owner_domain,scope_type,scope_id,commit_digest,committed_at_ms)
+    VALUES (?,NULL,'libra','subject',?,?,?)`).run(receiptId, subjectId, requestDigest, terminalAtMs);
+}
+
+test('safe Formation Reset preserves retirement receipt and marker for a retained administratively_retired Subject', () => {
+  const value = fixture('helix-formation-reset-preserve-retirement-history');
+  try {
+    const kept = seedSubjectRun(value.database, 'retired-retained', 'completed');
+    const keptPackage = 'package-retired-retained', keptCustody = 'custody-retired-retained';
+    const keptOnDeck = 'on-deck-retired-retained';
+    value.database.prepare(`INSERT INTO libra_product_packages
+      (on_deck_package_id,offer_id,package_revision,libra_run_id,run_state_revision,subject_id,
+       product_structure_json,production_provenance_json,attestation_json,package_digest,state,published_at_ms)
+      VALUES (?,'offer-retired-retained',1,?,1,?,'{}','{}','{}',?,'published',1)`)
+      .run(keptPackage, kept.runId, kept.subjectId, DIGEST);
+    value.database.prepare(`INSERT INTO arca_ondeck_custodies
+      (custody_id,on_deck_package_id,package_digest,state,accepted_at_ms)
+      VALUES (?,?,?,'committed',1)`).run(keptCustody, keptPackage, DIGEST);
+    value.database.prepare(`INSERT INTO arca_ondeck_runs(on_deck_run_id,custody_id,state,created_at_ms,terminal_at_ms)
+      VALUES (?,?,'committed',1,2)`).run(keptOnDeck, keptCustody);
+    value.database.prepare(`INSERT INTO arca_shelf_entries(shelf_entry_id,status,created_at_ms)
+      VALUES ('entry-retired-retained','active',1)`).run();
+    value.database.prepare(`INSERT INTO arca_ondeck_commit_receipts
+      (receipt_id,on_deck_run_id,shelf_entry_id,inventory_revision,deck_fact_revision,commit_digest,committed_at_ms)
+      VALUES ('commit-retired-retained',?,'entry-retired-retained',1,1,?,2)`).run(keptOnDeck, DIGEST);
+
+    const unfinishedRunId = 'run-retired-unfinished';
+    const unfinishedState = { libraRunId:unfinishedRunId,stateRevision:1,state:'active',acceptanceSpecId:null,
+      executionBasisDigest:DIGEST,runScopeDigest:DIGEST,priorityClass:'normal',priorityIntentDigest:DIGEST,
+      transitionKind:'admitted',transitionEvidenceDigest:DIGEST };
+    value.database.prepare(`INSERT INTO libra_runs
+      (libra_run_id,subject_id,admission_revision,execution_basis_record_json,execution_basis_digest,
+       run_scope_digest,state,state_revision,state_digest,priority_class,priority_intent_digest,recovery_attempt_ordinal,created_at_ms)
+      VALUES (?,?,2,'{}',?,?,'active',1,?,'normal',?,0,3)`)
+      .run(unfinishedRunId,kept.subjectId,DIGEST,DIGEST,runStateDigest(unfinishedState),DIGEST);
+    const unfinishedWorkspaceId = canonicalDigest({ workspace:'retired-unfinished' });
+    const unfinishedReferenceDigest = emptyReferenceSetDigest(unfinishedWorkspaceId);
+    const unfinishedWorkspaceState = { workspaceId:unfinishedWorkspaceId,workspaceRevision:1,state:'active',
+      workspaceMaterialReferenceSetDigest:unfinishedReferenceDigest,transitionKind:'admitted',transitionEvidenceDigest:DIGEST };
+    value.database.transaction(() => {
+      value.database.pragma('defer_foreign_keys = ON');
+      value.database.prepare(`INSERT INTO libra_workspaces
+        (workspace_id,libra_run_id,current_revision,state,state_digest,created_at_ms)
+        VALUES (?,?,1,'active',?,1)`).run(unfinishedWorkspaceId,unfinishedRunId,workspaceStateDigest(unfinishedWorkspaceState));
+      value.database.prepare(`INSERT INTO libra_workspace_revisions
+        (workspace_id,workspace_revision,state,material_reference_set_digest,transition_kind,
+         transition_evidence_digest,revision_digest,committed_at_ms)
+        VALUES (?,1,'active',?,'admitted',?,?,1)`)
+        .run(unfinishedWorkspaceId,unfinishedReferenceDigest,DIGEST,canonicalDigest(unfinishedWorkspaceState));
+    })();
+    value.database.prepare(`INSERT INTO fx_workspace_registry(workspace_id,owner_domain,process_type,process_id,state,created_at_ms)
+      VALUES (?,'libra','libra_run',?,'active',1)`).run(unfinishedWorkspaceId,unfinishedRunId);
+    seedExecution(value.database, 'libra', 'libra_run', unfinishedRunId, 'retired-unfinished');
+    value.database.prepare("UPDATE fx_effect_journal SET effect_class='pure' WHERE event_attempt_id=?")
+      .run('event-attempt-retired-unfinished');
+
+    const receiptId = canonicalDigest({ contract:'libra.formation-retirement@1', subjectId:kept.subjectId });
+    const requestDigest = canonicalDigest({ retirement:'retired-retained' });
+    const resultDigest = canonicalDigest({ resultKind:'administratively_retired', subjectId:kept.subjectId });
+    value.database.prepare(`UPDATE libra_subjects SET status='administratively_retired',terminal_at_ms=10,updated_at_ms=10
+      WHERE subject_id=?`).run(kept.subjectId);
+    seedRetirementHistoryEvidence(value.database, { subjectId:kept.subjectId, receiptId, requestDigest, resultDigest });
+
+    const plan = inspectPlan(value.database);
+    assert.equal(plan.scope.disposableSubjectIds.includes(kept.subjectId), false);
+    assert.equal(plan.scope.resetSubjectIds.includes(kept.subjectId), true);
+    assert.equal(plan.scope.runIds.includes(unfinishedRunId), true);
+    assert.equal(plan.scope.factScopes.some((row) => row.scopeType === 'subject' && row.scopeId === kept.subjectId), false);
+
+    applyReset({ database:value.database, dataDir:value.dataDir, transcodeDir:value.transcodeDir, nowMs:5300 });
+    assert.equal(value.database.prepare('SELECT COUNT(*) count FROM libra_subjects WHERE subject_id=?')
+      .get(kept.subjectId).count, 1);
+    assert.equal(value.database.prepare('SELECT COUNT(*) count FROM libra_runs WHERE libra_run_id=?')
+      .get(unfinishedRunId).count, 0);
+    assert.deepEqual(value.database.prepare(`SELECT command_receipt_id,request_digest,result_digest FROM fx_command_receipts
+      WHERE command_contract='libra.formation-retirement@1' AND target_id=?`).get(kept.subjectId),
+      { command_receipt_id:receiptId, request_digest:requestDigest, result_digest:resultDigest });
+    assert.deepEqual(value.database.prepare(`SELECT commit_marker,scope_type,scope_id,commit_digest FROM fx_commit_markers
+      WHERE commit_marker=?`).get(receiptId),
+      { commit_marker:receiptId, scope_type:'subject', scope_id:kept.subjectId, commit_digest:requestDigest });
+  } finally { close(value); }
+});
+
+test('safe Formation Reset deletes disposable Subject retirement receipt with its commit marker', () => {
+  const value = fixture('helix-formation-reset-delete-retirement-with-subject');
+  try {
+    const seeded = seedSubjectRun(value.database, 'retired-disposable');
+    seedExecution(value.database, 'libra', 'libra_run', seeded.runId, 'retired-disposable');
+    value.database.prepare("UPDATE fx_effect_journal SET effect_class='pure' WHERE event_attempt_id=?")
+      .run(`event-attempt-retired-disposable`);
+    const receiptId = canonicalDigest({ contract:'libra.formation-retirement@1', subjectId:seeded.subjectId });
+    const requestDigest = canonicalDigest({ retirement:'retired-disposable' });
+    const resultDigest = canonicalDigest({ resultKind:'administratively_retired', subjectId:seeded.subjectId });
+    value.database.prepare(`UPDATE libra_subjects SET status='administratively_retired',terminal_at_ms=10,updated_at_ms=10
+      WHERE subject_id=?`).run(seeded.subjectId);
+    value.database.prepare(`UPDATE libra_runs SET state='administratively_retired',terminal_at_ms=10 WHERE libra_run_id=?`)
+      .run(seeded.runId);
+    seedRetirementHistoryEvidence(value.database, { subjectId:seeded.subjectId, receiptId, requestDigest, resultDigest });
+
+    const plan = inspectPlan(value.database);
+    assert.equal(plan.scope.disposableSubjectIds.includes(seeded.subjectId), true);
+    assert.equal(plan.scope.commandTargetScopes.some((row) => row.targetType === 'subject' && row.targetId === seeded.subjectId), true);
+
+    applyReset({ database:value.database, dataDir:value.dataDir, transcodeDir:value.transcodeDir, nowMs:5400 });
+    assert.equal(value.database.prepare('SELECT COUNT(*) count FROM libra_subjects WHERE subject_id=?')
+      .get(seeded.subjectId).count, 0);
+    assert.equal(value.database.prepare(`SELECT COUNT(*) count FROM fx_command_receipts
+      WHERE command_receipt_id=?`).get(receiptId).count, 0);
+    assert.equal(value.database.prepare(`SELECT COUNT(*) count FROM fx_commit_markers
+      WHERE commit_marker=?`).get(receiptId).count, 0);
+  } finally { close(value); }
+});
+
+test('safe Formation Reset clears orphan formation-retirement receipts whose Subject is already gone', () => {
+  const value = fixture('helix-formation-reset-orphan-retirement-receipt');
+  try {
+    const receiptId = 'orphan-retirement-receipt';
+    const requestDigest = canonicalDigest({ retirement:'orphan' });
+    const resultDigest = canonicalDigest({ resultKind:'administratively_retired', subjectId:'missing-subject' });
+    seedRetirementHistoryEvidence(value.database, {
+      subjectId:'missing-subject', receiptId, requestDigest, resultDigest,
+    });
+    const plan = inspectPlan(value.database);
+    assert.equal(plan.counts.orphanFormationRetirementReceipts, 1);
+    applyReset({ database:value.database, dataDir:value.dataDir, transcodeDir:value.transcodeDir, nowMs:5500 });
+    assert.equal(value.database.prepare(`SELECT COUNT(*) count FROM fx_command_receipts
+      WHERE command_receipt_id=?`).get(receiptId).count, 0);
+    assert.equal(value.database.prepare(`SELECT COUNT(*) count FROM fx_commit_markers
+      WHERE commit_marker=?`).get(receiptId).count, 0);
+    assert.equal(inspectPlan(value.database).counts.orphanFormationRetirementReceipts, 0);
+  } finally { close(value); }
+});
+
 test('Formation Reset removes an Accepted but uncommitted Arca On-deck responsibility', () => {
   const value = fixture('helix-formation-reset-normal-ondeck');
   try {
@@ -1598,6 +1740,7 @@ test('the frozen-manifest verifier catches an Artifact omitted by discovery', ()
       acceptanceAttemptIds:[],acceptanceDecisionIds:[],custodyIds:[],onDeckRunIds:[],artifactIds:[],
       processScopes:[],factScopes:[],materialKeys:[],handoffAOfferIds:[],
       phantomLibraAdmissionReceiptIds:[],orphanPipelineAdmissionReceiptIds:[],
+      orphanFormationRetirementReceiptIds:[],
       ownerScopes:[{ ownerDomain:'libra',scopeType:'libra_run',scopeId:'run-verifier-omission' }] };
     assert.throws(() => verifyFrozenManifest(value.database, { scope, graph:emptyGraph }), (error) =>
       error.message === 'FORMATION_RESET_RESIDUAL' && error.details.typedOwnerArtifacts.length === 1);

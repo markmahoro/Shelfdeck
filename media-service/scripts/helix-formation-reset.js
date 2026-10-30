@@ -296,6 +296,23 @@ function discoverScope(database, options = {}) {
      ORDER BY receipt.command_receipt_id
   `).all());
   const phantomLibraAdmissionReceiptIds = unique(phantomLibraAdmissionReceipts.map((row) => row.command_receipt_id));
+  // Retirement receipts whose Subject row is already gone are not history —
+  // they are prior Reset leftovers. Clear the orphan receipt and its marker.
+  const orphanFormationRetirementReceipts = globalOnly(database.prepare(`
+    SELECT receipt.command_receipt_id,receipt.target_id,receipt.committed_at_ms
+      FROM fx_command_receipts receipt
+      LEFT JOIN libra_subjects subject ON subject.subject_id=receipt.target_id
+     WHERE receipt.owner_domain='libra'
+       AND receipt.command_contract='libra.formation-retirement@1'
+       AND receipt.target_type='subject'
+       AND subject.subject_id IS NULL
+     ORDER BY receipt.command_receipt_id
+  `).all());
+  const orphanFormationRetirementReceiptIds = unique(orphanFormationRetirementReceipts.map((row) => row.command_receipt_id));
+  const orphanFormationRetirementMarkers = orphanFormationRetirementReceiptIds.length
+    ? rowsByIds(database, 'SELECT commit_marker,result_id FROM fx_commit_markers WHERE commit_marker IN',
+      orphanFormationRetirementReceiptIds)
+    : [];
   const committedOnDeckRunIds = oneColumn(database, `
     SELECT DISTINCT on_deck_run_id FROM arca_ondeck_commit_receipts ORDER BY on_deck_run_id
   `);
@@ -584,8 +601,11 @@ function discoverScope(database, options = {}) {
       .map((row) => row.material_key),
     ...handoffAMaterialKeys,
   ]);
+  // Subject-scoped commit markers include durable libra.formation-retirement@1
+  // history evidence. Retained Subjects (committed collection still online) keep
+  // that receipt+marker pair; only disposable Subjects may clear subject scope.
   const factScopes = Object.freeze([
-    ...typedScope('libra', 'subject', resetSubjectIds),
+    ...typedScope('libra', 'subject', disposableSubjectIds),
     ...typedScope('libra', 'intake_decision', finalIntakeDecisionIds),
     ...typedScope('libra', 'routing_decision', unique(routingDecisionIds)),
     ...typedScope('libra', 'acceptance_spec', unique(acceptanceSpecIds)),
@@ -603,12 +623,15 @@ function discoverScope(database, options = {}) {
   const worksById = new Map([...selectWorksByProcessScopes(database, processScopes), ...orphanFormationWorks]
     .map((row) => [row.work_id, row]));
   const works = [...worksById.values()].sort((left, right) => left.work_id.localeCompare(right.work_id));
+  // Disposable Subjects take their subject-target Command Receipts with them
+  // (including formation-retirement). Retained Subjects keep retirement proofs.
   const commandTargetScopes = Object.freeze([
     ...works.map((row) => Object.freeze({ ownerDomain:row.owner_domain,
       targetType:'supporting_work', targetId:row.work_id })),
     ...unique(decisionBasisIds).map((targetId) => Object.freeze({ ownerDomain:'libra', targetType:'decision_basis', targetId })),
     ...unique(identitySelectionIntentIds).map((targetId) => Object.freeze({ ownerDomain:'libra',
       targetType:'product_identity_selection_intent', targetId })),
+    ...disposableSubjectIds.map((targetId) => Object.freeze({ ownerDomain:'libra', targetType:'subject', targetId })),
   ]);
   const usAdultAnalysisIds=tableExists(database,'libra_us_adult_analysis_bases')
     ? unique(rowsByIds(database,'SELECT analysis_id FROM libra_us_adult_analysis_bases WHERE libra_run_id IN',runIds).map(row=>row.analysis_id)):[];
@@ -633,6 +656,9 @@ function discoverScope(database, options = {}) {
     orphanPipelineAdmissionTargetIds:Object.freeze(orphanPipelineAdmissionTargetIds),
     phantomLibraAdmissionReceipts:Object.freeze(phantomLibraAdmissionReceipts.map((row) => Object.freeze({ ...row }))),
     phantomLibraAdmissionReceiptIds:Object.freeze(phantomLibraAdmissionReceiptIds),
+    orphanFormationRetirementReceipts:Object.freeze(orphanFormationRetirementReceipts.map((row) => Object.freeze({ ...row }))),
+    orphanFormationRetirementReceiptIds:Object.freeze(orphanFormationRetirementReceiptIds),
+    orphanFormationRetirementMarkers:Object.freeze(orphanFormationRetirementMarkers.map((row) => Object.freeze({ ...row }))),
     runIds:Object.freeze(runIds), workspaceIds:Object.freeze(workspaceIds), cleanupScopeIds:Object.freeze(cleanupScopeIds),
     packageIds:Object.freeze(packageIds), offerIds:Object.freeze(offerIds), intakeDecisionIds:Object.freeze(finalIntakeDecisionIds),
     handoffAOfferIds:Object.freeze(handoffAOfferIds),
@@ -790,6 +816,7 @@ function inspectPlan(database, options = {}) {
     orphanPipelineTokens:orphans.pipelineTokens.length,
     orphanPipelineAdmissionReceipts:scope.orphanPipelineAdmissionReceiptIds.length,
     phantomLibraAdmissionReceipts:scope.phantomLibraAdmissionReceiptIds.length,
+    orphanFormationRetirementReceipts:scope.orphanFormationRetirementReceiptIds.length,
     preservedProcurementControls:preservedProcurementControls.length,
     preservedRoutingAnchorIntakes:scope.preservedRoutingAnchorIntakeIds.length,
     procurementHandoffAClosures:scope.handoffAOfferIds.length,
@@ -1290,7 +1317,7 @@ function verifyFrozenManifest(database, manifest) {
   assertIdsAbsent(database, 'fx_artifact_registry', 'artifact_handle_id', scope.artifactIds, residual);
   assertIdsAbsent(database, 'fx_command_receipts', 'command_receipt_id',
     unique([...graph.commandReceiptIds, ...scope.phantomLibraAdmissionReceiptIds,
-      ...scope.orphanPipelineAdmissionReceiptIds]), residual);
+      ...scope.orphanPipelineAdmissionReceiptIds, ...(scope.orphanFormationRetirementReceiptIds || [])]), residual);
 
   const residualWorks = selectWorksByProcessScopes(database, scope.processScopes);
   if (residualWorks.length) residual.typedProcessWorks = residualWorks;
@@ -1377,8 +1404,12 @@ function verifyFrozenManifest(database, manifest) {
 
 function applyFormationReset(database, plan, nowMs) {
   const scope = plan.scope;
+  const orphanMarkers = Object.freeze([
+    ...scope.eventlessFactMarkerOrphans,
+    ...(scope.orphanFormationRetirementMarkers || []),
+  ]);
   const graph = captureExecutionGraph(database, scope.works.map((row) => row.work_id), scope.processScopes,
-    scope.factScopes, scope.commandTargetScopes, scope.eventlessFactMarkerOrphans);
+    scope.factScopes, scope.commandTargetScopes, orphanMarkers);
   const manifest = Object.freeze({ scope, graph, digest:canonicalDigest({
     schema:'helix.formation-reset-manifest@2',
     business:{ subjects:scope.disposableSubjectIds, intakes:scope.intakeDecisionIds, runs:scope.runIds,
@@ -1396,6 +1427,8 @@ function applyFormationReset(database, plan, nowMs) {
     const retiredSupersededOfferMessages = retireSupersededOfferMessages(database, scope.preservedSupersededHandoffAClosures);
     executeByIds(database, 'DELETE FROM fx_command_receipts WHERE command_receipt_id IN', scope.phantomLibraAdmissionReceiptIds);
     executeByIds(database, 'DELETE FROM fx_command_receipts WHERE command_receipt_id IN', scope.orphanPipelineAdmissionReceiptIds);
+    executeByIds(database, 'DELETE FROM fx_command_receipts WHERE command_receipt_id IN',
+      scope.orphanFormationRetirementReceiptIds || []);
     executeByIds(database, 'DELETE FROM fx_artifact_references WHERE artifact_handle_id IN', scope.artifactIds);
     executeByIds(database, 'DELETE FROM fx_artifact_registry WHERE artifact_handle_id IN', scope.artifactIds);
     const controlRollback = rollbackControls(database, scope);
