@@ -26,6 +26,13 @@ test('fresh management deploy is explicit and cannot be combined with clean init
   assert.match(yaml, /reset-config.json:\/run\/shelfdeck-reset\/config.json:ro/);
   assert.doesNotMatch(composeYaml('shelfdeck:test'), /RESET_BOOTSTRAP/);
 });
+test('standard compose bakes the US Adult catalogue RO volume and Host env without post-apply remount', () => {
+  const yaml = composeYaml('shelfdeck:1.1.0');
+  assert.match(yaml, /SHELFDECK_US_ADULT_CATALOGUE_ROOT=\/us-adult-catalogue/);
+  assert.match(yaml, /SHELFDECK_US_ADULT_CATALOGUE_GENERATION_PATH=\/us-adult-catalogue\/generation\.json/);
+  assert.match(yaml, /\/vol1\/1000\/docker\/shelfdeck\/us-adult-catalogue:\/us-adult-catalogue:ro/);
+  assert.doesNotMatch(yaml, /us-adult-catalogue:\/us-adult-catalogue(?:\s|$)/);
+});
 
 test('cold continuation reuses the original closure and verified backup, and never stops or invents a new source generation', async () => {
   const { canonicalDigest } = require('../media-service/src/helix/contracts/canonical-json');
