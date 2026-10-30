@@ -56,7 +56,8 @@
       "type": "string",
       "enum": [
         "frame_set",
-        "western_analysis"
+        "western_analysis",
+        "face_catalogue_observation"
       ]
     },
     "sourceInputDigest": {

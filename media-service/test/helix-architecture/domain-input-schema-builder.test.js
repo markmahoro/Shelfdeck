@@ -44,7 +44,8 @@ test('freezes bounded Shelf Acceptance source and Product read authority', () =>
 
 test('materializes the exact service-local Western analysis construction inputs', () => {
   const target = schemas.WorkspaceArtifactOutputTarget;
-  assert.deepEqual(target.properties.outputKind.enum, ['frame_set', 'western_analysis']);
+  assert.deepEqual(target.properties.outputKind.enum,
+    ['frame_set', 'western_analysis', 'face_catalogue_observation']);
   assert.deepEqual(target.properties.rootSnapshot,
     { $ref: 'helix://contracts/application-types/PlatformWorkspaceRootSnapshot/v1' });
   assert.equal(target['x-helix-maxCanonicalBytes'], 16 * 1024);
