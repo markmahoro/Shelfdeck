@@ -175,6 +175,9 @@ const {
   repairTerminalResourceDefers,
 } = require('./helix/foundation/persistence/execution-consistency-repair');
 const {
+  createOperatorMaintenance,
+} = require('./helix/platform/application/operator-maintenance');
+const {
   createAdminCredentialSecretStore,
 } = require('./admin-credential-secret-store');
 const schemaManifest = require('./helix/foundation/persistence/generated/clean-schema.manifest.json');
@@ -2169,8 +2172,16 @@ async function createCleanServiceHost(options) {
         !activity.deferredRecoveryActions&&!activity.inFlightAdminCommands;},
     onError:options.onExecutionRuntimeError,
   });
+  const operatorMaintenance=createOperatorMaintenance({
+    dataDir:options.dataDir,
+    databasePath,
+    Database,
+    now:options.now||Date.now,
+    runtimeMode:()=>runtimeOperations.snapshot().mode,
+  });
   const facades = createCleanFacades({
     runtimeOperations,
+    operatorMaintenance,
     maintenanceWindow,
     sessionTokens,
     readiness,

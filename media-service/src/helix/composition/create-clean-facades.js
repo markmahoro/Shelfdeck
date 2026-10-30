@@ -49,6 +49,17 @@ function createCleanFacades(options) {
     facades.PlatformAdminFacade.get_runtime_reset_preview=async()=>({body:await runtime.previewReset()});
     facades.PlatformAdminFacade.post_runtime_reset=async input=>({status:202,body:await runtime.reset(input.body,input.actor)});
   }
+  if(options.operatorMaintenance){
+    const maintenance=options.operatorMaintenance;
+    facades.PlatformAdminFacade.get_runtime_operator_maintenance=async()=>({body:maintenance.list()});
+    facades.PlatformAdminFacade.get_runtime_operator_maintenance_actionid_preview=async input=>({
+      body:maintenance.preview(input.params.actionId),
+    });
+    facades.PlatformAdminFacade.post_runtime_operator_maintenance_actionid_actions_apply=async input=>({
+      status:202,
+      body:maintenance.apply(input.params.actionId,input.body,input.actor),
+    });
+  }
   if(options.maintenanceWindow){
     facades.PlatformAdminFacade.get_runtime_maintenance=async()=>({body:options.maintenanceWindow.configuration()});
     facades.PlatformAdminFacade.patch_runtime_maintenance=async input=>({body:options.maintenanceWindow.configure(input.body,input.actor.actorId)});

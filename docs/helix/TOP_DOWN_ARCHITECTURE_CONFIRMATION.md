@@ -13785,9 +13785,14 @@ POST /v1/admin/runtime/actions/stop
 POST /v1/admin/runtime/actions/resume
 GET  /v1/admin/runtime/reset-preview
 POST /v1/admin/runtime/actions/reset
+GET  /v1/admin/runtime/operator-maintenance
+GET  /v1/admin/runtime/operator-maintenance/:actionId/preview
+POST /v1/admin/runtime/operator-maintenance/:actionId/actions/apply
 ~~~
 
 Runtime Operational端点由Platform Admin Facade承接并委托Foundation生命周期/Level10 Operator，不注册为普通生产Event Capability。GET runtime只读运行状态及in-flight Projection，不重建业务事实；POST stop/resume仅接受idempotencyKey，POST reset仅接受idempotencyKey、previewDigest与confirmed=true。均使用Admin Session/非浏览器X-Api-Key、原错误封装、actor-bound幂等操作Receipt；accepted操作返回202，UI通过GET读取进展，重复键不得扩大范围。停机不提供业务写旁路。GET reset-preview只有停稳后开放，返回完整选定条目清单、保护计数及阻塞；其digest冻结内部Operator闭包，客户端不得提交Subject或路径。
+
+Operator Maintenance是停机态官方维护框架，与`runtime/maintenance`维护窗、Formation Reset及日常整理流程分离：不得清库、不得当Reset、不得软跳过Admin ended历史校验。GET catalog列出已注册动作；GET preview与POST apply共用previewDigest+confirmed=true防呆与actor-bound幂等Receipt。新维护能力只登记为框架内action，不另开一次性旁路API。首个注册动作`formation-retirement-history-integrity`仅从幸存`libra.formation-retirement@1` receipt重建缺失的同receipt `fx_commit_markers`（`commit_marker=command_receipt_id`，`commit_digest=request_digest`，scope=subject），并清除Subject已不存在的孤儿retirement receipt及其marker；多receipt/结果损坏/已有错误marker/缺receipt等阻断项拒绝自动发明。
 
 Setup Readiness只聚合公开配置Projection，不保存全局Setup状态。Session端点只交换Admin credential与短期
 同源会话，不成为媒体Business Process。
