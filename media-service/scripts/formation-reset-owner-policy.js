@@ -26,7 +26,7 @@ function buildOwnerRetentionPolicy(manifest, { seriesRetention, metadataRetentio
   children('arca_shelf_entries', 'shelf_entry_id', manifest.tables.filter(t => t.owner === 'arca' &&
     t.tableId !== 'arca_shelf_entries' && t.columns.includes('shelf_entry_id')).map(t => t.tableId));
   children('arca_ondeck_runs', 'on_deck_run_id', ['arca_final_inventory_decisions', 'arca_ondeck_settlement_approvals',
-    'arca_series_presentation_commit_links', 'arca_series_presentation_reservations']);
+    'arca_series_presentation_commit_links', 'arca_series_presentation_reservations', 'arca_source_cleanup_checks']);
   children('arca_acceptance_attempts', 'acceptance_attempt_id', ['arca_acceptance_checks', 'arca_acceptance_check_evidence']);
   children('arca_acceptance_decisions', 'acceptance_decision_id', ['arca_handoff_b_receipts']);
   children('arca_aftercare_cases', 'aftercare_case_id', ['arca_aftercare_case_basis_inputs', 'arca_aftercare_settlement_approvals']);
@@ -59,7 +59,9 @@ function buildOwnerRetentionPolicy(manifest, { seriesRetention, metadataRetentio
     [['observation_result_id','result_id']],undefined,true);
   children('libra_runs', 'libra_run_id', ['libra_run_revisions', 'libra_run_outcomes', 'libra_product_fact_revisions',
     'libra_product_identity_selection_intents', 'libra_acquisition_candidate_evidence', 'libra_us_adult_analysis_bases',
-    'libra_us_adult_match_completions', 'libra_us_adult_catalogue_bases', 'libra_workspaces']);
+    'libra_us_adult_match_completions', 'libra_us_adult_catalogue_bases', 'libra_us_adult_catalogue_actor_decisions',
+    'libra_strategy_availability', 'libra_task_cancellations', 'libra_episode_metadata_mapping_intents',
+    'libra_episode_metadata_reviews', 'libra_workspaces']);
   children('libra_run_material_manifests', 'run_material_manifest_id', ['libra_run_material_members', 'libra_run_material_episode_claims']);
   children('libra_product_fact_revisions', 'product_fact_id', ['libra_product_fact_source_refs']);
   // Run's exact immutable mapping FK selects only its confirmation and Review.

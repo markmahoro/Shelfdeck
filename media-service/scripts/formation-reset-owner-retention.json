@@ -780,7 +780,7 @@
     {
       "table": "libra_strategy_availability",
       "owner": "libra",
-      "disposition": "root"
+      "disposition": "dependent"
     },
     {
       "table": "libra_subject_abandon_decisions",

@@ -962,6 +962,10 @@ function deleteExecutionGraph(database, graph) {
   executeByIds(database, 'DELETE FROM fx_workflow_events WHERE event_id IN', graph.eventIds);
   executeByIds(database, 'DELETE FROM fx_plan_edges WHERE plan_id IN', graph.planIds);
   executeByIds(database, 'DELETE FROM fx_plan_nodes WHERE plan_id IN', graph.planIds);
+  if (tableExists(database, 'fx_plan_contracts'))
+    executeByIds(database, 'DELETE FROM fx_plan_contracts WHERE plan_id IN', graph.planIds);
+  if (tableExists(database, 'fx_plan_history_audits'))
+    executeByIds(database, 'DELETE FROM fx_plan_history_audits WHERE plan_id IN', graph.planIds);
   executeByIds(database, 'DELETE FROM fx_workflow_plans WHERE plan_id IN', graph.planIds);
   executeByIds(database, 'DELETE FROM fx_work_attempts WHERE attempt_id IN', graph.attemptIds);
   return executeByIds(database, 'DELETE FROM fx_supporting_works WHERE work_id IN', graph.workIds);
@@ -1012,10 +1016,34 @@ function deleteFormationBusinessGraph(database, scope, nowMs) {
     executeByIds(database,'DELETE FROM libra_us_adult_analysis_bases WHERE analysis_id IN',scope.usAdultAnalysisIds);
   if(tableExists(database,'libra_acquisition_candidate_evidence'))
     executeByIds(database,'DELETE FROM libra_acquisition_candidate_evidence WHERE libra_run_id IN',scope.runIds);
+  if(tableExists(database,'libra_us_adult_catalogue_actor_decisions'))
+    executeByIds(database,'DELETE FROM libra_us_adult_catalogue_actor_decisions WHERE libra_run_id IN',scope.runIds);
+  if(tableExists(database,'libra_us_adult_catalogue_bases'))
+    executeByIds(database,'DELETE FROM libra_us_adult_catalogue_bases WHERE libra_run_id IN',scope.runIds);
+  if(tableExists(database,'libra_strategy_availability'))
+    executeByIds(database,'DELETE FROM libra_strategy_availability WHERE libra_run_id IN',scope.runIds);
+  if(tableExists(database,'libra_task_cancellations'))
+    executeByIds(database,'DELETE FROM libra_task_cancellations WHERE libra_run_id IN',scope.runIds);
+  if(tableExists(database,'libra_episode_metadata_mapping_intents')){
+    const episodeIntentIds=rowsByIds(database,
+      'SELECT intent_id FROM libra_episode_metadata_mapping_intents WHERE libra_run_id IN',scope.runIds)
+      .map(row=>row.intent_id);
+    if(tableExists(database,'libra_episode_metadata_mapping_heads'))
+      executeByIds(database,'DELETE FROM libra_episode_metadata_mapping_heads WHERE intent_id IN',episodeIntentIds);
+    executeByIds(database,'DELETE FROM libra_episode_metadata_mapping_intents WHERE libra_run_id IN',scope.runIds);
+  }
+  if(tableExists(database,'libra_episode_metadata_reviews'))
+    executeByIds(database,'DELETE FROM libra_episode_metadata_reviews WHERE libra_run_id IN',scope.runIds);
   rollbackRetainedSubjectIntakes(database, scope, nowMs);
   executeByIds(database, 'DELETE FROM arca_ondeck_settlement_approvals WHERE on_deck_run_id IN', scope.onDeckRunIds);
   executeByIds(database, 'DELETE FROM arca_final_inventory_decisions WHERE on_deck_run_id IN', scope.onDeckRunIds);
   executeByIds(database, 'DELETE FROM arca_offload_completions WHERE on_deck_run_id IN', scope.onDeckRunIds);
+  if(tableExists(database,'arca_series_presentation_reservations'))
+    executeByIds(database,'DELETE FROM arca_series_presentation_reservations WHERE on_deck_run_id IN',scope.onDeckRunIds);
+  if(tableExists(database,'arca_series_presentation_commit_links'))
+    executeByIds(database,'DELETE FROM arca_series_presentation_commit_links WHERE on_deck_run_id IN',scope.onDeckRunIds);
+  if(tableExists(database,'arca_source_cleanup_checks'))
+    executeByIds(database,'DELETE FROM arca_source_cleanup_checks WHERE on_deck_run_id IN',scope.onDeckRunIds);
   executeByIds(database, 'DELETE FROM arca_material_bindings WHERE owner_object_id IN', scope.custodyIds,
     "AND owner_object_type='on_deck_custody'");
   executeByIds(database, 'DELETE FROM arca_ondeck_runs WHERE on_deck_run_id IN', scope.onDeckRunIds);
@@ -1219,6 +1247,10 @@ function verifyFrozenManifest(database, manifest) {
   assertIdsAbsent(database, 'libra_intake_decisions', 'intake_decision_id', scope.intakeDecisionIds, residual);
   if(tableExists(database,'libra_acquisition_candidate_evidence'))
     assertIdsAbsent(database,'libra_acquisition_candidate_evidence','libra_run_id',scope.runIds,residual);
+  for (const table of ['libra_strategy_availability', 'libra_task_cancellations',
+    'libra_episode_metadata_mapping_intents', 'libra_episode_metadata_reviews',
+    'libra_us_adult_catalogue_bases', 'libra_us_adult_catalogue_actor_decisions'])
+    if (tableExists(database, table)) assertIdsAbsent(database, table, 'libra_run_id', scope.runIds, residual);
   assertIdsAbsent(database, 'libra_run_outcomes', 'libra_run_id', scope.runIds, residual);
   assertIdsAbsent(database, 'libra_runs', 'libra_run_id', scope.runIds, residual);
   assertIdsAbsent(database, 'libra_workspaces', 'workspace_id', scope.workspaceIds, residual);
@@ -1226,10 +1258,15 @@ function verifyFrozenManifest(database, manifest) {
   assertIdsAbsent(database, 'arca_acceptance_attempts', 'acceptance_attempt_id', scope.acceptanceAttemptIds, residual);
   assertIdsAbsent(database, 'arca_acceptance_decisions', 'acceptance_decision_id', scope.acceptanceDecisionIds, residual);
   assertIdsAbsent(database, 'arca_ondeck_custodies', 'custody_id', scope.custodyIds, residual);
+  for (const table of ['arca_series_presentation_reservations', 'arca_series_presentation_commit_links',
+    'arca_source_cleanup_checks'])
+    if (tableExists(database, table)) assertIdsAbsent(database, table, 'on_deck_run_id', scope.onDeckRunIds, residual);
   assertIdsAbsent(database, 'arca_ondeck_runs', 'on_deck_run_id', scope.onDeckRunIds, residual);
   assertIdsAbsent(database, 'fx_supporting_works', 'work_id', graph.workIds, residual);
   assertIdsAbsent(database, 'fx_work_attempts', 'attempt_id', graph.attemptIds, residual);
   assertIdsAbsent(database, 'fx_workflow_plans', 'plan_id', graph.planIds, residual);
+  for (const table of ['fx_plan_contracts', 'fx_plan_history_audits'])
+    if (tableExists(database, table)) assertIdsAbsent(database, table, 'plan_id', graph.planIds, residual);
   assertIdsAbsent(database, 'fx_workflow_events', 'event_id', graph.eventIds, residual);
   assertIdsAbsent(database, 'fx_event_attempts', 'event_attempt_id', graph.eventAttemptIds, residual);
   assertIdsAbsent(database, 'fx_event_result_bindings', 'result_id', graph.resultIds, residual);

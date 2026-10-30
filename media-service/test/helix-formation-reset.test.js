@@ -1214,6 +1214,70 @@ test('Formation Reset removes an Accepted but uncommitted Arca On-deck responsib
   } finally { close(value); }
 });
 
+test('Formation Reset deletes presentation reservations, strategy availability and plan contracts before parents', () => {
+  const value = fixture('helix-formation-reset-fk-children');
+  try {
+    const seeded = seedSubjectRun(value.database, 'fk-children');
+    const packageId = 'package-fk-children', offerId = 'offer-fk-children', attemptId = 'attempt-fk-children',
+      decisionId = 'decision-fk-children', custodyId = 'custody-fk-children', onDeckRunId = 'run-fk-children';
+    value.database.prepare(`INSERT INTO libra_product_packages
+      (on_deck_package_id,offer_id,package_revision,libra_run_id,run_state_revision,subject_id,
+       product_structure_json,production_provenance_json,attestation_json,package_digest,state,published_at_ms)
+      VALUES (?,?,1,?,1,?,'{}','{}','{}',?,'published',1)`)
+      .run(packageId,offerId,seeded.runId,seeded.subjectId,DIGEST);
+    value.database.prepare(`INSERT INTO arca_acceptance_attempts
+      (acceptance_attempt_id,offer_id,on_deck_package_id,package_digest,state,created_at_ms,finished_at_ms)
+      VALUES (?,?,?,?,'accepted',1,2)`).run(attemptId,offerId,packageId,DIGEST);
+    value.database.prepare(`INSERT INTO arca_acceptance_decisions
+      (acceptance_decision_id,acceptance_attempt_id,result,offer_id,on_deck_package_id,package_digest,decided_at_ms)
+      VALUES (?,?,'accepted',?,?,?,2)`).run(decisionId,attemptId,offerId,packageId,DIGEST);
+    value.database.prepare(`INSERT INTO arca_ondeck_custodies
+      (custody_id,acceptance_decision_id,on_deck_package_id,package_digest,state,accepted_at_ms)
+      VALUES (?,?,?,?,'active',2)`).run(custodyId,decisionId,packageId,DIGEST);
+    value.database.prepare(`INSERT INTO arca_handoff_b_receipts
+      (receipt_id,acceptance_decision_id,outcome,offer_id,custody_id,on_deck_package_id,package_digest,committed_at_ms)
+      VALUES ('receipt-fk-children',?,'accepted',?,?,?,?,2)`)
+      .run(decisionId,offerId,custodyId,packageId,DIGEST);
+    value.database.prepare(`INSERT INTO arca_ondeck_runs(on_deck_run_id,custody_id,state,created_at_ms)
+      VALUES (?,?,'offloading',2)`).run(onDeckRunId,custodyId);
+    value.database.prepare(`INSERT INTO arca_series_presentation_scopes
+      (scope_id,state_revision,state_digest,created_at_ms,updated_at_ms)
+      VALUES ('scope-fk-children',1,?,1,1)`).run(DIGEST);
+    value.database.prepare(`INSERT INTO arca_series_presentation_reservations
+      (scope_id,on_deck_run_id,custody_id,state,target_binding_digest,created_at_ms,updated_at_ms)
+      VALUES ('scope-fk-children',?,?,'pending',?,1,1)`).run(onDeckRunId,custodyId,DIGEST);
+    value.database.prepare(`INSERT INTO libra_strategy_availability
+      (libra_run_id,strategy_kind,condition_digest,check_ordinal,evidence_schema_ref,evidence_json,evidence_digest,checked_at_ms)
+      VALUES (?,'tmdb',?,0,'test','{}',?,1)`).run(seeded.runId,DIGEST,DIGEST);
+    const work = seedExecution(value.database, 'arca', 'arca_ondeck_run', onDeckRunId, 'fk-children');
+    value.database.prepare(`INSERT INTO fx_execution_contracts
+      (contract_digest,format_version,contract_schema_ref,contract_json,created_at_ms)
+      VALUES (?,1,'test','{}',1)`).run(DIGEST);
+    value.database.prepare(`INSERT INTO fx_plan_contracts
+      (plan_id,contract_digest,graph_digest,catalog_digest,provenance_schema_ref,provenance_json,created_at_ms)
+      VALUES (?,?,?,?,'test','{}',1)`).run(work.planId,DIGEST,DIGEST,DIGEST);
+    value.database.prepare(`INSERT INTO fx_plan_history_audits
+      (audit_id,plan_id,audit_schema_ref,audit_json,created_at_ms)
+      VALUES ('audit-fk-children',?,'test','{}',1)`).run(work.planId);
+    value.database.prepare(`INSERT INTO libra_formation_projections(subject_id,classification,subject_status,
+      display_identity,next_action_label,next_action_state,attention_state,current_package_id,current_offer_id,added_at_ms,updated_at_ms)
+      VALUES (?,'in_progress','active','Accepted','整理中','running','none',?,?,1,1)`)
+      .run(seeded.subjectId,packageId,offerId);
+
+    const result = applyReset({ database:value.database, dataDir:value.dataDir,
+      transcodeDir:value.transcodeDir, nowMs:4600 });
+    assert.equal(result.verification.integrity, 'ok');
+    assert.deepEqual(value.database.pragma('foreign_key_check'), []);
+    assert.equal(value.database.prepare('SELECT COUNT(*) count FROM arca_series_presentation_reservations').get().count, 0);
+    assert.equal(value.database.prepare('SELECT COUNT(*) count FROM libra_strategy_availability').get().count, 0);
+    assert.equal(value.database.prepare('SELECT COUNT(*) count FROM fx_plan_contracts').get().count, 0);
+    assert.equal(value.database.prepare('SELECT COUNT(*) count FROM fx_plan_history_audits').get().count, 0);
+    assert.equal(value.database.prepare('SELECT COUNT(*) count FROM arca_ondeck_runs').get().count, 0);
+    assert.equal(value.database.prepare('SELECT COUNT(*) count FROM libra_runs').get().count, 0);
+    assert.equal(value.database.prepare('SELECT COUNT(*) count FROM fx_workflow_plans').get().count, 0);
+  } finally { close(value); }
+});
+
 test('Formation Reset rejects broad transcode roots', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-formation-reset-guard-'));
   const dataDir = path.join(root, 'data');
