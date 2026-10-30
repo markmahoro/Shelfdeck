@@ -677,6 +677,15 @@ button, input, select, textarea { font: inherit; }
 .episode-metadata-dialog .dialog-body > *, .episode-metadata-dialog select { min-width: 0; max-width: 100%; }
 .episode-metadata-dialog .episode-metadata-confirmation { display: flex; flex-flow: row nowrap; align-items: flex-start; gap: 8px; }
 .episode-metadata-confirmation input[type="checkbox"] { flex: none; width: 16px; height: 16px; min-height: 16px; margin: 3px 0; }
+.episode-metadata-batch { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.episode-metadata-uncertain h3 { margin: 0; font-size: 14px; font-weight: 600; }
+.episode-metadata-uncertain ul, .episode-metadata-choices { margin: 0; padding-left: 1.2em; }
+.episode-metadata-uncertain-row { display: grid; grid-template-columns: auto minmax(0,1fr); gap: 6px 12px; align-items: center; margin: 8px 0; }
+.episode-metadata-uncertain-row strong { grid-row: 1; }
+.episode-metadata-uncertain-row span { grid-column: 2; color: var(--muted); overflow-wrap: anywhere; }
+.episode-metadata-uncertain-row select, .episode-metadata-uncertain-row button { grid-column: 1 / -1; justify-self: start; }
+.episode-metadata-uncertain-row select { width: min(100%, 420px); }
+.episode-metadata-manual { display: grid; gap: 8px; }
 .identity-picker-error { color:var(--danger); margin:0; }
 .identity-picker-preview { display:flex; gap:16px; align-items:center; padding:16px; border:1px solid var(--line); border-radius:8px; }
 .identity-picker-preview > div { min-width:0; }
