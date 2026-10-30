@@ -1,0 +1,8 @@
+InsightFace buffalo_l ONNX weights (det_10g.onnx, w600k_r50.onnx)
+
+Source: https://github.com/deepinsight/insightface (model zoo / buffalo_l)
+Pinned checksums: media-service/src/helix/contracts/buffalo-model-pack.json
+Upstream weights condition: non-commercial research (InsightFace model zoo terms).
+ShelfDeck bakes these verified weights into the service image for local NAS use.
+The offline face-vector catalogue (stash-sense2-data) is NOT stored here; it remains
+a separate data volume configured via SHELFDECK_US_ADULT_CATALOGUE_ROOT.

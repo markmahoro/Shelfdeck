@@ -88,6 +88,7 @@ tools/ssh-askpass.ps1
 media-service/data/
 media-service/dist/
 media-service/resources/face-models/*.onnx
+media-service/resources/buffalo-models/*.onnx
 media-service/web/test-results/
 media-service/web/playwright-report/
 media-worker/config.json

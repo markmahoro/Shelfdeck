@@ -35,9 +35,13 @@ RUN apt-get update \
 COPY media-service/package.json media-service/package-lock.json ./
 RUN ONNXRUNTIME_NODE_INSTALL=skip npm ci --omit=dev
 COPY media-service/resources/face-models ./resources/face-models
+COPY media-service/resources/buffalo-models ./resources/buffalo-models
 COPY media-service/src/helix/contracts/us-adult-face-model-pack.json ./src/helix/contracts/us-adult-face-model-pack.json
+COPY media-service/src/helix/contracts/buffalo-model-pack.json ./src/helix/contracts/buffalo-model-pack.json
 COPY media-service/scripts/install-face-models.js ./scripts/install-face-models.js
-RUN node scripts/install-face-models.js
+COPY media-service/scripts/install-buffalo-models.js ./scripts/install-buffalo-models.js
+RUN node scripts/install-face-models.js \
+  && node scripts/install-buffalo-models.js
 
 FROM service-base AS service-runtime
 WORKDIR /app
@@ -63,6 +67,7 @@ RUN rm -f /usr/bin/python /usr/bin/python3 /usr/bin/python3.* \
 COPY media-service/package.json media-service/package-lock.json ./
 COPY --from=service-dependencies /app/node_modules ./node_modules
 COPY --from=service-dependencies /app/resources/face-models ./resources/face-models
+COPY --from=service-dependencies /app/resources/buffalo-models ./resources/buffalo-models
 # Use the lockfile-pinned service probe (same as main). Keep configured path.
 RUN node -e "const fs=require('fs'),source=require('@ffprobe-installer/ffprobe').path,target='/usr/local/bin/ffprobe'; fs.unlinkSync(target); fs.copyFileSync(source,target); fs.chmodSync(target,0o755);"
 # Directory copies avoid Docker "max depth exceeded" from 100+ single-file COPY layers.
