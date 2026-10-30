@@ -16,6 +16,13 @@ function runtimeOptions(env = process.env) {
     secretRoot: env.SHELFDECK_SECRET_ROOT,
     resetConfigFile: env.SHELFDECK_RESET_CONFIG_FILE || undefined,
     resetBootstrapFile: env.SHELFDECK_RESET_BOOTSTRAP_FILE || undefined,
+    // Operator Maintenance Suite observability: always-on request timings;
+    // optional deeper debug via SHELFDECK_OPERATOR_OBSERVABILITY_DEBUG=1.
+    env,
+    operatorObservabilityDebug: String(env.SHELFDECK_OPERATOR_OBSERVABILITY_DEBUG || '').trim() === '1',
+    operatorEventLoopLagThresholdMs: env.SHELFDECK_OPERATOR_OBSERVABILITY_EVENT_LOOP_THRESHOLD_MS
+      ? Number(env.SHELFDECK_OPERATOR_OBSERVABILITY_EVENT_LOOP_THRESHOLD_MS)
+      : undefined,
     onExecutionRuntimeError(error) {
       console.error('[shelfdeck] execution runtime error', {
         code: error?.code || 'EXECUTION_RUNTIME_ERROR',

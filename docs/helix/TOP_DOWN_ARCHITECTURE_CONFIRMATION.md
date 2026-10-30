@@ -13794,6 +13794,8 @@ Runtime Operational端点由Platform Admin Facade承接并委托Foundation生命
 
 Operator Maintenance是停机态官方维护框架，与`runtime/maintenance`维护窗、Formation Reset及日常整理流程分离：不得清库、不得当Reset、不得软跳过Admin ended历史校验。GET catalog列出已注册动作；GET preview与POST apply共用previewDigest+confirmed=true防呆与actor-bound幂等Receipt。新维护能力只登记为框架内action，不另开一次性旁路API。首个注册动作`formation-retirement-history-integrity`仅从幸存`libra.formation-retirement@1` receipt重建缺失的同receipt `fx_commit_markers`（`commit_marker=command_receipt_id`，`commit_digest=request_digest`，scope=subject），并清除Subject已不存在的孤儿retirement receipt及其marker；多receipt/结果损坏/已有错误marker/缺receipt等阻断项拒绝自动发明。
 
+Operator Observability同属官方维护套件、只读：Clean Service Host对已登记Admin/API路由（含`GET /v1/health`）始终发出一条紧凑结构化请求事件（method、route模板、status、durationMs、correlationId；默认不记录请求/响应体）。可选event-loop lag仅在超过阈值时限流写出；更深debug由`SHELFDECK_OPERATOR_OBSERVABILITY_DEBUG=1`临时开启，不得作为捕获基本卡住的前置条件。GET operator-maintenance catalog可附带只读`observability`状态投影；本切片不新增破坏性维护动作，也不引入OpenTelemetry/Prometheus整栈。
+
 Setup Readiness只聚合公开配置Projection，不保存全局Setup状态。Session端点只交换Admin credential与短期
 同源会话，不成为媒体Business Process。
 

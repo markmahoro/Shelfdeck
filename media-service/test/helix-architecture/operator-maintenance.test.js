@@ -83,6 +83,7 @@ test('catalog lists registered maintenance actions without requiring stopped mod
     assert.equal(catalog.actions.length, 1);
     assert.equal(catalog.actions[0].actionId, ACTION_ID);
     assert.equal(catalog.actions[0].requiresStopped, true);
+    assert.equal(catalog.observability, undefined);
   } finally {
     f.close();
   }

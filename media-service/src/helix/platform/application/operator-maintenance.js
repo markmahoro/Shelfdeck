@@ -112,7 +112,7 @@ function createOperatorMaintenance(options) {
   }
 
   function list() {
-    return Object.freeze({
+    const body = {
       schemaRef: 'platform.operator-maintenance-catalog@1',
       actions: Object.freeze([...actions.values()].map((action) => Object.freeze({
         actionId: action.actionId,
@@ -120,7 +120,13 @@ function createOperatorMaintenance(options) {
         summary: action.summary,
         requiresStopped: action.requiresStopped,
       }))),
-    });
+    };
+    // Read-only Operator Observability status lives on the same Maintenance
+    // Suite catalog surface. It never registers a destructive action here.
+    if (typeof options.observabilityStatus === 'function') {
+      body.observability = options.observabilityStatus();
+    }
+    return Object.freeze(body);
   }
 
   function preview(actionId) {
