@@ -657,12 +657,14 @@ function createFormationProjectionSource(options) {
         if(completion&&(completion.completionDigest!==row.completion_digest||completion.subjectId!==subject.subject_id||completion.libraRunId!==run.libra_run_id))
           throw new Error('US Adult Formation completion scope changed.');
         if(!pkg&&!hasChoice&&!catalogueDecision){
+          // Catalogue Basis freezes before observe finishes. Do not invent Attention from Basis alone while Works run.
+          // Closed local match with no winner is unmatched Attention. Idle Basis without decision is registration wait.
           if(completion&&!completion.winner)issue=Object.freeze({
             contentProfile:'western_adult',result:'not_found',
             reasonCode:catalogueBasis?'us_adult_catalogue_unresolved':'us_adult_actor_unmatched',
             candidateSetDigest:completion.completionDigest,candidates:Object.freeze([])});
-          else if(catalogueBasis&&!completion)issue=Object.freeze({
-            contentProfile:'western_adult',result:'not_found',reasonCode:'us_adult_catalogue_unresolved',
+          else if(catalogueBasis&&!completion&&!hasOpenExecution(works))issue=Object.freeze({
+            contentProfile:'western_adult',result:'not_found',reasonCode:'us_adult_catalogue_registration_required',
             candidateSetDigest:catalogueBasis.basis_digest,candidates:Object.freeze([])});
         }
       }

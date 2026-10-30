@@ -122,6 +122,15 @@ test('Dockerfile bakes buffalo_l and Host defaults to resources/buffalo-models',
     fs.existsSync(path.join(DEFAULT_BUFFALO_MODEL_ROOT,'NOTICE')));
 });
 
+test('People image execution exposes catalogue registration admission and peopleStore for Host inject',()=>{
+  const {createPeopleImageExecutionRegistration}=require('../../src/helix/domains/people/public/image-execution-registration');
+  const src=fs.readFileSync(path.resolve(__dirname,'../../src/helix/composition/create-procurement-execution-runtime.js'),'utf8');
+  assert.match(src,/registerCataloguePerson/);
+  assert.match(src,/createCatalogueRegistrationAdmission/);
+  assert.match(src,/peopleStore:peopleImageExecution\.peopleStore/);
+  assert.equal(typeof createPeopleImageExecutionRegistration,'function');
+});
+
 test('LIBRA_ENABLED includes catalogue observe for Host registration',()=>{
   const source=fs.readFileSync(path.resolve(__dirname,'../../src/helix/composition/create-procurement-execution-runtime.js'),'utf8');
   assert.match(source,/libra\.us_adult\.catalogue\.observe@1/);

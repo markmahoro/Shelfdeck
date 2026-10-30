@@ -479,7 +479,13 @@ function createProcurementExecutionRuntime(options) {
       if(scope.ownerDomain==='perception'&&scope.processType==='perception_resolution'&&scope.processId.startsWith('subject:'))
         options.onFormationSubjectChanged?.(scope.processId.slice('subject:'.length));
     } });
-  libraProcessServices=libraConstruction.createProcessServices({...libraOptions,peopleReferenceQuery,now,workResultReader,contractValidator,onLibraPriorityChanged:resourcePriorityBridge.refresh,
+  const catalogueRegistrationAdmission=peopleImageExecution.createCatalogueRegistrationAdmission
+    ?peopleImageExecution.createCatalogueRegistrationAdmission({now,workResultReader,contractValidator})
+    :null;
+  libraProcessServices=libraConstruction.createProcessServices({...libraOptions,peopleReferenceQuery,
+    peopleStore:peopleImageExecution.peopleStore||null,
+    registerCataloguePerson:catalogueRegistrationAdmission?.registerCataloguePerson||options.registerCataloguePerson||null,
+    now,workResultReader,contractValidator,onLibraPriorityChanged:resourcePriorityBridge.refresh,
     onTaskCancellationChanged:subjectId=>options.onFormationSubjectChanged?.(subjectId),
     onWorkshopTransferred:(subjectId)=>{
       fillPredeckIntakeSeats();options.onFormationSubjectChanged?.(subjectId);host?.wake();

@@ -13,6 +13,12 @@ test('US package actor guard preserves the exact single actor Fact and excludes 
   const value=product();assert.equal(assertRequiredUsAdultActor(value),value);
   assert.doesNotThrow(()=>assertRequiredUsAdultActor({resolvedIdentitySnapshot:{factValue:{contentProfile:'movie'}}}));
 });
+test('US package actor guard accepts automatic catalogue face_catalogue cast source',()=>{
+  const value=product();
+  value.mediaCastSnapshot.relations[0].source='face_catalogue';
+  value.mediaCastSnapshot.factValue.relations[0].source='face_catalogue';
+  assert.equal(assertRequiredUsAdultActor(value),value);
+});
 for(const [name,change]of [
   ['empty actor',value=>{value.mediaCastSnapshot.relations=[];}],
   ['unresolved Person',value=>{value.mediaCastSnapshot.relations[0].personId=null;}],
