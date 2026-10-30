@@ -1105,6 +1105,163 @@
         "cast",
         "sourceDigest"
       ]
+    },
+    "episodePlotSourceProof": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "policyRef",
+        "providerEpisode",
+        "localScope",
+        "requestedLanguage",
+        "result",
+        "selectedLanguage",
+        "plotDigest",
+        "translationSetDigest",
+        "proofDigest"
+      ],
+      "properties": {
+        "schema": {
+          "const": "shelfdeck.episode-plot-source@1"
+        },
+        "policyRef": {
+          "const": "tmdb.episode-plot-language@1"
+        },
+        "providerEpisode": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "provider",
+            "providerKey",
+            "seasonNumber",
+            "episodeNumber",
+            "episodeId"
+          ],
+          "properties": {
+            "provider": {
+              "const": "tmdb"
+            },
+            "providerKey": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{0,14}$"
+            },
+            "seasonNumber": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "episodeNumber": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "episodeId": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          }
+        },
+        "localScope": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "episodeKey": {
+              "type": "string",
+              "pattern": "^E[0-9]{3,16}$"
+            },
+            "episodeNumber": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "seasonNumber": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "episodeKey",
+            "episodeNumber",
+            "seasonNumber"
+          ]
+        },
+        "requestedLanguage": {
+          "type": "string",
+          "pattern": "^[a-z]{2,3}(?:-[A-Z]{2})?$"
+        },
+        "result": {
+          "enum": [
+            "selected",
+            "not_available"
+          ]
+        },
+        "selectedLanguage": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z]{2,3}(?:-[A-Z]{2})?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "plotDigest": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "translationSetDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "proofDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "result": {
+                "const": "selected"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "selectedLanguage": {
+                "type": "string",
+                "pattern": "^[a-z]{2,3}(?:-[A-Z]{2})?$"
+              },
+              "plotDigest": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "selectedLanguage": {
+                "type": "null"
+              },
+              "plotDigest": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
     }
   },
   "required": [
@@ -1167,6 +1324,26 @@
               ]
             }
           ]
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "episodePlotSourceProof"
+        ]
+      },
+      "then": {
+        "required": [
+          "episodeScope"
+        ],
+        "properties": {
+          "contentProfile": {
+            "const": "series"
+          },
+          "sourceKind": {
+            "const": "provider"
+          }
         }
       }
     }

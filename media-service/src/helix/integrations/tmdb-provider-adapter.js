@@ -1211,6 +1211,7 @@ function createTmdbProviderAdapter(options) {
         exact(
           request.input,
           ['resolvedProviderIdentity', 'requestedFields', ...(Object.hasOwn(request.input || {}, 'episodeScope') ? ['episodeScope'] : []),
+            ...(Object.hasOwn(request.input||{},'episodePlotPolicyRef')?['episodePlotPolicyRef']:[]),
             ...(Object.hasOwn(request.input || {}, 'providerEpisodeReference') ? ['providerEpisodeReference'] : [])],
           'PLATFORM_TMDB_METADATA_SHAPE',
         );
@@ -1234,7 +1235,7 @@ function createTmdbProviderAdapter(options) {
             'TMDB metadata requires one exact Provider identity.',
           );
         }
-        const series = namespace === 'tmdb_series';
+        const series = namespace === 'tmdb_series',metadataDeadline=performance.now()+timeout(request.timeoutMs);
         let episodeScope;
         if (Object.hasOwn(request.input, 'episodeScope')) {
           try { episodeScope = buildEpisodeMetadataScope(request.input.episodeScope); }
@@ -1244,6 +1245,9 @@ function createTmdbProviderAdapter(options) {
         }
         if (request.input.requestedFields.some(field => field.startsWith('episode_')) && !episodeScope)
           fail('PLATFORM_TMDB_IDENTITY_INVALID', 'Episode metadata requires an explicit Episode scope.');
+        if(Object.hasOwn(request.input,'episodePlotPolicyRef')&&(!episodeScope||!request.input.requestedFields.includes('episode_plot')||
+            request.input.episodePlotPolicyRef!==require('../contracts/episode-plot-source').POLICY))
+          fail('PLATFORM_TMDB_METADATA_SHAPE','Episode plot supplementation requires the declared Owner policy.');
         let providerEpisode;
         if (Object.hasOwn(request.input, 'providerEpisodeReference')) {
           providerEpisode = require('../contracts/provider-episode-reference').buildProviderEpisodeReference(request.input.providerEpisodeReference);
@@ -1303,7 +1307,7 @@ function createTmdbProviderAdapter(options) {
         }) : null;
         const body = shared ? shared.body : await loadShow();
         const requested = new Set(request.input.requestedFields);
-        const values = new Map();
+        const values = new Map();let episodePlotSourceProof=null;
         const title = series ? body.name : body.title;
         const releaseDate = series
           ? body.first_air_date
@@ -1329,7 +1333,7 @@ function createTmdbProviderAdapter(options) {
             // Missing requested data may be supplemented only from the same exact
             // Provider Episode, never from another Episode or the Series synopsis.
             if (!episode || (requested.has('episode_title') && !episode.name) ||
-                (requested.has('episode_plot') && !episode.overview)) {
+                (requested.has('episode_plot') && !String(episode.overview||'').trim())) {
               const detail = await fetchJson(snapshot.endpoint, snapshot.secretKind, secretBytes,
                 '/tv/' + resolved.providerKey + '/season/' + lookupSeason + '/episode/' + lookupEpisode,
                 { timeoutMs: timeout(request.timeoutMs), query: { language }, proxyServer });
@@ -1344,9 +1348,21 @@ function createTmdbProviderAdapter(options) {
                 (episode.show_id !== undefined && String(episode.show_id) !== resolved.providerKey) ||
                 (providerEpisode && episode.id !== providerEpisode.episodeId))
               fail('PLATFORM_TMDB_IDENTITY_MISMATCH', 'TMDB Episode response does not match the frozen Episode scope.');
+            if(request.input.episodePlotPolicyRef&&requested.has('episode_plot')&&!String(episode.overview||'').trim()){
+              const remaining=Math.floor(metadataDeadline-performance.now());
+              if(remaining<=0)fail('PLATFORM_INTEGRATION_TIMEOUT','Episode plot supplementation exceeded its original metadata operation budget.');
+              const translations=await fetchJson(snapshot.endpoint,snapshot.secretKind,secretBytes,
+                '/tv/'+resolved.providerKey+'/season/'+lookupSeason+'/episode/'+lookupEpisode+'/translations',
+                {timeoutMs:remaining,query:{},proxyServer}),
+                supplement=require('../contracts/episode-plot-source').selectEpisodePlot({response:translations,
+                  providerEpisode:{provider:'tmdb',providerKey:resolved.providerKey,seasonNumber:lookupSeason,episodeNumber:lookupEpisode,episodeId:episode.id},
+                  localScope:episodeScope,requestedLanguage:language,originalLanguage:body.original_language});
+              episodePlotSourceProof=supplement.proof;
+              if(supplement.plot)episode={...episode,overview:supplement.plot};
+            }
             values.set('episode_number', episode.episode_number);
             if (episode.name) values.set('episode_title', episode.name);
-            if (episode.overview) values.set('episode_plot', episode.overview);
+            if (typeof episode.overview==='string'&&episode.overview.trim()) values.set('episode_plot', episode.overview);
           }
         }
         if (releaseDate) {
@@ -1404,6 +1420,7 @@ function createTmdbProviderAdapter(options) {
             (episodeScope ? ':episode:' + lookupEpisode : ''),
           ...(providerEpisode ? { providerEpisodeReference: providerEpisode } : {}),
           ...(episodeScope ? { episodeScope } : {}),
+          ...(episodePlotSourceProof?{episodePlotSourceProof}:{}),
           ...(series&&!episodeScope?{seriesPresentationSource:require('../contracts/series-presentation-basis').buildSeriesPresentationSource({
             provider:'tmdb',namespace:'tmdb_series',providerKey:resolved.providerKey,seasonIdentityAnchorDigest:resolved.identityAnchorDigest,
             integrationId:snapshot.integrationId,configRevision:snapshot.configRevision,language,sourceRef:'tmdb:tv:'+resolved.providerKey,

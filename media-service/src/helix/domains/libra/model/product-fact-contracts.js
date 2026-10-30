@@ -170,6 +170,12 @@ function buildMetadataFetchIntent(value) {
   }
   if (common.requestedFields.some(field => field.startsWith('episode_')) && !common.episodeScope)
     fail('P9_METADATA_EPISODE_SCOPE', 'Episode fields require an explicit Episode scope.');
+  if(value.episodePlotPolicyRef!==undefined){
+    if(common.sourceKind!=='provider'||common.contentProfile!=='series'||!common.episodeScope||
+        !common.requestedFields.includes('episode_plot')||value.episodePlotPolicyRef!==require('../../../contracts/episode-plot-source').POLICY)
+      fail('P9_METADATA_EPISODE_PLOT_POLICY','Episode plot supplementation requires its exact Owner policy and scope.');
+    common.episodePlotPolicyRef=value.episodePlotPolicyRef;
+  }
   if (value.episodeMapping !== undefined) {
     if (!common.episodeScope || common.sourceKind !== 'provider' || common.providerKind !== 'tmdb')
       fail('P9_METADATA_EPISODE_MAPPING', 'A confirmed mapping requires a scoped Provider Episode request.');
@@ -223,6 +229,8 @@ function buildMetadataObservation(value) {
     descriptiveFacts:Object.freeze(descriptiveFacts), providerIdentitySet:Object.freeze(providerIdentitySet),
     peopleHints:Object.freeze([...(value?.peopleHints || [])].slice(0, 64)), artifactHints:Object.freeze([]) };
   if (intent.episodeScope) result.episodeScope = intent.episodeScope;
+  if(value.episodePlotSourceProof)result.episodePlotSourceProof=require('../../../contracts/episode-plot-source')
+    .assertEpisodePlotBinding(value.episodePlotSourceProof,intent,entries);
   if(value.seriesPresentationSource){
     const source=require('../../../contracts/series-presentation-basis').assertSource(value.seriesPresentationSource);
     if(intent.contentProfile!=='series'||intent.sourceKind!=='provider'||intent.episodeScope||
@@ -246,6 +254,7 @@ function buildMetadataObservation(value) {
     fetchIntentDigest:result.fetchIntentDigest, sourceNfoSemanticsDigest:result.sourceNfoSemantics?.recordDigest || null, descriptiveFactsDigest:descriptiveFacts.recordDigest,
     ...(result.seriesPresentationSource?{seriesPresentationSourceDigest:result.seriesPresentationSource.sourceDigest}:{}),
     ...(result.seriesQualifiedLocalSource?{seriesQualifiedLocalSourceDigest:result.seriesQualifiedLocalSource.qualificationDigest}:{}),
+    ...(result.episodePlotSourceProof?{episodePlotSourceProofDigest:result.episodePlotSourceProof.proofDigest}:{}),
     providerIdentitySetDigest:providerIdentitySet.recordDigest });
   result.payloadDigest = canonicalDigest(Object.fromEntries(Object.entries(result).filter(([key]) => key !== 'payloadDigest')));
   return Object.freeze(bytes(result, 64 * 1024, 'P9_METADATA_OBSERVATION_SIZE'));
@@ -291,6 +300,8 @@ function selectMetadataObservations(value) {
       fail('P9_METADATA_OBSERVATION_PROVIDER_IDENTITY',
         'Provider Metadata Observation does not conserve its exact Intent identity tuple.');
     }
+    if(candidate.result.episodePlotSourceProof)require('../../../contracts/episode-plot-source')
+      .assertEpisodePlotBinding(candidate.result.episodePlotSourceProof,intent,candidate.result.descriptiveFacts.entries);
     const prior = selected.get(intent.intentDigest);
     if (prior && prior.result.payloadDigest !== candidate.result.payloadDigest)
       fail('P9_METADATA_OBSERVATION_CONFLICT', 'Semantic replay changed payload digest.');
