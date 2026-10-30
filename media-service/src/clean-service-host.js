@@ -178,6 +178,9 @@ const {
   createOperatorMaintenance,
 } = require('./helix/platform/application/operator-maintenance');
 const {
+  createOperatorObservability,
+} = require('./helix/platform/application/operator-observability');
+const {
   createAdminCredentialSecretStore,
 } = require('./admin-credential-secret-store');
 const schemaManifest = require('./helix/foundation/persistence/generated/clean-schema.manifest.json');
@@ -2172,12 +2175,22 @@ async function createCleanServiceHost(options) {
         !activity.deferredRecoveryActions&&!activity.inFlightAdminCommands;},
     onError:options.onExecutionRuntimeError,
   });
+  const operatorObservability=options.operatorObservability
+    || createOperatorObservability({
+      debug:options.operatorObservabilityDebug,
+      emit:options.emitOperatorObservability,
+      env:options.env,
+      eventLoopLagEnabled:options.operatorEventLoopLagEnabled,
+      eventLoopLagThresholdMs:options.operatorEventLoopLagThresholdMs,
+      createEventLoopMonitor:options.createEventLoopMonitor,
+    });
   const operatorMaintenance=createOperatorMaintenance({
     dataDir:options.dataDir,
     databasePath:path.join(options.dataDir,'shelfdeck.db'),
     Database,
     now:options.now||Date.now,
     runtimeMode:()=>runtimeOperations.snapshot().mode,
+    observabilityStatus:()=>operatorObservability.status(),
   });
   const facades = createCleanFacades({
     runtimeOperations,
@@ -2245,6 +2258,8 @@ async function createCleanServiceHost(options) {
       ...(route.method === 'POST' && (route.path === '/v1/admin/people'||route.path === '/v1/admin/people/:personId/reference-assets') ? { bodyLimit: 14 * 1024 * 1024 } : ['/v1/admin/formation/acceptance/:offerId/actions/retry','/v1/admin/care/:shelfEntryId/actions/check'].includes(route.path)?{bodyLimit:24*1024*1024}:{}),
       handler: async (request, reply) => {
         const correlationId = request.headers['x-correlation-id'] || crypto.randomUUID();
+        const startedAt = process.hrtime.bigint();
+        const routePath = route.path;
         let response;
         try {
           response = await application.dispatch({
@@ -2258,13 +2273,26 @@ async function createCleanServiceHost(options) {
             correlationId,
           });
         } catch (error) {
-          options.onRequestError?.(error, Object.freeze({
+          const errorMeta = Object.freeze({
             method: request.method,
             path: request.url.split('?')[0],
+            route: routePath,
             correlationId,
-          }));
+          });
+          // Always-on Maintenance Suite observability (production must emit).
+          operatorObservability.onRequestError(error, errorMeta);
+          options.onRequestError?.(error, errorMeta);
           response = errorResponse(error, correlationId, { method: request.method, path: request.url.split('?')[0] });
         }
+        const durationMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
+        operatorObservability.recordRequest({
+          method: route.method,
+          route: routePath,
+          status: response.status,
+          durationMs,
+          correlationId,
+          errorCode: response.body?.error?.code,
+        });
         if (response.sessionToken) reply.header('set-cookie', sessionCookie(response.sessionToken));
         if (response.clearSession) reply.header('set-cookie', clearSessionCookie());
         if (response.contentType) reply.type(response.contentType);
@@ -2312,6 +2340,7 @@ async function createCleanServiceHost(options) {
         peopleReferencePreparation.clearCache();
         await localFaceModel.close();
       } finally {
+        try { operatorObservability.close(); } catch { /* ignore */ }
         constructed.close();
       }
     })();

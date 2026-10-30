@@ -15,6 +15,9 @@ ShelfDeck **唯一面向人的产品 Changelog**。按 **Product version**（= G
 
 ## Unreleased
 
+### Operator Maintenance Suite
+- 低开销 Operator Observability：Clean Service Host 始终写出 Admin/API 请求 `durationMs`/`correlationId` 结构化事件；可选 event-loop lag 阈值限流日志；`SHELFDECK_OPERATOR_OBSERVABILITY_DEBUG=1` 可临时加深。只读状态挂在 `GET /v1/admin/runtime/operator-maintenance` catalog，不新增破坏性动作。见 `docs/helix/OPERATOR_OBSERVABILITY.md`。
+
 ### Docs / hygiene
 
 - 文档入口收敛到 Helix；归档 v2.5、Helix 根历史 issue log / 审查 / 早期 acceptance。
