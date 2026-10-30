@@ -26,6 +26,7 @@
     "test:helix-routing-real": "node scripts/helix-real-routing-e2e.js",
     "test:helix-libra-handoff-b-real": "node scripts/helix-real-libra-handoff-b-e2e.js",
     "test:helix-libra-dv-fallback-real": "node scripts/helix-real-libra-dv-fallback-e2e.js",
+    "test:us-adult-full-e2e": "bash scripts/us-adult-full-e2e.sh",
     "build:web": "cd web && npm run build",
     "helix:clean-init": "node scripts/helix-clean-init.js",
     "test:helix-p14-docker-entrypoint": "node scripts/p14-beta-impl-02-docker-retest.js",

@@ -317,6 +317,28 @@ function hasOpenExecution(works) {
 function hasBlockingExecution(works) {
   return works.some((work) => ['failed', 'blocked'].includes(work.state));
 }
+function isCatalogueObservationWork(work) {
+  return String(work?.workId || '').includes('libra-us-adult-catalogue-observation-work-');
+}
+function isLocalAnalysisWork(work) {
+  return /^libra-us-adult-(frames-work-|match-\d+-work-)/.test(String(work?.workId || ''));
+}
+function westernAdultProductIdentityIssue({ packaged, hasChoice, catalogueDecision, basisDigest, completion, works }) {
+  const list = works || [];
+  if (packaged || hasChoice || catalogueDecision) return null;
+  if (completion && !completion.winner) return Object.freeze({
+    contentProfile: 'western_adult', result: 'not_found',
+    reasonCode: basisDigest ? 'us_adult_catalogue_unresolved' : 'us_adult_actor_unmatched',
+    candidateSetDigest: completion.completionDigest, candidates: Object.freeze([]),
+  });
+  if (!basisDigest || completion || hasOpenExecution(list) || hasBlockingExecution(list)) return null;
+  if (!list.some((work) => work.state === 'succeeded' && isCatalogueObservationWork(work)) || list.some(isLocalAnalysisWork)) return null;
+  return Object.freeze({
+    contentProfile: 'western_adult', result: 'not_found',
+    reasonCode: 'us_adult_catalogue_registration_required',
+    candidateSetDigest: basisDigest, candidates: Object.freeze([]),
+  });
+}
 function isTerminalBusinessFailure(event) {
   const value = event.result?.result;
   if (event.capabilityRef === 'libra.product.conformance.verify@1') return value?.result === 'failed';
@@ -656,14 +678,8 @@ function createFormationProjectionSource(options) {
           completion=row?assertCompletion(parse(row.completion_json)):null;
         if(completion&&(completion.completionDigest!==row.completion_digest||completion.subjectId!==subject.subject_id||completion.libraRunId!==run.libra_run_id))
           throw new Error('US Adult Formation completion scope changed.');
-        if(!pkg&&!hasChoice&&!catalogueDecision){
-          // Catalogue Basis freezes before observe finishes. Do not invent Attention from Basis alone.
-          // Closed local match with no winner is the unmatched Attention; mid-pipeline stays in_progress.
-          if(completion&&!completion.winner)issue=Object.freeze({
-            contentProfile:'western_adult',result:'not_found',
-            reasonCode:catalogueBasis?'us_adult_catalogue_unresolved':'us_adult_actor_unmatched',
-            candidateSetDigest:completion.completionDigest,candidates:Object.freeze([])});
-        }
+        issue=westernAdultProductIdentityIssue({packaged:Boolean(pkg),hasChoice,catalogueDecision:Boolean(catalogueDecision),
+          basisDigest:catalogueBasis&&catalogueBasis.basis_digest,completion,works});
       }
       const waitingExternalIntegration = waitsForExternalIntegration(works, externalIntegrationReady);
       const recovery = pkg ? recoveries.get(pkg.offer_id) || null : null;
@@ -1153,6 +1169,7 @@ module.exports = Object.freeze({
   hasBlockingExecution,
   hasBusinessFailure,
   hasOpenExecution,
+  westernAdultProductIdentityIssue,
   nextAction,
   buildMediaOrganizationSteps,
   organizingSteps,

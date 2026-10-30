@@ -41,9 +41,43 @@ function createPeopleImageExecutionRegistration(options) {
         targetPersonId:payload.targetPersonId,targetPersonRevision:payload.expectedTargetPersonRevision+1,candidateId:payload.candidateId}}},
     mergePorts=createSystemRegistrationPorts(mergeOptions);
   const registrationCommand = createDirectPersonRegistrationFromPersistence(peopleStore, options);
+  const catalogueCompletion = { run: null };
   const imageOperations = createPeopleImageOperationCoordinator({ ...options, peopleStore, registrationCommand,
+    completeCatalogueRegistration(operation) { catalogueCompletion.run?.(operation); },
     imagePort: options.peopleImagePort || { stageUpload() { throw new Error('People image ingress is unavailable.'); } },
     readSelectedImage: options.readSelectedPersonImage || (async () => { throw new Error('People image source is unavailable.'); }) });
+  function catalogueCommandReady(admissionOptions) {
+    const artifactRepository = admissionOptions.artifactRepository || options.artifactRepository;
+    const peopleImagePort = admissionOptions.peopleImagePort || options.peopleImagePort;
+    const catalogueInputReader = admissionOptions.catalogueInputReader || options.catalogueInputReader;
+    return typeof artifactRepository?.get === 'function' && typeof peopleImagePort?.readArtifact === 'function' &&
+      typeof catalogueInputReader?.compile === 'function';
+  }
+  function catalogueRegistrationCommand(admissionOptions, catalogueInputReader) {
+    const operationStore = admissionOptions.operationStore || options.operationStore ||
+      createPeopleImageOperationStore({ ...options, ...admissionOptions });
+    return createPeopleCatalogueRegistrationCommand({
+      ...options, ...admissionOptions, peopleStore, operationStore,
+      commandCoordinator: admissionOptions.commandCoordinator || options.commandCoordinator || createCommandCommitCoordinator(options),
+      catalogueInputReader,
+      artifactRepository: admissionOptions.artifactRepository || options.artifactRepository,
+      peopleImagePort: admissionOptions.peopleImagePort || options.peopleImagePort,
+      workResultReader: admissionOptions.workResultReader || options.workResultReader,
+      contractValidator: admissionOptions.contractValidator || options.contractValidator,
+      unitOfWork: admissionOptions.unitOfWork || options.unitOfWork,
+    });
+  }
+  function bindCatalogueCompletion(readEvidence, admissionOptions = {}) {
+    if (typeof readEvidence !== 'function' || !catalogueCommandReady(admissionOptions)) return;
+    catalogueCompletion.run = (operation) => {
+      const initialReference = imageOperations.referenceDecision(operation.operationId);
+      const built = readEvidence({ operation, initialReference });
+      if (!built || built.kind === 'waiting') return;
+      catalogueRegistrationCommand(admissionOptions, admissionOptions.catalogueInputReader || options.catalogueInputReader)
+        .register({ ...built, initialReference });
+    };
+  }
+  bindCatalogueCompletion(options.readCatalogueRegistrationEvidence, {});
   const preparationPorts = createPeopleImagePreparationPorts({ ...options, operationContext: imageOperations.context,
     preparation: options.peopleReferencePreparation || { importImage() { throw new Error('People image import is unavailable.'); },
       computeEmbedding() { throw new Error('People reference compute is unavailable.'); } } });
@@ -54,6 +88,8 @@ function createPeopleImageExecutionRegistration(options) {
     [COMMIT]:createPeopleReferenceCommitPort({...options,peopleStore,referenceDecision:imageOperations.referenceDecision})};
   const profileUpdate=createPeopleProfileUpdate({...options,peopleStore});
   function createCatalogueRegistrationAdmission(admissionOptions={}){
+    if (typeof admissionOptions.readCatalogueRegistrationEvidence === 'function')
+      bindCatalogueCompletion(admissionOptions.readCatalogueRegistrationEvidence, admissionOptions);
     const assembleEvidence=admissionOptions.assembleEvidence||options.assembleCatalogueRegistrationEvidence||(({input,inputDigest})=>{
       pending('PEOPLE_CATALOGUE_EVIDENCE_PENDING',
         'Host catalogue registration evidence (provider/frame proof and image prep) is not ready for '+String(input?.winner?.name||inputDigest||'actor')+'.');
@@ -62,22 +98,12 @@ function createPeopleImageExecutionRegistration(options) {
       peopleStore,
       assembleEvidence,
       register(evidence){
-        const operationStore=createPeopleImageOperationStore({...options,...admissionOptions});
-        const registerCommand=createPeopleCatalogueRegistrationCommand({
-          ...options,...admissionOptions,peopleStore,operationStore,
-          commandCoordinator:admissionOptions.commandCoordinator||options.commandCoordinator||createCommandCommitCoordinator(options),
-          catalogueInputReader:admissionOptions.catalogueInputReader||options.catalogueInputReader||{
-            compile({libraRunId,mode}){
-              if(evidence.input.libraRunId!==libraRunId)pending('PEOPLE_CATALOGUE_INPUT_STALE','Catalogue decision input Run changed.');
-              return {kind:'qualified',input:evidence.input,inputDigest:evidence.inputDigest};
-            }},
-          artifactRepository:admissionOptions.artifactRepository||options.artifactRepository,
-          peopleImagePort:admissionOptions.peopleImagePort||options.peopleImagePort,
-          workResultReader:admissionOptions.workResultReader||options.workResultReader,
-          contractValidator:admissionOptions.contractValidator||options.contractValidator,
-          unitOfWork:admissionOptions.unitOfWork||options.unitOfWork,
-        });
-        return registerCommand.register(evidence);
+        const catalogueInputReader=admissionOptions.catalogueInputReader||options.catalogueInputReader||{
+          compile({libraRunId}){
+            if(evidence.input.libraRunId!==libraRunId)pending('PEOPLE_CATALOGUE_INPUT_STALE','Catalogue decision input Run changed.');
+            return {kind:'qualified',input:evidence.input,inputDigest:evidence.inputDigest};
+          }};
+        return catalogueRegistrationCommand(admissionOptions,catalogueInputReader).register(evidence);
       },
     });
   }

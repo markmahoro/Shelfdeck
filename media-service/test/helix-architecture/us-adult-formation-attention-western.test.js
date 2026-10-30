@@ -1,11 +1,79 @@
 'use strict';
-const test=require('node:test'),assert=require('node:assert/strict');
-const fs=require('node:fs');
-const path=require('node:path');
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { classifyFormation, westernAdultProductIdentityIssue } = require('../../src/helix/domains/libra/application/formation-query');
 
-test('western_adult Formation does not invent unresolved Attention from catalogue Basis alone',()=>{
-  const source=fs.readFileSync(path.resolve(__dirname,'../../src/helix/domains/libra/application/formation-query.js'),'utf8');
-  assert.doesNotMatch(source,/catalogueBasis&&!completion\)issue/);
-  assert.match(source,/completion&&!completion\.winner/);
-  assert.match(source,/us_adult_catalogue_registration_required/);
+function work(workId, state) {
+  return { workId, state, events: [] };
+}
+
+const observation = work('libra-us-adult-catalogue-observation-work-abc', 'succeeded');
+const openFrames = work('libra-us-adult-catalogue-initial-frames-work-abc', 'running');
+const idleFrames = work('libra-us-adult-catalogue-initial-frames-work-abc', 'succeeded');
+
+test('open catalogue frame work does not raise product identity Attention', () => {
+  assert.equal(westernAdultProductIdentityIssue({
+    basisDigest: 'basis', works: [openFrames],
+  }), null);
+});
+
+test('catalogue Basis without a succeeded observation stays in progress', () => {
+  assert.equal(westernAdultProductIdentityIssue({
+    basisDigest: 'basis', works: [idleFrames],
+  }), null);
+  assert.equal(westernAdultProductIdentityIssue({
+    basisDigest: 'basis', works: [],
+  }), null);
+});
+
+test('idle succeeded catalogue observation is the closed registration wait', () => {
+  const issue = westernAdultProductIdentityIssue({
+    basisDigest: 'basis', works: [idleFrames, observation],
+  });
+  assert.equal(issue.reasonCode, 'us_adult_catalogue_registration_required');
+  assert.equal(issue.candidateSetDigest, 'basis');
+  assert.equal(issue.contentProfile, 'western_adult');
+  assert.equal(classifyFormation({
+    run: { state: 'active' }, works: [idleFrames, observation], issue,
+  }), 'attention_required');
+});
+
+test('local analysis and blocked catalogue work stay out of registration Attention', () => {
+  assert.equal(westernAdultProductIdentityIssue({
+    basisDigest: 'basis',
+    works: [observation, work('libra-us-adult-match-1-work-x', 'succeeded')],
+  }), null);
+  assert.equal(westernAdultProductIdentityIssue({
+    basisDigest: 'basis',
+    works: [work('libra-us-adult-catalogue-observation-work-abc', 'failed')],
+  }), null);
+  assert.equal(westernAdultProductIdentityIssue({
+    basisDigest: 'basis',
+    works: [observation, work('libra-us-adult-frames-work-1', 'succeeded')],
+  }), null);
+});
+
+test('a closed match without a winner stays unmatched Attention', () => {
+  const withBasis = westernAdultProductIdentityIssue({
+    basisDigest: 'basis',
+    completion: { winner: null, completionDigest: 'done' },
+    works: [observation],
+  });
+  assert.equal(withBasis.reasonCode, 'us_adult_catalogue_unresolved');
+  assert.equal(withBasis.candidateSetDigest, 'done');
+  const local = westernAdultProductIdentityIssue({
+    completion: { winner: null, completionDigest: 'local' },
+    works: [work('libra-us-adult-frames-work-1', 'succeeded')],
+  });
+  assert.equal(local.reasonCode, 'us_adult_actor_unmatched');
+});
+
+test('a package, choice, decision, or winner suppresses the registration wait', () => {
+  const closed = { basisDigest: 'basis', works: [idleFrames, observation] };
+  assert.equal(westernAdultProductIdentityIssue({ ...closed, packaged: true }), null);
+  assert.equal(westernAdultProductIdentityIssue({ ...closed, hasChoice: true }), null);
+  assert.equal(westernAdultProductIdentityIssue({ ...closed, catalogueDecision: true }), null);
+  assert.equal(westernAdultProductIdentityIssue({
+    ...closed, completion: { winner: { personId: 'person' }, completionDigest: 'won' },
+  }), null);
 });

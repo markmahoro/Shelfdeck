@@ -10,8 +10,14 @@ const {createPeopleStore}=require('../../src/helix/domains/people/persistence/pe
 const {createPeopleImageOperationStore}=require('../../src/helix/domains/people/persistence/people-image-operation-store');
 const {buildCatalogueActorDecision}=require('../../src/helix/domains/libra/model/us-adult-catalogue-actor-decision');
 const {createPeopleCatalogueRegistrationCommand}=require('../../src/helix/domains/people/application/us-adult-catalogue-registration-command');
-const {preparationWork}=require('../../src/helix/domains/people/application/people-image-operation-coordinator');
+const {preparationWork,createPeopleImageOperationCoordinator}=require('../../src/helix/domains/people/application/people-image-operation-coordinator');
 const {createCommandCommitCoordinator}=require('../../src/helix/foundation/persistence/commit-foundation');
+const {createUsAdultCatalogueRegistrationAdmission}=require('../../src/helix/domains/people/application/us-adult-catalogue-registration-admission');
+const {createPeopleImageExecutionRegistration}=require('../../src/helix/domains/people/public/image-execution-registration');
+const {createUsAdultCatalogueSettlementCoordinator}=require('../../src/helix/domains/libra/application/us-adult-catalogue-settlement-coordinator');
+const {createUsAdultCatalogueDecisionStore}=require('../../src/helix/domains/libra/persistence/us-adult-catalogue-decision-store');
+const {assertRequiredUsAdultActor}=require('../../src/helix/contracts/us-adult-actor-package');
+const currentSelection=require('../../src/helix/domains/libra/model/us-adult-actor-selection-current');
 
 function provider(name,candidates=[],limit=10){
   const body={schema:'people.us-adult-provider-search-observation@1',provider:'theporndb',queries:[{term:name,limit,
@@ -249,4 +255,102 @@ test('fresh Reset retains a registered Person and exact independent evidence wit
     assert.equal(target.prepare("SELECT count(*) n FROM libra_subjects WHERE subject_id='subject'").get().n,0);
     assert.deepEqual(target.pragma('foreign_key_check'),[]);
   }finally{source.exec('ROLLBACK');target.exec('ROLLBACK');source.close();target.close();}
+});
+
+function shelfFaceCatalogue(f,decision){
+  const compiled=createUsAdultCatalogueDecisionInput(f.options).compile({libraRunId:'run',mode:'initial'});
+  const selection=currentSelection.build({
+    snapshot:{spec:{contentProfile:'western_adult'},run:{state:'active',libraRunId:'run',subjectId:f.args.snapshot.run.subjectId,
+      executionBasisDigest:compiled.input.runExecutionBasisDigest}},
+    resolvedIdentityDigest:compiled.input.resolvedIdentityDigest,
+    catalogueDecision:decision,referenceAssetId:decision.referenceAssetId,
+  });
+  const relation=currentSelection.actorRelation(selection);
+  assert.equal(relation.source,'face_catalogue');
+  const relations=[relation];
+  const castFact={schemaRef:'helix://contracts/types/MediaCastFact/v1',sourceBasisKind:'us_adult_actor',relationCount:1,relations,
+    relationsDigest:D({schema:'libra.media-cast-relations@1',relations})};
+  const factDigest=D(castFact);
+  const packageValue={
+    resolvedIdentitySnapshot:{factValue:{contentProfile:'western_adult',identityKind:'internal_identity',structureKind:'single'}},
+    mediaCastSnapshot:{mediaCastFactId:'cast-fact',mediaCastFactRevision:1,factDigest,factValue:castFact,relations,
+      relationsDigest:castFact.relationsDigest},
+    productFactManifest:{items:[{productFactId:'cast-fact',factRevision:1,factDigest,factKind:'media_cast',factValue:castFact}]},
+  };
+  assert.equal(assertRequiredUsAdultActor(packageValue),packageValue);
+  return relation;
+}
+
+test('succeeded catalogue image preparation registers the Person through the system command',async t=>{
+  const request=providerImage(await setup(t),[person]),fix=commandFixture(request);
+  const execution=createPeopleImageExecutionRegistration({
+    ...fix.services,
+    readCatalogueRegistrationEvidence(){return evidence(request);},
+  });
+  const services=execution.createProcessServices({
+    onDeckPersonEvidenceProjection:{read(){return null;},listPage(){return [];}},
+    onDeckNfoPersonEvidence:{observeEntry(){return {kind:'skipped'};},listPage(){return [];}},
+  });
+  const done=services.imageOperations.reconcile(fix.payload.operationId);
+  assert.equal(done.state,'completed');
+  assert.equal(done.personId,fix.payload.personId);
+  const again=services.imageOperations.reconcile(fix.payload.operationId);
+  assert.equal(again.state,'completed');
+  assert.equal(execution.peopleStore.getPerson(fix.payload.personId).currentRevision,1);
+  assert.equal(request.f.db.prepare('SELECT count(*) n FROM fx_command_receipts WHERE target_id=?').get(fix.payload.personId).n,1);
+});
+
+test('wired registerCataloguePerson settles a qualified not_found into a shelfable face_catalogue package',async t=>{
+  const request=providerImage(await setup(t),[person]),fix=commandFixture(request);
+  let calls=0;
+  const admission=createUsAdultCatalogueRegistrationAdmission({
+    peopleStore:fix.peopleStore,
+    assembleEvidence({inputDigest,resolution}){
+      assert.equal(inputDigest,request.inputDigest);
+      assert.equal(resolution.kind,'not_found');
+      return evidence(request);
+    },
+    register(value){calls+=1;return fix.command.register(value);},
+  });
+  const catalogue=request.f.reconcile();
+  assert.equal(catalogue.kind,'catalogue_candidate');
+  const decisionStore=createUsAdultCatalogueDecisionStore({...request.f.workspaceOptions,contractValidator:request.f.validator});
+  const coordinator=createUsAdultCatalogueSettlementCoordinator({
+    ...request.f.options,
+    usAdultCatalogueDecisionStore:decisionStore,
+    resolveUsAdultName:input=>resolveUsAdultName({...input,people:[]}),
+    readUsAdultPersonSnapshot:input=>fix.peopleStore.readUsAdultPersonSnapshot(input),
+    readPersonHead(personId){
+      const found=fix.peopleStore.getPerson(personId);
+      if(!found)return null;
+      return {personId:found.personId,personRevision:found.currentRevision,
+        personFactDigest:found.revision?.factDigest||found.personFactDigest,
+        currentReferenceRevision:found.currentReferenceRevision};
+    },
+    registerCataloguePerson:admission.registerCataloguePerson,
+  });
+  const settled=coordinator.reconcile(catalogue);
+  assert.notEqual(settled.kind,'waiting_registration');
+  assert.equal(settled.kind,'settled');
+  assert.equal(settled.decision.nameResolution.kind,'registered');
+  assert.equal(calls,1);
+  assert.equal(fix.peopleStore.getPerson(fix.payload.personId).currentRevision,1);
+  shelfFaceCatalogue(request.f,settled.decision);
+  const replay=coordinator.reconcile(catalogue);
+  assert.equal(replay.kind,'settled');
+  assert.equal(replay.decision.decisionId,settled.decision.decisionId);
+  assert.equal(calls,1);
+});
+
+test('catalogue preparation without the registration hook stays preparing',async t=>{
+  const request=providerImage(await setup(t),[person]),fix=commandFixture(request);
+  const coordinator=createPeopleImageOperationCoordinator({
+    ...fix.services,
+    registrationCommand:{registerPerson(){throw new Error('user registration');}},
+    imagePort:{stageUpload(){throw new Error('unused');}},
+    readSelectedImage:async()=>{throw new Error('unused');},
+  });
+  const pending=coordinator.reconcile(fix.payload.operationId);
+  assert.equal(pending.state,'preparing');
+  assert.equal(fix.peopleStore.getPerson(fix.payload.personId),undefined);
 });
