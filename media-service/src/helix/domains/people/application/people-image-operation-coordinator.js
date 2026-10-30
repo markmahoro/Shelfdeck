@@ -76,9 +76,15 @@ function createPeopleImageOperationCoordinator(options) {
         failureCode: status.latestAttempt?.failure_code || status.latestAttempt?.failureCode || 'PEOPLE_IMAGE_PREPARATION_FAILED' });
     }
     if (status?.state !== 'succeeded') return operation;
-    // The separate system command verifies the Owner input and prepared
-    // Evidence; it must never fall through to user Direct Registration.
-    if(operation.payload.operationKind==='catalogue_registration')return operation;
+    // The system command verifies Owner input and prepared Evidence.
+    // It must never fall through to user Direct Registration.
+    if (operation.payload.operationKind === 'catalogue_registration') {
+      if (typeof options.completeCatalogueRegistration === 'function') {
+        options.completeCatalogueRegistration(operation);
+        return store.get(operation.operationId) || operation;
+      }
+      return operation;
+    }
     if(operation.payload.operationKind!=='registration'){
       const commits=options.workResultReader.read(work.workId).filter(item=>item.capabilityRef===COMMIT&&item.outcomeKind==='succeeded');
       if(commits.length!==1||commits[0].result.personId!==operation.personId||commits[0].result.referenceRevision!==operation.payload.expectedReferenceRevision+1)
