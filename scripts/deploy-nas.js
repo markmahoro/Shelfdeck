@@ -28,8 +28,10 @@ const UPGRADE_HOST = '/vol2/1000/shelfdeck_upgrade';
 const TRANSCODE_HOST = '/vol2/1000/shelfdeck_transcode';
 const OPERATOR_BACKUP_HOST = '/vol2/1000/shelfdeck_backups';
 const ADULT_HOST = '/vol02/1000-0-24018892';
-const US_ADULT_CATALOGUE_HOST = `${COMPOSE_DIR}/us-adult-catalogue`;
-const US_ADULT_CATALOGUE_CONTAINER = '/us-adult-catalogue';
+// Host package is install *input* only. Runtime authority is the installed copy
+// under ShelfDeck data (DELETE journal). Do not mount the package as :ro runtime.
+const US_ADULT_CATALOGUE_PACKAGE_HOST = `${COMPOSE_DIR}/us-adult-catalogue`;
+const US_ADULT_CATALOGUE_INSTALLED_CONTAINER = '/app/data/us-adult-catalogue';
 const IMAGE_NAME = 'markmahoro/shelfdeck';
 const LOCAL_SECRET_FILE = path.join(__dirname, '..', 'tests', '.env.nas-secret');
 const LOCAL_ADMIN_KEY_FILE = path.join(__dirname, '..', 'tests', '.env.nas-admin');
@@ -99,7 +101,7 @@ function healthExpectation({ resetConfiguration, peopleRecoveryScope, runtimeRes
 }
 function selectVerificationSteps(steps) {
   const allowed = new Set(['Check image tarball', 'Verify image tarball SHA-256', 'Check compose file',
-    'Verify health', 'Verify Admin Web', 'Verify media mount', 'Verify US Adult catalogue mount', 'Verify compose still binds required hosts',
+    'Verify health', 'Verify Admin Web', 'Verify media mount', 'Verify US Adult catalogue installed', 'Verify compose still binds required hosts',
     'Verify running image tag', 'Verify code comes from image']);
   return steps.filter(([label]) => allowed.has(label));
 }
@@ -145,9 +147,10 @@ function composeYaml(targetImage, resetConfiguration, { coldBootstrap = true } =
     '      - FFMPEG_PATH=/usr/local/bin/ffmpeg',
     '      - FFPROBE_PATH=/usr/local/bin/ffprobe',
     '      - LIBVA_DRIVER_NAME=iHD',
-    // Offline US Adult face catalogue is a detachable RO data volume (not baked into the image).
-    `      - SHELFDECK_US_ADULT_CATALOGUE_ROOT=${US_ADULT_CATALOGUE_CONTAINER}`,
-    `      - SHELFDECK_US_ADULT_CATALOGUE_GENERATION_PATH=${US_ADULT_CATALOGUE_CONTAINER}/generation.json`,
+    // US Adult face catalogue is product data under /app/data (installed DELETE-journal copy).
+    // buffalo_l stays image-baked; vector package is not a Docker layer and not a :ro runtime mount.
+    `      - SHELFDECK_US_ADULT_CATALOGUE_ROOT=${US_ADULT_CATALOGUE_INSTALLED_CONTAINER}`,
+    `      - SHELFDECK_US_ADULT_CATALOGUE_GENERATION_PATH=${US_ADULT_CATALOGUE_INSTALLED_CONTAINER}/generation.json`,
     ...(resetConfiguration ? ['      - SHELFDECK_RESET_CONFIG_FILE=/run/shelfdeck-reset/config.json',
       ...(coldBootstrap ? [`      - SHELFDECK_RESET_BOOTSTRAP_FILE=${resetConfiguration.operationRoot}/deployment-bootstrap.json`] : [])] : []),
     '    volumes:',
@@ -160,7 +163,6 @@ function composeYaml(targetImage, resetConfiguration, { coldBootstrap = true } =
     `      - ${MEDIA_HOST}:/media`,
     `      - ${ADULT_HOST}:/adult_media`,
     `      - ${ADULT_HOST}:/adult`,
-    `      - ${US_ADULT_CATALOGUE_HOST}:${US_ADULT_CATALOGUE_CONTAINER}:ro`,
     '    devices:',
     '      - /dev/dri:/dev/dri',
     '    restart: unless-stopped',
@@ -248,14 +250,15 @@ async function main() {
     ...(expectedSha256
       ? [['Verify image tarball SHA-256', `[ "$(sha256sum ${shellQuote(tarball)} | awk '{print $1}')" = "${expectedSha256.toLowerCase()}" ]`]]
       : []),
-    ['Assert media, upgrade, transcode, adult, catalogue, and QSV hosts', [
+    ['Assert media, upgrade, transcode, adult, catalogue package, and QSV hosts', [
       `test -d ${shellQuote(MEDIA_HOST)}`,
       `mkdir -p ${shellQuote(UPGRADE_HOST)} ${shellQuote(TRANSCODE_HOST)} ${shellQuote(DATA_DIR)}`,
       `test -d ${shellQuote(UPGRADE_HOST)}`,
       `test -d ${shellQuote(TRANSCODE_HOST)}`,
       `test -d ${shellQuote(ADULT_HOST)}`,
-      `test -d ${shellQuote(US_ADULT_CATALOGUE_HOST)}`,
-      `test -f ${shellQuote(US_ADULT_CATALOGUE_HOST + '/generation.json')}`,
+      `test -d ${shellQuote(US_ADULT_CATALOGUE_PACKAGE_HOST)}`,
+      `test -f ${shellQuote(US_ADULT_CATALOGUE_PACKAGE_HOST + '/generation.json')}`,
+      `test -f ${shellQuote(US_ADULT_CATALOGUE_PACKAGE_HOST + '/performers.db')}`,
       'test -e /dev/dri/renderD128',
     ].join(' && ')],
     ['Prepare dedicated operator backup volume', [
@@ -269,6 +272,17 @@ async function main() {
     ].join(' && ')],
     ['Check compose file', `docker compose -f ${shellQuote(COMPOSE_FILE)} config >/dev/null`],
     ['Load image', `docker load -i ${shellQuote(tarball)}`],
+    ['Install US Adult catalogue into ShelfDeck data', [
+      'docker run --rm',
+      `--env-file ${shellQuote(SECRET_FILE)}`,
+      `-v ${shellQuote(`${DATA_DIR}:/app/data`)}`,
+      `-v ${shellQuote(`${US_ADULT_CATALOGUE_PACKAGE_HOST}:/catalogue-package:ro`)}`,
+      shellQuote(targetImage),
+      'node scripts/install-us-adult-catalogue.js',
+      '--source /catalogue-package',
+      '--target /app/data/us-adult-catalogue',
+      '--apply',
+    ].join(' ')],
     ...(helixCleanInit
       ? [['Helix clean initialization', [
           'docker run --rm',
@@ -311,16 +325,16 @@ async function main() {
     ].join(' ')],
     ['Verify Admin Web', 'curl -fsS http://127.0.0.1:18080/admin | grep -q \'<div id="root"></div>\''],
     ['Verify media mount', `docker exec shelfdeck sh -lc 'test -d /media && test -d /upgrade && test -d /adult_media && test -d /adult && test "$(stat -c %d:%i /adult)" = "$(stat -c %d:%i /adult_media)" && test -e /dev/dri/renderD128'`],
-    ['Verify US Adult catalogue mount', `docker exec shelfdeck sh -lc 'test -d /us-adult-catalogue && test -f /us-adult-catalogue/generation.json && test -f /us-adult-catalogue/performers.db && printenv SHELFDECK_US_ADULT_CATALOGUE_ROOT | grep -Fx /us-adult-catalogue && printenv SHELFDECK_US_ADULT_CATALOGUE_GENERATION_PATH | grep -Fx /us-adult-catalogue/generation.json'`],
+    ['Verify US Adult catalogue installed', `docker exec shelfdeck sh -lc 'test -d /app/data/us-adult-catalogue && test -f /app/data/us-adult-catalogue/generation.json && test -f /app/data/us-adult-catalogue/performers.db && printenv SHELFDECK_US_ADULT_CATALOGUE_ROOT | grep -Fx /app/data/us-adult-catalogue && printenv SHELFDECK_US_ADULT_CATALOGUE_GENERATION_PATH | grep -Fx /app/data/us-adult-catalogue/generation.json'`],
     ['Verify compose still binds required hosts', [
       `grep -F ${shellQuote(`${MEDIA_HOST}:/media`)} ${shellQuote(COMPOSE_FILE)}`,
       `grep -F ${shellQuote(`${UPGRADE_HOST}:/upgrade`)} ${shellQuote(COMPOSE_FILE)}`,
       `grep -F ${shellQuote(`${OPERATOR_BACKUP_HOST}:/app/data/operator-backups`)} ${shellQuote(COMPOSE_FILE)}`,
       `grep -Fx ${shellQuote(`      - ${ADULT_HOST}:/adult_media`)} ${shellQuote(COMPOSE_FILE)}`,
       `grep -Fx ${shellQuote(`      - ${ADULT_HOST}:/adult`)} ${shellQuote(COMPOSE_FILE)}`,
-      `grep -Fx ${shellQuote(`      - ${US_ADULT_CATALOGUE_HOST}:${US_ADULT_CATALOGUE_CONTAINER}:ro`)} ${shellQuote(COMPOSE_FILE)}`,
-      `grep -F ${shellQuote('SHELFDECK_US_ADULT_CATALOGUE_ROOT=/us-adult-catalogue')} ${shellQuote(COMPOSE_FILE)}`,
-      `grep -F ${shellQuote('SHELFDECK_US_ADULT_CATALOGUE_GENERATION_PATH=/us-adult-catalogue/generation.json')} ${shellQuote(COMPOSE_FILE)}`,
+      `grep -F ${shellQuote('SHELFDECK_US_ADULT_CATALOGUE_ROOT=/app/data/us-adult-catalogue')} ${shellQuote(COMPOSE_FILE)}`,
+      `grep -F ${shellQuote('SHELFDECK_US_ADULT_CATALOGUE_GENERATION_PATH=/app/data/us-adult-catalogue/generation.json')} ${shellQuote(COMPOSE_FILE)}`,
+      `! grep -E ${shellQuote('us-adult-catalogue:/us-adult-catalogue')} ${shellQuote(COMPOSE_FILE)}`,
       `grep -F '/dev/dri:/dev/dri' ${shellQuote(COMPOSE_FILE)}`,
     ].join(' && ')],
     ['Verify running image tag', `docker inspect shelfdeck --format "{{.Config.Image}}" | grep -Fx ${shellQuote(targetImage)}`],
@@ -341,9 +355,10 @@ async function main() {
   console.log(`backups : ${OPERATOR_BACKUP_HOST} -> /app/data/operator-backups`);
   console.log(`adult   : ${ADULT_HOST} -> /adult_media`);
   console.log(`adult   : ${ADULT_HOST} -> /adult`);
-  console.log(`catalogue: ${US_ADULT_CATALOGUE_HOST} -> ${US_ADULT_CATALOGUE_CONTAINER}:ro`);
-  console.log('catalogue env: SHELFDECK_US_ADULT_CATALOGUE_ROOT / _GENERATION_PATH');
-  console.log('capacity: /vol1 plan must cover us-adult-catalogue host bytes');
+  console.log(`catalogue package (install input): ${US_ADULT_CATALOGUE_PACKAGE_HOST}`);
+  console.log(`catalogue installed: ${DATA_DIR}/us-adult-catalogue -> ${US_ADULT_CATALOGUE_INSTALLED_CONTAINER}`);
+  console.log('catalogue env: SHELFDECK_US_ADULT_CATALOGUE_ROOT=/app/data/us-adult-catalogue');
+  console.log('capacity: /vol1 data plan must cover installed catalogue bytes');
   console.log('qsv     : /dev/dri -> /dev/dri');
   console.log('secret  : env_file secret.env (not printed)');
 

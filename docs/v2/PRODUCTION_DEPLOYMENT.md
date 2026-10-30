@@ -81,7 +81,7 @@ Helix-beta 已于 2026-08-28 在飞牛 NAS 上线。下列是 **当前生产配�
 | Production Workspace / 转码目录 | NAS `/vol2/1000/shelfdeck_transcode` -> 容器 `/transcode`。**`/transcode` 就是本机 Production Workspace 根**，不是额外再挂一个 workspace |
 | 成人库挂载 | NAS `/vol02/1000-0-24018892` -> 容器 `/adult_media`；标准部署另提供同目录 `/adult` 挂载，保留现有路径绑定。实际生效版本以当次部署Evidence为准 |
 | QSV 核显 | 宿主机 `/dev/dri` -> 容器 `/dev/dri`，`LIBVA_DRIVER_NAME=iHD` |
-| US Adult 离线脸库 | NAS `/vol1/1000/docker/shelfdeck/us-adult-catalogue` -> 容器 `/us-adult-catalogue:ro`；标准 `deploy-nas.js` compose 写入该只读挂载及 `SHELFDECK_US_ADULT_CATALOGUE_ROOT` / `_GENERATION_PATH`。buffalo_l 打进镜像；脸库是可拆数据卷。容量计划 `/vol1` 须覆盖该目录字节；禁止 apply 后再手工 remount |
+| US Adult 离线脸库 | **产品内数据**（与内部 SQLite 同类）：部署时把 NAS 包目录 `/vol1/1000/docker/shelfdeck/us-adult-catalogue` **安装**进 `/app/data/us-adult-catalogue`（WAL→DELETE，无热路径 copy）。compose 只设 `SHELFDECK_US_ADULT_CATALOGUE_ROOT=/app/data/us-adult-catalogue`，**不再**把源包挂成容器 `:ro` 运行时库。buffalo_l 仍打进镜像；脸向量包不 bake 进镜像层。容量计划须覆盖 data 卷内已安装脸库字节。Admin「选择安装」UI 后续再做 |
 
 ### 当前业务对象（2026-08-28 只读快照）
 
