@@ -21,12 +21,33 @@ test('Host catalogue config is absent when no catalogue data options are provide
   assert.equal(resolveCatalogueHostConfiguration({catalogueRoot:null,buffaloModelRoot:null}),null);
 });
 
-test('image-baked buffalo alone does not enable catalogue without offline data volume',()=>{
+test('image-baked buffalo alone does not enable catalogue without installed product data',()=>{
   const buffalo=fs.mkdtempSync(path.join(os.tmpdir(),'us-adult-buffalo-default-'));
+  const dataDir=fs.mkdtempSync(path.join(os.tmpdir(),'us-adult-data-empty-'));
   try{
     assert.equal(resolveCatalogueHostConfiguration({defaultBuffaloModelRoot:buffalo}),null);
+    assert.equal(resolveCatalogueHostConfiguration({defaultBuffaloModelRoot:buffalo,dataDir}),null);
   }finally{
     fs.rmSync(buffalo,{recursive:true,force:true});
+    fs.rmSync(dataDir,{recursive:true,force:true});
+  }
+});
+
+test('Host resolves installed catalogue under ShelfDeck data without explicit env',()=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'us-adult-catalogue-builtin-'));
+  const dataDir=path.join(root,'data'),catalogueRoot=path.join(dataDir,'us-adult-catalogue'),bakedBuffalo=path.join(root,'baked');
+  fs.mkdirSync(catalogueRoot,{recursive:true});fs.mkdirSync(bakedBuffalo);
+  const gen=generation();
+  fs.writeFileSync(path.join(catalogueRoot,'generation.json'),JSON.stringify(gen));
+  fs.writeFileSync(path.join(catalogueRoot,'performers.db'),'x');
+  try{
+    const resolved=resolveCatalogueHostConfiguration({
+      dataDir,buffaloModelRoot:null,defaultBuffaloModelRoot:bakedBuffalo});
+    assert.equal(resolved.catalogueRoot,path.resolve(catalogueRoot));
+    assert.equal(resolved.installedUnderData,true);
+    assert.equal(resolved.catalogueConfiguration.catalogueGeneration.generationDigest,gen.generationDigest);
+  }finally{
+    fs.rmSync(root,{recursive:true,force:true});
   }
 });
 
@@ -37,7 +58,7 @@ test('partial catalogue options fail closed instead of silent degrade',()=>{
     {code:UNAVAILABLE});
 });
 
-test('catalogue data volume uses image-baked buffalo by default; env override still wins',()=>{
+test('explicit catalogueRoot uses image-baked buffalo by default; env override still wins',()=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'us-adult-catalogue-host-'));
   const catalogueRoot=path.join(root,'catalogue'),bakedBuffalo=path.join(root,'baked'),overrideBuffalo=path.join(root,'override');
   fs.mkdirSync(catalogueRoot);fs.mkdirSync(bakedBuffalo);fs.mkdirSync(overrideBuffalo);
@@ -48,6 +69,7 @@ test('catalogue data volume uses image-baked buffalo by default; env override st
       catalogueRoot,buffaloModelRoot:null,defaultBuffaloModelRoot:bakedBuffalo,catalogueGeneration:generation()});
     assert.equal(resolved.catalogueRoot,path.resolve(catalogueRoot));
     assert.equal(resolved.buffaloModelRoot,path.resolve(bakedBuffalo));
+    assert.equal(resolved.installedUnderData,false);
     const overridden=resolveCatalogueHostConfiguration({
       catalogueRoot,buffaloModelRoot:overrideBuffalo,defaultBuffaloModelRoot:bakedBuffalo,catalogueGeneration:generation()});
     assert.equal(overridden.buffaloModelRoot,path.resolve(overrideBuffalo));

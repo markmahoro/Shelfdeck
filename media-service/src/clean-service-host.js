@@ -1636,7 +1636,7 @@ async function createCleanServiceHost(options) {
     mediaProbe,ffmpegPath:options.ffmpegPath,ffmpegProcessRegistry});
   const usAdultReferenceCache=new Map();
   const catalogueHostConfig=require('./helix/domains/libra/application/us-adult-catalogue-host-config')
-    .resolveCatalogueHostConfiguration(options.usAdultCatalogue||options);
+    .resolveCatalogueHostConfiguration({dataDir:options.dataDir,...(options.usAdultCatalogue||options)});
   const cataloguePortFactories=require('./clean-us-adult-catalogue-ports').createUsAdultCataloguePortFactories({
     catalogueHost:catalogueHostConfig,frameExtractor:usAdultFrameExtractor,workspaceProductPort,now:options.now||Date.now});
   function createUsAdultAnalysisPort({context,basis,actorPresentation}){

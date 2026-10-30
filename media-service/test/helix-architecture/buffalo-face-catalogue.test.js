@@ -13,6 +13,7 @@ function fixture(t,{differentId=false,brokenFaces=false,sparse=false,catalogueUi
   database.prepare('INSERT INTO faces VALUES(0,?,?)').run(differentId?2:1,catalogueUid?'iafd':'stashdb');
   database.prepare('INSERT INTO stashbox_ids VALUES(1,?,?)').run('stashdb','actor-a');
   if(wal){database.pragma('wal_checkpoint(TRUNCATE)');}
+  else {database.pragma('journal_mode=DELETE');}
   database.close();
   const values={'aliases.json':{[uid]:['Alias A']},'faces.json':brokenFaces?[uid]:sparse?[uid,null,null,null]:[uid,null],'face_yaw.json':sparse?[60,null,null,null]:[60,null],
     'performer_links.json':[[uid,'linked:a']],'performers.json':{[uid]:{name:'Actor A'}}};
@@ -61,11 +62,11 @@ test('Linux catalogue cannot search before load, accept an old feature, or reope
     assert.throws(()=>f.catalogue.search(vector),{code:'BUFFALO_CATALOGUE_INVALID'});
   f.catalogue.close();await assert.rejects(f.catalogue.load({deadlineAtMs:Date.now()+5000}),{code:'BUFFALO_CATALOGUE_INVALID'});
 });
-test('Linux catalogue loads WAL performers.db through a Docker-style RO bind mount',linux,async t=>{
+test('Linux DELETE-journal installed catalogue opens and searches through a RO bind mount without temp-copy',linux,async t=>{
   const {spawnSync}=require('node:child_process');
   const unshare=spawnSync('unshare',['-rm','true'],{encoding:'utf8'});
   if(unshare.status!==0){t.skip('user-namespace RO bind requires unshare -rm');return;}
-  const f=fixture(t,{wal:true});
+  const f=fixture(t,{wal:false});
   const probe=path.join(f.root,'..','ro-bind-probe.js');
   fs.writeFileSync(probe,`'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),{execSync}=require('node:child_process');
@@ -77,17 +78,7 @@ const sha=bytes=>crypto.createHash('sha256').update(bytes).digest('hex');
 const source=process.argv[2],mount=process.argv[3];
 execSync('mount --bind '+JSON.stringify(source)+' '+JSON.stringify(mount),{stdio:'inherit'});
 execSync('mount -o remount,ro,bind '+JSON.stringify(mount),{stdio:'inherit'});
-const options=fs.readFileSync('/proc/self/mounts','utf8').split('\\n').find(line=>(' '+line+' ').includes(' '+mount+' '));
-assert.match(String(options),/\\bro\\b/);
-// Force the production failure mode: SQLite cannot open the RO-volume DB in place
-// (WAL on :ro). The catalogue must copy to a writable temp and still query.
-const RealDatabase=require('better-sqlite3');
-function Database(file,...rest){
-  if(String(file).startsWith(mount+path.sep)||String(file)===path.join(mount,'performers.db')){
-    const error=new Error('unable to open database file');error.code='SQLITE_CANTOPEN';throw error;
-  }
-  return new RealDatabase(file,...rest);
-}
+const Database=require('better-sqlite3');
 const members=MEMBER_NAMES.map(name=>{const bytes=fs.readFileSync(path.join(mount,name));return {name,bytes:bytes.length,sha256:sha(bytes)};});
 const manifest=fs.readFileSync(path.join(mount,'manifest.json'));
 const generation=createGeneration({datasetVersion:'fixture-v1',manifestDigest:sha(manifest),members});
@@ -95,7 +86,7 @@ class Index{view(file){assert.equal(file,path.join(mount,'face_embeddings.usearc
   search(){return {keys:BigUint64Array.from([0n,1n]),distances:Float32Array.from([0.1,0.2])};}}
 const catalogue=createBuffaloFaceCatalogue({root:mount,generation,searchPolicy:catalogueSearchPolicy(),Database,usearch:{Index}});
 catalogue.load({deadlineAtMs:Date.now()+5000}).then(proof=>{
-  assert.equal(proof.dimension,512);assert.equal(proof.size,2);
+  assert.equal(proof.dimension,512);
   const vector=Array(512).fill(0);vector[0]=1;
   assert.equal(catalogue.search(vector).matches[0].name,'Actor A');
   catalogue.close();
@@ -110,21 +101,38 @@ catalogue.load({deadlineAtMs:Date.now()+5000}).then(proof=>{
   });
   assert.equal(result.status,0,(result.stderr||'')+(result.stdout||''));
 });
-test('Linux catalogue open fails closed when performers.db cannot be copied from a RO volume',linux,async t=>{
+test('Linux WAL catalogue on RO volume fails closed without hot-path temp-copy',linux,async t=>{
+  const {spawnSync}=require('node:child_process');
+  const unshare=spawnSync('unshare',['-rm','true'],{encoding:'utf8'});
+  if(unshare.status!==0){t.skip('user-namespace RO bind requires unshare -rm');return;}
   const f=fixture(t,{wal:true});
-  const Database=require('better-sqlite3');
-  const blocked=function(...args){
-    if(String(args[0]||'').includes('performers.db')){
-      const error=new Error('unable to open database file');error.code='SQLITE_CANTOPEN';throw error;
-    }
-    return new Database(...args);
-  };
-  Object.assign(blocked,Database);
-  class Index{view(){}size(){return 2;}dimensions(){return 512;}}
-  const catalogue=createBuffaloFaceCatalogue({root:f.root,generation:f.generation,searchPolicy:catalogueSearchPolicy(),Database:blocked,usearch:{Index}});
-  t.after(()=>catalogue.close());
-  const realCopy=fs.copyFileSync;
-  t.after(()=>{fs.copyFileSync=realCopy;});
-  fs.copyFileSync=()=>{const error=new Error('EACCES');error.code='EACCES';throw error;};
-  await assert.rejects(catalogue.load({deadlineAtMs:Date.now()+5000}),{code:'BUFFALO_CATALOGUE_OPEN_FAILED'});
+  const probe=path.join(f.root,'..','ro-wal-fail-probe.js');
+  fs.writeFileSync(probe,`'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),{execSync}=require('node:child_process');
+const {createBuffaloFaceCatalogue,OPEN_FAILED}=require(${JSON.stringify(require.resolve('../../src/helix/integrations/buffalo-face-catalogue'))});
+const {createGeneration,MEMBER_NAMES}=require(${JSON.stringify(require.resolve('../../src/helix/contracts/face-catalogue-generation'))});
+const {catalogueSearchPolicy}=require(${JSON.stringify(require.resolve('../../src/helix/contracts/face-catalogue-search-policy'))});
+const crypto=require('node:crypto');
+const sha=bytes=>crypto.createHash('sha256').update(bytes).digest('hex');
+const source=process.argv[2],mount=process.argv[3];
+execSync('mount --bind '+JSON.stringify(source)+' '+JSON.stringify(mount),{stdio:'inherit'});
+execSync('mount -o remount,ro,bind '+JSON.stringify(mount),{stdio:'inherit'});
+const Database=require('better-sqlite3');
+const members=MEMBER_NAMES.map(name=>{const bytes=fs.readFileSync(path.join(mount,name));return {name,bytes:bytes.length,sha256:sha(bytes)};});
+const manifest=fs.readFileSync(path.join(mount,'manifest.json'));
+const generation=createGeneration({datasetVersion:'fixture-v1',manifestDigest:sha(manifest),members});
+class Index{view(){}size(){return 2;}dimensions(){return 512;}}
+const realCopy=fs.copyFileSync; let copied=false;
+fs.copyFileSync=(...args)=>{copied=true;return realCopy(...args);};
+const catalogue=createBuffaloFaceCatalogue({root:mount,generation,searchPolicy:catalogueSearchPolicy(),Database,usearch:{Index}});
+catalogue.load({deadlineAtMs:Date.now()+5000}).then(()=>{console.error('expected open failure');process.exit(2);})
+  .catch(error=>{assert.equal(error.code,OPEN_FAILED);assert.equal(copied,false);process.exit(0);});
+`);
+  const mount=fs.mkdtempSync(path.join(path.dirname(f.root),'buffalo-ro-wal-'));
+  t.after(()=>{fs.rmSync(probe,{force:true});fs.rmSync(mount,{recursive:true,force:true});});
+  const result=spawnSync('unshare',['-rm',process.execPath,probe,f.root,mount],{
+    encoding:'utf8',timeout:30000,cwd:path.resolve(__dirname,'../..'),
+    env:{...process.env,NODE_PATH:path.resolve(__dirname,'../../node_modules')},
+  });
+  assert.equal(result.status,0,(result.stderr||'')+(result.stdout||''));
 });

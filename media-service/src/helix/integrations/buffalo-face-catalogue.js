@@ -1,5 +1,5 @@
 'use strict';
-const crypto=require('node:crypto'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
+const fs=require('node:fs'),path=require('node:path');
 const {canonicalJson,canonicalDigest}=require('../contracts/canonical-json');
 const {assertGeneration}=require('../contracts/face-catalogue-generation');
 const {assertCatalogueSearchPolicy}=require('../contracts/face-catalogue-search-policy');
@@ -14,39 +14,31 @@ function isSqliteReadonlyOpenFailure(error){
 }
 function openReadonlyDatabase(Database,file){
   const db=new Database(file,{readonly:true,fileMustExist:true,timeout:1000});
-  try{db.pragma('query_only=ON');}catch(error){try{db.close();}catch{}throw error;}
+  try{
+    db.pragma('query_only=ON');
+    // WAL on a read-only filesystem can succeed at open/pragma and only fail on the
+    // first real statement. Probe here and fail closed — product path is the installed
+    // DELETE-journal catalogue under ShelfDeck data, not a hot-path temp copy.
+    db.prepare('SELECT 1 AS ok FROM sqlite_master LIMIT 1').get();
+  }catch(error){try{db.close();}catch{}throw error;}
   return db;
 }
 function openPerformersDatabase(Database,root){
   const source=path.join(root,'performers.db');
-  try{return {db:openReadonlyDatabase(Database,source),temporaryPath:null};}
-  catch(error){if(!isSqliteReadonlyOpenFailure(error))throw error;}
-  // WAL (and some other modes) cannot open in place on a read-only filesystem.
-  // better-sqlite3 URI immutable=1 is unavailable here; copy once to a writable
-  // temp and fail closed if that copy or open cannot complete.
-  const temporaryRoot=fs.realpathSync(os.tmpdir());
-  const temporaryPath=path.join(temporaryRoot,`shelfdeck-catalogue-performers-${process.pid}-${crypto.randomUUID()}.db`);
-  try{
-    fs.copyFileSync(source,temporaryPath);
-    if(fs.statSync(source).size!==fs.statSync(temporaryPath).size)
-      fail('The temporary performers.db copy lost bytes.',OPEN_FAILED);
-    return {db:openReadonlyDatabase(Database,temporaryPath),temporaryPath};
-  }catch(error){
-    try{fs.unlinkSync(temporaryPath);}catch{}
+  try{return openReadonlyDatabase(Database,source);}
+  catch(error){
     if(error?.code===OPEN_FAILED||error?.code==='BUFFALO_CATALOGUE_INVALID')throw error;
-    fail('The catalogue performers database could not be opened on its read-only volume.',OPEN_FAILED);
+    if(isSqliteReadonlyOpenFailure(error))
+      fail('The catalogue performers database could not be opened. Install the product catalogue (DELETE journal) under ShelfDeck data.',OPEN_FAILED);
+    throw error;
   }
 }
 function createBuffaloFaceCatalogue({root,generation,searchPolicy,usearch=require('usearch'),Database=require('better-sqlite3')}={}){
   const reference=JSON.parse(canonicalJson(assertGeneration(generation))),policy=assertCatalogueSearchPolicy(searchPolicy);
   if(typeof root!=='string'||root!==path.resolve(root))fail('The exact catalogue resource root is required.');
-  let db=null,temporaryDbPath=null,index=null,faces=null,yaws=null,aliases=null,groups=null,verification=null,loading=null,closed=false;
+  let db=null,index=null,faces=null,yaws=null,aliases=null,groups=null,verification=null,loading=null,closed=false;
   const links=new Map();
-  function close(){
-    closed=true;if(db)try{db.close();}catch{}db=null;
-    if(temporaryDbPath){try{fs.unlinkSync(temporaryDbPath);}catch{}temporaryDbPath=null;}
-    index=null;faces=null;yaws=null;aliases=null;groups=null;verification=null;links.clear();
-  }
+  function close(){closed=true;if(db)try{db.close();}catch{}db=null;index=null;faces=null;yaws=null;aliases=null;groups=null;verification=null;links.clear();}
   function fence(){
     if(closed||!verification)fail('The exact qualified catalogue generation is not loaded.');
     try{
@@ -85,9 +77,9 @@ function createBuffaloFaceCatalogue({root,generation,searchPolicy,usearch=requir
           for(const uid of group){const a=linkRoot(group[0]),b=linkRoot(uid),first=Buffer.compare(Buffer.from(a),Buffer.from(b))<=0?a:b;links.set(a,first);links.set(b,first);}
         }
         for(const uid of links.keys())links.set(uid,linkRoot(uid));
-        const opened=openPerformersDatabase(Database,root);db=opened.db;temporaryDbPath=opened.temporaryPath;fence();
+        db=openPerformersDatabase(Database,root);fence();
         return Object.freeze({generationDigest:reference.generationDigest,policyDigest:policy.policyDigest,dimension:512,size:index.size(),verificationDigest:verification.verificationDigest});
-      }catch(error){close();throw error;}
+      }catch(error){close();loading=null;throw error;}
     })();
     const result=await loading;fence();return result;
   }
