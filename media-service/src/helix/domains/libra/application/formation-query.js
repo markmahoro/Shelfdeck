@@ -415,7 +415,10 @@ function nextAction(works, classification, issue, runState, recovery, arcaStatus
   if (arcaStatus?.stage === 'attention_required') return Object.freeze({ label: '收藏架接纳或上架需要处理', state: 'attention_required', progress: null });
   if (issue) return Object.freeze({ label: issue.contentProfile==='jav'
     ?issue.reasonCode==='jav_source_not_configured'?'等待连接 JAV 资料来源':'需要确认番号'
-    :issue.contentProfile==='western_adult'?'需要确认演员'
+    :issue.contentProfile==='western_adult'
+      ?(issue.reasonCode==='us_adult_catalogue_registration_required'?'等待外库演员建档'
+        :issue.reasonCode==='us_adult_catalogue_unresolved'?'外库未确认演员，需要确认'
+        :'需要确认演员')
     :issue.result === 'ambiguous' ? '需要确认媒体身份' : issue.result === 'conflicting' ? '媒体身份信息冲突' : '暂未找到匹配的媒体身份', state: 'attention_required', progress: null });
   if (waitingExternalIntegration) return Object.freeze({
     label: '等待配置外部获取服务后继续整理', state: 'waiting_external', progress: null,
@@ -501,6 +504,10 @@ function createFormationProjectionSource(options) {
       columns:['libra_run_id','completion_json','completion_digest']},
     find_us_actor_choices:{kind:'select-in',tableId:'libra_us_adult_actor_choice_heads',keyColumn:'subject_id',maxItems:PAGE_SIZE,
       columns:['subject_id','current_revision','intent_id','record_digest']},
+    find_us_catalogue_decisions:{kind:'select-in',tableId:'libra_us_adult_catalogue_actor_decisions',keyColumn:'libra_run_id',maxItems:500,
+      columns:['decision_id','libra_run_id','subject_id','decision_digest']},
+    find_us_catalogue_bases:{kind:'select-in',tableId:'libra_us_adult_catalogue_bases',keyColumn:'libra_run_id',maxItems:500,
+      columns:['analysis_id','libra_run_id','basis_digest']},
   } });
 
   function readPage(cursor, limit = PAGE_SIZE) {
@@ -544,8 +551,10 @@ function createFormationProjectionSource(options) {
       const usSubjects=subjects.filter(subject=>subject.content_profile==='western_adult').map(subject=>subject.subject_id),
         usRunIds=runs.filter(run=>usSubjects.includes(run.subject_id)).map(run=>run.libra_run_id),
         usCompletions=usRunIds.length?chunks(usRunIds).flatMap(values=>repo.invoke('find_us_completions',{values})):[],
-        usChoices=usSubjects.length?repo.invoke('find_us_actor_choices',{values:usSubjects}):[];
-      return { cancellations:repo.invoke('find_cancellations',{values:subjectIds}), decisions, routingFields, bindings, identities, routingDecisions, routingPolicies, decisionHeads, acceptanceSpecs, runs, runRevisions, packages, identityIntents,usCompletions,usChoices };
+        usChoices=usSubjects.length?repo.invoke('find_us_actor_choices',{values:usSubjects}):[],
+        usCatalogueDecisions=usRunIds.length?chunks(usRunIds).flatMap(values=>repo.invoke('find_us_catalogue_decisions',{values})):[],
+        usCatalogueBases=usRunIds.length?chunks(usRunIds).flatMap(values=>repo.invoke('find_us_catalogue_bases',{values})):[];
+      return { cancellations:repo.invoke('find_cancellations',{values:subjectIds}), decisions, routingFields, bindings, identities, routingDecisions, routingPolicies, decisionHeads, acceptanceSpecs, runs, runRevisions, packages, identityIntents,usCompletions,usChoices,usCatalogueDecisions,usCatalogueBases };
     } }]).libra_formation_batch;
   }
   function buildBatch(subjects, buildOptions = {}) {
@@ -640,12 +649,22 @@ function createFormationProjectionSource(options) {
       }
       if(subject.content_profile==='western_adult'){
         issue=null;
-        const row=run&&!pkg&&value.usCompletions.find(item=>item.libra_run_id===run.libra_run_id),
+        const hasChoice=value.usChoices.some(item=>item.subject_id===subject.subject_id),
+          catalogueDecision=run&&value.usCatalogueDecisions.find(item=>item.libra_run_id===run.libra_run_id),
+          catalogueBasis=run&&value.usCatalogueBases.find(item=>item.libra_run_id===run.libra_run_id),
+          row=run&&!pkg&&value.usCompletions.find(item=>item.libra_run_id===run.libra_run_id),
           completion=row?assertCompletion(parse(row.completion_json)):null;
         if(completion&&(completion.completionDigest!==row.completion_digest||completion.subjectId!==subject.subject_id||completion.libraRunId!==run.libra_run_id))
           throw new Error('US Adult Formation completion scope changed.');
-        if(completion&&!completion.winner&&!value.usChoices.some(item=>item.subject_id===subject.subject_id))issue=Object.freeze({
-          contentProfile:'western_adult',result:'not_found',reasonCode:'us_adult_actor_unmatched',candidateSetDigest:completion.completionDigest,candidates:Object.freeze([])});
+        if(!pkg&&!hasChoice&&!catalogueDecision){
+          if(completion&&!completion.winner)issue=Object.freeze({
+            contentProfile:'western_adult',result:'not_found',
+            reasonCode:catalogueBasis?'us_adult_catalogue_unresolved':'us_adult_actor_unmatched',
+            candidateSetDigest:completion.completionDigest,candidates:Object.freeze([])});
+          else if(catalogueBasis&&!completion)issue=Object.freeze({
+            contentProfile:'western_adult',result:'not_found',reasonCode:'us_adult_catalogue_unresolved',
+            candidateSetDigest:catalogueBasis.basis_digest,candidates:Object.freeze([])});
+        }
       }
       const waitingExternalIntegration = waitsForExternalIntegration(works, externalIntegrationReady);
       const recovery = pkg ? recoveries.get(pkg.offer_id) || null : null;

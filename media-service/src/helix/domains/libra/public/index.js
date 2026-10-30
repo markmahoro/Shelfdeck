@@ -44,14 +44,21 @@ const {createUsAdultActorChoiceStore} = require('../persistence/us-adult-actor-c
 const {createEpisodeMetadataMappingStore} = require('../persistence/episode-metadata-mapping-store');
 const {createEpisodeMetadataMappingService} = require('../application/episode-metadata-mapping-service');
 const {createUsAdultMatchCompletionStore} = require('../persistence/us-adult-match-completion-store');
+const {createUsAdultCatalogueStore} = require('../persistence/us-adult-catalogue-store');
+const {createUsAdultCatalogueDecisionStore} = require('../persistence/us-adult-catalogue-decision-store');
 const {createUsAdultActorChoiceCommand} = require('../capabilities/us-adult-actor-choice-command');
-const {createUsAdultAnalysisPlanner, createUsAdultAnalysisProjections} = require('../planning/us-adult-analysis-planner');
+const {createUsAdultAnalysisDispatchPlanner, createUsAdultAnalysisDispatchProjections} =
+  require('../application/us-adult-analysis-dispatch-planner');
 const {createUsAdultProductPlanner}=require('../planning/us-adult-product-planner');
 const {createUsAdultActorSelectionQuery}=require('../application/us-adult-actor-selection-query');
 const {createUsAdultProductCapabilityPorts,createUsAdultProductCapabilityRegistrations,EFFECTS:US_PRODUCT_EFFECTS}=
   require('../capabilities/us-adult-product-capability-ports');
-const {createUsAdultAnalysisCapabilityPorts, createUsAdultAnalysisCapabilityRegistrations, EFFECTS:US_ANALYSIS_EFFECTS} =
+const {createUsAdultAnalysisCapabilityRegistrations, EFFECTS:US_ANALYSIS_EFFECTS} =
   require('../capabilities/us-adult-analysis-capability-ports');
+const {createUsAdultSharedFrameCapabilityPorts}=require('../capabilities/us-adult-shared-frame-capability-ports');
+const {createUsAdultCatalogueObservationCapability,createUsAdultCatalogueObservationRegistration}=
+  require('../capabilities/us-adult-catalogue-observation-capability');
+const CATALOGUE_OBSERVE='libra.us_adult.catalogue.observe@1';
 const { createProductFactCapabilityPorts } = require('../capabilities/product-fact-capability-ports');
 const { createProductFactCapabilityRegistrations } = require('../capabilities/product-fact-capability-registrations');
 const { createProductMetadataCapabilityPorts } = require('../capabilities/product-metadata-capability-ports');
@@ -166,9 +173,16 @@ function createExecutionRegistration() {
       const routingPorts=createRoutingCapabilityPorts(options);
       const movieProductionReader=options.movieProductionReader||createMovieProductionReader(options);
       const usAdultAnalysisStore=createUsAdultAnalysisStore(options);
-      const usAdultAnalysisPorts=createUsAdultAnalysisCapabilityPorts({...options,movieProductionReader,usAdultAnalysisStore});
-      const usAdultProductPorts=createUsAdultProductCapabilityPorts({...options,movieProductionReader,usAdultAnalysisStore,
-        usAdultActorChoiceStore:createUsAdultActorChoiceStore(options),usAdultMatchCompletionStore:createUsAdultMatchCompletionStore(options)});
+      const usAdultCatalogueStore=createUsAdultCatalogueStore(options);
+      const usAdultActorChoiceStore=createUsAdultActorChoiceStore(options);
+      const usAdultMatchCompletionStore=createUsAdultMatchCompletionStore(options);
+      const usAdultCatalogueDecisionStore=createUsAdultCatalogueDecisionStore(options);
+      const catalogueOptions={...options,movieProductionReader,usAdultAnalysisStore,usAdultCatalogueStore,usAdultActorChoiceStore,
+        usAdultMatchCompletionStore,usAdultCatalogueDecisionStore};
+      const usAdultAnalysisPorts=createUsAdultSharedFrameCapabilityPorts(catalogueOptions);
+      const usAdultCatalogueObservationPort=typeof options.createCatalogueObservationPort==='function'
+        ?createUsAdultCatalogueObservationCapability(catalogueOptions):null;
+      const usAdultProductPorts=createUsAdultProductCapabilityPorts(catalogueOptions);
       const productIdentitySelection=createProductIdentitySelectionService({...options,movieProductionReader});
       const domainCommitCoordinator=createProductFactDomainCommitCoordinator(options);
       const productFactPorts=createProductFactCapabilityPorts({...options,movieProductionReader,domainCommitCoordinator});
@@ -181,8 +195,9 @@ function createExecutionRegistration() {
       const deliveryPorts=createDeliveryLifecycleCapabilityPorts(options);
       const externalPorts=createExternalMaterialCapabilityPorts({...options,movieProductionReader});
       const ports=Object.freeze({...intakePorts,...routingPorts,...productFactPorts,...productMetadataPorts,...artifactPorts,...mediaPorts,...usAdultAnalysisPorts,...usAdultProductPorts,
+        ...(usAdultCatalogueObservationPort?{[CATALOGUE_OBSERVE]:usAdultCatalogueObservationPort}:{}),
         ...deliveryPorts,...externalPorts});
-      return Object.freeze({offerReader,movieProductionReader,ports,createRegistrations(registrationOptions){
+      return Object.freeze({offerReader,movieProductionReader,ports,usAdultCatalogueStore,usAdultCatalogueDecisionStore,createRegistrations(registrationOptions){
         const routingRefs=registrationOptions.enabledCapabilityRefs.filter((ref)=>ROUTING_EFFECTS[ref]);
         const productFactRefs=registrationOptions.enabledCapabilityRefs.filter((ref)=>[
           'libra.product_identity.resolve@1','libra.media_cast.resolve@1','libra.media_cast.commit@1',
@@ -194,12 +209,15 @@ function createExecutionRegistration() {
         const externalRefs=registrationOptions.enabledCapabilityRefs.filter((ref)=>EXTERNAL_EFFECTS[ref]);
         const usAnalysisRefs=registrationOptions.enabledCapabilityRefs.filter((ref)=>US_ANALYSIS_EFFECTS[ref]);
         const usProductRefs=registrationOptions.enabledCapabilityRefs.filter((ref)=>US_PRODUCT_EFFECTS[ref]);
+        const catalogueObserveRefs=registrationOptions.enabledCapabilityRefs.filter((ref)=>ref===CATALOGUE_OBSERVE);
         const intakeRefs=registrationOptions.enabledCapabilityRefs.filter((ref)=>!ROUTING_EFFECTS[ref]&&!productFactRefs.includes(ref)&&
           !productMetadataRefs.includes(ref)&&!artifactRefs.includes(ref)&&!mediaRefs.includes(ref)&&!deliveryRefs.includes(ref)&&
-          !externalRefs.includes(ref)&&!usAnalysisRefs.includes(ref)&&!usProductRefs.includes(ref));
+          !externalRefs.includes(ref)&&!usAnalysisRefs.includes(ref)&&!usProductRefs.includes(ref)&&!catalogueObserveRefs.includes(ref));
         return Object.freeze([
           ...createUsAdultAnalysisCapabilityRegistrations({
             manifests:Object.fromEntries(usAnalysisRefs.map(ref=>[ref,registrationOptions.manifests[ref]])),ports}),
+          ...(catalogueObserveRefs.length&&usAdultCatalogueObservationPort?[createUsAdultCatalogueObservationRegistration({
+            manifest:registrationOptions.manifests[CATALOGUE_OBSERVE],port:usAdultCatalogueObservationPort})]:[]),
           ...createUsAdultProductCapabilityRegistrations({
             manifests:Object.fromEntries(usProductRefs.map(ref=>[ref,registrationOptions.manifests[ref]])),ports}),
           ...createIntakeCapabilityRegistrations({...registrationOptions,enabledCapabilityRefs:intakeRefs,
@@ -271,13 +289,26 @@ function createExecutionRegistration() {
       const episodeMetadataMapping=createEpisodeMetadataMappingService({...options,movieProductionReader,episodeMetadataMappingStore,
         afterConfirmation:record=>runCoordinator.reconcile(record.libraRunId)});
       const usAdultAnalysisStore=createUsAdultAnalysisStore(options);
+      const usAdultCatalogueStore=createUsAdultCatalogueStore(options);
+      const usAdultCatalogueDecisionStore=createUsAdultCatalogueDecisionStore(options);
       const productIdentitySelection=createProductIdentitySelectionService({...options,movieProductionReader});
       const libraRunAdminService=createLibraRunAdminService({...options,libraRunExecutionProjection,pipelineAdmission});
       const usAdultMatchCompletionStore=createUsAdultMatchCompletionStore(options);
       const usAdultActorChoiceStore=createUsAdultActorChoiceStore(options),
         usAdultActorChoice=createUsAdultActorChoiceCommand({...options,movieProductionReader,usAdultActorChoiceStore,afterUsAdultActorChoice:libraRunId=>runCoordinator.reconcileActorChoice(libraRunId)});
-      const usAdultActorSelectionQuery=createUsAdultActorSelectionQuery({movieProductionReader,usAdultActorChoiceStore,usAdultAnalysisStore,usAdultMatchCompletionStore});
-      const runCoordinator=createLibraRunCoordinator({...options,libraRunCreator,movieProductionReader,episodeMetadataMappingStore,usAdultAnalysisStore,usAdultActorChoiceStore,usAdultMatchCompletionStore,libraRunLifecycleService,productIdentitySelection,routingContextReader,
+      const usAdultActorSelectionQuery=createUsAdultActorSelectionQuery({movieProductionReader,usAdultActorChoiceStore,usAdultAnalysisStore,usAdultMatchCompletionStore,
+        usAdultCatalogueStore,usAdultCatalogueDecisionStore});
+      const peopleHead=personId=>{
+        const person=options.peopleStore?.getPerson?.(personId);if(!person)return null;
+        return Object.freeze({personId:person.personId,personRevision:person.currentRevision,personFactDigest:person.revision?.factDigest||person.personFactDigest,
+          currentReferenceRevision:person.currentReferenceRevision});
+      };
+      const catalogueRuntime={...options,movieProductionReader,usAdultAnalysisStore,usAdultCatalogueStore,usAdultCatalogueDecisionStore,
+        usAdultActorChoiceStore,usAdultMatchCompletionStore,
+        resolveUsAdultName:input=>options.peopleReferenceQuery.resolveUsAdultName(input),
+        readUsAdultPersonSnapshot:input=>options.peopleReferenceQuery.readUsAdultPersonSnapshot(input),
+        readPersonHead:peopleHead};
+      const runCoordinator=createLibraRunCoordinator({...catalogueRuntime,libraRunCreator,episodeMetadataMappingStore,libraRunLifecycleService,productIdentitySelection,routingContextReader,
         resolveFrozenRun:libraRunAdminService.reconcileFrozen,
         resolveRejectedRun:libraRunAdminService.reconcileRejected,
         waitUnavailableStrategy:libraRunAdminService.waitUnavailableStrategy,
@@ -301,6 +332,7 @@ function createExecutionRegistration() {
       return Object.freeze({preparationRecovery,sourceFairness,offerReader,decisionResolver,coordinator,routingContextReader,routingCoordinator,acceptanceSpecContextReader,
         acceptanceSpecCoordinator,libraRunContextReader,libraRunCreator,movieProductionReader,libraRunCoordinator,
         libraRunExecutionProjection,libraRunLifecycleService,libraRunAdminService,productIdentitySelection,pipelineAdmission,intakeStore,usAdultAnalysisStore,
+        usAdultCatalogueStore,usAdultCatalogueDecisionStore,catalogueConfiguration:options.catalogueConfiguration||null,
         episodeMetadataMappingStore,episodeMetadataMapping,usAdultActorChoiceStore,usAdultActorChoice,usAdultActorSelectionQuery,usAdultMatchCompletionStore});
     },
     createPlanningRegistration(options) {
@@ -313,20 +345,21 @@ function createExecutionRegistration() {
         plan(request){return externalMaterialPlanner.handles(request)
           ?externalMaterialPlanner.plan(request):workspaceMediaPlanner.plan(request);}
       });
+      const usAdultPlanning={...options,usAdultCatalogueStore:options.usAdultCatalogueStore||createUsAdultCatalogueStore(options)};
       return Object.freeze({planners:Object.freeze([
         createEvidencePlanner(options),createAcceptancePlanner(options),createRejectionPlanner(options),
         createFactPlanner(options,'related_nfo'),createFactPlanner(options,'provider'),createBasisPlanner(options),
         createAcceptanceSpecPlanner({...options,contextReader:options.acceptanceSpecContextReader}),
         createProductIdentityPlanner(options),createProductMetadataObservationPlanner(options),createArtifactProductionPlanner(options),
         createProductFactAssemblyPlanner(options),workspaceMediaProductionPlanner,
-        productDeliveryPlanner,productDeliveryPlanner,createUsAdultAnalysisPlanner(options),createUsAdultProductPlanner(options)
+        productDeliveryPlanner,productDeliveryPlanner,createUsAdultAnalysisDispatchPlanner(usAdultPlanning),createUsAdultProductPlanner(options)
       ]),bindingProjections:Object.freeze([...createIntakeProjections(options),...createRoutingProjections(options),
         ...createAcceptanceSpecProjections({...options,contextReader:options.acceptanceSpecContextReader}),
         ...createProductIdentityProjections(options),...createProductMetadataObservationProjections(options),
         ...createArtifactProductionProjections(options),...createProductFactAssemblyProjections(options),
         ...createWorkspaceMediaProductionProjections(options),
         ...createExternalMaterialProjections(options),
-        ...createProductDeliveryProjections({...options,productDeliveryAssembler}),...createUsAdultAnalysisProjections(options)])});
+        ...createProductDeliveryProjections({...options,productDeliveryAssembler}),...createUsAdultAnalysisDispatchProjections(usAdultPlanning)])});
     }
   };
   const provided=Object.keys(implementation).sort(),expected=[...executionContract.methods].sort();

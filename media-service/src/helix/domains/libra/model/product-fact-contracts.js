@@ -4,7 +4,22 @@ const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical
 const { buildEpisodeMetadataScope } = require('../../../contracts/episode-metadata-scope');
 const { metadataObservationLimit, metadataObservationSetByteLimit } = require('../../../contracts/metadata-observation-limits');
 const { metadataSetRef, SET_LIMIT } = require('../../../contracts/episode-metadata-records');
-const {assertActorSelection,selectedPerson,actorRelation}=require('./us-adult-actor-selection');
+const legacySelection=require('./us-adult-actor-selection');
+const currentSelection=require('./us-adult-actor-selection-current');
+const {assertActorSelection,selectedPerson,actorRelation}=Object.freeze({
+  assertActorSelection(selection){
+    if(selection?.schemaRef===currentSelection.SCHEMA)return currentSelection.assertCurrentActorSelection(selection);
+    return legacySelection.assertActorSelection(selection);
+  },
+  selectedPerson(selection){
+    if(selection?.schemaRef===currentSelection.SCHEMA)return currentSelection.personOf(selection);
+    return legacySelection.selectedPerson(selection);
+  },
+  actorRelation(selection){
+    if(selection?.schemaRef===currentSelection.SCHEMA)return currentSelection.actorRelation(selection);
+    return legacySelection.actorRelation(selection);
+  },
+});
 
 class ProductFactContractError extends Error {
   constructor(code, message) { super(message); this.name = 'ProductFactContractError'; this.code = code; }
@@ -405,7 +420,7 @@ function buildProductFactSourceRefs(value) {
       {relationDigest,...actual}=relations[0]||{};
     if(basis.sourceBasisDigest!==selection.selectionDigest||relations.length!==1||canonicalJson(actual)!==canonicalJson(expected)||
       relationDigest!==canonicalDigest(expected))fail('P9_US_ACTOR_SOURCE','The Media-Cast must exactly explain the selected US actor.');
-    if(selection.selectionOrigin==='user_choice')return Object.freeze([]);
+    if(selection.selectionOrigin==='user_choice'||selection.selectionOrigin==='automatic_catalogue')return Object.freeze([]);
     const winner=selection.matchCompletion.winner,ref=winner.matchResultRef,chain=chains.get(ref.resultId),
       {result}=exactResultChain(chain,ref,{libraRunId:selection.libraRunId,capabilityRef:'shared.face.reference.match@1',
         resultContractRef:capabilityResultRef('shared.face.reference.match@1'),typedResultSchemaRef:'helix://contracts/types/PersonMatchEvidence/v1'});
