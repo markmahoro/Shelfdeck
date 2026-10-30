@@ -178,15 +178,79 @@ test('Placement target conflicts are preflighted before any earlier member is sw
       staged=await port.stage({...request,finalInventoryDecision,targetCommitSlotHandle:slot}),
       verified=await port.verifyStaged({...request,finalInventoryDecision,stagedInventoryManifest:staged}),
       ordered=finalInventoryDecision.members;
-    const first=ordered[0],conflicting=ordered[ordered.length-1];
-    fs.mkdirSync(path.dirname(conflicting.targetLocation),{recursive:true});
-    fs.writeFileSync(conflicting.targetLocation,Buffer.from('foreign-conflicting-bytes'));
+    const media=ordered.find((item)=>item.role==='primary_payload');
+    const presentation=ordered.find((item)=>item.role==='poster');
+    assert.ok(media&&presentation);
+    fs.mkdirSync(path.dirname(media.targetLocation),{recursive:true});
+    fs.writeFileSync(media.targetLocation,Buffer.from('foreign-conflicting-bytes'));
     await assert.rejects(port.switchPlacement({...request,finalInventoryDecision,
       stagedInventoryVerification:verified,targetBindings:{bindingSetDigest:'bindings'},
       replacedInputSetDigest:'inputs'}),(error)=>error.code==='CLEAN_ARCA_TARGET_OCCUPIED');
-    assert.equal(fs.existsSync(first.targetLocation),false);
-    assert.equal(fs.existsSync(path.join(slot.slotDirectory,path.basename(first.targetLocation))),true);
-    assert.equal(fs.readFileSync(conflicting.targetLocation,'utf8'),'foreign-conflicting-bytes');
+    assert.equal(fs.existsSync(presentation.targetLocation),false);
+    assert.equal(fs.existsSync(path.join(slot.slotDirectory,path.basename(presentation.targetLocation))),true);
+    assert.equal(fs.readFileSync(media.targetLocation,'utf8'),'foreign-conflicting-bytes');
+  } finally {fs.rmSync(root,{recursive:true,force:true});}
+});
+
+test('foreign leftover nfo and differently named files do not freeze On-deck; media same-path still Attention', async () => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'clean-arca-presentation-overwrite-'));
+  try {
+    const targetRoot=path.join(root,'shelf'),workspaceRoot=path.join(root,'.workspace'),workspaceId='ws-overwrite';
+    fs.mkdirSync(path.join(workspaceRoot,workspaceId,'product'),{recursive:true});
+    fs.mkdirSync(targetRoot,{recursive:true});
+    const primarySource=path.join(workspaceRoot,workspaceId,'product','movie.mkv');
+    const nfoSource=path.join(workspaceRoot,workspaceId,'product','movie.nfo');
+    const posterSource=path.join(workspaceRoot,workspaceId,'product','poster.jpg');
+    fs.writeFileSync(primarySource,Buffer.from('product-primary'));
+    fs.writeFileSync(nfoSource,Buffer.from('product-nfo'));
+    fs.writeFileSync(posterSource,Buffer.from('product-poster'));
+    const mountScopeId='canary-mount';
+    const packageValue=Object.freeze({
+      onDeckPackageId:'package-overwrite',shelfId:'shelf-1',
+      resolvedIdentitySnapshot:{factValue:{contentProfile:'movie',structureKind:'single',identityKind:'tmdb_movie',title:'Overwrite Movie',year:2026}},
+      productStructureSnapshot:{structureKind:'single'},
+      productMaterialManifest:{manifestDigest:'manifest-overwrite',members:Object.freeze([
+        member(primarySource,'primary_payload',mountScopeId,{workspaceId,relativePath:'product/movie.mkv'}),
+        member(nfoSource,'metadata_sidecar',mountScopeId,{workspaceId,relativePath:'product/movie.nfo'}),
+        member(posterSource,'poster',mountScopeId,{workspaceId,relativePath:'product/poster.jpg'}),
+      ])},
+      offloadContextManifest:{manifestDigest:'offload-overwrite',members:Object.freeze([])},
+    });
+    const shelf=Object.freeze({
+      shelfId:'shelf-1',status:'active',currentPlacementRevision:1,
+      target:{endpointId:'canary',rootLocation:targetRoot,mountScopeId,mountScopeRevision:1},
+      placement:{value:{folderTemplate:'{title} ({year})'}},
+    });
+    const port=createCleanArcaInventoryPort({schemaManifest,unitOfWork:{},workspaceRoot});
+    const request={onDeckRunId:'run-overwrite',custodyId:'custody-overwrite',shelf,
+      onDeckProductPackage:packageValue,observedAtMs:1,replayCommitted:false};
+    const finalInventoryDecision=port.prepare(request);
+    const nfoTarget=finalInventoryDecision.members.find((item)=>item.role==='metadata_sidecar').targetLocation;
+    const posterTarget=finalInventoryDecision.members.find((item)=>item.role==='poster').targetLocation;
+    const primaryTarget=finalInventoryDecision.members.find((item)=>item.role==='primary_payload').targetLocation;
+    const titleDirectory=path.dirname(nfoTarget);
+    fs.mkdirSync(titleDirectory,{recursive:true});
+    fs.writeFileSync(nfoTarget,Buffer.from('leftover-foreign-nfo'));
+    fs.writeFileSync(path.join(titleDirectory,'third-party.srt'),Buffer.from('foreign-sub'));
+    fs.writeFileSync(path.join(titleDirectory,'orphan-notes.txt'),Buffer.from('notes'));
+
+    const slot=port.prepareSlot({...request,finalInventoryDecision});
+    const staged=await port.stage({...request,finalInventoryDecision,targetCommitSlotHandle:slot});
+    const verified=await port.verifyStaged({...request,finalInventoryDecision,stagedInventoryManifest:staged});
+    await port.switchPlacement({...request,finalInventoryDecision,stagedInventoryVerification:verified,
+      targetBindings:{bindingSetDigest:'bindings-overwrite'},replacedInputSetDigest:'inputs-overwrite'});
+
+    assert.equal(fs.readFileSync(nfoTarget,'utf8'),'product-nfo');
+    assert.equal(fs.readFileSync(posterTarget,'utf8'),'product-poster');
+    assert.equal(fs.readFileSync(primaryTarget,'utf8'),'product-primary');
+    assert.equal(fs.readFileSync(path.join(titleDirectory,'third-party.srt'),'utf8'),'foreign-sub');
+    assert.equal(fs.readFileSync(path.join(titleDirectory,'orphan-notes.txt'),'utf8'),'notes');
+
+    fs.writeFileSync(primaryTarget,Buffer.from('foreign-media-bytes'));
+    const blockedSlot=port.prepareSlot({...request,finalInventoryDecision});
+    await assert.rejects(port.stage({...request,finalInventoryDecision,targetCommitSlotHandle:blockedSlot}),
+      (error)=>error.code==='CLEAN_ARCA_STAGE_TARGET_OCCUPIED');
+    assert.equal(fs.readFileSync(primaryTarget,'utf8'),'foreign-media-bytes');
   } finally {fs.rmSync(root,{recursive:true,force:true});}
 });
 
@@ -671,10 +735,14 @@ test('post-Placement NFO verification accepts semantic Emby rewrites while exact
     });
     const recoveryRequest = { ...request, finalInventoryDecision,
       replaySettledSources:true, nfoPresentationBasis, observedAtMs:19 };
+    // Without prior Placement cover, presentation leftovers may be restaged for
+    // overwrite. Media same-path conflicts still Attention (covered below).
     const unauthorizedSlot = port.prepareSlot(recoveryRequest);
-    await assert.rejects(port.stage({ ...recoveryRequest,
-      targetCommitSlotHandle:unauthorizedSlot }),
-    (error) => error.code === 'CLEAN_ARCA_STAGE_TARGET_OCCUPIED');
+    const unauthorizedManifest = await port.stage({ ...recoveryRequest,
+      targetCommitSlotHandle:unauthorizedSlot });
+    assert.ok(unauthorizedManifest.stagedMembers.some((item) => item.role === 'metadata_sidecar'));
+    fs.rmSync(unauthorizedSlot.slotDirectory, { recursive:true, force:true });
+    fs.writeFileSync(nfoTarget, embyRewrite);
 
     const recoveredRequest = { ...recoveryRequest,
       priorPlacementReceipt:placementReceipt };

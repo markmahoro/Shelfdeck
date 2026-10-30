@@ -82,6 +82,13 @@ function isLibraryPresentationRole(role) {
     || role === 'sidecar' || role === 'subtitle';
 }
 
+// Media members keep anti-miscover Attention on same-path foreign bytes.
+// Library presentation (nfo/poster/fanart/subtitle/sidecar) may overwrite the
+// planned path; differently named foreign files never enter this check.
+function blocksForeignTargetOverwrite(role) {
+  return !isLibraryPresentationRole(role);
+}
+
 function hiddenStageSlotDirectory(targetDirectory, suffix) {
   return path.join(path.dirname(targetDirectory), '.shelfdeck-stage-' + suffix);
 }
@@ -1046,8 +1053,11 @@ function createCleanArcaInventoryPort(options) {
       if (prior.state !== 'committed' && !targetExact) {
         fs.mkdirSync(path.dirname(plan.target), { recursive: true });
         if (fs.existsSync(plan.target)) {
-          fail('CLEAN_ARCA_TARGET_OCCUPIED',
-            'Final Inventory target contains conflicting bytes.');
+          if (blocksForeignTargetOverwrite(plan.member.role)) {
+            fail('CLEAN_ARCA_TARGET_OCCUPIED',
+              'Final Inventory target contains conflicting bytes.');
+          }
+          fs.rmSync(plan.target, { force:false });
         }
         const temporary = plan.target + '.tmp-' + effectId.slice(0, 16);
         if (fs.existsSync(temporary)) fs.rmSync(temporary, { force: true });
@@ -1299,9 +1309,9 @@ function createCleanArcaInventoryPort(options) {
         }
       }
     }
-    // Resolve target conflicts before creating or changing any staged material.
-    // A known occupied target is a terminal precondition, not an uncertain copy.
-    // Collect every conflicting target so the user can resolve them in one pass.
+    // Resolve media target conflicts before creating or changing any staged material.
+    // Presentation leftovers at the planned path are overwritten later; they must
+    // not freeze the whole On-deck. Differently named foreign files are ignored.
     const conflicts = [];
     for (const plan of built.plans) {
       requireContinuation(request);
@@ -1309,13 +1319,14 @@ function createCleanArcaInventoryPort(options) {
       const observed = await computeFingerprint(plan.target);
       if (!fingerprintsMatchPlan(observed, plan) &&
           !priorPlacementCoversTarget(request, plan, handle) &&
-          !isManagedSourceLocation(request, plan.target)) {
+          !isManagedSourceLocation(request, plan.target) &&
+          blocksForeignTargetOverwrite(plan.member.role)) {
         conflicts.push(Object.freeze({ target: plan.target, name: plan.name }));
       }
     }
     if (conflicts.length) {
       fail('CLEAN_ARCA_STAGE_TARGET_OCCUPIED',
-        'Final Inventory target contains conflicting bytes before staging.', {
+        'Final Inventory media target contains conflicting bytes before staging.', {
           sourceDirectory:path.dirname(conflicts[0].target), unknownNames:[path.basename(conflicts[0].target)],
           conflicts:conflicts.slice(0, 16), conflictCount:conflicts.length,
         });
@@ -1353,9 +1364,10 @@ function createCleanArcaInventoryPort(options) {
         }
       }
       if (finalExisting && !finalExact && !priorPlacementTarget &&
-          !isManagedSourceLocation(request, plan.target)) {
+          !isManagedSourceLocation(request, plan.target) &&
+          blocksForeignTargetOverwrite(plan.member.role)) {
         fail('CLEAN_ARCA_TARGET_OCCUPIED',
-          'Final Inventory target contains conflicting bytes.');
+          'Final Inventory media target contains conflicting bytes.');
       }
       const existing = fs.existsSync(target)
         ? await computeFingerprint(target)
@@ -1710,12 +1722,16 @@ function createCleanArcaInventoryPort(options) {
         }
       }
       if (final && !finalExact && !priorPlacementTarget &&
-          !isManagedSourceLocation(request, plan.target)) {
+          !isManagedSourceLocation(request, plan.target) &&
+          blocksForeignTargetOverwrite(plan.member.role)) {
         fail('CLEAN_ARCA_TARGET_OCCUPIED',
-          'Final Inventory target contains conflicting bytes.');
+          'Final Inventory media target contains conflicting bytes.');
       }
       let sourceSnapshot = null;
-      if (final && !finalExact && !priorPlacementTarget && !request.aftercareCaseId && isMovieNfoPlan(plan)) {
+      // Same-root managed NFO settlement only. Foreign leftover presentation at
+      // the planned path overwrites without this settlement mapping gate.
+      if (final && !finalExact && !priorPlacementTarget && !request.aftercareCaseId && isMovieNfoPlan(plan) &&
+          isManagedSourceLocation(request, plan.target)) {
         const source = request.onDeckProductPackage.offloadContextManifest?.members?.find((item) =>
           item.contextRole === 'related_input' && item.sourceRelatedReferenceId &&
           path.resolve(item.location) === path.resolve(plan.target) && item.finalProductMaterialKey === plan.member.materialKey);
@@ -1775,7 +1791,8 @@ function createCleanArcaInventoryPort(options) {
         continue;
       }
       if (final && !finalExact && (priorPlacementTarget ||
-          isManagedSourceLocation(request, plan.target))) {
+          isManagedSourceLocation(request, plan.target) ||
+          isLibraryPresentationRole(plan.member.role))) {
         fs.rmSync(plan.target, { force:false });
       }
       fs.renameSync(stagedLocation, plan.target);
