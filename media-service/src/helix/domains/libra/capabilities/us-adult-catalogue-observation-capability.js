@@ -106,11 +106,12 @@ function createUsAdultCatalogueObservationCapability(options){
     catch(error){
       // Catalogue open failures are permanent for this Attempt: do not leave the
       // workspace_write Effect in reconcile/retry storm (production SQLITE_CANTOPEN).
+      // Always publish the remapped catalogue code; keep the original SQLite code in evidence.
       if(!isCatalogueOpenFailure(error))throw error;
-      const code=typeof error.code==='string'&&error.code?error.code:'BUFFALO_CATALOGUE_OPEN_FAILED';
-      return Object.freeze({kind:'failed',failureClass:'integration',code,
+      const originalCode=typeof error.code==='string'&&error.code?error.code:'BUFFALO_CATALOGUE_OPEN_FAILED';
+      return Object.freeze({kind:'failed',failureClass:'integration',code:'BUFFALO_CATALOGUE_OPEN_FAILED',
         message:'The offline face catalogue performers database could not be opened.',
-        retryDirective:'never',evidence:Object.freeze({stage:'catalogue_open',errorCode:code,
+        retryDirective:'never',evidence:Object.freeze({stage:'catalogue_open',errorCode:originalCode,
           basisDigest:current.basis.basisDigest,libraRunId:current.basis.libraRunId})});
     }
     const result=buildCatalogueObservationHandle({...current,observation:published.observation,

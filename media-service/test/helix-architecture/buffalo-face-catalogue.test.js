@@ -79,15 +79,15 @@ execSync('mount --bind '+JSON.stringify(source)+' '+JSON.stringify(mount),{stdio
 execSync('mount -o remount,ro,bind '+JSON.stringify(mount),{stdio:'inherit'});
 const options=fs.readFileSync('/proc/self/mounts','utf8').split('\\n').find(line=>(' '+line+' ').includes(' '+mount+' '));
 assert.match(String(options),/\\bro\\b/);
-// Force the production failure mode: SQLite cannot open the RO-volume DB in place
-// (WAL on :ro). The catalogue must copy to a writable temp and still query.
-const RealDatabase=require('better-sqlite3');
-function Database(file,...rest){
-  if(String(file).startsWith(mount+path.sep)||String(file)===path.join(mount,'performers.db')){
-    const error=new Error('unable to open database file');error.code='SQLITE_CANTOPEN';throw error;
-  }
-  return new RealDatabase(file,...rest);
-}
+// Production mode: real better-sqlite3 against WAL on :ro. Constructor/pragma can
+// succeed while the first statement fails with SQLITE_CANTOPEN; load must copy.
+const Database=require('better-sqlite3');
+const inplace=path.join(mount,'performers.db');
+const probeDb=new Database(inplace,{readonly:true,fileMustExist:true});
+probeDb.pragma('query_only=ON');
+let deferred=null;try{probeDb.prepare('SELECT 1 AS ok FROM sqlite_master LIMIT 1').get();}
+catch(error){deferred=error.code;} finally{try{probeDb.close();}catch{}}
+assert.equal(deferred,'SQLITE_CANTOPEN');
 const members=MEMBER_NAMES.map(name=>{const bytes=fs.readFileSync(path.join(mount,name));return {name,bytes:bytes.length,sha256:sha(bytes)};});
 const manifest=fs.readFileSync(path.join(mount,'manifest.json'));
 const generation=createGeneration({datasetVersion:'fixture-v1',manifestDigest:sha(manifest),members});
@@ -127,4 +127,51 @@ test('Linux catalogue open fails closed when performers.db cannot be copied from
   t.after(()=>{fs.copyFileSync=realCopy;});
   fs.copyFileSync=()=>{const error=new Error('EACCES');error.code='EACCES';throw error;};
   await assert.rejects(catalogue.load({deadlineAtMs:Date.now()+5000}),{code:'BUFFALO_CATALOGUE_OPEN_FAILED'});
+});
+test('Linux catalogue remaps deferred RO WAL SQLITE_CANTOPEN during load, not search',linux,async t=>{
+  const {spawnSync}=require('node:child_process');
+  const unshare=spawnSync('unshare',['-rm','true'],{encoding:'utf8'});
+  if(unshare.status!==0){t.skip('user-namespace RO bind requires unshare -rm');return;}
+  const f=fixture(t,{wal:true});
+  const probe=path.join(f.root,'..','ro-deferred-probe.js');
+  fs.writeFileSync(probe,`'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),{execSync}=require('node:child_process');
+const {createBuffaloFaceCatalogue}=require(${JSON.stringify(require.resolve('../../src/helix/integrations/buffalo-face-catalogue'))});
+const {createGeneration,MEMBER_NAMES}=require(${JSON.stringify(require.resolve('../../src/helix/contracts/face-catalogue-generation'))});
+const {catalogueSearchPolicy}=require(${JSON.stringify(require.resolve('../../src/helix/contracts/face-catalogue-search-policy'))});
+const crypto=require('node:crypto');
+const sha=bytes=>crypto.createHash('sha256').update(bytes).digest('hex');
+const source=process.argv[2],mount=process.argv[3];
+execSync('mount --bind '+JSON.stringify(source)+' '+JSON.stringify(mount),{stdio:'inherit'});
+execSync('mount -o remount,ro,bind '+JSON.stringify(mount),{stdio:'inherit'});
+const Database=require('better-sqlite3');
+const members=MEMBER_NAMES.map(name=>{const bytes=fs.readFileSync(path.join(mount,name));return {name,bytes:bytes.length,sha256:sha(bytes)};});
+const manifest=fs.readFileSync(path.join(mount,'manifest.json'));
+const generation=createGeneration({datasetVersion:'fixture-v1',manifestDigest:sha(manifest),members});
+class Index{view(){}size(){return 2;}dimensions(){return 512;}
+  search(){return {keys:BigUint64Array.from([0n,1n]),distances:Float32Array.from([0.1,0.2])};}}
+let copied=false;
+const realCopy=fs.copyFileSync;
+fs.copyFileSync=(from,to,...rest)=>{
+  assert.match(String(from),/performers\\.db$/);
+  assert.match(String(to),/shelfdeck-catalogue-performers-/);
+  copied=true;
+  return realCopy(from,to,...rest);
+};
+const catalogue=createBuffaloFaceCatalogue({root:mount,generation,searchPolicy:catalogueSearchPolicy(),Database,usearch:{Index}});
+catalogue.load({deadlineAtMs:Date.now()+5000}).then(()=>{
+  assert.equal(copied,true);
+  const vector=Array(512).fill(0);vector[0]=1;
+  assert.equal(catalogue.search(vector).matches[0].name,'Actor A');
+  catalogue.close();
+  process.exit(0);
+}).catch(error=>{console.error(error);process.exit(1);});
+`);
+  const mount=fs.mkdtempSync(path.join(path.dirname(f.root),'buffalo-ro-deferred-'));
+  t.after(()=>{fs.rmSync(probe,{force:true});fs.rmSync(mount,{recursive:true,force:true});});
+  const result=spawnSync('unshare',['-rm',process.execPath,probe,f.root,mount],{
+    encoding:'utf8',timeout:30000,cwd:path.resolve(__dirname,'../..'),
+    env:{...process.env,NODE_PATH:path.resolve(__dirname,'../../node_modules')},
+  });
+  assert.equal(result.status,0,(result.stderr||'')+(result.stdout||''));
 });

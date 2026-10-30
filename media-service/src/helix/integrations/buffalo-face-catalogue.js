@@ -14,7 +14,13 @@ function isSqliteReadonlyOpenFailure(error){
 }
 function openReadonlyDatabase(Database,file){
   const db=new Database(file,{readonly:true,fileMustExist:true,timeout:1000});
-  try{db.pragma('query_only=ON');}catch(error){try{db.close();}catch{}throw error;}
+  try{
+    db.pragma('query_only=ON');
+    // WAL on a read-only filesystem can succeed at open/pragma and only fail on the
+    // first real statement when SQLite cannot create *-shm. Probe here so the RO
+    // copy-fallback runs during load instead of leaking SQLITE_CANTOPEN from search.
+    db.prepare('SELECT 1 AS ok FROM sqlite_master LIMIT 1').get();
+  }catch(error){try{db.close();}catch{}throw error;}
   return db;
 }
 function openPerformersDatabase(Database,root){
@@ -87,7 +93,7 @@ function createBuffaloFaceCatalogue({root,generation,searchPolicy,usearch=requir
         for(const uid of links.keys())links.set(uid,linkRoot(uid));
         const opened=openPerformersDatabase(Database,root);db=opened.db;temporaryDbPath=opened.temporaryPath;fence();
         return Object.freeze({generationDigest:reference.generationDigest,policyDigest:policy.policyDigest,dimension:512,size:index.size(),verificationDigest:verification.verificationDigest});
-      }catch(error){close();throw error;}
+      }catch(error){close();loading=null;throw error;}
     })();
     const result=await loading;fence();return result;
   }
