@@ -402,14 +402,19 @@ test('retirement history is distinct from user cancellation and requires its dur
     f.db.prepare(`INSERT INTO libra_formation_projections(subject_id,classification,subject_status,display_identity,
       next_action_label,next_action_state,attention_state,added_at_ms,updated_at_ms)
       VALUES ('subject','in_progress','active','Retired title','Waiting','pending','none',1,1)`).run();
-    f.store.commit(request(f));
+    const committed=f.store.commit(request(f));
+    assert.equal(f.db.prepare(`SELECT count(*) n FROM fx_commit_markers WHERE commit_marker=? AND scope_type='subject'
+      AND scope_id='subject'`).get(committed.receipt.commandReceiptId).n,1);
+    assert.equal(f.store.readReceipt('subject').receiptId,committed.receipt.commandReceiptId);
     const history=createFormationRunHistoryStore({schemaManifest,unitOfWork:f.unitOfWork});
     assert.equal(history.count(),1);
     const rows=history.listDiscarded(0,25);
     assert.equal(rows.length,1);assert.equal(rows[0].outcome,'administratively_retired');
     assert.equal(rows[0].label,'已重置整理任务');assert.equal(rows[0].libraRunId,null);
+    assert.equal(rows[0].historyId,committed.receipt.commandReceiptId);
     f.db.prepare('DELETE FROM fx_commit_markers').run();
     assert.throws(()=>history.listDiscarded(0,25),{code:'FORMATION_RETIREMENT_HISTORY_INTEGRITY'});
+    assert.throws(()=>f.store.readReceipt('subject'),{code:'LIBRA_RETIREMENT_RECEIPT_CORRUPT'});
   }finally{f.close();}
 });
 

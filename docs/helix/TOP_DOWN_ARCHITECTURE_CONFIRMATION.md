@@ -16754,6 +16754,8 @@ UAT-328无人使用的共享责任闭合（2026-10-22）：Series Presentation C
 
 Reset的稳定边界为已完成Arca On-deck Commit的收藏（含历史收藏），不是当前工作台Projection或Handoff Accepted。它是停止态独立管理Operator能力，不是取消、反向Handoff或旧执行器兼容。配置、People及收藏维护责任保留；各Owner必须明确提供收藏所需的最小事实/证据闭包，不能以整个Subject历史作为保留集合。无收藏依赖的旧任务、观察、Candidate/Offer、未提交On-deck、执行历史与占用从在线数据清除，仅留在完整校验的离线备份；不改写已保留的历史Accepted/Commit事实。
 
+仍保留在线的 Subject（因已有 On-deck Commit 收藏而未被 disposable 删除）若已有 `libra.formation-retirement@1` 管理退役 Command Receipt，其同事务 `fx_commit_markers`（`commit_marker=command_receipt_id`，`scope_type=subject`）是 ended 历史的不可分割证据，必须与 Receipt 一并保留；后续 Safe Reset 清理该 Subject 上未提交 Run/占用时，不得按 subject fact scope 删掉该 marker，也不得留下无 Subject 的退役 Receipt。可完全删除的 disposable Subject 则必须同事务删除其 subject 目标 Receipt 与对应 marker。ended 历史读取继续要求唯一 Receipt + 匹配 marker；缺失即 `FORMATION_RETIREMENT_HISTORY_INTEGRITY`，不得 dual-read、soft-skip 或补造 marker 掩盖缺陷。
+
 Libra的Run展示从已保留的不可变Acceptance Spec、Run Manifest及其Accepted Handoff A证据重建本地季号、Episode范围和物理Primary数量；它不取得执行资格，不依赖当前Related authority或Control。正常执行与执行快照继续校验当前材料权限，不能借展示读取重启历史Run，也不能为了显示历史而恢复旧占用。冻结事实缺失、身份/来源/摘要不一致仍明确拒绝，不读取当前Head补造历史。
 
 People保留闭包同时包含参考图片和人脸embedding的Artifact登记，分别由People的reference asset和reference face事实声明。两类opaque Handle都不是可省略缓存；不能以SQLite FK通过、图片仍在或Person行数相同替代验证。预检和独立保留核验必须比较参考事实、Artifact归属/类型/摘要及必选登记集合；源依赖已缺失或目标遗漏均显式拒绝，不静默跳过人物或重新选图。
