@@ -25,6 +25,14 @@ Bootstrap资格必须使用逐字节验真的私有源副本，禁止只读打�
 同一规则覆盖Bootstrap管理面后续的每次Reset预检与确认：显式bootstrapId的冷态预检从验真私有副本读取Owner事实、重建与复核保留集，结束前核对原main/WAL集合严格不变；非空WAL拒绝，不按旧数据特征回落。普通已安全Stop但Host仍持有连接的预检继续使用SQLite一致读事务。成功的资格临时文件仅清理本进程精确路径，失败副本保留证据；副本/retained/SQLite工作量均纳入同一预检卷预算。
 
 
+## 2026-10-30 US Adult catalogue 239→242 结构切换
+
+当前生产 a2bf / 1.0.0 标记 digest `906ecacce4d6de62e875d1293cec93dd198564c1c53e2f7f7979d75b2eac2d0a`（239表）到 tip / 1.1.0 `572bd48d999c83c86ffd5c2ccc496e7177b14df2edfd09ebcffadf56e2706cb9`（242表）使用候选镜像内`helix-us-adult-catalogue-schema-copy.js`准备独立一致源快照、新库及反向副本，逐行证明238张原事实/执行表保持。仅新增三张空 catalogue 表，并扩展`people_person_revisions.origin_kind` CHECK 允许`catalogue_auto`；不能复用旧`lifecycle-schema-cutover.js`或`formation-retirement-schema-cutover.js`的表数与 digest 常量。
+
+完整停机冷备必须保留main DB及存在的WAL/SHM/journal、全部伴随文件、Compose及Secret；来源和备份逐文件SHA一致。准备目录包含`source.sqlite`、`prepared.sqlite`、`copy-receipt.json`、`rollback-receipt.json`和`source-files.json`。后者使用`shelfdeck.frozen-sqlite-files@1`，记录`source.sqlite`的`snapshotSha256`及原始SQLite物理文件的`name/bytes/sha256`。
+
+使用`scripts/us-adult-catalogue-schema-cutover.js <data-dir> <prepared-dir>`先dry-run，再加`--apply`同卷切换。包装必须确认唯一生产容器已停止、镜像及目录身份精确。工具验证目标/反向证明、原始main/WAL/SHM完整集合和字节；非空WAL保持于`retained-source-wal`，不能仅因它非空而丢弃。持久cutover marker支持保留旧辅助文件后及新库rename后的继续执行。新库准备和切换不执行Reset、不更改媒体；出现 catalogue 新表事实或`catalogue_auto`修订后，旧结构回退必须拒绝，不用冷备覆盖新增事实。本段仅定义结构切换纪律；标准`deploy-nas.js --apply`仍须另行授权。
+
 ## 2026-10-25 Plan 合同证据加性切换
 
 采用新镜像中的`helix-plan-contract-schema-copy.js --source <frozen.sqlite> --target <new.sqlite> --source-schema <exact-digest>`，只新增三张证据/审计表及三个Foundation查询索引，231张原事实表逐行核对，禁止改旧约束。`helix-import-plan-contracts.js`只操作持久停止意图的准备副本，临时空Host用于捕获当前合同，目标Kernel只允许读取和追加三张新表；原表前后摘要必须一致。无法验真的历史保留明确持久失败，不增运行兼容白名单。

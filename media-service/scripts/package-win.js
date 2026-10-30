@@ -87,6 +87,8 @@ const CLEAN_RUNTIME_FILES = [
   'scripts/formation-stopped-transcode.js',
   'scripts/helix-formation-retirement-schema-copy.js',
   'scripts/helix-architecture/formation-retirement-schema-copy.js',
+  'scripts/helix-us-adult-catalogue-schema-copy.js',
+  'scripts/helix-architecture/us-adult-catalogue-schema-copy.js',
   'scripts/helix-plan-contract-schema-copy.js',
   'scripts/helix-plan-contract-cutover.js',
   'scripts/helix-import-plan-contracts.js',
