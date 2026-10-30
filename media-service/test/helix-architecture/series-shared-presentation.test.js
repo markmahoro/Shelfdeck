@@ -41,17 +41,20 @@ test('shared identity follows Shelf and Provider show identity rather than first
   assert.notEqual(seriesScopeId('shelf','1399'),seriesScopeId('shelf','999'));
 });
 
-test('image policy normalizes language, is stable across response order and keeps poster and background roles separate',()=>{
+test('image policy prefers config language then en with votes, stays inside the admitted set, and keeps poster/fanart roles separate',()=>{
   const images=[{file_path:'/fallback.jpg',iso_639_1:null,width:1000,height:1500,vote_average:9},
     {file_path:'/zh-b.jpg',iso_639_1:'zh',width:600,height:900,vote_average:8},
     {file_path:'/zh-a.jpg',iso_639_1:'zh',width:600,height:900,vote_average:8},
+    {file_path:'/en-high.jpg',iso_639_1:'en',width:600,height:900,vote_average:9.5},
+    {file_path:'/ja-only.jpg',iso_639_1:'ja',width:600,height:900,vote_average:99},
     {file_path:'/wide.jpg',iso_639_1:null,width:1920,height:1080,vote_average:10}];
   const policy={artifactKind:'poster',language:'zh-CN'};
   assert.equal(selectTmdbImage(images,policy).file_path,'/zh-a.jpg');
   assert.deepEqual(selectTmdbImage([...images].reverse(),policy),selectTmdbImage(images,policy));
   assert.equal(selectTmdbImage(images,{artifactKind:'fanart',language:'zh-CN'}).file_path,'/wide.jpg');
-  assert.equal(selectTmdbImage([...images,{file_path:'/original.jpg',iso_639_1:'ja',width:600,height:900,vote_average:1}],
-    {artifactKind:'poster',language:'fr-FR',originalLanguage:'ja'}).file_path,'/original.jpg');
+  // Config fr + en are admitted; show originalLanguage ja is not a selection key.
+  assert.equal(selectTmdbImage(images,{artifactKind:'poster',language:'fr-FR',originalLanguage:'ja'}).file_path,'/en-high.jpg');
+  assert.equal(selectTmdbImage(images.filter(item=>item.iso_639_1==='ja'),{artifactKind:'poster',language:'zh-CN'}),null);
 });
 
 test('a Season NFO renamed to tvshow.nfo cannot satisfy the shared Series document',()=>{
