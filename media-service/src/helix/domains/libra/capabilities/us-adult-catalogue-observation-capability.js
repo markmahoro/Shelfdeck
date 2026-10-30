@@ -92,11 +92,28 @@ function createUsAdultCatalogueObservationCapability(options){
       return result(invalid?'conflict':'unobservable',code);
     }
   }
+  function isCatalogueOpenFailure(error){
+    const code=typeof error?.code==='string'?error.code:'';
+    return code==='BUFFALO_CATALOGUE_OPEN_FAILED'||code==='SQLITE_CANTOPEN'||code.startsWith('SQLITE_CANTOPEN')||
+      code==='SQLITE_READONLY'||code==='SQLITE_READONLY_DIRECTORY'||code.startsWith('SQLITE_READONLY');
+  }
   return Object.freeze({validateInputs:state,validateResult,observeEffectReality,async execute(context){
     const current=state(context),port=options.createCatalogueObservationPort({...current,context,
       capturePublicationFence:()=>{const fence=options.unitOfWork.captureReadFence();state(context);return fence;},
-      validateObservation:observation=>assertCatalogueObservationSource({...state(context),observation,validator:options.contractValidator})}),
-      published=await port.observe(current),result=buildCatalogueObservationHandle({...current,observation:published.observation,
+      validateObservation:observation=>assertCatalogueObservationSource({...state(context),observation,validator:options.contractValidator})});
+    let published;
+    try{published=await port.observe(current);}
+    catch(error){
+      // Catalogue open failures are permanent for this Attempt: do not leave the
+      // workspace_write Effect in reconcile/retry storm (production SQLITE_CANTOPEN).
+      if(!isCatalogueOpenFailure(error))throw error;
+      const code=typeof error.code==='string'&&error.code?error.code:'BUFFALO_CATALOGUE_OPEN_FAILED';
+      return Object.freeze({kind:'failed',failureClass:'integration',code,
+        message:'The offline face catalogue performers database could not be opened.',
+        retryDirective:'never',evidence:Object.freeze({stage:'catalogue_open',errorCode:code,
+          basisDigest:current.basis.basisDigest,libraRunId:current.basis.libraRunId})});
+    }
+    const result=buildCatalogueObservationHandle({...current,observation:published.observation,
         artifactHandle:published.artifactHandle,validator:options.contractValidator});
     validateResult(context,{result});
     const digest=canonicalDigest(result),id=canonicalDigest({eventId:context.eventId,resultDigest:digest}).slice(0,40),at=now();

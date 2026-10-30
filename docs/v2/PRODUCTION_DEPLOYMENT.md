@@ -12,7 +12,7 @@ Fresh Reset Bootstrap冷态管理的health为`maintenance/normalSupplyAllowed=fa
 
 首次235→239结构切换不先打开新业务Host，也不为保留旧未入藏流程运行加性迁移。仍走标准build/upload/deploy入口；在已完成Runtime安全停机、完整恢复基线及容量清单获准后，使用`deploy-nas.js <tar> --sha256 <digest> --fresh-reset-config <本机配置JSON> --capacity-plan <本机容量JSON>`先dry-run，取得具体发布授权后才加`--apply`。这只部署停止态管理入口，不代表已授权或自动执行Reset。
 
-配置schema为`shelfdeck.reset-configuration@1`，包含明确的`operationRoot`、`backupParent`、`backupSourceOptions`和`storage`；两个作业目录必须互不包含，位于容器`/operator-backups/`下，对应NAS`/vol2/1000/shelfdeck_backups/`中已审查且预先准备的精确目录。标准Compose保留原嵌套备份挂载并增加直接挂载；备份来源必须显式排除旧归档，不能递归备份嵌套备份卷。容量JSON采用`shelfdeck.deployment-capacity@1`，`volumes`精确列出`/vol1`和`/vol2`及十进制字符串`requiredAvailableBytes`；数值来自本次镜像加载、完整备份、数据库新代际及SQLite工作空间峰值，不抵扣尚未执行的删除。首次生产写入Compose/Secret之前先核对空间，Operator预检及每个后续阶段仍独立复核。
+配置schema为`shelfdeck.reset-configuration@1`，包含明确的`operationRoot`、`backupParent`、`backupSourceOptions`和`storage`；两个作业目录必须互不包含，位于容器`/operator-backups/`下，对应NAS`/vol2/1000/shelfdeck_backups/`中已审查且预先准备的精确目录。标准Compose保留原嵌套备份挂载并增加直接挂载；备份来源必须显式排除旧归档，不能递归备份嵌套备份卷。容量JSON采用`shelfdeck.deployment-capacity@1`，`volumes`精确列出`/vol1`和`/vol2`及十进制字符串`requiredAvailableBytes`；数值来自本次镜像加载、完整备份、数据库新代际、US Adult 离线脸库宿主目录及SQLite工作空间峰值，不抵扣尚未执行的删除。首次生产写入Compose/Secret之前先核对空间，Operator预检及每个后续阶段仍独立复核。
 
 部署控制器核对已完成Stop回执、Runtime revision与quiesced活动计数，检查原容器成功退出、无OOM且已移除，再核对全部容器没有其他业务数据挂载。独立冷态程序验证精确源结构、数据库/WAL摘要、停止记录和Platform凭据事实，输出绑定这些证据的管理授权。管理面沿原Runtime预检/一次确认接口，只能Reset，不能Resume或访问业务；普通部署不因schema失败自动启用该模式。确认之后复用同一持久workflow/代际Fence/幂等请求；完成后重开stopped新Host。失败保持停止，不能为了通过health而启动旧任务或跳过源结构校验。
 
@@ -81,6 +81,7 @@ Helix-beta 已于 2026-08-28 在飞牛 NAS 上线。下列是 **当前生产配�
 | Production Workspace / 转码目录 | NAS `/vol2/1000/shelfdeck_transcode` -> 容器 `/transcode`。**`/transcode` 就是本机 Production Workspace 根**，不是额外再挂一个 workspace |
 | 成人库挂载 | NAS `/vol02/1000-0-24018892` -> 容器 `/adult_media`；标准部署另提供同目录 `/adult` 挂载，保留现有路径绑定。实际生效版本以当次部署Evidence为准 |
 | QSV 核显 | 宿主机 `/dev/dri` -> 容器 `/dev/dri`，`LIBVA_DRIVER_NAME=iHD` |
+| US Adult 离线脸库 | NAS `/vol1/1000/docker/shelfdeck/us-adult-catalogue` -> 容器 `/us-adult-catalogue:ro`；标准 `deploy-nas.js` compose 写入该只读挂载及 `SHELFDECK_US_ADULT_CATALOGUE_ROOT` / `_GENERATION_PATH`。buffalo_l 打进镜像；脸库是可拆数据卷。容量计划 `/vol1` 须覆盖该目录字节；禁止 apply 后再手工 remount |
 
 ### 当前业务对象（2026-08-28 只读快照）
 

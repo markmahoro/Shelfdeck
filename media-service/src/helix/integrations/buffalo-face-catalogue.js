@@ -1,17 +1,52 @@
 'use strict';
-const fs=require('node:fs'),path=require('node:path');
+const crypto=require('node:crypto'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const {canonicalJson,canonicalDigest}=require('../contracts/canonical-json');
 const {assertGeneration}=require('../contracts/face-catalogue-generation');
 const {assertCatalogueSearchPolicy}=require('../contracts/face-catalogue-search-policy');
 const {verifyCatalogueGenerationFiles}=require('./face-catalogue-verification');
 function fail(message,code='BUFFALO_CATALOGUE_INVALID'){throw Object.assign(new Error(message),{code});}
+const OPEN_FAILED='BUFFALO_CATALOGUE_OPEN_FAILED';
 const statDigest=stat=>canonicalDigest(Object.fromEntries(['dev','ino','size','mtimeNs','ctimeNs'].map(key=>[key,String(stat[key])])));
+function isSqliteReadonlyOpenFailure(error){
+  const code=typeof error?.code==='string'?error.code:'';
+  return code==='SQLITE_CANTOPEN'||code.startsWith('SQLITE_CANTOPEN')||
+    code==='SQLITE_READONLY'||code==='SQLITE_READONLY_DIRECTORY'||code.startsWith('SQLITE_READONLY');
+}
+function openReadonlyDatabase(Database,file){
+  const db=new Database(file,{readonly:true,fileMustExist:true,timeout:1000});
+  try{db.pragma('query_only=ON');}catch(error){try{db.close();}catch{}throw error;}
+  return db;
+}
+function openPerformersDatabase(Database,root){
+  const source=path.join(root,'performers.db');
+  try{return {db:openReadonlyDatabase(Database,source),temporaryPath:null};}
+  catch(error){if(!isSqliteReadonlyOpenFailure(error))throw error;}
+  // WAL (and some other modes) cannot open in place on a read-only filesystem.
+  // better-sqlite3 URI immutable=1 is unavailable here; copy once to a writable
+  // temp and fail closed if that copy or open cannot complete.
+  const temporaryRoot=fs.realpathSync(os.tmpdir());
+  const temporaryPath=path.join(temporaryRoot,`shelfdeck-catalogue-performers-${process.pid}-${crypto.randomUUID()}.db`);
+  try{
+    fs.copyFileSync(source,temporaryPath);
+    if(fs.statSync(source).size!==fs.statSync(temporaryPath).size)
+      fail('The temporary performers.db copy lost bytes.',OPEN_FAILED);
+    return {db:openReadonlyDatabase(Database,temporaryPath),temporaryPath};
+  }catch(error){
+    try{fs.unlinkSync(temporaryPath);}catch{}
+    if(error?.code===OPEN_FAILED||error?.code==='BUFFALO_CATALOGUE_INVALID')throw error;
+    fail('The catalogue performers database could not be opened on its read-only volume.',OPEN_FAILED);
+  }
+}
 function createBuffaloFaceCatalogue({root,generation,searchPolicy,usearch=require('usearch'),Database=require('better-sqlite3')}={}){
   const reference=JSON.parse(canonicalJson(assertGeneration(generation))),policy=assertCatalogueSearchPolicy(searchPolicy);
   if(typeof root!=='string'||root!==path.resolve(root))fail('The exact catalogue resource root is required.');
-  let db=null,index=null,faces=null,yaws=null,aliases=null,groups=null,verification=null,loading=null,closed=false;
+  let db=null,temporaryDbPath=null,index=null,faces=null,yaws=null,aliases=null,groups=null,verification=null,loading=null,closed=false;
   const links=new Map();
-  function close(){closed=true;if(db)db.close();db=null;index=null;faces=null;yaws=null;aliases=null;groups=null;verification=null;links.clear();}
+  function close(){
+    closed=true;if(db)try{db.close();}catch{}db=null;
+    if(temporaryDbPath){try{fs.unlinkSync(temporaryDbPath);}catch{}temporaryDbPath=null;}
+    index=null;faces=null;yaws=null;aliases=null;groups=null;verification=null;links.clear();
+  }
   function fence(){
     if(closed||!verification)fail('The exact qualified catalogue generation is not loaded.');
     try{
@@ -50,7 +85,7 @@ function createBuffaloFaceCatalogue({root,generation,searchPolicy,usearch=requir
           for(const uid of group){const a=linkRoot(group[0]),b=linkRoot(uid),first=Buffer.compare(Buffer.from(a),Buffer.from(b))<=0?a:b;links.set(a,first);links.set(b,first);}
         }
         for(const uid of links.keys())links.set(uid,linkRoot(uid));
-        db=new Database(path.join(root,'performers.db'),{readonly:true,fileMustExist:true,timeout:1000});db.pragma('query_only=ON');fence();
+        const opened=openPerformersDatabase(Database,root);db=opened.db;temporaryDbPath=opened.temporaryPath;fence();
         return Object.freeze({generationDigest:reference.generationDigest,policyDigest:policy.policyDigest,dimension:512,size:index.size(),verificationDigest:verification.verificationDigest});
       }catch(error){close();throw error;}
     })();
@@ -102,4 +137,4 @@ function createBuffaloFaceCatalogue({root,generation,searchPolicy,usearch=requir
   }
   return Object.freeze({load,search,close});
 }
-module.exports=Object.freeze({createBuffaloFaceCatalogue});
+module.exports=Object.freeze({createBuffaloFaceCatalogue,OPEN_FAILED,isSqliteReadonlyOpenFailure});
