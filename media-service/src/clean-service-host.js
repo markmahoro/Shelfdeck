@@ -2174,7 +2174,7 @@ async function createCleanServiceHost(options) {
   });
   const operatorMaintenance=createOperatorMaintenance({
     dataDir:options.dataDir,
-    databasePath,
+    databasePath:path.join(options.dataDir,'shelfdeck.db'),
     Database,
     now:options.now||Date.now,
     runtimeMode:()=>runtimeOperations.snapshot().mode,
