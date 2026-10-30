@@ -17,10 +17,13 @@ git show f096af1b40cf71a4ce26f0441c686f7f36e707bc:docs/helix/CURRENT_STATUS.md
 
 | 字段 | 值 |
 | --- | --- |
-| 记录日期 | 2026-10-21 |
-| 镜像 tag | `shelfdeck:helix-beta-20261021-6c74939646` (registry host in pre-stub git history / NAS) |
-| Source commit | `6c74939646`（全文见 stub 前 git history） |
-| 备注 | UAT-325 修正版标准部署后 Resume / normalSupplyAllowed；完整生产媒体 E2E 未新增；完整副本 Host FAIL 与用户接受例外保留 |
+| 记录日期 | 2026-10-30 |
+| 镜像 tag | `markmahoro/shelfdeck:1.1.0` |
+| Source commit | `f01af83cae01e6d1e697e0883723bf0a53564407`（含 #31–#35 + #38） |
+| Tar SHA-256 | `0fa5d7fdfef09a677dd4ba738f7cd8d84f1255f04c65f03ce40486792a731a93` |
+| NAS ImageId | `sha256:98b4cfba3008b6fe5a062ffc48ec02b74752946ba7ab597f4d45ee62c7a5bb2f` |
+| E2E / 验收边界 | 产品安全停机 → 标准 deploy → 官方安全 Formation Reset（18/20，FK=0）→ #34 维护重建 30 markers → US Adult catalogue 卷挂载 → Resume；health ok / Formation ended 200；完整生产媒体功能抽查未新增 |
+| 备注 | 版本号仍 1.1.0（未发明 hotfix）；catalogue compose 挂载为 deploy 后补丁，下次 deploy-nas 须保留 |
 
 此后若 NAS 现网 tag 与上表不一致，以授权部署回写或只读核验结果为准再更新本表；**不要**把开发检查点堆回本文件。
 
