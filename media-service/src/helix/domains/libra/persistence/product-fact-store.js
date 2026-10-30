@@ -6,8 +6,18 @@ const { createRepositoryDefinition } = require('../../../foundation/persistence/
 const { buildMediaCastFact, buildProductFactEvidence, buildProductFactHandle, buildProductFactSourceRefs,
   buildProductMetadataFact, buildResolvedProductIdentity, validateVerifiedArtifactManifest } = require('../model/product-fact-contracts');
 const {CONTINUITY_HEAD_ID,continuityHeadDigest,subjectContinuitySetDigest} = require('../model/libra-intake-contracts');
-const {assertActorSelection,selectedPerson}=require('../model/us-adult-actor-selection');
+const legacySelection=require('../model/us-adult-actor-selection');
+const currentSelection=require('../model/us-adult-actor-selection-current');
+const {assertCatalogueActorDecision}=require('../model/us-adult-catalogue-actor-decision');
 const {assertUsAdultAnalysisBasis}=require('../model/us-adult-analysis-basis');
+function assertActorSelection(selection){
+  if(selection?.schemaRef===currentSelection.SCHEMA)return currentSelection.assertCurrentActorSelection(selection);
+  return legacySelection.assertActorSelection(selection);
+}
+function selectedPerson(selection){
+  if(selection?.schemaRef===currentSelection.SCHEMA)return currentSelection.personOf(selection);
+  return legacySelection.selectedPerson(selection);
+}
 
 class ProductFactStoreError extends Error {
   constructor(code,message){super(message);this.name='ProductFactStoreError';this.code=code;}
@@ -37,6 +47,7 @@ function ownerReadRepository(schemaManifest,factKind){const statements={
     statements.find_us_completion={kind:'select-one',tableId:'libra_us_adult_match_completions',columns:['analysis_id','completion_json','completion_digest'],keyColumns:['analysis_id']};
     statements.find_us_choice_head={kind:'select-one',tableId:'libra_us_adult_actor_choice_heads',columns:['subject_id','current_revision','intent_id','record_digest'],keyColumns:['subject_id']};
     statements.find_us_choice={kind:'select-one',tableId:'libra_us_adult_actor_choice_intents',columns:['intent_id','subject_id','choice_revision','record_json','record_digest'],keyColumns:['intent_id']};
+    statements.find_us_catalogue_decision={kind:'select-one',tableId:'libra_us_adult_catalogue_actor_decisions',columns:['decision_id','libra_run_id','subject_id','decision_json','decision_digest'],keyColumns:['decision_id']};
   }
   return createRepositoryDefinition({repositoryId:'libra_product_fact_'+factKind+'_reads',owner:'libra',schemaManifest,statements});
 }
@@ -126,7 +137,10 @@ function sourceResultRefs(sourceBasis){
   if(sourceBasis?.sourceBasisKind==='metadata_observation')return sourceBasis.selection?.items||[];
   if(sourceBasis?.sourceBasisKind==='western_analysis')return [...(sourceBasis.westernBasis?.analysisRefs||[]),sourceBasis.westernBasis?.normalizeRef].filter(Boolean);
   if(sourceBasis?.sourceBasisKind==='western_match')return sourceBasis.westernBasis?.matchRef?[sourceBasis.westernBasis.matchRef]:[];
-  if(sourceBasis?.sourceBasisKind==='us_adult_actor')return sourceBasis.actorSelection?.matchCompletion?.winner?[sourceBasis.actorSelection.matchCompletion.winner.matchResultRef]:[];
+  if(sourceBasis?.sourceBasisKind==='us_adult_actor'){
+    if(sourceBasis.actorSelection?.selectionOrigin==='automatic_catalogue'||sourceBasis.actorSelection?.selectionOrigin==='user_choice')return [];
+    return sourceBasis.actorSelection?.matchCompletion?.winner?[sourceBasis.actorSelection.matchCompletion.winner.matchResultRef]:[];
+  }
   return [];
 }
 
@@ -136,15 +150,29 @@ function validateActorOwnerBasis(repo,run,sourceBasis){
     fail('P9_US_ACTOR_REQUIRED','US Adult cannot commit an empty or unconfirmed actor relation.');
   if(sourceBasis.sourceBasisKind!=='us_adult_actor')return;
   const selection=assertActorSelection(sourceBasis.actorSelection),head=repo.invoke('find_us_choice_head',{subject_id:run.subject_id}),
-    analysis=repo.invoke('find_us_analysis',{analysis_id:selection.analysisId}),identity=repo.invoke('find_fact',{
-      libra_run_id:run.libra_run_id,fact_kind:'resolved_identity',fact_revision:1});
+    identity=repo.invoke('find_fact',{libra_run_id:run.libra_run_id,fact_kind:'resolved_identity',fact_revision:1});
   if(subject?.content_profile!=='western_adult'||selection.subjectId!==run.subject_id||selection.libraRunId!==run.libra_run_id||
-    selection.runExecutionBasisDigest!==run.execution_basis_digest||!identity||identity.fact_digest!==selection.resolvedIdentityDigest||
-    !analysis||analysis.basis_digest!==selection.analysisBasisDigest)fail('P9_US_ACTOR_BASIS_STALE','US actor selection crossed its Subject, Run, identity or frozen analysis.');
+    selection.runExecutionBasisDigest!==run.execution_basis_digest||!identity||identity.fact_digest!==selection.resolvedIdentityDigest)
+    fail('P9_US_ACTOR_BASIS_STALE','US actor selection crossed its Subject, Run or formal identity.');
+  const person=selectedPerson(selection);
+  if(selection.selectionOrigin==='automatic_catalogue'){
+    const decision=assertCatalogueActorDecision(selection.catalogueDecision),
+      row=repo.invoke('find_us_catalogue_decision',{decision_id:decision.decisionId});
+    if(head||!row||row.libra_run_id!==run.libra_run_id||row.subject_id!==run.subject_id||row.decision_digest!==decision.decisionDigest||
+      canonicalJson(decision)!==row.decision_json||decision.referenceAssetId!==selection.referenceAssetId||
+      decision.referenceModelRefDigest!==selection.referenceModelRefDigest)
+      fail('P9_US_ACTOR_CHOICE_STALE','The catalogue actor decision changed before Media-Cast commit.');
+    if(!person.referenceProjection.contributions.some(item=>item.ownerPersonId===person.personId&&item.activeFaces.some(face=>
+      face.referenceAssetId===selection.referenceAssetId&&face.modelRef===selection.referenceModelRefDigest)))
+      fail('P9_US_ACTOR_BASIS_STALE','The catalogue-selected actor image uses a different buffalo reference.');
+    return;
+  }
+  const analysis=repo.invoke('find_us_analysis',{analysis_id:selection.analysisId});
+  if(!analysis||analysis.basis_digest!==selection.analysisBasisDigest)
+    fail('P9_US_ACTOR_BASIS_STALE','US actor selection crossed its Subject, Run, identity or frozen analysis.');
   const analysisBasis=assertUsAdultAnalysisBasis(parseJson(analysis.basis_json,'P9_US_ACTOR_BASIS_JSON'));
   if(analysisBasis.libraRunId!==run.libra_run_id||analysisBasis.subjectId!==run.subject_id||analysisBasis.resolvedIdentityDigest!==selection.resolvedIdentityDigest||
     analysisBasis.basisDigest!==selection.analysisBasisDigest)fail('P9_US_ACTOR_BASIS_STALE','US actor analysis header differs from its complete immutable Basis.');
-  const person=selectedPerson(selection);
   if(!person.referenceProjection.contributions.some(item=>item.ownerPersonId===person.personId&&item.activeFaces.some(face=>
     face.referenceAssetId===selection.referenceAssetId&&face.modelRef===analysisBasis.referenceModelRefDigest)))
     fail('P9_US_ACTOR_BASIS_STALE','The selected actor image uses a different model from the frozen analysis.');

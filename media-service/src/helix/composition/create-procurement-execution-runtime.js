@@ -88,6 +88,7 @@ const LIBRA_ENABLED = Object.freeze(['libra.intake.candidate.verify@1','libra.in
   'libra.external_material.stability.observe@1','libra.external_material.identity.verify@1',
   'libra.external_material.package.verify@1','libra.workspace.material.import@1',
   'libra.media.frames.extract@1','shared.face.cluster.compute@1','shared.face.reference.match@1',
+  'libra.us_adult.catalogue.observe@1',
   'libra.western.analysis.request@1','libra.western.analysis.observe@1','libra.western.metadata.normalize@1','libra.western.poster.render@1']);
 const PERCEPTION_ENABLED = Object.freeze(['perception.source.acquire@1','perception.record.normalize@1','perception.record.commit@1',
   'perception.dedup.resolve@1','perception.resolution.commit@1']);
@@ -512,6 +513,11 @@ function createProcurementExecutionRuntime(options) {
     usAdultActorChoiceStore:libraProcessServices.usAdultActorChoiceStore,
     episodeMetadataMappingStore:libraProcessServices.episodeMetadataMappingStore,
     usAdultMatchCompletionStore:libraProcessServices.usAdultMatchCompletionStore,
+    usAdultCatalogueStore:libraProcessServices.usAdultCatalogueStore,
+    usAdultCatalogueDecisionStore:libraProcessServices.usAdultCatalogueDecisionStore,
+    catalogueConfiguration:libraProcessServices.catalogueConfiguration||libraOptions.catalogueConfiguration||null,
+    createCatalogueFramePort:libraOptions.createCatalogueFramePort,
+    createCatalogueObservationPort:libraOptions.createCatalogueObservationPort,
     productProductionPort:libraOptions.productProductionPort,workspaceProductPort:libraOptions.workspaceProductPort,
     platformComputeRuntime:libraOptions.platformComputeRuntime,now});
   perceptionProcessServices=perceptionConstruction.createProcessServices({...perceptionOptions,now,workResultReader});
@@ -618,6 +624,11 @@ function createProcurementExecutionRuntime(options) {
           validatedVolumeKeys.add(mountScopeId);resources.push({resourceKey:'volume_read:'+mountScopeId,units:1});
           resources=mergeResourceDemands(resources);
         }
+      }
+      if(capability==='libra.us_adult.catalogue.observe@1'){
+        const workspaceRoot=libraOptions.workspaceProductPort.rootSnapshot();validatedVolumeKeys.add(workspaceRoot.mountScopeId);
+        resources.push({resourceKey:'cpu_heavy',units:1},{resourceKey:'volume_read:'+workspaceRoot.mountScopeId,units:1},
+          {resourceKey:'volume_write:'+workspaceRoot.mountScopeId,units:1},{resourceKey:'sqlite_write',units:1});
       }
       if(['libra.western.analysis.request@1','libra.western.analysis.observe@1','libra.western.metadata.normalize@1','libra.western.poster.render@1'].includes(capability)){
         const workspaceRoot=libraOptions.workspaceProductPort.rootSnapshot();validatedVolumeKeys.add(workspaceRoot.mountScopeId);

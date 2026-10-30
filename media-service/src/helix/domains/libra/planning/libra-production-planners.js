@@ -11,7 +11,7 @@ const { buildProductIdentityCommitBundle } = require('../model/product-identity-
 const { nextJavIdentityStage } = require('./jav-product-identity-work');
 const {nextUsAdultIdentityStage,usAdultIdentitySource}=require('./us-adult-product-identity-work');
 const {readUsAdultMetadataContext,artifactWorkIdentity,POSTER,frameInputs}=require('../model/us-adult-product-work');
-const {selectedPerson,actorRelation}=require('../model/us-adult-actor-selection');
+const {selectedPerson,actorRelation}=require('../model/us-adult-product-work');
 const { frozenSeriesSeasonNumber,candidateSeriesAnchor } = require('../model/series-identity-contracts');
 const { buildMetadataFetchIntent, buildMetadataObservationBasis, buildProductMetadataDraft } =
   require('../model/product-fact-contracts');

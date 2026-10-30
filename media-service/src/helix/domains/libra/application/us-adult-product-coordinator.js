@@ -1,16 +1,49 @@
 'use strict';
 const {createUsAdultAnalysisCoordinator}=require('./us-adult-analysis-coordinator');
+const {createUsAdultCatalogueCoordinator}=require('./us-adult-catalogue-coordinator');
+const {createUsAdultCatalogueSettlementCoordinator}=require('./us-adult-catalogue-settlement-coordinator');
+const {assertCatalogueConfigured}=require('./us-adult-catalogue-host-config');
 const {readActorContext,productWork}=require('../model/us-adult-product-work');
+
 function createUsAdultProductCoordinator(options){
   const analysis=createUsAdultAnalysisCoordinator(options);
+  const hostWiredCatalogue=typeof options.createCatalogueObservationPort==='function';
   return Object.freeze({reconcile(snapshot,identity,workspace){
+    const choice=options.usAdultActorChoiceStore.current(snapshot.run.subjectId);
+    let catalogueDecision=options.usAdultCatalogueDecisionStore?.getByRun?.(snapshot.run.libraRunId)||null;
+    if(hostWiredCatalogue&&!choice&&!catalogueDecision){
+      assertCatalogueConfigured(options);
+      const catalogue=createUsAdultCatalogueCoordinator(options).reconcile(snapshot,identity,workspace);
+      if(catalogue.kind==='manual_choice_present'){
+        // Manual Choice wins; continue into product with the current Choice.
+      }else if(catalogue.kind==='catalogue_candidate'){
+        const settled=createUsAdultCatalogueSettlementCoordinator(options).reconcile(catalogue);
+        if(settled.kind==='settled')catalogueDecision=settled.decision;
+        else if(settled.kind==='manual_choice_present'){/* continue */}
+        else if(settled.kind==='waiting_registration')
+          return Object.freeze({kind:'waiting_product_identity',phase:settled.phase,libraRunId:snapshot.run.libraRunId,
+            subjectId:snapshot.run.subjectId,reasonCode:settled.reasonCode,inputDigest:settled.inputDigest||null,
+            personId:settled.personId||null,winnerName:settled.winnerName||null});
+        else if(settled.kind==='unresolved'){
+          // SSOT backup: local People reference match may still succeed after a complete catalogue miss.
+        }else if(['pending','failed'].includes(settled.kind))return settled;
+        else return settled;
+      }else if(catalogue.kind==='catalogue_unresolved'){
+        // Complete catalogue assessment without a qualified candidate; local backup may still settle.
+      }else if(['pending','failed'].includes(catalogue.kind))return catalogue;
+      else return catalogue;
+    }
     const analyzed=analysis.reconcile(snapshot,identity,workspace);
     if(!['matched','unmatched'].includes(analyzed.kind))return analyzed;
     const context=readActorContext(options,snapshot.run.libraRunId);
-    if(!context.selection)return Object.freeze({kind:'waiting_product_identity',phase:'us_adult_actor_confirmation',
-      libraRunId:snapshot.run.libraRunId,subjectId:snapshot.run.subjectId,reasonCode:'us_adult_actor_unmatched',
-      analysisId:analyzed.basis.analysisId,completionDigest:analyzed.completion.completionDigest,
-      detectedFaceCount:analyzed.completion.detectedFaceCount});
+    if(!context.selection){
+      const catalogueBasis=options.usAdultCatalogueStore?.getByRun?.(snapshot.run.libraRunId);
+      return Object.freeze({kind:'waiting_product_identity',phase:'us_adult_actor_confirmation',
+        libraRunId:snapshot.run.libraRunId,subjectId:snapshot.run.subjectId,
+        reasonCode:catalogueBasis?'us_adult_catalogue_unresolved':'us_adult_actor_unmatched',
+        analysisId:analyzed.basis.analysisId,completionDigest:analyzed.completion.completionDigest,
+        detectedFaceCount:analyzed.completion.detectedFaceCount});
+    }
     const works=['analysis','normalize'].map(stage=>productWork(context,stage)),expected=new Set(works.map(work=>work.workId)),
       previous=options.workResultReader.listWorks({ownerDomain:'libra',processType:'libra_run',processId:snapshot.run.libraRunId,workKind:'us_adult_product'});
     // An unresolved film has no product Work and consumes the choice in place.

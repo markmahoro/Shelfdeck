@@ -1628,6 +1628,10 @@ async function createCleanServiceHost(options) {
   const usAdultFrameExtractor=require('./clean-us-adult-frame-extractor').createCleanUsAdultFrameExtractor({
     mediaProbe,ffmpegPath:options.ffmpegPath,ffmpegProcessRegistry});
   const usAdultReferenceCache=new Map();
+  const catalogueHostConfig=require('./helix/domains/libra/application/us-adult-catalogue-host-config')
+    .resolveCatalogueHostConfiguration(options.usAdultCatalogue||options);
+  const cataloguePortFactories=require('./clean-us-adult-catalogue-ports').createUsAdultCataloguePortFactories({
+    catalogueHost:catalogueHostConfig,frameExtractor:usAdultFrameExtractor,workspaceProductPort,now:options.now||Date.now});
   function createUsAdultAnalysisPort({context,basis,actorPresentation}){
     const runtimeEffectAuthority=Object.freeze({effectClass:'workspace_write',eventAttemptId:context.eventAttemptId,
       idempotencyKey:context.idempotencyKey,recoveryDecision:context.recoveryDecision});
@@ -1714,6 +1718,9 @@ async function createCleanServiceHost(options) {
       ...request,aftercareWorkspaceRoot,frameExtractor:usAdultFrameExtractor,faceModel:localFaceModel,referencePort:peopleImagePort,
       referenceCache:usAdultReferenceCache,mediaProbe,now:options.now||Date.now}),
     createUsAdultAnalysisPort,
+    createCatalogueFramePort:cataloguePortFactories.createCatalogueFramePort,
+    createCatalogueObservationPort:cataloguePortFactories.createCatalogueObservationPort,
+    catalogueConfiguration:catalogueHostConfig?.catalogueConfiguration||null,
     peopleImagePort, peopleReferencePreparation,
     readSelectedPersonImage: token => platformIntegrations.readSelectedPersonImage(token),
     afterRegistrationCommit: options.afterPeopleRegistrationCommit,

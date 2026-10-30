@@ -1,17 +1,41 @@
 'use strict';
 const {canonicalDigest,canonicalJson}=require('../../../contracts/canonical-json');
 const {originalFromIdentity}=require('./us-adult-identity-evidence');
-const {buildActorSelection,selectedPerson,selectedAsset}=require('./us-adult-actor-selection');
+const legacySelection=require('./us-adult-actor-selection');
+const currentSelection=require('./us-adult-actor-selection-current');
 const {frameWork,exactResult,FRAME,EMBED,CLUSTER,resultRef}=require('./us-adult-analysis-work');
 const {artifactRequirement}=require('../../../contracts/product-artifact-requirement');
 const REQUEST='libra.western.analysis.request@1',OBSERVE='libra.western.analysis.observe@1',NORMALIZE='libra.western.metadata.normalize@1',POSTER='libra.western.poster.render@1';
+const CURRENT_SCHEMA=currentSelection.SCHEMA;
+function isCurrentSelection(selection){return selection?.schemaRef===CURRENT_SCHEMA;}
+function selectedPerson(selection){
+  return isCurrentSelection(selection)?currentSelection.personOf(selection):legacySelection.selectedPerson(selection);
+}
+function selectedAsset(selection){
+  if(!isCurrentSelection(selection))return legacySelection.selectedAsset(selection);
+  const person=currentSelection.personOf(selection),contribution=person.referenceProjection.contributions.find(item=>item.ownerPersonId===person.personId);
+  const asset=contribution?.activeAssets.find(item=>item.referenceAssetId===selection.referenceAssetId);
+  if(!asset||!contribution.activeFaces.some(item=>item.referenceAssetId===asset.referenceAssetId&&item.modelRef===selection.referenceModelRefDigest))
+    throw Object.assign(new Error('The current actor selection has no frozen usable buffalo reference image.'),{code:'US_ADULT_ACTOR_SELECTION_INVALID'});
+  return asset;
+}
+function actorRelation(selection){
+  return isCurrentSelection(selection)?currentSelection.actorRelation(selection):legacySelection.actorRelation(selection);
+}
 function readActorContext(options,libraRunId){
   const snapshot=options.movieProductionReader.readRunSnapshot(libraRunId),identity=options.movieProductionReader.readFact(libraRunId,'resolved_identity',1),
     basis=options.usAdultAnalysisStore.getByRun(libraRunId);
   if(!snapshot||!identity||!basis)throw new Error('US Adult product requires its formal Run, Identity and analysis Basis.');
-  const selection=buildActorSelection({snapshot,analysisBasis:basis,resolvedIdentityDigest:identity.factValue.identityDigest,
-    actorChoiceRecord:options.usAdultActorChoiceStore.current(snapshot.run.subjectId),
-    matchCompletion:options.usAdultMatchCompletionStore.getByRun(libraRunId)});
+  const choice=options.usAdultActorChoiceStore.current(snapshot.run.subjectId),
+    catalogueDecision=!choice&&typeof options.usAdultCatalogueDecisionStore?.getByRun==='function'
+      ?options.usAdultCatalogueDecisionStore.getByRun(libraRunId):null;
+  // Manual Choice and legacy automatic_match keep the analysis-bound selection contract.
+  // Catalogue auto-settlement uses UsAdultActorSelectionCurrent / automatic_catalogue only.
+  const selection=catalogueDecision
+    ?currentSelection.build({snapshot,resolvedIdentityDigest:identity.factValue.identityDigest,catalogueDecision,
+      referenceAssetId:catalogueDecision.referenceAssetId})
+    :legacySelection.buildActorSelection({snapshot,analysisBasis:basis,resolvedIdentityDigest:identity.factValue.identityDigest,
+      actorChoiceRecord:choice,matchCompletion:options.usAdultMatchCompletionStore.getByRun(libraRunId)});
   if(!selection)return Object.freeze({snapshot,identity,basis,selection:null});
   const person=selectedPerson(selection),asset=selectedAsset(selection),originalName=originalFromIdentity(identity.factValue),
     internal=identity.factValue.providerIdentities.filter(item=>item.provider==='internal'&&item.namespace==='internal_identity');
@@ -128,4 +152,5 @@ function artifactWorkIdentity(snapshot,workspaceId,artifactKinds,selection=null)
   return Object.freeze({basis:value,workId:'libra-artifact-production-work-'+canonicalDigest(value).slice(0,40)});
 }
 module.exports=Object.freeze({REQUEST,OBSERVE,NORMALIZE,POSTER,readActorContext,productWork,frameInputs,analysisSpec,analysisTarget,analysisVariant,
+  selectedPerson,selectedAsset,actorRelation,isCurrentSelection,
   metadataBasis,assertSame,productRequirements,readUsAdultMetadataContext,artifactWorkIdentity});
