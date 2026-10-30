@@ -1,8 +1,13 @@
 'use strict';
 
+// Popular TV titles (e.g. Game of Thrones / TV 1399) publish 500+ posters across
+// languages. The previous 512 cap rejected exact Provider image sets before
+// language selection could run, wrapping as P5_SECRET_LEASE_INVOCATION_FAILED.
+const TMDB_IMAGE_COLLECTION_MAX = 2048;
+
 function normalizedLanguage(value){return typeof value==='string'?value.trim().toLowerCase().split(/[-_]/)[0]:null;}
 function selectTmdbImage(items,{artifactKind,language,originalLanguage=null}){
-  if(!['poster','fanart','still'].includes(artifactKind)||!Array.isArray(items)||items.length>512)
+  if(!['poster','fanart','still'].includes(artifactKind)||!Array.isArray(items)||items.length>TMDB_IMAGE_COLLECTION_MAX)
     throw new TypeError('TMDB image selection requires a bounded exact image role.');
   const languages=[...new Set([normalizedLanguage(language),normalizedLanguage(originalLanguage),null])];
   const rank=image=>artifactKind==='fanart'?(image.iso_639_1==null?0:1):
@@ -13,4 +18,4 @@ function selectTmdbImage(items,{artifactKind,language,originalLanguage=null}){
     .sort((a,b)=>rank(a)-rank(b)||(b.vote_average||0)-(a.vote_average||0)||
       (b.width||0)*(b.height||0)-(a.width||0)*(a.height||0)||Buffer.from(a.file_path).compare(Buffer.from(b.file_path)))[0]||null;
 }
-module.exports=Object.freeze({normalizedLanguage,selectTmdbImage});
+module.exports=Object.freeze({TMDB_IMAGE_COLLECTION_MAX,normalizedLanguage,selectTmdbImage});

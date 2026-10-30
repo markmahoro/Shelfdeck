@@ -4,6 +4,7 @@ const { failureDiagnostics } = require('../contracts/failure-diagnostics');
 const { ProxyAgent } = require('undici');
 const { canonicalDigest } = require('../contracts/canonical-json');
 const { buildEpisodeMetadataScope } = require('../contracts/episode-metadata-scope');
+const { TMDB_IMAGE_COLLECTION_MAX } = require('../contracts/tmdb-image-selection');
 const {
   ExternalProviderArtifactPort,
   ExternalProviderObservationPort,
@@ -501,7 +502,7 @@ function validateImagesResponse(value) {
     value.backdrops || [],
     value.stills || [],
   ]) {
-    if (!Array.isArray(collection) || collection.length > 512) {
+    if (!Array.isArray(collection) || collection.length > TMDB_IMAGE_COLLECTION_MAX) {
       fail(
         'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID',
         'TMDB image set exceeds its bound.',
@@ -1675,4 +1676,5 @@ module.exports = Object.freeze({
   createTmdbProviderAdapter,
   normalizedEndpoint,
   validateMetadataResponse,
+  validateImagesResponse,
 });
