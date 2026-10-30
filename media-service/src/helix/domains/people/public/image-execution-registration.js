@@ -7,6 +7,10 @@ const { createPeopleProfileUpdate } = require('../capabilities/people-profile-up
 const { createDirectPersonRegistrationFromPersistence } = require('../capabilities/people-registration-lifecycle');
 const { createPeopleImageOperationCoordinator } = require('../application/people-image-operation-coordinator');
 const {createPeopleProcessServices}=require('../application/people-process-services');
+const {createPeopleCatalogueRegistrationCommand}=require('../application/us-adult-catalogue-registration-command');
+const {createUsAdultCatalogueRegistrationAdmission,pending}=require('../application/us-adult-catalogue-registration-admission');
+const {createPeopleImageOperationStore}=require('../persistence/people-image-operation-store');
+const {createCommandCommitCoordinator}=require('../../../foundation/persistence/commit-foundation');
 const { createPeopleImagePreparationPorts, IMPORT, EMBED } = require('../capabilities/people-image-preparation-ports');
 const { createPeopleImagePreparationPlanner, createPeopleImageProjections } = require('../planning/people-image-preparation-planner');
 const {createSystemRegistrationQuery}=require('../application/system-registration-query');
@@ -49,7 +53,37 @@ function createPeopleImageExecutionRegistration(options) {
   const ports={...artifactReclamation.ports,...preparationPorts,...systemPorts,...sharedPorts,[mergeModel.OBSERVE]:mergePorts[mergeModel.OBSERVE],
     [COMMIT]:createPeopleReferenceCommitPort({...options,peopleStore,referenceDecision:imageOperations.referenceDecision})};
   const profileUpdate=createPeopleProfileUpdate({...options,peopleStore});
+  function createCatalogueRegistrationAdmission(admissionOptions={}){
+    const assembleEvidence=admissionOptions.assembleEvidence||options.assembleCatalogueRegistrationEvidence||(({input,inputDigest})=>{
+      pending('PEOPLE_CATALOGUE_EVIDENCE_PENDING',
+        'Host catalogue registration evidence (provider/frame proof and image prep) is not ready for '+String(input?.winner?.name||inputDigest||'actor')+'.');
+    });
+    return createUsAdultCatalogueRegistrationAdmission({
+      peopleStore,
+      assembleEvidence,
+      register(evidence){
+        const operationStore=createPeopleImageOperationStore({...options,...admissionOptions});
+        const registerCommand=createPeopleCatalogueRegistrationCommand({
+          ...options,...admissionOptions,peopleStore,operationStore,
+          commandCoordinator:admissionOptions.commandCoordinator||options.commandCoordinator||createCommandCommitCoordinator(options),
+          catalogueInputReader:admissionOptions.catalogueInputReader||options.catalogueInputReader||{
+            compile({libraRunId,mode}){
+              if(evidence.input.libraRunId!==libraRunId)pending('PEOPLE_CATALOGUE_INPUT_STALE','Catalogue decision input Run changed.');
+              return {kind:'qualified',input:evidence.input,inputDigest:evidence.inputDigest};
+            }},
+          artifactRepository:admissionOptions.artifactRepository||options.artifactRepository,
+          peopleImagePort:admissionOptions.peopleImagePort||options.peopleImagePort,
+          workResultReader:admissionOptions.workResultReader||options.workResultReader,
+          contractValidator:admissionOptions.contractValidator||options.contractValidator,
+          unitOfWork:admissionOptions.unitOfWork||options.unitOfWork,
+        });
+        return registerCommand.register(evidence);
+      },
+    });
+  }
   return Object.freeze({
+    peopleStore,
+    createCatalogueRegistrationAdmission,
     createProcessServices(processOptions){sources={cast:processOptions.onDeckPersonEvidenceProjection,nfo:processOptions.onDeckNfoPersonEvidence};
       return createPeopleProcessServices({...options,...processOptions,peopleStore,imageOperations,profileUpdate,systemRegistration,systemMerge,artifactReclamation});},
     artifactReclamation,

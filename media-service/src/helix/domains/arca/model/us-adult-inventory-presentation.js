@@ -40,7 +40,7 @@ function readUsAdultInventoryPresentation(context) {
       cast.relationsDigest !== canonicalDigest({ schema: own?'arca.us-adult-actor-relations@1':'libra.media-cast-relations@1', relations: cast.relations }) ||
       !actor || actor.role !== 'actor' || typeof actor.personId !== 'string' || !actor.personId ||
       typeof actor.displayName !== 'string' || !actor.displayName.trim() ||
-      !['user_actor_choice', 'face_reference_match'].includes(actor.source) || !Array.isArray(actor.providerIdentities) ||
+      !['user_actor_choice', 'face_reference_match', 'face_catalogue'].includes(actor.source) || !Array.isArray(actor.providerIdentities) ||
       row.shelf_entry_id !== context.shelfEntryId || Number(row.inventory_revision) !== Number(raw.entry.current_inventory_revision) ||
       row.relation_id !== actor.relationId || row.person_id !== actor.personId || row.display_name !== actor.displayName ||
       row.display_name_normalized !== actor.displayNameNormalized || row.role !== actor.role || row.relation_source !== actor.source ||

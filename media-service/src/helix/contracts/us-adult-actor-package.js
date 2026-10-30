@@ -7,7 +7,7 @@ function hasRequiredUsAdultActor(value){
     manifest=value.productFactManifest?.items?.filter(item=>item.factKind==='media_cast');
   return identity.identityKind==='internal_identity'&&identity.structureKind==='single'&&Array.isArray(relations)&&relations.length===1&&
     actor.role==='actor'&&typeof actor.personId==='string'&&actor.personId.length>0&&typeof actor.displayName==='string'&&actor.displayName.trim().length>0&&
-    ['user_actor_choice','face_reference_match'].includes(actor.source)&&
+    ['user_actor_choice','face_reference_match','face_catalogue'].includes(actor.source)&&
     fact?.schemaRef==='helix://contracts/types/MediaCastFact/v1'&&fact.sourceBasisKind==='us_adult_actor'&&fact.relationCount===1&&
     Array.isArray(fact.relations)&&Array.isArray(manifest)&&manifest.length===1&&manifest[0].factValue&&manifest[0].productFactId===cast.mediaCastFactId&&
     manifest[0].factRevision===cast.mediaCastFactRevision&&manifest[0].factDigest===cast.factDigest&&
