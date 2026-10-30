@@ -8,5 +8,6 @@ node --test \
   test/helix-architecture/us-adult-actor-package.test.js \
   test/helix-architecture/us-adult-catalogue-registration-admission.test.js \
   test/helix-architecture/us-adult-catalogue-host-wiring.test.js \
-  test/helix-architecture/us-adult-full-e2e-recognition.test.js
-echo "us-adult-full-e2e: unit/host-wiring + recognition-land gate checks passed"
+  test/helix-architecture/us-adult-full-e2e-recognition.test.js \
+  test/helix-architecture/us-adult-catalogue-settlement-register.test.js || exit 1
+echo "us-adult-full-e2e: recognition+shelfable gate checks passed"

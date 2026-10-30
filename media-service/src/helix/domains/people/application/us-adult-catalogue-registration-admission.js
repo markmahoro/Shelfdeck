@@ -21,14 +21,15 @@ function createUsAdultCatalogueRegistrationAdmission(options){
       let evidence;
       try{evidence=options.assembleEvidence({input,inputDigest,resolution,candidate});}
       catch(error){
+        // Pending prep must not become waiting_product_identity Attention; product stays pending.
         if(error?.code==='PEOPLE_CATALOGUE_REGISTRATION_PENDING')
-          return Object.freeze({kind:'waiting_registration',phase:'us_adult_catalogue_registration',
+          return Object.freeze({kind:'pending',phase:'us_adult_catalogue_registration',
             reasonCode:'us_adult_catalogue_registration_required',inputDigest,winnerName:input.winner.name,
             pendingCode:error.pendingCode||null});
         throw error;
       }
       if(!evidence||evidence.kind==='waiting')
-        return Object.freeze({kind:'waiting_registration',phase:'us_adult_catalogue_registration',
+        return Object.freeze({kind:'pending',phase:'us_adult_catalogue_registration',
           reasonCode:'us_adult_catalogue_registration_required',inputDigest,winnerName:input.winner.name,
           pendingCode:evidence?.pendingCode||null});
       const decision=buildCatalogueRegistration(evidence);

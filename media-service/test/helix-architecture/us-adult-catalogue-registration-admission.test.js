@@ -22,7 +22,7 @@ test('People admission returns waiting_registration while evidence is pending',(
     input:{winner:{name:'Example Performer'}},inputDigest:D('input'),
     resolution:{kind:'not_found'},candidate:{},
   });
-  assert.equal(waiting.kind,'waiting_registration');
+  assert.equal(waiting.kind,'pending');
   assert.equal(waiting.reasonCode,'us_adult_catalogue_registration_required');
 });
 
@@ -36,5 +36,5 @@ test('People admission is a function Host can inject into settlement',()=>{
   const result=admission.registerCataloguePerson({
     input:{winner:{name:'A'}},inputDigest:D('i'),resolution:{kind:'not_found'},candidate:{},
   });
-  assert.equal(result.kind,'waiting_registration');
+  assert.equal(result.kind,'pending');
 });

@@ -81,6 +81,6 @@ test('Host admission port is injectible and leaves waiting_registration until ev
   const result=admission.registerCataloguePerson({
     input:{winner:{name:'Example Performer'}},inputDigest:D('input'),resolution:{kind:'not_found'},candidate:{},
   });
-  assert.equal(result.kind,'waiting_registration');
+  assert.equal(result.kind,'pending');
   assert.equal(result.reasonCode,'us_adult_catalogue_registration_required');
 });
