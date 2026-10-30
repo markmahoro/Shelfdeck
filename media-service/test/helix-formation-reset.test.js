@@ -376,6 +376,83 @@ test('selected Formation Reset retires candidate Evidence with its execution sco
   } finally { close(f); }
 });
 
+function seedFkDeleteGraphGaps(database, suffix) {
+  const seeded = seedSubjectRun(database, suffix);
+  const graph = seedExecution(database, 'libra', 'libra_run', seeded.runId, suffix);
+  database.prepare("UPDATE fx_effect_journal SET effect_class='pure' WHERE event_attempt_id=?").run(graph.eventAttemptId);
+  database.prepare(`INSERT INTO libra_strategy_availability
+    (libra_run_id,strategy_kind,condition_digest,check_ordinal,evidence_schema_ref,evidence_json,evidence_digest,checked_at_ms)
+    VALUES (?,'tmdb',?,0,'test-evidence','{}',?,1)`).run(seeded.runId, DIGEST, DIGEST);
+  database.prepare(`INSERT INTO fx_execution_contracts
+    (contract_digest,format_version,contract_schema_ref,contract_json,created_at_ms)
+    VALUES (?,1,'test-contract','{}',1)`).run(DIGEST);
+  database.prepare(`INSERT INTO fx_plan_contracts
+    (plan_id,contract_digest,graph_digest,catalog_digest,provenance_schema_ref,provenance_json,created_at_ms)
+    VALUES (?,?,?,?,'test-provenance','{}',1)`).run(graph.planId, DIGEST, DIGEST, DIGEST);
+  database.prepare(`INSERT INTO fx_plan_history_audits
+    (audit_id,plan_id,audit_schema_ref,audit_json,created_at_ms)
+    VALUES (?,?,'test-audit','{}',1)`).run(`audit-${suffix}`, graph.planId);
+  const packageId = `package-${suffix}`, offerId = `offer-${suffix}`, attemptId = `acceptance-${suffix}`,
+    decisionId = `decision-${suffix}`, custodyId = `custody-${suffix}`, onDeckRunId = `on-deck-${suffix}`;
+  database.prepare(`INSERT INTO libra_product_packages
+    (on_deck_package_id,offer_id,package_revision,libra_run_id,run_state_revision,subject_id,
+     product_structure_json,production_provenance_json,attestation_json,package_digest,state,published_at_ms)
+    VALUES (?,?,1,?,1,?,'{}','{}','{}',?,'published',1)`)
+    .run(packageId, offerId, seeded.runId, seeded.subjectId, DIGEST);
+  database.prepare(`INSERT INTO arca_acceptance_attempts
+    (acceptance_attempt_id,offer_id,on_deck_package_id,package_digest,state,created_at_ms)
+    VALUES (?,?,?,?,'accepted',1)`).run(attemptId, offerId, packageId, DIGEST);
+  database.prepare(`INSERT INTO arca_acceptance_decisions
+    (acceptance_decision_id,acceptance_attempt_id,result,offer_id,on_deck_package_id,package_digest,decided_at_ms)
+    VALUES (?,?,'accepted',?,?,?,1)`).run(decisionId, attemptId, offerId, packageId, DIGEST);
+  database.prepare(`INSERT INTO arca_ondeck_custodies
+    (custody_id,acceptance_decision_id,on_deck_package_id,package_digest,state,accepted_at_ms)
+    VALUES (?,?,?,?,'active',1)`).run(custodyId, decisionId, packageId, DIGEST);
+  database.prepare(`INSERT INTO arca_ondeck_runs(on_deck_run_id,custody_id,state,created_at_ms)
+    VALUES (?,?,'offloading',1)`).run(onDeckRunId, custodyId);
+  database.prepare(`INSERT INTO arca_shelves(shelf_id,status) VALUES (?, 'active')`).run(`shelf-${suffix}`);
+  database.prepare(`INSERT INTO arca_series_presentation_scopes(scope_id,shelf_id) VALUES (?,?)`)
+    .run(`scope-${suffix}`, `shelf-${suffix}`);
+  database.prepare(`INSERT INTO arca_series_presentation_reservations
+    (scope_id,on_deck_run_id,custody_id,state,committed_version,target_binding_digest,created_at_ms,updated_at_ms)
+    VALUES (?, ?,?,'pending',NULL,?,1,1)`).run(`scope-${suffix}`, onDeckRunId, custodyId, DIGEST);
+  return { seeded, graph, onDeckRunId };
+}
+
+test('incomplete Formation Reset parent deletes leave the production FK check shape', () => {
+  const f = fixture('safe-reset-fk-reproduce');
+  try {
+    const { seeded, graph, onDeckRunId } = seedFkDeleteGraphGaps(f.database, 'fk-repro');
+    f.database.pragma('foreign_keys = OFF');
+    f.database.prepare('DELETE FROM arca_ondeck_runs WHERE on_deck_run_id=?').run(onDeckRunId);
+    f.database.prepare('DELETE FROM libra_runs WHERE libra_run_id=?').run(seeded.runId);
+    f.database.prepare('DELETE FROM fx_workflow_plans WHERE plan_id=?').run(graph.planId);
+    f.database.pragma('foreign_keys = ON');
+    const edges = new Set(f.database.pragma('foreign_key_check').map((row) => `${row.table}->${row.parent}`));
+    assert.ok(edges.has('arca_series_presentation_reservations->arca_ondeck_runs'));
+    assert.ok(edges.has('libra_strategy_availability->libra_runs'));
+    assert.ok(edges.has('fx_plan_contracts->fx_workflow_plans'));
+    assert.ok(edges.has('fx_plan_history_audits->fx_workflow_plans'));
+  } finally { close(f); }
+});
+
+test('safe Formation Reset delete graph clears plan/run/on-deck FK children that previously blocked apply', () => {
+  const f = fixture('safe-reset-fk-delete-graph');
+  try {
+    const { seeded, graph, onDeckRunId } = seedFkDeleteGraphGaps(f.database, 'fk-gap');
+    const result = applyReset({ ...f, transcodeDir:null, nowMs:200 });
+    assert.equal(result.verification.foreignKeyViolations, 0);
+    assert.equal(f.database.prepare('SELECT count(*) n FROM libra_strategy_availability').get().n, 0);
+    assert.equal(f.database.prepare('SELECT count(*) n FROM fx_plan_contracts').get().n, 0);
+    assert.equal(f.database.prepare('SELECT count(*) n FROM fx_plan_history_audits').get().n, 0);
+    assert.equal(f.database.prepare('SELECT count(*) n FROM arca_series_presentation_reservations').get().n, 0);
+    assert.equal(f.database.prepare('SELECT count(*) n FROM arca_ondeck_runs WHERE on_deck_run_id=?').get(onDeckRunId).n, 0);
+    assert.equal(f.database.prepare('SELECT count(*) n FROM libra_runs WHERE libra_run_id=?').get(seeded.runId).n, 0);
+    assert.equal(f.database.prepare('SELECT count(*) n FROM fx_workflow_plans WHERE plan_id=?').get(graph.planId).n, 0);
+    assert.equal(f.database.pragma('foreign_key_check').length, 0);
+  } finally { close(f); }
+});
+
 function seedAcceptedOrphan(database, suffix) {
   const subjectId = `subject-orphan-${suffix}`;
   const intakeDecisionId = `intake-orphan-${suffix}`;
