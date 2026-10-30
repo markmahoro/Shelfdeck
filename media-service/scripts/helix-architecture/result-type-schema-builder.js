@@ -1137,8 +1137,11 @@ function metadataObservationSchema() {
   schema.properties.sourceAuthorizedAtMs=nonNegativeInteger();
   schema.properties.seriesQualifiedLocalSource=require('../../src/helix/contracts/series-local-source').qualifiedSchema();
   schema.properties.seriesPresentationSource=require('../../src/helix/contracts/series-presentation-basis').sourceSchema();
+  schema.properties.episodePlotSourceProof=require('../../src/helix/contracts/episode-plot-source').episodePlotSourceSchema();
   schema.allOf=[{if:{properties:{contentProfile:{const:'jav'}},required:['contentProfile']},then:{required:['javSelectedSource','sourceIntegrationHandle','sourceAuthorizedAtMs']},
     else:{not:{anyOf:[{required:['javSelectedSource']},{required:['sourceIntegrationHandle']},{required:['sourceAuthorizedAtMs']}]}}}];
+  schema.allOf.push({if:{required:['episodePlotSourceProof']},then:{required:['episodeScope'],
+    properties:{contentProfile:{const:'series'},sourceKind:{const:'provider'}}}});
   return schema;
 }
 

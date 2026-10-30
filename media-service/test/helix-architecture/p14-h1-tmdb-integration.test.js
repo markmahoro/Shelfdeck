@@ -137,7 +137,14 @@ function tmdbFetch(state = {}) {
         results: [{ id: 550, title: 'Fight Club' }],
       });
     }
-    if (url.pathname === '/3/tv/1399') return response(200, { id: state.foreignEpisodeShow ? 999 : 1399, name: 'Fixture show' });
+    if (url.pathname === '/3/tv/1399') return response(200, { id: state.foreignEpisodeShow ? 999 : 1399, name: 'Fixture show',original_language:'en' });
+    if(state.exactEpisodePlot){
+      const episode={id:62001,show_id:1399,season_number:2,episode_number:1,name:'Preferred Episode title',overview:''};
+      if(url.pathname==='/3/tv/1399/season/2')return response(200,{id:62000,season_number:2,episodes:[episode]});
+      if(url.pathname==='/3/tv/1399/season/2/episode/1')return response(200,episode);
+      if(url.pathname==='/3/tv/1399/season/2/episode/1/translations')return response(200,{id:state.foreignTranslation?62002:62001,
+        translations:[{iso_639_1:'en',iso_3166_1:'US',data:{overview:'Exact Episode translated plot'}}]});
+    }
     if (url.pathname === '/3/tv/1399/season/0') return response(state.episodeSeasonStatus || 200, { season_number: 0, episodes: [{
       id: 90001, show_id: state.foreignEpisode ? 999 : 1399, season_number: 0, episode_number: 1,
       name: 'Fixture special', air_date: '2011-12-25', overview: 'Individually observed special',
@@ -1046,6 +1053,22 @@ test('H1.1 Platform ports fence real TMDB identity and metadata reads across res
       assert.deepEqual(state.imageCalls.slice(imagesBefore).map(call=>call.pathname),
         ['/t/p/original' + imagePath, '/t/p/original' + imagePath]);
     }
+    state.exactEpisodePlot=true;
+    const episodeMetadataRequest={metadataFetchIntent:{resolvedProviderIdentity:localIdentity,
+      episodeScope:{episodeKey:'E001',seasonNumber:2,episodeNumber:1},requestedFields:['episode_plot','episode_title'],
+      episodePlotPolicyRef:require('../../src/helix/contracts/episode-plot-source').POLICY},integrationHandle:handle},
+      translatedMetadata=await runtime.fetchProviderMetadata(episodeMetadataRequest).catch(error=>{
+        assert.fail('Exact Episode metadata invocation failed: '+JSON.stringify({code:error.code,details:error.details}));
+      });
+    assert.equal(translatedMetadata.descriptiveEntries.find(row=>row.key==='episode_plot').value,'Exact Episode translated plot');
+    assert.equal(translatedMetadata.descriptiveEntries.find(row=>row.key==='episode_title').value,'Preferred Episode title');
+    assert.equal(translatedMetadata.episodePlotSourceProof.providerEpisode.episodeId,62001);
+    assert.equal(translatedMetadata.episodePlotSourceProof.selectedLanguage,'en-US');
+    assert.ok(state.calls.some(call=>call.pathname==='/3/tv/1399/season/2/episode/1/translations'&&call.usesProxy));
+    state.foreignTranslation=true;
+    await assert.rejects(runtime.fetchProviderMetadata(episodeMetadataRequest),error=>
+      error.code==='PLATFORM_TMDB_EPISODE_TRANSLATIONS_INVALID'||error.details?.causeCode==='PLATFORM_TMDB_EPISODE_TRANSLATIONS_INVALID');
+    state.exactEpisodePlot=false;state.foreignTranslation=false;
     assert.throws(
       () => runtime.integrationHandleResolverPort.resolve({
         integrationId: 'tmdb-main',
