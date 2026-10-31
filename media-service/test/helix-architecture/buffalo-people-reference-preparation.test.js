@@ -45,3 +45,25 @@ test('an inactive or foreign People operation cannot import an image',()=>{
     selectedImage:{uploadId:'upload',handleDigest:canonicalDigest('handle')}}),{code:'PEOPLE_REFERENCE_PREPARATION_FENCE'});
   assert.equal(f.images.length,0);
 });
+test('People reference clamps a field-observation Event deadline into the buffalo analyzeEvidence 60s gate',async()=>{
+  const nowMs=1_000_000,farDeadline=nowMs+3_600_000,vector=Array(512).fill(0);vector[0]=1;
+  const images=[],counter={stopped:0};let seenDeadline;
+  const context={ownerScope:{domain:'people',processType:'people_image_preparation',processId:'operation'},deadlineAtMs:farDeadline,
+    assertExecutionActive(){}};
+  const imagePort={readUpload:()=>Buffer.from('image'),readArtifact:()=>Buffer.from('image'),materialize({personId,operationId,artifactKind,bytes,provenanceRef}){
+    const digestHex=crypto.createHash('sha256').update(bytes).digest('hex'),result={schemaRef:'helix://contracts/types/ArtifactHandle/v1',schemaVersion:1,
+      artifactHandleId:'artifact-'+artifactKind,artifactKind,ownerDomain:'people',ownerScope:{scopeType:'person',scopeId:personId},
+      storageRef:'fixture:'+operationId,digestAlgorithm:'sha256',digestHex,sizeBytes:bytes.length,mediaType:'application/json',provenanceRef,referenceRevision:1};
+    images.push(result);return result;}};
+  const preparation=createBuffaloPeopleReferencePreparation({imagePort,now:()=>nowMs,createCpuSession:()=>({
+    faceModelRef:buffaloModelReference('western_frame_set'),async analyzeEvidence(_bytes,options){
+      seenDeadline=options.deadlineAtMs;
+      if(!Number.isSafeInteger(options.deadlineAtMs)||options.deadlineAtMs<0||options.deadlineAtMs>nowMs+60000)
+        throw Object.assign(new Error('An explicit bounded CPU deadline is required.'),{code:'BUFFALO_CPU_INPUT_INVALID'});
+      return {faces:[{vector}]};
+    },async stop(){counter.stopped++;}})});
+  const artifactHandle={ownerDomain:'people',ownerScope:{scopeType:'person',scopeId:'person'},artifactKind:'reference-image',digestHex:canonicalDigest('image')};
+  const result=await preparation.computeEmbedding({context,personId:'person',operationId:'operation',referenceRevision:1,
+    artifactHandle,faceModelRef:buffaloModelReference('single_reference_face')});
+  assert.equal(seenDeadline,nowMs+60000);assert.equal(result.vectorCount,1);assert.equal(images.length,1);assert.equal(counter.stopped,1);
+});
