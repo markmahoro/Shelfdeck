@@ -78,8 +78,6 @@ function createUsAdultCatalogueRegistrationEvidence(options){
   function provenanceFor(input,candidate,imageSourceProof){
     if(typeof input?.libraRunId!=='string'||!input.libraRunId)
       pending('PEOPLE_CATALOGUE_OBSERVATION_PENDING','Catalogue registration needs the Libra run that observed this actor.');
-    // PeopleSelectedImageHandle provenance is nominal: source + optional sourceObjectId only.
-    // Provider/frame identity stays on imageSourceProof and imageSourceProofDigest.
     return {source:imageSourceProof.kind==='provider'?'stashbox':'catalogue_frame',
       sourceObjectId:catalogueRunToken(input.libraRunId,modeOf(input,candidate))};
   }

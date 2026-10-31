@@ -16,13 +16,14 @@ function withSessionStop(cpuSession,method){
     finally{await stopSession(cpuSession);}
   };
 }
-function createUsAdultCataloguePortFactories({catalogueHost,frameExtractor,workspaceProductPort,now=Date.now}){
+function createUsAdultCataloguePortFactories({catalogueHost,frameExtractor,workspaceProductPort,now=Date.now,createCpuSession:createCpuSessionOverride}={}){
   if(!catalogueHost)return Object.freeze({
     createCatalogueFramePort(){failUnavailable('Catalogue frame execution requires a configured buffalo catalogue root.');},
     createCatalogueObservationPort(){failUnavailable('Catalogue observation requires a configured buffalo catalogue root.');},
   });
   const {buffaloModelRoot,catalogueRoot,catalogueConfiguration}=catalogueHost;
   function createCpuSession(){
+    if(typeof createCpuSessionOverride==='function')return createCpuSessionOverride();
     return createBuffaloCpuSession({
       modelRoot:buffaloModelRoot,
       catalogueRoot,
@@ -53,13 +54,11 @@ function createUsAdultCataloguePortFactories({catalogueHost,frameExtractor,works
       const port=createCleanWesternFramePort({workspaceProductPort:scoped,configuration:{faceModelRef:basis.faceModelRef,
         clusterParameters:basis.clusterParameters},engine,now});
       return Object.freeze({
+        configuration:()=>port.configuration(),
         extractFrames:withSessionStop(cpuSession,request=>port.extractFrames(request)),
         computeEmbeddings:withSessionStop(cpuSession,request=>port.computeEmbeddings(request)),
         computeClusters:withSessionStop(cpuSession,request=>port.computeClusters(request)),
-        inspectRecovery:request=>{
-          try{return port.inspectRecovery(request);}
-          finally{void stopSession(cpuSession);}
-        },
+        inspectRecovery:withSessionStop(cpuSession,request=>port.inspectRecovery(request)),
       });
     },
     createCatalogueObservationPort({context,basis,completedBatches,capturePublicationFence,validateObservation}){

@@ -1,10 +1,5 @@
 'use strict';
 
-/**
- * Contract seam: PeopleSelectedImageHandle provenance is nominal at the
- * SelectedImage / people.reference_asset.import boundary. Catalogue staging
- * must emit only schema-legal fields; extras remain rejectable.
- */
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

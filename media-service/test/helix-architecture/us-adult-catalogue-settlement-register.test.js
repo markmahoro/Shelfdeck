@@ -254,6 +254,11 @@ test('wired ensure opens buffalo refresh Work then settles reused (Tia shape)',a
   const operation=operationStore.get(page[0].scope.operationId);
   assert.equal(operation.payload.operationKind,'reference_replace');
   assert.equal(D(operation.payload.faceModelRef),D(buffaloModelReference('single_reference_face')));
+  const provenance=operation.payload.selectedImage.provenance;
+  assert.equal(provenance.source,'catalogue_frame');
+  assert.match(provenance.sourceObjectId,/^catalogue-run\/.+\/initial$/);
+  assert.deepEqual(Object.keys(provenance).sort(),['source','sourceObjectId']);
+  f.validator.validate('helix://contracts/domain-types/PeopleSelectedImageHandle/v1',operation.payload.selectedImage);
   ready=true;
   const settled=coordinator.reconcile(catalogue);
   assert.equal(settled.kind,'settled');
