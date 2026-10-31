@@ -1,0 +1,515 @@
+TAP version 13
+# Subtest: US package actor guard preserves the exact single actor Fact and excludes unrelated profiles
+ok 1 - US package actor guard preserves the exact single actor Fact and excludes unrelated profiles
+  ---
+  duration_ms: 1.948076
+  type: 'test'
+  ...
+# Subtest: US package actor guard accepts automatic catalogue face_catalogue cast source
+ok 2 - US package actor guard accepts automatic catalogue face_catalogue cast source
+  ---
+  duration_ms: 0.149326
+  type: 'test'
+  ...
+# Subtest: US package rejects empty actor even with a metadata defect waiver
+ok 3 - US package rejects empty actor even with a metadata defect waiver
+  ---
+  duration_ms: 0.421837
+  type: 'test'
+  ...
+# Subtest: US package rejects unresolved Person even with a metadata defect waiver
+ok 4 - US package rejects unresolved Person even with a metadata defect waiver
+  ---
+  duration_ms: 0.094554
+  type: 'test'
+  ...
+# Subtest: US package rejects multiple actors even with a metadata defect waiver
+ok 5 - US package rejects multiple actors even with a metadata defect waiver
+  ---
+  duration_ms: 0.092429
+  type: 'test'
+  ...
+# Subtest: US package rejects unconfirmed legacy match even with a metadata defect waiver
+ok 6 - US package rejects unconfirmed legacy match even with a metadata defect waiver
+  ---
+  duration_ms: 0.13174
+  type: 'test'
+  ...
+# Subtest: US package rejects substituted snapshot even with a metadata defect waiver
+ok 7 - US package rejects substituted snapshot even with a metadata defect waiver
+  ---
+  duration_ms: 0.218496
+  type: 'test'
+  ...
+# Subtest: US package rejects missing formal Fact even with a metadata defect waiver
+ok 8 - US package rejects missing formal Fact even with a metadata defect waiver
+  ---
+  duration_ms: 0.115342
+  type: 'test'
+  ...
+# Subtest: explicit male identity remains eligible and larger temporal coverage wins over a closer single actor
+ok 9 - explicit male identity remains eligible and larger temporal coverage wins over a closer single actor
+  ---
+  duration_ms: 2.631284
+  type: 'test'
+  ...
+# Subtest: gender values, absence and contradictory metadata do not change the complete assessment
+ok 10 - gender values, absence and contradictory metadata do not change the complete assessment
+  ---
+  duration_ms: 4.462947
+  type: 'test'
+  ...
+# Subtest: two reliable identities use a deterministic single winner, while per-face ambiguity stays unresolved
+ok 11 - two reliable identities use a deterministic single winner, while per-face ambiguity stays unresolved
+  ---
+  duration_ms: 0.93861
+  type: 'test'
+  ...
+# Subtest: one strong frame or repeated image cannot substitute for independent evidence
+ok 12 - one strong frame or repeated image cannot substitute for independent evidence
+  ---
+  duration_ms: 0.447613
+  type: 'test'
+  ...
+# Subtest: conflicting strong identities in a single geometric group never become an automatic winner
+ok 13 - conflicting strong identities in a single geometric group never become an automatic winner
+  ---
+  duration_ms: 0.4091
+  type: 'test'
+  ...
+# Subtest: the same identity supported by two co-occurring faces remains ambiguous
+ok 14 - the same identity supported by two co-occurring faces remains ambiguous
+  ---
+  duration_ms: 0.516491
+  type: 'test'
+  ...
+# Subtest: no faces and no valid match stay distinct, and broken evidence or policies fail closed
+ok 15 - no faces and no valid match stay distinct, and broken evidence or policies fail closed
+  ---
+  duration_ms: 1.111922
+  type: 'test'
+  ...
+# Subtest: input order and gender changes cannot alter an aggregated identity assessment
+ok 16 - input order and gender changes cannot alter an aggregated identity assessment
+  ---
+  duration_ms: 0.63595
+  type: 'test'
+  ...
+# Subtest: different candidates cannot assign contradictory images to the same face
+ok 17 - different candidates cannot assign contradictory images to the same face
+  ---
+  duration_ms: 0.544931
+  type: 'test'
+  ...
+# Subtest: co-occurrence in a nonrepresentative member still prevents one catalogue identity from hiding two faces
+ok 18 - co-occurrence in a nonrepresentative member still prevents one catalogue identity from hiding two faces
+  ---
+  duration_ms: 0.646736
+  type: 'test'
+  ...
+# Subtest: identity temporal coverage across fragmented clusters qualifies at floor 3 (Lea-class pseudo-insufficiency)
+ok 19 - identity temporal coverage across fragmented clusters qualifies at floor 3 (Lea-class pseudo-insufficiency)
+  ---
+  duration_ms: 1.122779
+  type: 'test'
+  ...
+# Subtest: a single short-coverage cluster still cannot meet identity coverage floor 3 alone
+ok 20 - a single short-coverage cluster still cannot meet identity coverage floor 3 alone
+  ---
+  duration_ms: 0.343926
+  type: 'test'
+  ...
+# Subtest: Host catalogue config is absent when no catalogue data options are provided
+ok 21 - Host catalogue config is absent when no catalogue data options are provided
+  ---
+  duration_ms: 0.746609
+  type: 'test'
+  ...
+# Subtest: image-baked buffalo alone does not enable catalogue without installed product data
+ok 22 - image-baked buffalo alone does not enable catalogue without installed product data
+  ---
+  duration_ms: 0.599495
+  type: 'test'
+  ...
+# Subtest: Host resolves installed catalogue under ShelfDeck data without explicit env
+ok 23 - Host resolves installed catalogue under ShelfDeck data without explicit env
+  ---
+  duration_ms: 1.498049
+  type: 'test'
+  ...
+# Subtest: partial catalogue options fail closed instead of silent degrade
+ok 24 - partial catalogue options fail closed instead of silent degrade
+  ---
+  duration_ms: 0.491747
+  type: 'test'
+  ...
+# Subtest: explicit catalogueRoot uses image-baked buffalo by default; env override still wins
+ok 25 - explicit catalogueRoot uses image-baked buffalo by default; env override still wins
+  ---
+  duration_ms: 1.090439
+  type: 'test'
+  ...
+# Subtest: Host-wired product reconcile fails closed when catalogueRoot is unavailable
+ok 26 - Host-wired product reconcile fails closed when catalogueRoot is unavailable
+  ---
+  duration_ms: 0.442328
+  type: 'test'
+  ...
+# Subtest: assertCatalogueConfigured rejects Host ports without configuration
+ok 27 - assertCatalogueConfigured rejects Host ports without configuration
+  ---
+  duration_ms: 0.097096
+  type: 'test'
+  ...
+# Subtest: Dockerfile bakes buffalo_l and Host defaults to resources/buffalo-models
+ok 28 - Dockerfile bakes buffalo_l and Host defaults to resources/buffalo-models
+  ---
+  duration_ms: 0.235855
+  type: 'test'
+  ...
+# Subtest: People image execution exposes catalogue registration admission and peopleStore for Host inject
+ok 29 - People image execution exposes catalogue registration admission and peopleStore for Host inject
+  ---
+  duration_ms: 13.413002
+  type: 'test'
+  ...
+# Subtest: Clean Host wires provider observation and buffalo People preparation for catalogue ensure
+ok 30 - Clean Host wires provider observation and buffalo People preparation for catalogue ensure
+  ---
+  duration_ms: 0.978711
+  type: 'test'
+  ...
+# Subtest: missing catalogue frame proof fails closed and workless settlement does not call terminalWork
+ok 31 - missing catalogue frame proof fails closed and workless settlement does not call terminalWork
+  ---
+  duration_ms: 0.876446
+  type: 'test'
+  ...
+# Subtest: LIBRA_ENABLED includes catalogue observe for Host registration
+ok 32 - LIBRA_ENABLED includes catalogue observe for Host registration
+  ---
+  duration_ms: 0.193168
+  type: 'test'
+  ...
+# Subtest: Clean Host and Libra public wire catalogue stores and ports
+ok 33 - Clean Host and Libra public wire catalogue stores and ports
+  ---
+  duration_ms: 0.431251
+  type: 'test'
+  ...
+# Subtest: settlement short-circuits not_found without registerCataloguePerson
+ok 34 - settlement short-circuits not_found without registerCataloguePerson
+  ---
+  duration_ms: 0.727728
+  type: 'test'
+  ...
+# Subtest: People admission returns waiting_registration while evidence is pending
+ok 35 - People admission returns waiting_registration while evidence is pending
+  ---
+  duration_ms: 0.281373
+  type: 'test'
+  ...
+# Subtest: People admission is a function Host can inject into settlement
+ok 36 - People admission is a function Host can inject into settlement
+  ---
+  duration_ms: 0.127872
+  type: 'test'
+  ...
+# Subtest: local reference preparation delegates buffalo single_reference_face
+ok 37 - local reference preparation delegates buffalo single_reference_face
+  ---
+  duration_ms: 2.133832
+  type: 'test'
+  ...
+# Subtest: wired catalogue admission creates a catalogue_registration operation instead of the evidence stub
+ok 38 - wired catalogue admission creates a catalogue_registration operation instead of the evidence stub
+  ---
+  duration_ms: 762.339499
+  type: 'test'
+  ...
+# Subtest: provider with no image falls back to a catalogue frame and still opens registration prep
+ok 39 - provider with no image falls back to a catalogue frame and still opens registration prep
+  ---
+  duration_ms: 449.273567
+  type: 'test'
+  ...
+# Subtest: provider with no image and no frame proof fails closed instead of workless pending
+ok 40 - provider with no image and no frame proof fails closed instead of workless pending
+  ---
+  duration_ms: 432.340139
+  type: 'test'
+  ...
+# Subtest: succeeded catalogue_registration prep writes the Person and settlement reaches face_catalogue
+ok 41 - succeeded catalogue_registration prep writes the Person and settlement reaches face_catalogue
+  ---
+  duration_ms: 465.741132
+  type: 'test'
+  ...
+# Subtest: system registration binds the unique TPDB image, People name snapshot, directory evidence and buffalo reference
+ok 42 - system registration binds the unique TPDB image, People name snapshot, directory evidence and buffalo reference
+  ---
+  duration_ms: 733.69133
+  type: 'test'
+  ...
+# Subtest: a complete no-result or no-image provider result permits only a proven selected representative face
+ok 43 - a complete no-result or no-image provider result permits only a proven selected representative face
+  ---
+  duration_ms: 448.736473
+  type: 'test'
+  ...
+# Subtest: saturated, ambiguous, false no-match and a substituted image never authorize registration
+ok 44 - saturated, ambiguous, false no-match and a substituted image never authorize registration
+  ---
+  duration_ms: 441.133377
+  type: 'test'
+  ...
+# Subtest: a crop from another face or modified frozen rendering policy cannot become the Person reference
+ok 45 - a crop from another face or modified frozen rendering policy cannot become the Person reference
+  ---
+  duration_ms: 381.253646
+  type: 'test'
+  ...
+# Subtest: People Owner atomically publishes a system Person, Reference, evidence and operation on real SQLite
+ok 46 - People Owner atomically publishes a system Person, Reference, evidence and operation on real SQLite
+  ---
+  duration_ms: 381.250233
+  type: 'test'
+  ...
+# Subtest: a competing People registration invalidates the frozen no-match instead of creating a duplicate
+ok 47 - a competing People registration invalidates the frozen no-match instead of creating a duplicate
+  ---
+  duration_ms: 344.213005
+  type: 'test'
+  ...
+# Subtest: failure after Person creation rolls back Person, initial Reference, evidence and operation together
+ok 48 - failure after Person creation rolls back Person, initial Reference, evidence and operation together
+  ---
+  duration_ms: 389.995008
+  type: 'test'
+  ...
+# Subtest: system command writes an audit and receipt and replays after the originating Run ends
+ok 49 - system command writes an audit and receipt and replays after the originating Run ends
+  ---
+  duration_ms: 360.792926
+  type: 'test'
+  ...
+# Subtest: Owner changes after the preparation fence cannot publish system Person facts
+ok 50 - Owner changes after the preparation fence cannot publish system Person facts
+  ---
+  duration_ms: 344.882951
+  type: 'test'
+  ...
+# Subtest: a failed image Work cannot publish a system Person or receipt
+ok 51 - a failed image Work cannot publish a system Person or receipt
+  ---
+  duration_ms: 341.191753
+  type: 'test'
+  ...
+# Subtest: fresh Reset verifies the independent system registration and rejects missing or changed audit evidence
+ok 52 - fresh Reset verifies the independent system registration and rejects missing or changed audit evidence
+  ---
+  duration_ms: 363.211522
+  type: 'test'
+  ...
+# Subtest: fresh Reset retains a registered Person and exact independent evidence without reviving its unfinished Run
+ok 53 - fresh Reset retains a registered Person and exact independent evidence without reviving its unfinished Run
+  ---
+  duration_ms: 566.223714
+  type: 'test'
+  ...
+# Subtest: succeeded catalogue image preparation registers the Person through the system command
+ok 54 - succeeded catalogue image preparation registers the Person through the system command
+  ---
+  duration_ms: 360.994438
+  type: 'test'
+  ...
+# Subtest: wired registerCataloguePerson settles a qualified not_found into a shelfable face_catalogue package
+ok 55 - wired registerCataloguePerson settles a qualified not_found into a shelfable face_catalogue package
+  ---
+  duration_ms: 393.541092
+  type: 'test'
+  ...
+# Subtest: assembleEvidence prefers ThePornDB provider image over frame when the unique candidate has pictures
+ok 56 - assembleEvidence prefers ThePornDB provider image over frame when the unique candidate has pictures
+  ---
+  duration_ms: 329.538404
+  type: 'test'
+  ...
+# Subtest: catalogue preparation without the registration hook stays preparing
+ok 57 - catalogue preparation without the registration hook stays preparing
+  ---
+  duration_ms: 368.491058
+  type: 'test'
+  ...
+# Subtest: without registerCataloguePerson, qualified not_found stalls on waiting_registration
+ok 58 - without registerCataloguePerson, qualified not_found stalls on waiting_registration
+  ---
+  duration_ms: 717.277937
+  type: 'test'
+  ...
+# Subtest: Host registerCataloguePerson unblocks settlement to registered decision and shelfable face_catalogue
+ok 59 - Host registerCataloguePerson unblocks settlement to registered decision and shelfable face_catalogue
+  ---
+  duration_ms: 464.219747
+  type: 'test'
+  ...
+# Subtest: name resolve (+ light spelling) reuses personId and settles when buffalo reference exists
+ok 60 - name resolve (+ light spelling) reuses personId and settles when buffalo reference exists
+  ---
+  duration_ms: 441.040111
+  type: 'test'
+  ...
+# Subtest: May Thai catalogue winner reuses Mai Thai and does not register a second Person
+ok 61 - May Thai catalogue winner reuses Mai Thai and does not register a second Person
+  ---
+  duration_ms: 416.851211
+  type: 'test'
+  ...
+# Subtest: May Thai stale non-buffalo face fails closed when ensure is unwired
+ok 62 - May Thai stale non-buffalo face fails closed when ensure is unwired
+  ---
+  duration_ms: 362.900384
+  type: 'test'
+  ...
+# Subtest: unwired name-bound reuse fails closed — never silent reference_features_pending
+ok 63 - unwired name-bound reuse fails closed — never silent reference_features_pending
+  ---
+  duration_ms: 376.644314
+  type: 'test'
+  ...
+# Subtest: wired ensure opens buffalo refresh Work then settles reused (Tia shape)
+ok 64 - wired ensure opens buffalo refresh Work then settles reused (Tia shape)
+  ---
+  duration_ms: 379.099622
+  type: 'test'
+  ...
+# Subtest: May Thai stale face calls ensure and settles reused Mai Thai
+ok 65 - May Thai stale face calls ensure and settles reused Mai Thai
+  ---
+  duration_ms: 373.445852
+  type: 'test'
+  ...
+# Subtest: wired ensure without a frame proof fails closed when the provider has no image
+ok 66 - wired ensure without a frame proof fails closed when the provider has no image
+  ---
+  duration_ms: 336.712552
+  type: 'test'
+  ...
+# Subtest: workless settlement failure closes without reading work.workId
+ok 67 - workless settlement failure closes without reading work.workId
+  ---
+  duration_ms: 358.862702
+  type: 'test'
+  ...
+# Subtest: open catalogue frame work does not raise product identity Attention
+ok 68 - open catalogue frame work does not raise product identity Attention
+  ---
+  duration_ms: 0.533571
+  type: 'test'
+  ...
+# Subtest: catalogue Basis without a succeeded observation stays in progress
+ok 69 - catalogue Basis without a succeeded observation stays in progress
+  ---
+  duration_ms: 0.159255
+  type: 'test'
+  ...
+# Subtest: idle succeeded catalogue observation stays in progress (name-first; no fake registration Attention)
+ok 70 - idle succeeded catalogue observation stays in progress (name-first; no fake registration Attention)
+  ---
+  duration_ms: 0.819216
+  type: 'test'
+  ...
+# Subtest: open People catalogue image prep suppresses product identity Attention
+ok 71 - open People catalogue image prep suppresses product identity Attention
+  ---
+  duration_ms: 0.114444
+  type: 'test'
+  ...
+# Subtest: local analysis and blocked catalogue work stay out of registration Attention
+ok 72 - local analysis and blocked catalogue work stay out of registration Attention
+  ---
+  duration_ms: 0.153368
+  type: 'test'
+  ...
+# Subtest: a closed match without a winner stays unmatched Attention
+ok 73 - a closed match without a winner stays unmatched Attention
+  ---
+  duration_ms: 0.094596
+  type: 'test'
+  ...
+# Subtest: a package, choice, decision, or winner suppresses the registration wait
+ok 74 - a package, choice, decision, or winner suppresses the registration wait
+  ---
+  duration_ms: 0.131859
+  type: 'test'
+  ...
+# Subtest: recognition land: registered catalogue decision selects face_catalogue and passes package actor guard
+ok 75 - recognition land: registered catalogue decision selects face_catalogue and passes package actor guard
+  ---
+  duration_ms: 14.658579
+  type: 'test'
+  ...
+# Subtest: Host admission port is injectible and leaves waiting_registration until evidence exists
+ok 76 - Host admission port is injectible and leaves waiting_registration until evidence exists
+  ---
+  duration_ms: 0.262761
+  type: 'test'
+  ...
+# Subtest: name-first reuse: fuzzy name hit reuses personId without face as People match key
+ok 77 - name-first reuse: fuzzy name hit reuses personId without face as People match key
+  ---
+  duration_ms: 1.837774
+  type: 'test'
+  ...
+# Subtest: happy path shelf contract: face_catalogue cast is the actor fact On-deck shelf video+poster consume
+ok 78 - happy path shelf contract: face_catalogue cast is the actor fact On-deck shelf video+poster consume
+  ---
+  duration_ms: 9.717816
+  type: 'test'
+  ...
+# Subtest: actor names reuse the internal Person through spelling, separators, Unicode and exact aliases
+ok 79 - actor names reuse the internal Person through spelling, separators, Unicode and exact aliases
+  ---
+  duration_ms: 3.205854
+  type: 'test'
+  ...
+# Subtest: May Thai light-spelling reuses Mai Thai and never looks like a missing Person
+ok 80 - May Thai light-spelling reuses Mai Thai and never looks like a missing Person
+  ---
+  duration_ms: 0.330098
+  type: 'test'
+  ...
+# Subtest: exact names and aliases precede fuzzy results but multiple exact identities remain ambiguous
+ok 81 - exact names and aliases precede fuzzy results but multiple exact identities remain ambiguous
+  ---
+  duration_ms: 0.884663
+  type: 'test'
+  ...
+# Subtest: first names, arbitrary containment and broad spelling differences do not create identity matches
+ok 82 - first names, arbitrary containment and broad spelling differences do not create identity matches
+  ---
+  duration_ms: 1.573809
+  type: 'test'
+  ...
+# Subtest: name resolution is stable across input ordering and changes with actual current Person facts
+ok 83 - name resolution is stable across input ordering and changes with actual current Person facts
+  ---
+  duration_ms: 0.357671
+  type: 'test'
+  ...
+# Subtest: cross-library, merged, duplicate and incomplete name snapshots fail rather than authorizing a new Person
+ok 84 - cross-library, merged, duplicate and incomplete name snapshots fail rather than authorizing a new Person
+  ---
+  duration_ms: 0.446803
+  type: 'test'
+  ...
+1..84
+# tests 84
+# suites 0
+# pass 84
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 6816.572101
+us-adult-full-e2e: ensure reuse + create registration + Attention gate passed

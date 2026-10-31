@@ -84,16 +84,18 @@ Map lives in `features/`. Read `features/README.md`, then the feature file. Pref
 | Authed probe | `GET {baseUrl}/v1/admin/settings/security` with the session cookie → HTTP 200 and `credentialConfigured: true` |
 | Admin Web login | Heading `进入管理台`, label `管理凭据`, button `进入管理台` |
 | Runner smoke | `bash tests/runner.sh health-check tests/env/ci.env` with `SERVICE_URL={baseUrl}` |
+| US Adult recognition gate | `bash .cursor/skills/verify-shelfdeck/bin/verify-shelfdeck drive us-adult-recognition` → `cd media-service && bash scripts/us-adult-full-e2e.sh` |
 
-HTTP session exchange is the primary programmable path (matches `p14-beta-impl-02-docker-retest.js`). Browser login is the user-visible twin when Playwright/CDP is available.
+HTTP session exchange is the primary programmable path for Admin HTTP features (matches `p14-beta-impl-02-docker-retest.js`). Browser login is the user-visible twin when Playwright/CDP is available.
 
-Prove one mapped feature per run unless the task asks for more. Example:
+Prove one mapped feature per run unless the task asks for more. Examples:
 
 ```bash
 bash .cursor/skills/verify-shelfdeck/bin/verify-shelfdeck drive health-admin-session
+bash .cursor/skills/verify-shelfdeck/bin/verify-shelfdeck drive us-adult-recognition
 ```
 
-**US Adult full journey.** The recognition → People → poster → shelf map is a follow-up PR. Until that map file lands, when a task requires the true US Adult gate invoke `cd media-service && bash scripts/us-adult-full-e2e.sh` (or `npm run test:us-adult-full-e2e`). Do not invent a stub-green path. Observe-isolation alone is not acceptance.
+**US Adult recognition journey.** Map: `features/us-adult-recognition.md`. Drive always invokes the true gate `media-service/scripts/us-adult-full-e2e.sh` (or `npm run test:us-adult-full-e2e`). Do not invent a stub-green path. Observe-isolation alone is not acceptance. Claiming L2 green for SelectedImage AJV ingress and Host buffalo session lifecycle requires PR #53 (or equivalent) on the tip under test.
 
 ## Evidence
 
@@ -134,15 +136,16 @@ All helpers are under `.cursor/skills/verify-shelfdeck/bin/`:
 bash .cursor/skills/verify-shelfdeck/bin/verify-shelfdeck launch
 bash .cursor/skills/verify-shelfdeck/bin/verify-shelfdeck doctor
 bash .cursor/skills/verify-shelfdeck/bin/verify-shelfdeck drive health-admin-session
+bash .cursor/skills/verify-shelfdeck/bin/verify-shelfdeck drive us-adult-recognition
 bash .cursor/skills/verify-shelfdeck/bin/verify-shelfdeck cleanup
 bash .cursor/skills/verify-shelfdeck/bin/verify-shelfdeck prove health-admin-session
 ```
 
-`prove` runs launch → doctor → drive → cleanup and asserts evidence still exists afterward.
+`prove` (health-admin-session) runs launch → doctor → drive → cleanup and asserts evidence still exists afterward. `drive us-adult-recognition` runs the true full E2E script and writes evidence without requiring launch.
 
 ## Feature map
 
-See [features/README.md](features/README.md). Seeded in this PR: `health-admin-session`. US Adult journey map is a follow-up PR (see README one-liner); until then use `scripts/us-adult-full-e2e.sh` for the true gate.
+See [features/README.md](features/README.md). Mapped: `health-admin-session`, `us-adult-recognition`.
 
 ## Maintenance
 

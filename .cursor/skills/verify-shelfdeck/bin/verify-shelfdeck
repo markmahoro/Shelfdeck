@@ -230,6 +230,90 @@ cmd_doctor() {
   echo "verify-shelfdeck: doctor ok ${base_url} generation=$(node -e "process.stdout.write(JSON.parse(process.argv[1]).generation)" "$health")"
 }
 
+cmd_drive_us_adult_recognition() {
+  require_cmd node
+  ensure_evidence_dir "us-adult-recognition"
+
+  local script="${SERVICE_DIR}/scripts/us-adult-full-e2e.sh"
+  [ -f "$script" ] || die "missing true US Adult gate: ${script}"
+
+  local log_file="${VERIFY_SHELFDECK_EVIDENCE_DIR}/e2e-log.txt"
+  local summary_file="${VERIFY_SHELFDECK_EVIDENCE_DIR}/e2e-summary.json"
+  local proof_file="${VERIFY_SHELFDECK_EVIDENCE_DIR}/proof.json"
+  local started_at
+  started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+  set +e
+  (
+    cd "$SERVICE_DIR"
+    bash scripts/us-adult-full-e2e.sh
+  ) >"$log_file" 2>&1
+  local exit_code=$?
+  set -e
+
+  local success_line_present=false
+  if grep -q 'Attention gate passed' "$log_file" 2>/dev/null; then
+    success_line_present=true
+  fi
+
+  # Parse which test files the current shell gate lists (honest inventory; no secrets).
+  local gate_files_json
+  gate_files_json="$(
+    node -e "
+      const fs=require('fs');
+      const sh=fs.readFileSync(process.argv[1],'utf8');
+      const files=[...sh.matchAll(/test\\/helix-architecture\\/[\\w.-]+\\.test\\.js/g)].map(m=>m[0]);
+      process.stdout.write(JSON.stringify(files));
+    " "$script"
+  )"
+
+  node -e "
+    const fs=require('fs');
+    const exitCode=Number(process.argv[1]);
+    const successLinePresent=process.argv[2]==='true';
+    const gateFiles=JSON.parse(process.argv[3]);
+    const hasIngressAjv=gateFiles.some(f=>f.includes('selected-image-provenance')||f.includes('selected-image'));
+    const hasSessionLifecycle=gateFiles.some(f=>f.includes('cpu-session-stop')||f.includes('session-stop'));
+    const summary={
+      featureId:'us-adult-recognition',
+      entryPoint:'media-service/scripts/us-adult-full-e2e.sh',
+      startedAt:process.argv[4],
+      finishedAt:new Date().toISOString(),
+      exitCode,
+      successLinePresent,
+      gateTestFiles:gateFiles,
+      ingressAjvListed:hasIngressAjv,
+      hostSessionLifecycleListed:hasSessionLifecycle,
+      note:(!hasIngressAjv||!hasSessionLifecycle)
+        ? 'Gate tip lacks PR #53 ingress files; do not claim L2 AJV/session green from this run.'
+        : 'Gate lists SelectedImage AJV and Host session lifecycle files.',
+      productionTargeted:false,
+    };
+    fs.writeFileSync(process.argv[5], JSON.stringify(summary,null,2)+'\\n');
+    const proof={
+      featureId:'us-adult-recognition',
+      skill:'verify-shelfdeck',
+      provedAt:new Date().toISOString(),
+      entryPoints:['media-service/scripts/us-adult-full-e2e.sh','npm run test:us-adult-full-e2e'],
+      checks:[
+        {name:'true-full-e2e', exitCode, successLinePresent, passed: exitCode===0 && successLinePresent},
+        {name:'ingress-ajv-listed', listed:hasIngressAjv},
+        {name:'host-session-lifecycle-listed', listed:hasSessionLifecycle},
+      ],
+      stubGreen:false,
+      secretsCommitted:false,
+      pr53RequiredForIngressL2:!hasIngressAjv||!hasSessionLifecycle,
+    };
+    fs.writeFileSync(process.argv[6], JSON.stringify(proof,null,2)+'\\n');
+  " "$exit_code" "$success_line_present" "$gate_files_json" "$started_at" "$summary_file" "$proof_file"
+
+  if [ "$exit_code" != "0" ] || [ "$success_line_present" != "true" ]; then
+    die "us-adult-recognition drive failed exit=${exit_code} successLine=${success_line_present}; see ${log_file}"
+  fi
+
+  echo "verify-shelfdeck: drive us-adult-recognition ok evidence=${VERIFY_SHELFDECK_EVIDENCE_DIR}"
+}
+
 cmd_drive_health_admin_session() {
   require_cmd curl
   ensure_run_dir
@@ -412,6 +496,7 @@ Usage:
   verify-shelfdeck launch
   verify-shelfdeck doctor
   verify-shelfdeck drive health-admin-session
+  verify-shelfdeck drive us-adult-recognition
   verify-shelfdeck cleanup
   verify-shelfdeck prove health-admin-session
 
@@ -432,6 +517,7 @@ main() {
       [ -n "$feature" ] || die "drive requires a feature id"
       case "$feature" in
         health-admin-session) cmd_drive_health_admin_session ;;
+        us-adult-recognition) cmd_drive_us_adult_recognition ;;
         *) die "unknown feature: $feature" ;;
       esac
       ;;
