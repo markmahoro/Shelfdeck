@@ -1,0 +1,445 @@
+#!/usr/bin/env bash
+# verify-shelfdeck — Launch / Doctor / Drive / Cleanup / Prove for isolated ShelfDeck verification.
+# Never targets production NAS. Never prints or commits admin API keys / secret roots.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/../../../.." && pwd)"
+SERVICE_DIR="${ROOT}/media-service"
+SKILL_DIR="${ROOT}/.cursor/skills/verify-shelfdeck"
+
+die() { echo "verify-shelfdeck: $*" >&2; exit 1; }
+
+require_cmd() {
+  command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"
+}
+
+refuse_production_url() {
+  local url="$1"
+  case "$url" in
+    *192.168.12.230*|*nas*|*18080*192.168*)
+      die "refusing non-isolated or production-looking URL: $url"
+      ;;
+  esac
+  case "$url" in
+    http://127.0.0.1:*|http://localhost:*)
+      ;;
+    *)
+      die "baseUrl must be http://127.0.0.1:<port> (got $url)"
+      ;;
+  esac
+}
+
+ensure_run_dir() {
+  if [ -z "${VERIFY_SHELFDECK_RUN_DIR:-}" ]; then
+    VERIFY_SHELFDECK_RUN_DIR="/tmp/verify-shelfdeck-vs-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+  fi
+  export VERIFY_SHELFDECK_RUN_DIR
+  mkdir -p "$VERIFY_SHELFDECK_RUN_DIR"
+}
+
+ensure_evidence_dir() {
+  local feature="${1:-health-admin-session}"
+  if [ -z "${VERIFY_SHELFDECK_EVIDENCE_DIR:-}" ]; then
+    local run_id
+    run_id="$(basename "$VERIFY_SHELFDECK_RUN_DIR")"
+    VERIFY_SHELFDECK_EVIDENCE_DIR="${SKILL_DIR}/artifacts/${feature}/${run_id}"
+  fi
+  export VERIFY_SHELFDECK_EVIDENCE_DIR
+  mkdir -p "$VERIFY_SHELFDECK_EVIDENCE_DIR"
+}
+
+read_json_field() {
+  # usage: read_json_field <file> <js-expression-on-j>
+  node -e "const j=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')); const v=($2); if(v===undefined||v===null) process.exit(2); process.stdout.write(String(v));" "$1"
+}
+
+port_owner_pid() {
+  local port="$1"
+  if command -v ss >/dev/null 2>&1; then
+    ss -ltnp "sport = :${port}" 2>/dev/null | sed -n 's/.*pid=\([0-9][0-9]*\).*/\1/p' | head -n1
+    return 0
+  fi
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -nP -iTCP:"${port}" -sTCP:LISTEN -t 2>/dev/null | head -n1
+    return 0
+  fi
+  return 0
+}
+
+cmd_launch() {
+  require_cmd node
+  require_cmd curl
+  require_cmd npm
+  ensure_run_dir
+
+  if [ -f "${VERIFY_SHELFDECK_RUN_DIR}/run.json" ]; then
+    die "run already exists at ${VERIFY_SHELFDECK_RUN_DIR}/run.json; cleanup first or choose a new VERIFY_SHELFDECK_RUN_DIR"
+  fi
+
+  local data_dir="${VERIFY_SHELFDECK_RUN_DIR}/data"
+  local log_file="${VERIFY_SHELFDECK_RUN_DIR}/service.log"
+  local private_file="${VERIFY_SHELFDECK_RUN_DIR}/private-runtime.json"
+  local run_file="${VERIFY_SHELFDECK_RUN_DIR}/run.json"
+  mkdir -p "$data_dir"
+
+  # Local verification needs sharp (and friends). Do not use --omit=optional here.
+  if [ ! -d "${SERVICE_DIR}/node_modules" ]; then
+    (cd "$SERVICE_DIR" && npm install)
+  fi
+  if ! node -e "require('sharp')" >/dev/null 2>&1; then
+    (cd "$SERVICE_DIR" && npm install --include=optional sharp)
+  fi
+  if [ ! -d "${SERVICE_DIR}/web/node_modules" ]; then
+    (cd "${SERVICE_DIR}/web" && npm install)
+  fi
+  if [ ! -f "${SERVICE_DIR}/dist/admin/index.html" ]; then
+    (cd "$SERVICE_DIR" && npm run build:web)
+  fi
+
+  local secret_root
+  secret_root="$(node -e "process.stdout.write(require('crypto').randomBytes(32).toString('hex'))")"
+
+  local init_json
+  init_json="$(
+    cd "$SERVICE_DIR" && \
+    SHELFDECK_SECRET_ROOT="$secret_root" \
+      node scripts/helix-clean-init.js --data-dir "$data_dir" --apply --confirm INITIALIZE_HELIX_CLEAN_V1
+  )" || die "helix-clean-init failed"
+
+  node -e "
+    const fs=require('fs');
+    const init=JSON.parse(process.argv[1]);
+    if(!init.adminApiKey) throw new Error('helix-clean-init missing adminApiKey');
+    fs.writeFileSync(process.argv[2], JSON.stringify({
+      adminApiKey: init.adminApiKey,
+      secretRootPresent: true,
+      generation: init.generation || null,
+      createdAt: new Date().toISOString(),
+    }, null, 2)+'\\n', {mode:0o600});
+  " "$init_json" "$private_file"
+
+  local port
+  port="$(node -e "
+    const net=require('net');
+    const s=net.createServer();
+    s.listen(0,'127.0.0.1',()=>{process.stdout.write(String(s.address().port)); s.close();});
+  ")"
+
+  local base_url="http://127.0.0.1:${port}"
+  refuse_production_url "$base_url"
+
+  (
+    cd "$SERVICE_DIR"
+    export MEDIA_SERVICE_DATA_DIR="$data_dir"
+    export MEDIA_SERVICE_HOST="127.0.0.1"
+    export MEDIA_SERVICE_PORT="$port"
+    export SHELFDECK_SECRET_ROOT="$secret_root"
+    export MEDIA_SERVICE_ADMIN_DIST_DIR="${SERVICE_DIR}/dist/admin"
+    exec node src/server.js
+  ) >"$log_file" 2>&1 &
+  local pid=$!
+
+  local ready=0
+  local attempt
+  for attempt in $(seq 1 80); do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      die "service exited during launch; see ${log_file}"
+    fi
+    if curl -fsS --connect-timeout 1 --max-time 2 "${base_url}/v1/health" >/dev/null 2>&1; then
+      ready=1
+      break
+    fi
+    sleep 0.25
+  done
+  if [ "$ready" != "1" ]; then
+    kill "$pid" 2>/dev/null || true
+    die "health did not become ready at ${base_url}; see ${log_file}"
+  fi
+
+  local readiness_json
+  readiness_json="$(
+    cd "$SERVICE_DIR" && \
+    SHELFDECK_SECRET_ROOT="$secret_root" \
+      node scripts/helix-clean-init.js --data-dir "$data_dir" --readiness
+  )" || die "readiness check failed"
+  local readiness_state
+  readiness_state="$(node -e "const j=JSON.parse(process.argv[1]); process.stdout.write(String(j.state||''))" "$readiness_json")"
+  if [ "$readiness_state" != "ready" ]; then
+    kill "$pid" 2>/dev/null || true
+    die "clean-init readiness is '${readiness_state}', expected ready"
+  fi
+
+  local generation
+  generation="$(node -e "const j=JSON.parse(process.argv[1]); process.stdout.write(String(j.generation||''))" "$init_json")"
+  node -e "
+    const fs=require('fs');
+    const run={
+      skill:'verify-shelfdeck',
+      launchedBy:'verify-shelfdeck',
+      pid:Number(process.argv[1]),
+      port:Number(process.argv[2]),
+      baseUrl:process.argv[3],
+      dataDir:process.argv[4],
+      logFile:process.argv[5],
+      privateRuntimeFile:process.argv[6],
+      generation:process.argv[7] || null,
+      host:'127.0.0.1',
+      createdAt:new Date().toISOString(),
+    };
+    fs.writeFileSync(process.argv[8], JSON.stringify(run,null,2)+'\\n');
+  " "$pid" "$port" "$base_url" "$data_dir" "$log_file" "$private_file" "$generation" "$run_file"
+
+  echo "verify-shelfdeck: launched ${base_url} pid=${pid} run=${VERIFY_SHELFDECK_RUN_DIR}"
+}
+
+cmd_doctor() {
+  require_cmd curl
+  ensure_run_dir
+  local run_file="${VERIFY_SHELFDECK_RUN_DIR}/run.json"
+  [ -f "$run_file" ] || die "missing run.json; launch first"
+
+  local base_url pid port host
+  base_url="$(read_json_field "$run_file" 'j.baseUrl')"
+  pid="$(read_json_field "$run_file" 'j.pid')"
+  port="$(read_json_field "$run_file" 'j.port')"
+  host="$(read_json_field "$run_file" 'j.host')"
+  refuse_production_url "$base_url"
+  [ "$host" = "127.0.0.1" ] || die "doctor refuses host ${host}"
+
+  kill -0 "$pid" 2>/dev/null || die "recorded pid ${pid} is not running"
+
+  local owner
+  owner="$(port_owner_pid "$port" || true)"
+  if [ -n "$owner" ] && [ "$owner" != "$pid" ]; then
+    # Node may spawn; accept if recorded pid is still alive and health answers on our URL.
+    echo "verify-shelfdeck: doctor note: listen pid=${owner} recorded pid=${pid}" >&2
+  fi
+
+  local health
+  health="$(curl -fsS --connect-timeout 2 --max-time 5 "${base_url}/v1/health")" || die "health request failed"
+  # Clean-init instances must report Helix clean health, not legacy green/yellow/red.
+  node -e "
+    const j=JSON.parse(process.argv[1]);
+    if(j.status!=='ok') throw new Error('expected health status ok, got '+j.status);
+    if(typeof j.generation!=='string' || !j.generation.startsWith('helix-clean-')) {
+      throw new Error('expected helix-clean-* generation, got '+j.generation);
+    }
+    if(j.normalSupplyAllowed!==true) throw new Error('expected normalSupplyAllowed true');
+  " "$health"
+
+  echo "verify-shelfdeck: doctor ok ${base_url} generation=$(node -e "process.stdout.write(JSON.parse(process.argv[1]).generation)" "$health")"
+}
+
+cmd_drive_health_admin_session() {
+  require_cmd curl
+  ensure_run_dir
+  ensure_evidence_dir "health-admin-session"
+  cmd_doctor >/dev/null
+
+  local run_file="${VERIFY_SHELFDECK_RUN_DIR}/run.json"
+  local private_file
+  private_file="$(read_json_field "$run_file" 'j.privateRuntimeFile')"
+  local base_url
+  base_url="$(read_json_field "$run_file" 'j.baseUrl')"
+  refuse_production_url "$base_url"
+
+  local api_key
+  api_key="$(read_json_field "$private_file" 'j.adminApiKey')"
+
+  local health_body health_code
+  health_code="$(curl -sS -o "${VERIFY_SHELFDECK_EVIDENCE_DIR}/health.json" -w '%{http_code}' --connect-timeout 2 --max-time 5 "${base_url}/v1/health")"
+  [ "$health_code" = "200" ] || die "health expected 200 got ${health_code}"
+  node -e "
+    const j=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'));
+    if(j.status!=='ok') throw new Error('drive expects health status ok');
+    if(typeof j.generation!=='string' || !j.generation.startsWith('helix-clean-')) throw new Error('drive expects helix-clean-* generation');
+    if(j.normalSupplyAllowed!==true) throw new Error('drive expects normalSupplyAllowed true');
+  " "${VERIFY_SHELFDECK_EVIDENCE_DIR}/health.json"
+
+  local cookie_jar="${VERIFY_SHELFDECK_RUN_DIR}/cookies.txt"
+  rm -f "$cookie_jar"
+  local exchange_headers="${VERIFY_SHELFDECK_RUN_DIR}/exchange.headers"
+  local exchange_code
+  exchange_code="$(
+    curl -sS -D "$exchange_headers" -o /dev/null -w '%{http_code}' \
+      -X POST "${base_url}/v1/admin/session" \
+      -H "x-api-key: ${api_key}" \
+      -c "$cookie_jar"
+  )"
+  [ "$exchange_code" = "204" ] || die "session exchange expected 204 got ${exchange_code}"
+
+  node -e "
+    const fs=require('fs');
+    const headers=fs.readFileSync(process.argv[1],'utf8');
+    const cookiePresent=/set-cookie:\\s*shelfdeck_admin_session=/i.test(headers);
+    if(!cookiePresent) throw new Error('missing shelfdeck_admin_session Set-Cookie');
+    fs.writeFileSync(process.argv[2], JSON.stringify({
+      featureId:'health-admin-session',
+      entryPoint:'POST /v1/admin/session',
+      status:204,
+      cookiePresent:true,
+      cookieName:'shelfdeck_admin_session',
+      cookieValue:'[REDACTED]',
+      apiKey:'[REDACTED]',
+    }, null, 2)+'\\n');
+  " "$exchange_headers" "${VERIFY_SHELFDECK_EVIDENCE_DIR}/session-exchange.json"
+
+  # Cookie-only probe: do not also send x-api-key (auth prefers a present API key).
+  local security_code
+  security_code="$(
+    curl -sS -o "${VERIFY_SHELFDECK_EVIDENCE_DIR}/security.json" -w '%{http_code}' \
+      -b "$cookie_jar" "${base_url}/v1/admin/settings/security"
+  )"
+  [ "$security_code" = "200" ] || die "security probe expected 200 got ${security_code}"
+  node -e "
+    const fs=require('fs');
+    const j=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));
+    if(j.credentialConfigured!==true) throw new Error('credentialConfigured must be true');
+    const masked={...j};
+    for (const k of Object.keys(masked)) {
+      if(/key|secret|token|password/i.test(k) && typeof masked[k]==='string') masked[k]='[REDACTED]';
+    }
+    fs.writeFileSync(process.argv[1], JSON.stringify(masked,null,2)+'\\n');
+  " "${VERIFY_SHELFDECK_EVIDENCE_DIR}/security.json"
+
+  local wrong_code
+  wrong_code="$(
+    curl -sS -o "${VERIFY_SHELFDECK_EVIDENCE_DIR}/wrong-key.json" -w '%{http_code}' \
+      -H 'x-api-key: wrong-key' "${base_url}/v1/admin/settings/security"
+  )"
+  [ "$wrong_code" = "401" ] || die "wrong-key probe expected 401 got ${wrong_code}"
+
+  local logout_code
+  logout_code="$(
+    curl -sS -o /dev/null -w '%{http_code}' -X DELETE \
+      -b "$cookie_jar" -c "$cookie_jar" "${base_url}/v1/admin/session"
+  )"
+  [ "$logout_code" = "204" ] || die "session delete expected 204 got ${logout_code}"
+  local after_logout_code
+  after_logout_code="$(
+    curl -sS -o "${VERIFY_SHELFDECK_EVIDENCE_DIR}/after-logout.json" -w '%{http_code}' \
+      -b "$cookie_jar" "${base_url}/v1/admin/settings/security"
+  )"
+  [ "$after_logout_code" = "401" ] || die "cookie-only probe after logout expected 401 got ${after_logout_code}"
+
+  local admin_code
+  admin_code="$(curl -sS -o "${VERIFY_SHELFDECK_EVIDENCE_DIR}/admin.html" -w '%{http_code}' "${base_url}/admin")"
+  [ "$admin_code" = "200" ] || die "GET /admin expected 200 got ${admin_code}"
+  grep -q 'id="root"' "${VERIFY_SHELFDECK_EVIDENCE_DIR}/admin.html" || die "Admin HTML missing id=\"root\""
+
+  node -e "
+    const fs=require('fs');
+    const health=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));
+    const proof={
+      featureId:'health-admin-session',
+      skill:'verify-shelfdeck',
+      baseUrl:process.argv[2],
+      provedAt:new Date().toISOString(),
+      checks:[
+        {name:'health-public', status:200, generation:health.generation||null, healthStatus:health.status||null, normalSupplyAllowed:health.normalSupplyAllowed===true},
+        {name:'session-exchange', status:204, cookiePresent:true},
+        {name:'session-authed-probe', status:200, credentialConfigured:true, cookieOnly:true},
+        {name:'wrong-key', status:401},
+        {name:'session-delete', status:204},
+        {name:'after-logout-cookie', status:401},
+        {name:'admin-shell', status:200, rootPresent:true},
+      ],
+      entryPoints:['GET /v1/health','POST /v1/admin/session','GET /v1/admin/settings/security','DELETE /v1/admin/session','GET /admin'],
+      secretsCommitted:false,
+    };
+    fs.writeFileSync(process.argv[3], JSON.stringify(proof,null,2)+'\\n');
+  " "${VERIFY_SHELFDECK_EVIDENCE_DIR}/health.json" "$base_url" "${VERIFY_SHELFDECK_EVIDENCE_DIR}/proof.json"
+
+  # Drop HTML blob from committed evidence; keep a tiny marker instead.
+  rm -f "${VERIFY_SHELFDECK_EVIDENCE_DIR}/admin.html"
+  echo '{"status":200,"rootPresent":true}' > "${VERIFY_SHELFDECK_EVIDENCE_DIR}/admin-shell.json"
+
+  echo "verify-shelfdeck: drive health-admin-session ok evidence=${VERIFY_SHELFDECK_EVIDENCE_DIR}"
+}
+
+cmd_cleanup() {
+  ensure_run_dir
+  local run_file="${VERIFY_SHELFDECK_RUN_DIR}/run.json"
+  if [ ! -f "$run_file" ]; then
+    echo "verify-shelfdeck: nothing to clean at ${VERIFY_SHELFDECK_RUN_DIR}"
+    return 0
+  fi
+  local pid
+  pid="$(read_json_field "$run_file" 'j.pid' || true)"
+  if [ -n "${pid:-}" ] && kill -0 "$pid" 2>/dev/null; then
+    kill "$pid" 2>/dev/null || true
+    local i
+    for i in $(seq 1 40); do
+      kill -0 "$pid" 2>/dev/null || break
+      sleep 0.1
+    done
+    if kill -0 "$pid" 2>/dev/null; then
+      kill -9 "$pid" 2>/dev/null || true
+    fi
+  fi
+  # Preserve evidence dir (must not live under RUN_DIR).
+  if [ -n "${VERIFY_SHELFDECK_EVIDENCE_DIR:-}" ] && [[ "${VERIFY_SHELFDECK_EVIDENCE_DIR}" == "${VERIFY_SHELFDECK_RUN_DIR}"* ]]; then
+    die "evidence dir must not be inside run dir (would be deleted): ${VERIFY_SHELFDECK_EVIDENCE_DIR}"
+  fi
+  rm -rf "$VERIFY_SHELFDECK_RUN_DIR"
+  echo "verify-shelfdeck: cleaned run dir; evidence left intact${VERIFY_SHELFDECK_EVIDENCE_DIR:+ at $VERIFY_SHELFDECK_EVIDENCE_DIR}"
+}
+
+cmd_prove() {
+  local feature="${1:-health-admin-session}"
+  [ "$feature" = "health-admin-session" ] || die "unsupported prove feature: $feature (v1 proves health-admin-session only)"
+  ensure_run_dir
+  ensure_evidence_dir "$feature"
+  # If a prior failed run left state, clean it first.
+  if [ -f "${VERIFY_SHELFDECK_RUN_DIR}/run.json" ]; then
+    cmd_cleanup || true
+    ensure_run_dir
+  fi
+  cmd_launch
+  cmd_doctor
+  cmd_drive_health_admin_session
+  local evidence_dir="$VERIFY_SHELFDECK_EVIDENCE_DIR"
+  cmd_cleanup
+  [ -f "${evidence_dir}/proof.json" ] || die "evidence missing after cleanup: ${evidence_dir}/proof.json"
+  [ -f "${evidence_dir}/health.json" ] || die "evidence missing after cleanup: ${evidence_dir}/health.json"
+  [ -f "${evidence_dir}/session-exchange.json" ] || die "evidence missing after cleanup: ${evidence_dir}/session-exchange.json"
+  echo "verify-shelfdeck: prove ${feature} ok (evidence survived cleanup at ${evidence_dir})"
+}
+
+usage() {
+  cat <<'EOF'
+Usage:
+  verify-shelfdeck launch
+  verify-shelfdeck doctor
+  verify-shelfdeck drive health-admin-session
+  verify-shelfdeck cleanup
+  verify-shelfdeck prove health-admin-session
+
+Environment:
+  VERIFY_SHELFDECK_RUN_DIR       disposable run root (default under /tmp)
+  VERIFY_SHELFDECK_EVIDENCE_DIR  proof artifacts root (survives cleanup)
+EOF
+}
+
+main() {
+  local cmd="${1:-}"
+  shift || true
+  case "$cmd" in
+    launch) cmd_launch "$@" ;;
+    doctor) cmd_doctor "$@" ;;
+    drive)
+      local feature="${1:-}"
+      [ -n "$feature" ] || die "drive requires a feature id"
+      case "$feature" in
+        health-admin-session) cmd_drive_health_admin_session ;;
+        *) die "unknown feature: $feature" ;;
+      esac
+      ;;
+    cleanup) cmd_cleanup "$@" ;;
+    prove) cmd_prove "$@" ;;
+    -h|--help|help|'') usage; [ -n "$cmd" ] || exit 1 ;;
+    *) die "unknown command: $cmd" ;;
+  esac
+}
+
+main "$@"

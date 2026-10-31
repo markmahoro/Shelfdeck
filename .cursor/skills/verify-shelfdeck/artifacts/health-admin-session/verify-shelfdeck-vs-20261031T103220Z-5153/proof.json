@@ -1,0 +1,51 @@
+{
+  "featureId": "health-admin-session",
+  "skill": "verify-shelfdeck",
+  "baseUrl": "http://127.0.0.1:34545",
+  "provedAt": "2026-10-31T10:32:25.218Z",
+  "checks": [
+    {
+      "name": "health-public",
+      "status": 200,
+      "generation": "helix-clean-v3",
+      "healthStatus": "ok",
+      "normalSupplyAllowed": true
+    },
+    {
+      "name": "session-exchange",
+      "status": 204,
+      "cookiePresent": true
+    },
+    {
+      "name": "session-authed-probe",
+      "status": 200,
+      "credentialConfigured": true,
+      "cookieOnly": true
+    },
+    {
+      "name": "wrong-key",
+      "status": 401
+    },
+    {
+      "name": "session-delete",
+      "status": 204
+    },
+    {
+      "name": "after-logout-cookie",
+      "status": 401
+    },
+    {
+      "name": "admin-shell",
+      "status": 200,
+      "rootPresent": true
+    }
+  ],
+  "entryPoints": [
+    "GET /v1/health",
+    "POST /v1/admin/session",
+    "GET /v1/admin/settings/security",
+    "DELETE /v1/admin/session",
+    "GET /admin"
+  ],
+  "secretsCommitted": false
+}
