@@ -88,7 +88,7 @@ function createCatalogueProviderObservationPort(options){
     if(!inflight.has(key)){
       inflight.add(key);
       load(terms).then(observation=>{cache.set(key,observation);options.wake?.();})
-        .catch(()=>{})
+        .catch(()=>{}) // Failed searches stay uncached so the next reconcile retries.
         .finally(()=>inflight.delete(key));
     }
     return {kind:'waiting',pendingCode:'PEOPLE_CATALOGUE_PROVIDER_PENDING'};
@@ -107,7 +107,9 @@ function createCatalogueProviderObservationPort(options){
     fetchBytes(options.fetchImpl,url,requestInit,10*1024*1024).then(result=>{
       bytes.set(request.urlDigest,result.bytes);
       options.wake?.();
-    }).catch(()=>{}).finally(()=>inflight.delete(request.urlDigest));
+    }).catch(()=>{
+      // Failed image bytes stay uncached so the next reconcile retries.
+    }).finally(()=>inflight.delete(request.urlDigest));
     return null;
   }
   return Object.freeze({observeProviderSearch,readImageBytes});
