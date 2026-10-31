@@ -324,11 +324,19 @@ function isLocalAnalysisWork(work) {
   return /^libra-us-adult-(frames-work-|match-\d+-work-)/.test(String(work?.workId || ''));
 }
 function westernAdultProductIdentityIssue({ packaged, hasChoice, catalogueDecision, basisDigest, completion, works,
-  peoplePrepOpen = false }) {
+  peoplePrepOpen = false, settlementFailure = null }) {
   const list = works || [];
   if (packaged || hasChoice || catalogueDecision) return null;
   // Name-first bind / catalogue image prep in flight — stay in_progress, never fake 「等待建档」.
   if (peoplePrepOpen) return null;
+  // Fail-closed catalogue settlement (provider / ensure) must be Attention-visible — never idle analyzing.
+  if (settlementFailure?.reasonCode) {
+    return Object.freeze({
+      contentProfile: 'western_adult', result: 'unachievable',
+      reasonCode: settlementFailure.reasonCode,
+      candidateSetDigest: null, candidates: Object.freeze([]),
+    });
+  }
   if (completion && !completion.winner) return Object.freeze({
     contentProfile: 'western_adult', result: 'not_found',
     reasonCode: basisDigest ? 'us_adult_catalogue_unresolved' : 'us_adult_actor_unmatched',
@@ -443,6 +451,12 @@ function nextAction(works, classification, issue, runState, recovery, arcaStatus
     :issue.contentProfile==='western_adult'
       ?(issue.reasonCode==='us_adult_catalogue_registration_required'?'等待外库演员建档'
         :issue.reasonCode==='us_adult_catalogue_unresolved'?'外库未确认演员，需要确认'
+        :(typeof issue.reasonCode==='string'&&(
+          issue.reasonCode.startsWith('PEOPLE_CATALOGUE_PROVIDER_')||
+          issue.reasonCode==='PEOPLE_CATALOGUE_ENSURE_UNWIRED'||
+          issue.reasonCode.startsWith('PEOPLE_CATALOGUE_FRAME_PROOF_')||
+          issue.reasonCode.startsWith('PEOPLE_BUFFALO_REFRESH_')
+        ))?'外库演员资料准备失败，需要处理'
         :'需要确认演员')
     :issue.result === 'ambiguous' ? '需要确认媒体身份' : issue.result === 'conflicting' ? '媒体身份信息冲突' : '暂未找到匹配的媒体身份', state: 'attention_required', progress: null });
   if (waitingExternalIntegration) return Object.freeze({
@@ -684,8 +698,11 @@ function createFormationProjectionSource(options) {
         const peoplePrepOpen=typeof options.hasOpenPeopleCatalogueImagePrep==='function'
           ?options.hasOpenPeopleCatalogueImagePrep({subjectId:subject.subject_id,libraRunId:run?.libra_run_id||null})===true
           :false;
+        const settlementFailure=typeof options.readUsAdultCatalogueSettlementFailure==='function'
+          ?options.readUsAdultCatalogueSettlementFailure({libraRunId:run?.libra_run_id||null})
+          :null;
         issue=westernAdultProductIdentityIssue({packaged:Boolean(pkg),hasChoice,catalogueDecision:Boolean(catalogueDecision),
-          basisDigest:catalogueBasis&&catalogueBasis.basis_digest,completion,works,peoplePrepOpen});
+          basisDigest:catalogueBasis&&catalogueBasis.basis_digest,completion,works,peoplePrepOpen,settlementFailure});
       }
       const waitingExternalIntegration = waitsForExternalIntegration(works, externalIntegrationReady);
       const recovery = pkg ? recoveries.get(pkg.offer_id) || null : null;

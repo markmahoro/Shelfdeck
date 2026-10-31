@@ -81,3 +81,19 @@ test('a package, choice, decision, or winner suppresses the registration wait', 
     ...closed, completion: { winner: { personId: 'person' }, completionDigest: 'won' },
   }), null);
 });
+
+test('catalogue settlement provider failure is Attention-visible productIdentityIssue', () => {
+  const issue = westernAdultProductIdentityIssue({
+    basisDigest: 'basis', works: [idleFrames, observation],
+    settlementFailure: { reasonCode: 'PEOPLE_CATALOGUE_PROVIDER_FAILED' },
+  });
+  assert.equal(issue.reasonCode, 'PEOPLE_CATALOGUE_PROVIDER_FAILED');
+  assert.equal(issue.result, 'unachievable');
+  assert.equal(classifyFormation({
+    run: { state: 'active' }, works: [idleFrames, observation], issue,
+  }), 'attention_required');
+  assert.equal(westernAdultProductIdentityIssue({
+    basisDigest: 'basis', works: [idleFrames, observation], catalogueDecision: true,
+    settlementFailure: { reasonCode: 'PEOPLE_CATALOGUE_PROVIDER_FAILED' },
+  }), null);
+});

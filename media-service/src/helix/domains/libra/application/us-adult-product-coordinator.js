@@ -4,13 +4,22 @@ const {createUsAdultCatalogueCoordinator}=require('./us-adult-catalogue-coordina
 const {createUsAdultCatalogueSettlementCoordinator}=require('./us-adult-catalogue-settlement-coordinator');
 const {assertCatalogueConfigured}=require('./us-adult-catalogue-host-config');
 const {readActorContext,productWork}=require('../model/us-adult-product-work');
+const {
+  recordUsAdultCatalogueSettlementFailure,
+  clearUsAdultCatalogueSettlementFailure,
+}=require('./us-adult-catalogue-settlement-failure-memo');
 
 function createUsAdultProductCoordinator(options){
   const analysis=createUsAdultAnalysisCoordinator(options);
   const hostWiredCatalogue=typeof options.createCatalogueObservationPort==='function';
+  const recordFailure=typeof options.recordUsAdultCatalogueSettlementFailure==='function'
+    ?options.recordUsAdultCatalogueSettlementFailure:recordUsAdultCatalogueSettlementFailure;
+  const clearFailure=typeof options.clearUsAdultCatalogueSettlementFailure==='function'
+    ?options.clearUsAdultCatalogueSettlementFailure:clearUsAdultCatalogueSettlementFailure;
   return Object.freeze({reconcile(snapshot,identity,workspace){
     const choice=options.usAdultActorChoiceStore.current(snapshot.run.subjectId);
     let catalogueDecision=options.usAdultCatalogueDecisionStore?.getByRun?.(snapshot.run.libraRunId)||null;
+    if(catalogueDecision)clearFailure(snapshot.run.libraRunId);
     if(hostWiredCatalogue&&!choice&&!catalogueDecision){
       assertCatalogueConfigured(options);
       const catalogue=createUsAdultCatalogueCoordinator(options).reconcile(snapshot,identity,workspace);
@@ -18,15 +27,20 @@ function createUsAdultProductCoordinator(options){
         // Manual Choice wins; continue into product with the current Choice.
       }else if(catalogue.kind==='catalogue_candidate'){
         const settled=createUsAdultCatalogueSettlementCoordinator(options).reconcile(catalogue);
-        if(settled.kind==='settled')catalogueDecision=settled.decision;
-        else if(settled.kind==='manual_choice_present'){/* continue */}
+        if(settled.kind==='settled'){
+          clearFailure(snapshot.run.libraRunId);
+          catalogueDecision=settled.decision;
+        }else if(settled.kind==='manual_choice_present'){/* continue */}
         else if(settled.kind==='waiting_registration')
           return Object.freeze({kind:'waiting_product_identity',phase:settled.phase,libraRunId:snapshot.run.libraRunId,
             subjectId:snapshot.run.subjectId,reasonCode:settled.reasonCode,inputDigest:settled.inputDigest||null,
             personId:settled.personId||null,winnerName:settled.winnerName||null});
         else if(settled.kind==='unresolved'){
           // SSOT backup: local People reference match may still succeed after a complete catalogue miss.
-        }else if(['pending','failed'].includes(settled.kind))return settled;
+        }else if(settled.kind==='failed'){
+          recordFailure({libraRunId:snapshot.run.libraRunId,reasonCode:settled.reasonCode});
+          return settled;
+        }else if(settled.kind==='pending')return settled;
         else return settled;
       }else if(catalogue.kind==='catalogue_unresolved'){
         // Complete catalogue assessment without a qualified candidate; local backup may still settle.

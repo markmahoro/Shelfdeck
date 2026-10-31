@@ -81,6 +81,15 @@ function createCatalogueProviderObservationPort(options){
     }
     return observationFor(terms.map(item=>item.term),rowsByTerm);
   }
+  function providerFailure(error){
+    const code=typeof error?.code==='string'&&error.code.startsWith('PEOPLE_CATALOGUE_PROVIDER_')
+      ?error.code:'PEOPLE_CATALOGUE_PROVIDER_FAILED';
+    return Object.freeze({
+      kind:'failed',
+      code,
+      message:String(error?.message||'ThePornDB catalogue provider search failed.').slice(0,500),
+    });
+  }
   function observeProviderSearch({name,aliases=[]}){
     const terms=searchTerms(name,aliases||[]);
     const key=canonicalDigest({schema:'people.catalogue-provider-cache@1',names:terms.map(item=>item.term)});
@@ -88,7 +97,7 @@ function createCatalogueProviderObservationPort(options){
     if(!inflight.has(key)){
       inflight.add(key);
       load(terms).then(observation=>{cache.set(key,observation);options.wake?.();})
-        .catch(()=>{})
+        .catch(error=>{cache.set(key,providerFailure(error));options.wake?.();})
         .finally(()=>inflight.delete(key));
     }
     return {kind:'waiting',pendingCode:'PEOPLE_CATALOGUE_PROVIDER_PENDING'};
@@ -107,7 +116,11 @@ function createCatalogueProviderObservationPort(options){
     fetchBytes(options.fetchImpl,url,requestInit,10*1024*1024).then(result=>{
       bytes.set(request.urlDigest,result.bytes);
       options.wake?.();
-    }).catch(()=>{}).finally(()=>inflight.delete(request.urlDigest));
+    }).catch(()=>{
+      // Mark exhausted so callers stop spinning on a dead URL; next reconcile can fail-closed.
+      bytes.set(request.urlDigest,null);
+      options.wake?.();
+    }).finally(()=>inflight.delete(request.urlDigest));
     return null;
   }
   return Object.freeze({observeProviderSearch,readImageBytes});

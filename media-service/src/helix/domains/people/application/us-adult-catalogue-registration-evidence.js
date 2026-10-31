@@ -104,8 +104,13 @@ function createUsAdultCatalogueRegistrationEvidence(options){
     try{providerObservation=options.observeProviderSearch({name:input.winner.name,aliases:input.winner.aliases||[],input,candidate});}
     catch(error){
       if(error?.code==='PEOPLE_CATALOGUE_REGISTRATION_PENDING')throw error;
-      pending(error?.pendingCode||error?.code||'PEOPLE_CATALOGUE_PROVIDER_PENDING',error?.message||'Provider search for catalogue registration is not ready.');
+      const code=error?.pendingCode||error?.code||'PEOPLE_CATALOGUE_PROVIDER_PENDING';
+      if(typeof code==='string'&&code.startsWith('PEOPLE_CATALOGUE_PROVIDER_')&&code!=='PEOPLE_CATALOGUE_PROVIDER_PENDING')
+        return {failed:true,code};
+      pending(code,error?.message||'Provider search for catalogue registration is not ready.');
     }
+    if(providerObservation?.kind==='failed')
+      return {failed:true,code:providerObservation.code||'PEOPLE_CATALOGUE_PROVIDER_FAILED'};
     if(!providerObservation||providerObservation.kind==='waiting')
       return {waiting:true,pendingCode:providerObservation?.pendingCode||'PEOPLE_CATALOGUE_PROVIDER_PENDING',workId:providerObservation?.workId||null};
     return {providerObservation};
@@ -181,6 +186,7 @@ function createUsAdultCatalogueRegistrationEvidence(options){
       pending('PEOPLE_CATALOGUE_RESOLUTION_REQUIRED','Catalogue registration evidence requires a not_found name resolution.');
     const observation=loadObservation(input,candidate);
     const provider=providerObservationFor(input,candidate);
+    if(provider.failed)return failed(provider.code||'PEOPLE_CATALOGUE_PROVIDER_FAILED');
     if(provider.waiting)return Object.freeze({kind:'waiting',pendingCode:provider.pendingCode,workId:provider.workId});
     const selected=selectProof({input,resolution,observation,providerObservation:provider.providerObservation});
     const staged=imageFor(input,candidate,selected);
@@ -228,6 +234,7 @@ function createUsAdultCatalogueRegistrationEvidence(options){
       throw error;
     }
     const provider=providerObservationFor(input,null);
+    if(provider.failed)return failed(provider.code||'PEOPLE_CATALOGUE_PROVIDER_FAILED',operation);
     if(provider.waiting)return Object.freeze({kind:'waiting',pendingCode:provider.pendingCode,operationId:operation.operationId});
     let selected;
     try{selected=selectProof({input,resolution,observation,providerObservation:provider.providerObservation});}

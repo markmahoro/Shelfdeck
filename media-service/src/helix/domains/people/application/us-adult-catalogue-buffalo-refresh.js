@@ -55,12 +55,27 @@ function createUsAdultCatalogueBuffaloRefresh(options){
     if(Buffer.isBuffer(direct)&&direct.length)return {bytes:direct,source:'catalogue_frame'};
     let providerObservation;
     try{providerObservation=options.observeProviderSearch({name:input.winner.name,aliases:input.winner.aliases||[],input});}
-    catch(error){return pendingResult({pendingCode:error?.pendingCode||error?.code||'PEOPLE_CATALOGUE_PROVIDER_PENDING'});}
+    catch(error){
+      const code=error?.pendingCode||error?.code||'PEOPLE_CATALOGUE_PROVIDER_PENDING';
+      if(typeof code==='string'&&code.startsWith('PEOPLE_CATALOGUE_PROVIDER_')&&code!=='PEOPLE_CATALOGUE_PROVIDER_PENDING')
+        return failed(code);
+      return pendingResult({pendingCode:code});
+    }
+    if(providerObservation?.kind==='failed')
+      return failed(providerObservation.code||'PEOPLE_CATALOGUE_PROVIDER_FAILED');
     if(!providerObservation||providerObservation.kind==='waiting')
-      return pendingResult({pendingCode:providerObservation?.pendingCode||'PEOPLE_CATALOGUE_PROVIDER_PENDING'});
+      return pendingResult({
+        pendingCode:providerObservation?.pendingCode||'PEOPLE_CATALOGUE_PROVIDER_PENDING',
+        workId:providerObservation?.workId||null,
+      });
     let providerResolution;
     try{providerResolution=resolveUsAdultProviderName({name:input.winner.name,aliases:input.winner.aliases||[],observation:providerObservation});}
-    catch(error){return pendingResult({pendingCode:error?.pendingCode||error?.code||'PEOPLE_CATALOGUE_PROVIDER_INVALID'});}
+    catch(error){
+      const code=error?.pendingCode||error?.code||'PEOPLE_CATALOGUE_PROVIDER_INVALID';
+      if(typeof code==='string'&&code.startsWith('PEOPLE_CATALOGUE_PROVIDER_')&&code!=='PEOPLE_CATALOGUE_PROVIDER_PENDING')
+        return failed(code);
+      return pendingResult({pendingCode:code});
+    }
     if(!['resolved','not_found'].includes(providerResolution.kind))return failed('PEOPLE_CATALOGUE_PROVIDER_AMBIGUOUS');
     const selected=providerImageRequest(providerObservation,providerResolution);
     if(selected){
