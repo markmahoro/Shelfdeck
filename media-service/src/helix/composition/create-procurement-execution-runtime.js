@@ -1255,7 +1255,11 @@ function createProcurementExecutionRuntime(options) {
       reconcile:({subjectId})=>libraProcessServices.libraRunAdminService.reconcileCancellation(subjectId),
     }),Object.freeze({ownerDomain:'people',reconcilerKey:'image-operations',
       listPage:page=>peopleProcessServices.imageOperations.listPendingPage(page),
-      reconcile:({operationId})=>peopleProcessServices.imageOperations.reconcile(operationId),
+      reconcile:({operationId})=>{
+        const result=peopleProcessServices.imageOperations.reconcile(operationId);
+        if(result?.state==='completed')host?.wakeBackground({ownerDomain:'libra',reconcilerKey:'active-libra-runs'});
+        return result;
+      },
     }),Object.freeze({ownerDomain:'arca',reconcilerKey:'recycle-expiry',
       listPage:()=>options.recycleExpiryTick?[{cursor:'expiry',scope:{}}]:[],reconcile:()=>options.recycleExpiryTick(),
     }),Object.freeze({ownerDomain:'arca',reconcilerKey:'recycle-maintenance',listPage:()=>options.recycleTick?[{cursor:'recycle',scope:{}}]:[],reconcile:()=>options.recycleTick()}),Object.freeze({

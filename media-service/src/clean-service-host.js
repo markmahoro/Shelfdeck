@@ -1712,6 +1712,7 @@ async function createCleanServiceHost(options) {
     readAcceptanceRecoveries: (offerIds) => new Map(offerIds.map((offerId) => [offerId, formationAcceptanceReader(offerId)])),
     readArcaFormationStatuses: (offerIds) => formationArcaStatusReader(offerIds),
     readJavIdentityStage: (libraRunId) => procurementExecution?.libraRunCoordinator.readJavIdentityStage(libraRunId),
+    hasOpenPeopleCatalogueImagePrep:scope=>procurementExecution?.hasOpenPeopleCatalogueImagePrep?.(scope)===true,
   });
   const formationQuery = createFormationQuery({ store: formationProjectionStore, historyStore: formationRunHistoryStore,
     detailSource: formationProjectionSource,
@@ -1722,7 +1723,6 @@ async function createCleanServiceHost(options) {
     readIntakeTasks:()=>procurementExecution?.libraPreparationRecovery.readIntakeTasks()||[],
     listAcceptanceAttention:(limit)=>formationAcceptanceAttention(limit),
     readPipelineSubjectIds:()=>procurementExecution?.pipelineAdmission.tokenSubjectIds() || new Set(),
-    hasOpenPeopleCatalogueImagePrep:scope=>procurementExecution?.hasOpenPeopleCatalogueImagePrep?.(scope)===true,
     state: () => formationProjectionHost?.state() || Object.freeze({ status: 'rebuilding', asOfMs: (options.now || Date.now)() }) });
   const fieldEnumerator = options.fieldObservationEnumerator || createCleanFieldObservationEnumerator({
     now: options.now || Date.now,

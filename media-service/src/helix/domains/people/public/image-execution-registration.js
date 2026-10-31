@@ -122,7 +122,7 @@ function createPeopleImageExecutionRegistration(options) {
     const personHead=head||(typeof peopleStore.getPerson==='function'?(()=>{
       const person=peopleStore.getPerson(personId);
       if(!person)return null;
-      return {personId,personRevision:person.currentRevision,personFactDigest:person.personFactDigest||person.revision?.personFactDigest,
+      return {personId,personRevision:person.currentRevision,personFactDigest:person.revision?.factDigest||person.personFactDigest||null,
         currentReferenceRevision:person.currentReferenceRevision||0};
     })():null);
     if(!personHead||personHead.personId!==personId||

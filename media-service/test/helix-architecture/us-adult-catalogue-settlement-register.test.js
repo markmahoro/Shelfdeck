@@ -258,3 +258,78 @@ test('wired ensure opens buffalo refresh Work then settles reused (Tia shape)',a
   assert.equal(settled.decision.nameResolution.kind,'reused');
   assert.equal(settled.decision.referenceAssetId,'asset-reg');
 });
+
+test('May Thai stale face calls ensure and settles reused Mai Thai',async t=>{
+  const {f,catalogue}=await candidate(t,{winnerName:'May Thai'});
+  assert.equal(catalogue.assessment.winner.name,'May Thai');
+  const personId='person-mai-thai',factDigest=D('person-mai-thai-refresh');
+  const imageBytes=Buffer.from([137,80,78,71,13,10,26,10,2]);
+  const operationStore=createPeopleImageOperationStore(f.workspaceOptions);
+  let ready=false,ensureCalls=0;
+  const people=[{personId,libraryKind:'us_adult',status:'active',personRevision:1,personFactDigest:factDigest,
+    canonicalName:'Mai Thai',aliases:[]}];
+  const peopleStore={
+    getPerson(){return {personId,currentRevision:1,currentReferenceRevision:1,
+      revision:{canonicalName:'Mai Thai',aliases:[],factDigest}};},
+    readUsAdultPersonSnapshot(){
+      if(!ready)return legacySnapshot(personId,factDigest,'Mai Thai');
+      const built=personSnapshot('Mai Thai',buffaloModelReference('single_reference_face').digest,personId).personSnapshot;
+      const {snapshotDigest,...body}=built;
+      const personValue={...body,personFactDigest:factDigest};
+      return {...personValue,snapshotDigest:D(personValue)};
+    },
+    getPersonReferenceProjection(){return legacySnapshot(personId,factDigest,'Mai Thai').referenceProjection;},
+    hasReferenceImage(){return false;},
+  };
+  const refresh=createUsAdultCatalogueBuffaloRefresh({
+    peopleStore,operationStore,peopleImagePort:{stageUpload({bytes,actorId,idempotencyKey,provenance}){
+      const digestHex=crypto.createHash('sha256').update(bytes).digest('hex');
+      const basis={schemaRef:'helix://contracts/domain-types/PeopleSelectedImageHandle/v1',schemaVersion:1,
+        uploadId:D({schema:'people.selected-upload@1',actorId,idempotencyKey,digestHex}),
+        digestHex,sizeBytes:bytes.length,mediaType:'image/png',provenance};
+      return {...basis,handleDigest:D(basis)};
+    }},
+    workResultReader:{status:()=>({state:'running'})},
+    observeProviderSearch(){throw new Error('direct image bytes should refresh without a second provider search');},
+    readImageBytes:()=>imageBytes,
+  }).refreshBuffaloCatalogueReference;
+  const settledPending=createUsAdultCatalogueSettlementCoordinator(settlementOptions(f,{
+    people,
+    readPersonHead:()=>({personId,personRevision:1,personFactDigest:factDigest,currentReferenceRevision:1}),
+    readUsAdultPersonSnapshot:()=>legacySnapshot(personId,factDigest,'Mai Thai'),
+    registerCataloguePerson:()=>{throw new Error('Must not create May Thai when Mai Thai exists');},
+    ensureCatalogueReferenceFeatures(args){
+      ensureCalls+=1;
+      assert.equal(args.personId,personId);
+      assert.equal(args.input.winner.name,'May Thai');
+      return refresh({...args,head:args.head});
+    },
+  })).reconcile(catalogue);
+  assert.equal(ensureCalls,1);
+  assert.equal(settledPending.kind,'pending');
+  assert.equal(settledPending.phase,'us_adult_catalogue_name_bound');
+  assert.equal(settledPending.reasonCode,'us_adult_catalogue_reference_features_pending');
+  assert.equal(settledPending.winnerName,'May Thai');
+  assert.ok(settledPending.workId);
+  assert.equal(settledPending.pendingCode,'PEOPLE_BUFFALO_REFRESH_PREP_PENDING');
+  const operation=operationStore.get(operationStore.listPendingPage({cursor:null,limit:100})[0].scope.operationId);
+  assert.equal(operation.payload.operationKind,'reference_replace');
+  assert.equal(operation.payload.canonicalName,'Mai Thai');
+  ready=true;
+  const settled=createUsAdultCatalogueSettlementCoordinator(settlementOptions(f,{
+    people,
+    readPersonHead:()=>({personId,personRevision:1,personFactDigest:factDigest,currentReferenceRevision:1}),
+    readUsAdultPersonSnapshot:()=>legacySnapshot(personId,factDigest,'Mai Thai'),
+    registerCataloguePerson:()=>{throw new Error('Must not create May Thai when Mai Thai exists');},
+    ensureCatalogueReferenceFeatures(args){
+      ensureCalls+=1;
+      return refresh({...args,head:args.head});
+    },
+  })).reconcile(catalogue);
+  assert.equal(ensureCalls,2);
+  assert.equal(settled.kind,'settled');
+  assert.equal(settled.decision.nameResolution.kind,'reused');
+  assert.equal(settled.decision.personSnapshot.canonicalName,'Mai Thai');
+  assert.equal(settled.decision.winner.name,'May Thai');
+  assert.equal(settled.decision.referenceAssetId,'asset-reg');
+});
