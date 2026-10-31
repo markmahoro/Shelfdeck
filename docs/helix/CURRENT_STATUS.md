@@ -17,13 +17,13 @@ git show f096af1b40cf71a4ce26f0441c686f7f36e707bc:docs/helix/CURRENT_STATUS.md
 
 | 字段 | 值 |
 | --- | --- |
-| 记录日期 | 2026-10-31 |
+| 记录日期 | 2026-11-01 |
 | 镜像 tag | `markmahoro/shelfdeck:1.1.0` |
-| Source commit | `623e71353c6ec7cd238741816b8829844b19d56f`（PR #49 name-first People bind） |
-| Tar SHA-256 | `038bee328e39b70eabfe8e03bebbfc9a0bfddd0e554d62304084ffc60de80cfd` |
-| NAS ImageId | `sha256:c9c563c14b315897e5892317583b816e0293af0fe3bfcd909220de0c43b3b795` |
-| Runtime | `mode=running`；`normalSupplyAllowed=true`；revision **51** |
-| 备注 | 标准 safe-stop → build/upload/deploy → Formation Reset（17→0）→ Resume；TLII-047 Tia Ling 身份步 done、无 `buffalo_reference_required`；完整入藏 E2E 未宣称 |
+| Source commit | `cf852a4f72626fdaf9bc1a50feb8d16379d2fb7a`（Merge #64；含 #65 TPDB retry/wait） |
+| Tar SHA-256 | `de31fd9e084f60ce5c7b5cdf0290b91a619b10b8c7d62e953056b25fc7bd5cc6` |
+| NAS ImageId | `sha256:8f516e2d90fd6e768cea906aa569a74d1709cb5658b0e074ba1cb274140d5ece` |
+| Runtime | `mode=running`；`normalSupplyAllowed=true`；revision **59** |
+| 备注 | 标准 build/upload/deploy → 全量安全 Formation Reset（18→0）→ Resume；L3 no silent `PROVIDER_PENDING` hang PASS；本窗 TPDB HTTP 500 → Attention fail-closed；未宣称健康 TPDB 成功推进 / 完整入藏 E2E |
 
 此后若 NAS 现网 tag 与上表不一致，以授权部署回写或只读核验结果为准再更新本表；**不要**把开发检查点堆回本文件。
 
