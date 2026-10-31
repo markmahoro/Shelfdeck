@@ -19,11 +19,11 @@ git show f096af1b40cf71a4ce26f0441c686f7f36e707bc:docs/helix/CURRENT_STATUS.md
 | --- | --- |
 | 记录日期 | 2026-10-31 |
 | 镜像 tag | `markmahoro/shelfdeck:1.1.0` |
-| Source commit | `623e71353c6ec7cd238741816b8829844b19d56f`（PR #49 name-first People bind） |
-| Tar SHA-256 | `038bee328e39b70eabfe8e03bebbfc9a0bfddd0e554d62304084ffc60de80cfd` |
-| NAS ImageId | `sha256:c9c563c14b315897e5892317583b816e0293af0fe3bfcd909220de0c43b3b795` |
-| Runtime | `mode=running`；`normalSupplyAllowed=true`；revision **51** |
-| 备注 | 标准 safe-stop → build/upload/deploy → Formation Reset（17→0）→ Resume；TLII-047 Tia Ling 身份步 done、无 `buffalo_reference_required`；完整入藏 E2E 未宣称 |
+| Source commit | `943d874aa6380daa1967d6afeba5232dbb462685`（#59 Formation Reset People image reclaim） |
+| Tar SHA-256 | `4f2e849673cb6751e102c3cac84cb303b48219b1850ddcffde547240a44fd6f5` |
+| NAS ImageId | `sha256:139eddf6ec9c89fcb0bdad4158a83d8f19d18dc676757c805555f52330f8ddfc` |
+| Runtime | `mode=running`；`normalSupplyAllowed=true`；revision **59** |
+| 备注 | 标准 build/upload/deploy + 安全 Formation Reset（People reclaim 1→0）+ Resume PASS；先验 `PLAN_CATALOG_DRIFT` 已清；脸库/builtin buffalo 仍在；US Adult Layer-3 pulse：3 western `identity=done`、无 buffalo hang/drift，poster/shelf 仍 pending；证据见 Project store `docs/deploy-post-59-run.md` |
 
 此后若 NAS 现网 tag 与上表不一致，以授权部署回写或只读核验结果为准再更新本表；**不要**把开发检查点堆回本文件。
 
