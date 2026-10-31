@@ -140,6 +140,11 @@ test('Clean Host wires provider observation and buffalo People preparation for c
   assert.match(host,/createBuffaloPeopleReferencePreparation/);
   assert.match(host,/buffaloPreparation/);
   assert.match(host,/hasOpenPeopleCatalogueImagePrep/);
+  // Observation must use platformIntegrations.networkFetch / stashbox adapter, not
+  // out-of-scope locals from createPlatformIntegrationServices.
+  assert.match(host,/platformIntegrations\.networkFetch/);
+  assert.match(host,/providerAdapters\.get\('stashbox'\)/);
+  assert.doesNotMatch(host,/createCatalogueProviderObservationPort\(\{[\s\S]*fetchImpl:networkFetch/);
 });
 
 test('LIBRA_ENABLED includes catalogue observe for Host registration',()=>{

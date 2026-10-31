@@ -743,6 +743,7 @@ function createPlatformIntegrationServices(options) {
 
   return Object.freeze({
     close: networkFetch.close,
+    networkFetch,
     admin,
     integrationHandleResolverPort:
       tmdbRuntime.integrationHandleResolverPort,
@@ -1727,13 +1728,18 @@ async function createCleanServiceHost(options) {
     now: options.now || Date.now,
     onFingerprintRead: options.onPhysicalMaterialFingerprintRead,
   });
-  const catalogueProviderObservation=require('./helix/integrations/us-adult-catalogue-provider-observation').createCatalogueProviderObservationPort({
-    fetchImpl:networkFetch,readStashBoxConfiguration:stashBoxAdapter.configuration,withStashBoxCredential:stashBoxAdapter.withCredential,
-    wake(){procurementExecution?.host.wakeBackground({ownerDomain:'libra',reconcilerKey:'active-libra-runs'});},
-  });
+  const stashBoxCatalogueAdapter=platformIntegrations.providerAdapters.get('stashbox');
+  const catalogueProviderObservation=stashBoxCatalogueAdapter
+    ?require('./helix/integrations/us-adult-catalogue-provider-observation').createCatalogueProviderObservationPort({
+      fetchImpl:platformIntegrations.networkFetch,
+      readStashBoxConfiguration:stashBoxCatalogueAdapter.configuration,
+      withStashBoxCredential:stashBoxCatalogueAdapter.withCredential,
+      wake(){procurementExecution?.host.wakeBackground({ownerDomain:'libra',reconcilerKey:'active-libra-runs'});},
+    })
+    :null;
   procurementExecution = createHelixExecutionRuntime({
-    observeUsAdultCatalogueProviderSearch:catalogueProviderObservation.observeProviderSearch,
-    readCatalogueRegistrationImageBytes:catalogueProviderObservation.readImageBytes,
+    observeUsAdultCatalogueProviderSearch:catalogueProviderObservation?.observeProviderSearch||null,
+    readCatalogueRegistrationImageBytes:catalogueProviderObservation?.readImageBytes||null,
     captureUsAdultInventorySource:({assertAuthority,...request})=>require('./helix/integrations/us-adult-inventory-source')
       .createUsAdultInventorySource({assertAuthority,now:options.now||Date.now}).issueReadHandle(request),
     createUsAdultInventoryAnalysisPort:request=>require('./clean-us-adult-inventory-analysis-port').createCleanUsAdultInventoryAnalysisPort({
