@@ -480,7 +480,17 @@ function createProcurementExecutionRuntime(options) {
         options.onFormationSubjectChanged?.(scope.processId.slice('subject:'.length));
     } });
   const catalogueRegistrationAdmission=peopleImageExecution.createCatalogueRegistrationAdmission
-    ?peopleImageExecution.createCatalogueRegistrationAdmission({now,workResultReader,contractValidator})
+    ?peopleImageExecution.createCatalogueRegistrationAdmission({
+      now,workResultReader,contractValidator,
+      peopleImagePort:options.peopleImagePort||null,
+      operationStore:options.peopleImageOperationStore||null,
+      observeProviderSearch:options.observeUsAdultCatalogueProviderSearch||options.observeProviderSearch||null,
+      readImageBytes:options.readCatalogueRegistrationImageBytes||options.readImageBytes||null,
+      buildFrameImageProof:options.buildCatalogueRegistrationFrameProof||null,
+      readObservation:options.readCatalogueObservation||null,
+      catalogueInputReader:options.catalogueInputReader||null,
+      artifactRepository:options.artifactRepository||null,
+    })
     :null;
   libraProcessServices=libraConstruction.createProcessServices({...libraOptions,peopleReferenceQuery,
     peopleStore:peopleImageExecution.peopleStore||null,

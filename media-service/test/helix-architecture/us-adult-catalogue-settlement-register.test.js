@@ -85,3 +85,54 @@ test('Host registerCataloguePerson unblocks settlement to registered decision an
   };
   assert.equal(assertRequiredUsAdultActor(packageValue),packageValue);
 });
+
+function peopleRow({personId,name,aliases=[]}){
+  return {personId,libraryKind:'us_adult',status:'active',personRevision:1,personFactDigest:D('person-'+personId),
+    canonicalName:name,aliases};
+}
+
+test('name resolve (+ light spelling) reuses personId and settles when buffalo reference exists',async t=>{
+  const {f,catalogue}=await candidate(t);
+  const factDigest=D('person-fact-fuzzy');
+  const {personSnapshot:snapshot,referenceAssetId,personId}=personSnapshot('Examble Performer');
+  const personValue={...(({snapshotDigest,...rest})=>rest)(snapshot),canonicalName:'Examble Performer',personFactDigest:factDigest};
+  const renamed={...personValue,snapshotDigest:D(personValue)};
+  const settled=createUsAdultCatalogueSettlementCoordinator(settlementOptions(f,{
+    people:[{personId,libraryKind:'us_adult',status:'active',personRevision:1,personFactDigest:factDigest,
+      canonicalName:'Examble Performer',aliases:[]}],
+    readPersonHead:()=>({personId,personRevision:1,personFactDigest:factDigest,currentReferenceRevision:1}),
+    readUsAdultPersonSnapshot:()=>renamed,
+  })).reconcile(catalogue);
+  assert.equal(settled.kind,'settled');
+  assert.equal(settled.decision.nameResolution.kind,'reused');
+  assert.equal(settled.decision.personSnapshot.personId,personId);
+  assert.equal(settled.decision.referenceAssetId,referenceAssetId);
+});
+
+test('name-bound person without buffalo reference is pending features — not hang-person registration',async t=>{
+  const {f,catalogue}=await candidate(t);
+  const personId='person-name-bound',factDigest=D('person-fact-bound');
+  const settled=createUsAdultCatalogueSettlementCoordinator(settlementOptions(f,{
+    people:[{personId,libraryKind:'us_adult',status:'active',personRevision:1,personFactDigest:factDigest,
+      canonicalName:'Example Performer',aliases:[]}],
+    readPersonHead:()=>({personId,personRevision:1,personFactDigest:factDigest,currentReferenceRevision:1}),
+    readUsAdultPersonSnapshot:()=>{
+      // Active reference exists but not current buffalo_l model — face is not People match key.
+      const modelRef='0'.repeat(64),referenceAssetId='asset-legacy';
+      const projectionValue={projectionContract:'people.person-reference-projection@1',personId,personRevision:1,
+        currentReferenceRevision:1,contributions:[{ownerPersonId:personId,ownerReferenceRevision:1,referenceSetDigest:D('set'),inheritedReadOnly:false,
+          activeAssets:[{referenceAssetId,artifactHandleId:'picture',artifactDigest:D('picture')}],
+          activeFaces:[{referenceFaceId:'face-1',referenceAssetId,embeddingHandleId:'embedding',embeddingDigest:D('embedding'),modelRef}]}]};
+      const projection={...projectionValue,projectionRevision:1,projectionDigest:D(projectionValue)};
+      const personValue={schemaRef:'helix://contracts/domain-types/UsAdultPersonSnapshot/v1',schemaVersion:1,libraryKind:'us_adult',
+        personId,personRevision:1,canonicalName:'Example Performer',aliases:[],personFactDigest:factDigest,referenceProjection:projection};
+      return {...personValue,snapshotDigest:D(personValue)};
+    },
+  })).reconcile(catalogue);
+  assert.equal(settled.kind,'pending');
+  assert.equal(settled.phase,'us_adult_catalogue_name_bound');
+  assert.equal(settled.reasonCode,'us_adult_catalogue_reference_features_pending');
+  assert.equal(settled.personId,personId);
+  assert.notEqual(settled.reasonCode,'us_adult_catalogue_buffalo_reference_required');
+  assert.notEqual(settled.kind,'waiting_registration');
+});

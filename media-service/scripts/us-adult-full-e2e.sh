@@ -10,5 +10,6 @@ node --test \
   test/helix-architecture/us-adult-catalogue-host-wiring.test.js \
   test/helix-architecture/us-adult-full-e2e-recognition.test.js \
   test/helix-architecture/us-adult-catalogue-settlement-register.test.js \
-  test/helix-architecture/us-adult-catalogue-registration.test.js || exit 1
-echo "us-adult-full-e2e: recognition+shelfable gate checks passed"
+  test/helix-architecture/us-adult-catalogue-registration.test.js \
+  test/helix-architecture/us-adult-name-resolution.test.js || exit 1
+echo "us-adult-full-e2e: name-first bind + recognition+shelfable gate checks passed"
