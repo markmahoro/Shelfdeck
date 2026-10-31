@@ -10,8 +10,8 @@ const {resolveUsAdultName}=require('../../src/helix/domains/people/model/us-adul
 const {assertRequiredUsAdultActor}=require('../../src/helix/contracts/us-adult-actor-package');
 const currentSelection=require('../../src/helix/domains/libra/model/us-adult-actor-selection-current');
 
-function personSnapshot(name='Example Performer'){
-  const modelRef=buffaloModelReference('single_reference_face').digest,personId='person-registered',referenceAssetId='asset-reg';
+function personSnapshot(name='Example Performer', modelRef=buffaloModelReference('single_reference_face').digest){
+  const personId='person-registered',referenceAssetId='asset-reg';
   const projectionValue={projectionContract:'people.person-reference-projection@1',personId,personRevision:1,
     currentReferenceRevision:1,contributions:[{ownerPersonId:personId,ownerReferenceRevision:1,referenceSetDigest:D('set'),inheritedReadOnly:false,
       activeAssets:[{referenceAssetId,artifactHandleId:'picture',artifactDigest:D('picture')}],
@@ -22,8 +22,8 @@ function personSnapshot(name='Example Performer'){
   return {personSnapshot:{...personValue,snapshotDigest:D(personValue)},referenceAssetId,personId};
 }
 
-async function candidate(t){
-  const f=coordination(t);f.reconcile();await f.completeFrames('initial');await f.completeObservation('initial');
+async function candidate(t,observationOpts={}){
+  const f=coordination(t);f.reconcile();await f.completeFrames('initial');await f.completeObservation('initial',observationOpts);
   f.options.movieProductionReader.readFact=()=>f.identity;
   const catalogue=f.reconcile();
   assert.equal(catalogue.kind,'catalogue_candidate');
@@ -86,11 +86,6 @@ test('Host registerCataloguePerson unblocks settlement to registered decision an
   assert.equal(assertRequiredUsAdultActor(packageValue),packageValue);
 });
 
-function peopleRow({personId,name,aliases=[]}){
-  return {personId,libraryKind:'us_adult',status:'active',personRevision:1,personFactDigest:D('person-'+personId),
-    canonicalName:name,aliases};
-}
-
 test('name resolve (+ light spelling) reuses personId and settles when buffalo reference exists',async t=>{
   const {f,catalogue}=await candidate(t);
   const factDigest=D('person-fact-fuzzy');
@@ -107,6 +102,50 @@ test('name resolve (+ light spelling) reuses personId and settles when buffalo r
   assert.equal(settled.decision.nameResolution.kind,'reused');
   assert.equal(settled.decision.personSnapshot.personId,personId);
   assert.equal(settled.decision.referenceAssetId,referenceAssetId);
+});
+
+function snapshotWithFact(snapshot,factDigest){
+  const personValue={...(({snapshotDigest,...rest})=>rest)(snapshot),personFactDigest:factDigest};
+  return {...personValue,snapshotDigest:D(personValue)};
+}
+
+test('May Thai catalogue winner reuses Mai Thai and does not register a second Person',async t=>{
+  const {f,catalogue}=await candidate(t,{winnerName:'May Thai'});
+  assert.equal(catalogue.assessment.winner.name,'May Thai');
+  const factDigest=D('person-mai-thai');
+  const buffalo=personSnapshot('Mai Thai');
+  const stale=personSnapshot('Mai Thai','0'.repeat(64));
+  const {personId,referenceAssetId}=buffalo;
+  const people=[{personId,libraryKind:'us_adult',status:'active',personRevision:1,personFactDigest:factDigest,
+    canonicalName:'Mai Thai',aliases:[]}];
+  const named=resolveUsAdultName({name:'May Thai',people});
+  assert.equal(named.kind,'resolved');
+  assert.equal(named.candidates[0].personId,personId);
+  assert.equal(named.candidates[0].matchKind,'light_spelling');
+  const head=()=>({personId,personRevision:1,personFactDigest:factDigest,currentReferenceRevision:1});
+  const forbidRegister=()=>{throw new Error('Must not create May Thai when Mai Thai exists');};
+  const settled=createUsAdultCatalogueSettlementCoordinator(settlementOptions(f,{
+    people,readPersonHead:head,readUsAdultPersonSnapshot:()=>snapshotWithFact(buffalo.personSnapshot,factDigest),
+    registerCataloguePerson:forbidRegister,
+  })).reconcile(catalogue);
+  assert.equal(settled.kind,'settled');
+  assert.equal(settled.decision.winner.name,'May Thai');
+  assert.equal(settled.decision.nameResolution.kind,'reused');
+  assert.equal(settled.decision.nameResolution.registrationDecisionId,null);
+  assert.equal(settled.decision.personSnapshot.personId,personId);
+  assert.equal(settled.decision.personSnapshot.canonicalName,'Mai Thai');
+  assert.equal(settled.decision.referenceAssetId,referenceAssetId);
+  const pending=createUsAdultCatalogueSettlementCoordinator(settlementOptions(f,{
+    people,readPersonHead:head,readUsAdultPersonSnapshot:()=>snapshotWithFact(stale.personSnapshot,factDigest),
+    registerCataloguePerson:forbidRegister,
+  })).reconcile(catalogue);
+  assert.equal(pending.kind,'pending');
+  assert.equal(pending.phase,'us_adult_catalogue_name_bound');
+  assert.equal(pending.reasonCode,'us_adult_catalogue_reference_features_pending');
+  assert.equal(pending.personId,personId);
+  assert.equal(pending.winnerName,'May Thai');
+  assert.notEqual(pending.reasonCode,'us_adult_catalogue_buffalo_reference_required');
+  assert.notEqual(pending.kind,'waiting_registration');
 });
 
 test('name-bound person without buffalo reference is pending features — not hang-person registration',async t=>{

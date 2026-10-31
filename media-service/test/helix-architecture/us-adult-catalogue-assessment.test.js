@@ -70,3 +70,33 @@ test('co-occurrence in a nonrepresentative member still prevents one catalogue i
   const a=group('a','actor',0,6),b=group('b','actor',6,3);b.memberKeys.push('4:1');
   assert.equal(assess([a,b]).status,'ambiguous_identity');
 });
+test('identity temporal coverage across fragmented clusters qualifies at floor 3 (Lea-class pseudo-insufficiency)',()=>{
+  // Three ≤0.5 decisive hits on strata {2,8,14} split across clusters that individually
+  // have coverage length <3 — same shape as production Lea Lexis. Floor 3 holds on the
+  // aggregated identity, not on one cluster's coverageStrata length.
+  const g2={clusterId:'lea-2',memberKeys:['2:0'],representativeKeys:['2:0'],coverageStrata:[2],
+    candidates:[{identity:'lea-lexis',observations:[{faceKey:'2:0',stratum:2,imageDigest:canonicalDigest('lea-2'),
+      uid:'lea-lexis',name:'Lea Lexis',distance:0.439}]}]};
+  const g8={clusterId:'lea-8-14',memberKeys:['8:0','14:0'],representativeKeys:['8:0','14:0'],coverageStrata:[8,14],
+    candidates:[{identity:'lea-lexis',observations:[
+      {faceKey:'8:0',stratum:8,imageDigest:canonicalDigest('lea-8'),uid:'lea-lexis',name:'Lea Lexis',distance:0.495},
+      {faceKey:'14:0',stratum:14,imageDigest:canonicalDigest('lea-14'),uid:'lea-lexis',name:'Lea Lexis',distance:0.459}]}]};
+  const gSolo={clusterId:'other-sparse',memberKeys:['4:0'],representativeKeys:['4:0'],coverageStrata:[4],
+    candidates:[{identity:'other',observations:[{faceKey:'4:0',stratum:4,imageDigest:canonicalDigest('other-4'),
+      uid:'other',name:'Other',distance:0.2}]}]};
+  const value=assess([g2,g8,gSolo]);
+  assert.equal(value.status,'qualified_candidate');
+  assert.equal(value.winner.identity,'lea-lexis');
+  assert.equal(value.winner.name,'Lea Lexis');
+  assert.deepEqual(value.winner.coverageStrata,[2,8,14]);
+  assert.deepEqual(value.winner.supportingRepresentativeStrata,[2,8,14]);
+  assert.ok(value.winner.minimumDistance<=0.5);
+});
+test('a single short-coverage cluster still cannot meet identity coverage floor 3 alone',()=>{
+  const short={clusterId:'short',memberKeys:['8:0','14:0'],representativeKeys:['8:0','14:0'],coverageStrata:[8,14],
+    candidates:[{identity:'lea-lexis',observations:[
+      {faceKey:'8:0',stratum:8,imageDigest:canonicalDigest('s8'),uid:'lea-lexis',name:'Lea Lexis',distance:0.4},
+      {faceKey:'14:0',stratum:14,imageDigest:canonicalDigest('s14'),uid:'lea-lexis',name:'Lea Lexis',distance:0.41}]}]};
+  assert.equal(assess([short]).status,'insufficient_evidence');
+  assert.equal(assess([short]).winner,null);
+});

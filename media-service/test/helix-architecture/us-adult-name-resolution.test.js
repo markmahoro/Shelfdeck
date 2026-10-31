@@ -13,6 +13,16 @@ test('actor names reuse the internal Person through spelling, separators, Unicod
   }
 });
 
+test('May Thai light-spelling reuses Mai Thai and never looks like a missing Person',()=>{
+  const mai=person('person-mai-thai','Mai Thai');
+  const result=resolveUsAdultName({name:'May Thai',people:[mai,person('other','Tia Ling')]});
+  assert.equal(result.kind,'resolved');
+  assert.equal(result.candidates[0].personId,'person-mai-thai');
+  assert.equal(result.candidates[0].matchKind,'light_spelling');
+  assert.equal(result.candidates[0].distance,1);
+  assert.equal(result.candidates[0].matchedName,'Mai Thai');
+});
+
 test('exact names and aliases precede fuzzy results but multiple exact identities remain ambiguous',()=>{
   const exact=person('a','Skin Diamond'),near=person('b','Skim Diamond'),alias=person('c','Other Person',['Skin Diamond']);
   assert.deepEqual(resolveUsAdultName({name:'Skin Diamond',people:[near,exact]}).candidates.map(p=>p.personId),['a']);

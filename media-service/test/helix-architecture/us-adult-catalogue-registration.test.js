@@ -13,6 +13,7 @@ const {createPeopleCatalogueRegistrationCommand}=require('../../src/helix/domain
 const {preparationWork,createPeopleImageOperationCoordinator}=require('../../src/helix/domains/people/application/people-image-operation-coordinator');
 const {createCommandCommitCoordinator}=require('../../src/helix/foundation/persistence/commit-foundation');
 const {createUsAdultCatalogueRegistrationAdmission}=require('../../src/helix/domains/people/application/us-adult-catalogue-registration-admission');
+const {createUsAdultCatalogueRegistrationEvidence}=require('../../src/helix/domains/people/application/us-adult-catalogue-registration-evidence');
 const {createPeopleImageExecutionRegistration}=require('../../src/helix/domains/people/public/image-execution-registration');
 const {createUsAdultCatalogueSettlementCoordinator}=require('../../src/helix/domains/libra/application/us-adult-catalogue-settlement-coordinator');
 const {createUsAdultCatalogueDecisionStore}=require('../../src/helix/domains/libra/persistence/us-adult-catalogue-decision-store');
@@ -340,6 +341,46 @@ test('wired registerCataloguePerson settles a qualified not_found into a shelfab
   assert.equal(replay.kind,'settled');
   assert.equal(replay.decision.decisionId,settled.decision.decisionId);
   assert.equal(calls,1);
+});
+
+test('assembleEvidence prefers ThePornDB provider image over frame when the unique candidate has pictures',async t=>{
+  const s=await setup(t),imageBytes=Buffer.from([137,80,78,71,13,10,26,10,1]);
+  const providerObservation=provider(s.input.winner.name,[person]);
+  const options=s.f.workspaceOptions,operationStore=createPeopleImageOperationStore(options);
+  const staged=[];
+  const evidencePort=createUsAdultCatalogueRegistrationEvidence({
+    operationStore,
+    peopleImagePort:{stageUpload(args){
+      staged.push(args);
+      const body={schemaRef:'helix://contracts/domain-types/PeopleSelectedImageHandle/v1',schemaVersion:1,uploadId:D('upload-provider'),
+        digestHex:crypto.createHash('sha256').update(args.bytes).digest('hex'),sizeBytes:args.bytes.length,mediaType:'image/png',
+        provenance:args.provenance};
+      return {...body,handleDigest:D(body)};
+    }},
+    workResultReader:{status:()=>({state:'running',latestAttempt:{state:'running'}})},
+    observeProviderSearch:({name})=>{
+      assert.equal(name,s.input.winner.name);
+      return providerObservation;
+    },
+    readImageBytes:({kind,providerKey,imageId})=>{
+      assert.equal(kind,'provider');
+      assert.equal(providerKey,'tpdb-1');
+      assert.equal(imageId,'photo-1');
+      return imageBytes;
+    },
+    buildFrameImageProof:()=>{throw new Error('Frame proof must not run when provider image exists');},
+  });
+  const waiting=evidencePort.assembleEvidence({
+    input:s.input,inputDigest:s.inputDigest,resolution:s.resolution,
+    candidate:{observation:s.observation},
+  });
+  assert.equal(waiting.kind,'waiting');
+  assert.equal(waiting.pendingCode,'PEOPLE_CATALOGUE_IMAGE_PREP_PENDING');
+  const operation=operationStore.get(waiting.operationId);
+  assert.equal(operation.payload.operationKind,'catalogue_registration');
+  assert.equal(staged[0].provenance.source,'stashbox');
+  assert.equal(staged[0].provenance.providerKey,'tpdb-1');
+  assert.ok(Buffer.compare(staged[0].bytes,imageBytes)===0);
 });
 
 test('catalogue preparation without the registration hook stays preparing',async t=>{

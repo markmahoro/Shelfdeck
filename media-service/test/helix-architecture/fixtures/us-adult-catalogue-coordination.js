@@ -54,7 +54,7 @@ function coordination(t,overrides={}){
       clusters=await port.computeClusters({faceEmbeddingSetHandle:embeddings,clusterParameters:f.basis.clusterParameters});
     records.set(work.workId,[record(work,FRAME,frames),record(work,EMBED,embeddings),record(work,CLUSTER,clusters)]);succeeded(work);return work;
   }
-  async function completeObservation(mode,{match=true}={}){
+  async function completeObservation(mode,{match=true,winnerName='Example Performer'}={}){
     const completedBatches=readCompletedCatalogueBatches(options,f.args.snapshot,f.basis,mode),
       work=catalogueObservationWork({snapshot:f.args.snapshot,basis:f.basis,completedBatches,validator}),
       observer=createBuffaloCatalogueObserver({context:{assertExecutionActive(){}},deadlineAtMs:100000,operationDeadlineMs:60000,now:()=>1000,
@@ -62,7 +62,7 @@ function coordination(t,overrides={}){
           async loadCatalogue(){return {generationDigest:f.basis.catalogueGeneration.generationDigest,policyDigest:f.basis.catalogueSearchPolicy.policyDigest,
             dimension:512,size:100,verificationDigest:D('verified')};},async searchCatalogue(){return {generationDigest:f.basis.catalogueGeneration.generationDigest,
             searchPolicyDigest:f.basis.catalogueSearchPolicy.policyDigest,raw:[{key:1,distance:match?0.1:0.8}],matches:match?[{key:1,uid:'catalogue:1',identityKey:'catalogue:1',
-              name:'Example Performer',aliases:[],distance:0.1,combinedDistance:0.1}]:[],retiredSlots:[]};}}}),
+              name:winnerName,aliases:[],distance:0.1,combinedDistance:0.1}]:[],retiredSlots:[]};}}}),
       observation=await observer.observe({basisDigest:f.basis.basisDigest,mode,catalogueGeneration:f.basis.catalogueGeneration,
         searchPolicy:f.basis.catalogueSearchPolicy,clusterParameters:f.basis.clusterParameters,batches:completedBatches.batches.map(batch=>({
           stage:batch.stage,batchDigest:batch.batchDigest,frameArtifactSetDigest:batch.frameArtifactSet.manifestDigest,
