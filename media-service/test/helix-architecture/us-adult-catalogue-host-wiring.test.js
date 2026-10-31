@@ -147,6 +147,17 @@ test('Clean Host wires provider observation and buffalo People preparation for c
   assert.doesNotMatch(host,/createCatalogueProviderObservationPort\(\{[\s\S]*fetchImpl:networkFetch/);
 });
 
+test('missing catalogue frame proof fails closed and workless settlement does not call terminalWork',()=>{
+  const refresh=fs.readFileSync(path.resolve(__dirname,'../../src/helix/domains/people/application/us-adult-catalogue-buffalo-refresh.js'),'utf8');
+  const evidence=fs.readFileSync(path.resolve(__dirname,'../../src/helix/domains/people/application/us-adult-catalogue-registration-evidence.js'),'utf8');
+  const coordinator=fs.readFileSync(path.resolve(__dirname,'../../src/helix/domains/libra/application/libra-run-coordinator.js'),'utf8');
+  assert.match(refresh,/PEOPLE_CATALOGUE_FRAME_PROOF_UNWIRED/);
+  assert.match(evidence,/PEOPLE_CATALOGUE_FRAME_PROOF_UNWIRED/);
+  assert.doesNotMatch(refresh,/buildFrameImageProof!=='function'\)return pendingResult\(\{pendingCode:'PEOPLE_CATALOGUE_FRAME_PROOF_PENDING'\}/);
+  assert.match(coordinator,/closeUsAdultProductStage/);
+  assert.match(coordinator,/if\(usAdultStage\.kind==='failed'\)return closeUsAdultProductStage/);
+});
+
 test('LIBRA_ENABLED includes catalogue observe for Host registration',()=>{
   const source=fs.readFileSync(path.resolve(__dirname,'../../src/helix/composition/create-procurement-execution-runtime.js'),'utf8');
   assert.match(source,/libra\.us_adult\.catalogue\.observe@1/);

@@ -141,6 +141,25 @@ test('provider with no image falls back to a catalogue frame and still opens reg
   assert.equal(result.pendingCode,'PEOPLE_CATALOGUE_IMAGE_PREP_PENDING');
 });
 
+test('provider with no image and no frame proof fails closed instead of workless pending',async t=>{
+  const sceneValue=await scene(t);
+  const {admission}=executionFor(sceneValue.f,{
+    observe:({name,aliases})=>providerObservation(name,aliases,[]),
+    readImageBytes:()=>png,
+    artifacts:new Map(),
+  });
+  const result=admission.registerCataloguePerson({
+    input:sceneValue.input,inputDigest:sceneValue.inputDigest,resolution:sceneValue.resolution,candidate:sceneValue.catalogue,
+  });
+  const ops=catalogueOps(sceneValue.f.db);
+  assert.equal(ops.length,0);
+  assert.equal(result.kind,'failed');
+  assert.equal(result.reasonCode,'PEOPLE_CATALOGUE_FRAME_PROOF_UNWIRED');
+  assert.equal(result.workId,undefined);
+  assert.notEqual(result.kind,'pending');
+  assert.notEqual(result.pendingCode,'PEOPLE_CATALOGUE_FRAME_PROOF_PENDING');
+});
+
 test('succeeded catalogue_registration prep writes the Person and settlement reaches face_catalogue',async t=>{
   const sceneValue=await scene(t);
   const artifacts=new Map();

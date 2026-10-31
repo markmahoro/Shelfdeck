@@ -5,6 +5,8 @@ const {canonicalDigest:D}=require('../../src/helix/contracts/canonical-json');
 const {buffaloModelReference}=require('../../src/helix/contracts/buffalo-model-reference');
 const {createUsAdultCatalogueDecisionInput}=require('../../src/helix/domains/libra/model/us-adult-catalogue-decision-input');
 const {createUsAdultCatalogueSettlementCoordinator}=require('../../src/helix/domains/libra/application/us-adult-catalogue-settlement-coordinator');
+const {createUsAdultProductCoordinator}=require('../../src/helix/domains/libra/application/us-adult-product-coordinator');
+const {closeUsAdultProductStage}=require('../../src/helix/domains/libra/application/libra-run-coordinator');
 const {createUsAdultCatalogueDecisionStore}=require('../../src/helix/domains/libra/persistence/us-adult-catalogue-decision-store');
 const {resolveUsAdultName}=require('../../src/helix/domains/people/model/us-adult-name-resolution');
 const {createPeopleImageOperationStore}=require('../../src/helix/domains/people/persistence/people-image-operation-store');
@@ -332,4 +334,74 @@ test('May Thai stale face calls ensure and settles reused Mai Thai',async t=>{
   assert.equal(settled.decision.personSnapshot.canonicalName,'Mai Thai');
   assert.equal(settled.decision.winner.name,'May Thai');
   assert.equal(settled.decision.referenceAssetId,'asset-reg');
+});
+
+test('wired ensure without a frame proof fails closed when the provider has no image',async t=>{
+  const {f,catalogue}=await candidate(t);
+  const personId='person-no-frame',factDigest=D('person-fact-no-frame');
+  const operationStore=createPeopleImageOperationStore(f.workspaceOptions);
+  const peopleStore={
+    getPerson(){return {personId,currentRevision:1,currentReferenceRevision:1,
+      revision:{canonicalName:'Example Performer',aliases:[],factDigest}};},
+    readUsAdultPersonSnapshot(){return legacySnapshot(personId,factDigest);},
+    getPersonReferenceProjection(){return legacySnapshot(personId,factDigest).referenceProjection;},
+    hasReferenceImage(){return false;},
+  };
+  const refresh=createUsAdultCatalogueBuffaloRefresh({
+    peopleStore,operationStore,peopleImagePort:{stageUpload(){throw new Error('no image to stage');}},
+    workResultReader:{status:()=>({state:'running'})},
+    observeProviderSearch:({name})=>providerSearchWithoutImage(name),
+    readImageBytes(){return null;},
+  }).refreshBuffaloCatalogueReference;
+  const result=createUsAdultCatalogueSettlementCoordinator(settlementOptions(f,{
+    people:[{personId,libraryKind:'us_adult',status:'active',personRevision:1,personFactDigest:factDigest,
+      canonicalName:'Example Performer',aliases:[]}],
+    readPersonHead:()=>({personId,personRevision:1,personFactDigest:factDigest,currentReferenceRevision:1}),
+    readUsAdultPersonSnapshot:()=>legacySnapshot(personId,factDigest),
+    ensureCatalogueReferenceFeatures:(args)=>refresh({...args,head:args.head}),
+  })).reconcile(catalogue);
+  assert.equal(operationStore.listPendingPage({cursor:null,limit:100}).length,0);
+  assert.equal(result.kind,'failed');
+  assert.equal(result.phase,'us_adult_catalogue_name_bound');
+  assert.equal(result.reasonCode,'PEOPLE_CATALOGUE_FRAME_PROOF_UNWIRED');
+  assert.equal(result.workId,undefined);
+  assert.notEqual(result.reasonCode,'us_adult_catalogue_reference_features_pending');
+});
+
+function providerSearchWithoutImage(name){
+  const body={schema:'people.us-adult-provider-search-observation@1',provider:'theporndb',queries:[{term:name,limit:10,
+    completion:'complete',responseDigest:D('provider-empty'),candidates:[{providerKey:'tpdb-1',canonicalName:name,aliases:[],images:[]}]}]};
+  return {...body,observationDigest:D(body)};
+}
+
+test('workless settlement failure closes without reading work.workId',async t=>{
+  const {f,catalogue}=await candidate(t);
+  assert.equal(catalogue.kind,'catalogue_candidate');
+  const personId='person-unwired-run',factDigest=D('person-fact-unwired-run');
+  const product=createUsAdultProductCoordinator({
+    ...f.options,
+    createCatalogueObservationPort(){},
+    createCatalogueFramePort(){},
+    usAdultCatalogueDecisionStore:{getByRun(){return null;}},
+    usAdultAnalysisStore:{getByRun(){throw new Error('analysis must not run after a settlement failure');}},
+    usAdultMatchCompletionStore:{getByRun(){throw new Error('match must not run after a settlement failure');}},
+    peopleReferenceQuery:{readUsAdultReferencePage(){throw new Error('local match must not run after a settlement failure');}},
+    resolveUsAdultName:input=>resolveUsAdultName({...input,people:[{personId,libraryKind:'us_adult',status:'active',
+      personRevision:1,personFactDigest:factDigest,canonicalName:'Example Performer',aliases:[]}]}),
+    readPersonHead:()=>({personId,personRevision:1,personFactDigest:factDigest,currentReferenceRevision:1}),
+    readUsAdultPersonSnapshot:()=>legacySnapshot(personId,factDigest),
+  });
+  const stage=product.reconcile(f.args.snapshot,f.identity,f.workspaceState);
+  assert.equal(stage.kind,'failed');
+  assert.equal(stage.reasonCode,'PEOPLE_CATALOGUE_ENSURE_UNWIRED');
+  assert.equal(stage.work,undefined);
+  assert.equal(typeof closeUsAdultProductStage,'function');
+  let crashed=false;
+  const closed=closeUsAdultProductStage(f.args.snapshot,stage,()=>{crashed=true;throw new TypeError("Cannot read properties of undefined (reading 'workId')");});
+  assert.equal(crashed,false);
+  assert.equal(closed.kind,'product_unachievable');
+  assert.equal(closed.libraRunId,f.args.snapshot.run.libraRunId);
+  assert.equal(closed.reasonCode,'PEOPLE_CATALOGUE_ENSURE_UNWIRED');
+  assert.equal(closed.personId,personId);
+  assert.equal(closed.workId,undefined);
 });
