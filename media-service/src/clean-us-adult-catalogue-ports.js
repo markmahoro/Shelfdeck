@@ -7,6 +7,15 @@ const {createCleanBuffaloCataloguePort}=require('./clean-buffalo-catalogue-port'
 const {UNAVAILABLE}=require('./helix/domains/libra/application/us-adult-catalogue-host-config');
 
 function failUnavailable(message){throw Object.assign(new Error(message),{code:UNAVAILABLE});}
+async function stopSession(cpuSession){
+  if(typeof cpuSession?.stop==='function')await cpuSession.stop();
+}
+function withSessionStop(cpuSession,method){
+  return async(...args)=>{
+    try{return await method(...args);}
+    finally{await stopSession(cpuSession);}
+  };
+}
 function createUsAdultCataloguePortFactories({catalogueHost,frameExtractor,workspaceProductPort,now=Date.now}){
   if(!catalogueHost)return Object.freeze({
     createCatalogueFramePort(){failUnavailable('Catalogue frame execution requires a configured buffalo catalogue root.');},
@@ -41,8 +50,17 @@ function createUsAdultCataloguePortFactories({catalogueHost,frameExtractor,works
       const engine=createBuffaloFrameEngine({sourceHandle:basis.sourceHandle,frameBatch:batch,durationMs:basis.durationMs,
         faceModelRef:basis.faceModelRef,clusterParameters:basis.clusterParameters,resourceBudget:basis.resourceBudget,
         context,cpuSession,frameExtractor,now,deadlineAtMs:now()+basis.resourceBudget.analysisDeadlineMs});
-      return createCleanWesternFramePort({workspaceProductPort:scoped,configuration:{faceModelRef:basis.faceModelRef,
+      const port=createCleanWesternFramePort({workspaceProductPort:scoped,configuration:{faceModelRef:basis.faceModelRef,
         clusterParameters:basis.clusterParameters},engine,now});
+      return Object.freeze({
+        extractFrames:withSessionStop(cpuSession,request=>port.extractFrames(request)),
+        computeEmbeddings:withSessionStop(cpuSession,request=>port.computeEmbeddings(request)),
+        computeClusters:withSessionStop(cpuSession,request=>port.computeClusters(request)),
+        inspectRecovery:request=>{
+          try{return port.inspectRecovery(request);}
+          finally{void stopSession(cpuSession);}
+        },
+      });
     },
     createCatalogueObservationPort({context,basis,completedBatches,capturePublicationFence,validateObservation}){
       const runtimeEffectAuthority=Object.freeze({effectClass:'workspace_write',eventAttemptId:context.eventAttemptId,
@@ -58,14 +76,16 @@ function createUsAdultCataloguePortFactories({catalogueHost,frameExtractor,works
         deadlineAtMs:now()+basis.resourceBudget.analysisDeadlineMs,operationDeadlineMs:Math.min(60000,basis.resourceBudget.imageDeadlineMs)});
       return createCleanBuffaloCataloguePort({context,workspaceProductPort:scoped,capturePublicationFence,validateObservation,
         async computeObservation(){
-          const batches=[];
-          for(const batch of completedBatches.batches){
-            const bytes=scoped.readArtifactBytes(batch.faceEmbeddingSetHandle.artifactHandle).bytes;
-            batches.push({stage:batch.stage,batchDigest:batch.batchDigest,frameArtifactSetDigest:batch.frameArtifactSet.manifestDigest,
-              embeddingDigest:batch.faceEmbeddingSetHandle.embeddingDigest,embeddingSet:JSON.parse(bytes.toString('utf8'))});
-          }
-          return observer.observe({basisDigest:basis.basisDigest,mode:completedBatches.mode,catalogueGeneration:basis.catalogueGeneration,
-            searchPolicy:basis.catalogueSearchPolicy,clusterParameters:basis.clusterParameters,batches});
+          try{
+            const batches=[];
+            for(const batch of completedBatches.batches){
+              const bytes=scoped.readArtifactBytes(batch.faceEmbeddingSetHandle.artifactHandle).bytes;
+              batches.push({stage:batch.stage,batchDigest:batch.batchDigest,frameArtifactSetDigest:batch.frameArtifactSet.manifestDigest,
+                embeddingDigest:batch.faceEmbeddingSetHandle.embeddingDigest,embeddingSet:JSON.parse(bytes.toString('utf8'))});
+            }
+            return await observer.observe({basisDigest:basis.basisDigest,mode:completedBatches.mode,catalogueGeneration:basis.catalogueGeneration,
+              searchPolicy:basis.catalogueSearchPolicy,clusterParameters:basis.clusterParameters,batches});
+          }finally{await stopSession(cpuSession);}
         }});
     },
   });

@@ -1641,10 +1641,9 @@ async function createCleanServiceHost(options) {
     catalogueHost:catalogueHostConfig,frameExtractor:usAdultFrameExtractor,workspaceProductPort,now:options.now||Date.now});
   const buffaloPeoplePreparation=catalogueHostConfig?require('./helix/integrations/buffalo-people-reference-preparation').createBuffaloPeopleReferencePreparation({
     imagePort:peopleImagePort,now:options.now||Date.now,
+    // Single-face reference embed needs the pinned buffalo models only, not the catalogue index.
     createCpuSession(){return require('./helix/integrations/buffalo-cpu-session').createBuffaloCpuSession({
-      modelRoot:catalogueHostConfig.buffaloModelRoot,catalogueRoot:catalogueHostConfig.catalogueRoot,
-      catalogueGeneration:catalogueHostConfig.catalogueConfiguration.catalogueGeneration,
-      catalogueSearchPolicy:catalogueHostConfig.catalogueConfiguration.catalogueSearchPolicy});},
+      modelRoot:catalogueHostConfig.buffaloModelRoot});},
   }):null;
   const peopleReferencePreparation=require('./helix/integrations/people-reference-preparation').createPeopleReferencePreparation({
     imagePort:peopleImagePort,faceModel:localFaceModel,buffaloPreparation:buffaloPeoplePreparation});
