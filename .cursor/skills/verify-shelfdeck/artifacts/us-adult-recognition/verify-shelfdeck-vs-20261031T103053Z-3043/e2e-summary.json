@@ -1,0 +1,24 @@
+{
+  "featureId": "us-adult-recognition",
+  "entryPoint": "media-service/scripts/us-adult-full-e2e.sh",
+  "startedAt": "2026-10-31T10:30:53Z",
+  "finishedAt": "2026-10-31T10:31:00.817Z",
+  "exitCode": 0,
+  "successLinePresent": true,
+  "gateTestFiles": [
+    "test/helix-architecture/us-adult-formation-attention-western.test.js",
+    "test/helix-architecture/us-adult-actor-package.test.js",
+    "test/helix-architecture/us-adult-catalogue-registration-admission.test.js",
+    "test/helix-architecture/us-adult-catalogue-host-wiring.test.js",
+    "test/helix-architecture/us-adult-full-e2e-recognition.test.js",
+    "test/helix-architecture/us-adult-catalogue-settlement-register.test.js",
+    "test/helix-architecture/us-adult-catalogue-registration.test.js",
+    "test/helix-architecture/us-adult-catalogue-registration-host.test.js",
+    "test/helix-architecture/us-adult-name-resolution.test.js",
+    "test/helix-architecture/us-adult-catalogue-assessment.test.js"
+  ],
+  "ingressAjvListed": false,
+  "hostSessionLifecycleListed": false,
+  "note": "Gate tip lacks PR #53 ingress files; do not claim L2 AJV/session green from this run.",
+  "productionTargeted": false
+}

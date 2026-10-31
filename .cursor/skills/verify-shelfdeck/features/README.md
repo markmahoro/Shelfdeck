@@ -36,4 +36,4 @@ Each feature file starts with an H1 and one paragraph of user-visible behavior, 
 ## Features
 
 - [Health and Admin session](./health-admin-session.md) covers public health, API-key → Admin session exchange, and an authenticated Admin probe (first proved feature).
-- US Adult recognition journey (recognize → People bind/create → poster → shelf) is the next verification-map PR. Until that map lands, invoke the true gate with `cd media-service && bash scripts/us-adult-full-e2e.sh` (or `npm run test:us-adult-full-e2e`); do not invent a stub-green path.
+- [US Adult recognition journey](./us-adult-recognition.md) covers catalogue recognize → People name bind/create → SelectedImage poster/reference → shelfable `face_catalogue` cast, plus Attention only for real unresolvable cases. Drive with `bash .cursor/skills/verify-shelfdeck/bin/verify-shelfdeck drive us-adult-recognition` (invokes `media-service/scripts/us-adult-full-e2e.sh`). Do not invent a stub-green path. PR #53 must land before claiming L2 green on AJV ingress / Host session lifecycle.
