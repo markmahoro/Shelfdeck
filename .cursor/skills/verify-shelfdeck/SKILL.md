@@ -41,7 +41,7 @@ bash .cursor/skills/verify-shelfdeck/bin/verify-shelfdeck launch
 Ready means all of:
 
 - Process PID in `$VERIFY_SHELFDECK_RUN_DIR/run.json` is alive and owns the recorded port on `127.0.0.1`.
-- `GET /v1/health` returns HTTP 200 with `status` of `ok` (or legacy green/yellow/red) and a non-empty `generation` (current clean-init reports a `helix-clean-*` generation string).
+- `GET /v1/health` returns HTTP 200 with `status: "ok"`, a `helix-clean-*` `generation`, and `normalSupplyAllowed: true`. Legacy `green`/`yellow`/`red` means the wrong server for this skill.
 - `helix-clean-init --readiness` reports `state: ready` for the run data dir.
 - `GET /admin` returns 200 and HTML containing `id="root"` when Admin Web proof is in scope.
 

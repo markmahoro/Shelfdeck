@@ -217,11 +217,14 @@ cmd_doctor() {
 
   local health
   health="$(curl -fsS --connect-timeout 2 --max-time 5 "${base_url}/v1/health")" || die "health request failed"
+  # Clean-init instances must report Helix clean health, not legacy green/yellow/red.
   node -e "
     const j=JSON.parse(process.argv[1]);
-    const ok=['ok','green','yellow','red'];
-    if(!ok.includes(j.status)) throw new Error('unexpected health status '+j.status);
-    if(!j.generation) throw new Error('health missing generation');
+    if(j.status!=='ok') throw new Error('expected health status ok, got '+j.status);
+    if(typeof j.generation!=='string' || !j.generation.startsWith('helix-clean-')) {
+      throw new Error('expected helix-clean-* generation, got '+j.generation);
+    }
+    if(j.normalSupplyAllowed!==true) throw new Error('expected normalSupplyAllowed true');
   " "$health"
 
   echo "verify-shelfdeck: doctor ok ${base_url} generation=$(node -e "process.stdout.write(JSON.parse(process.argv[1]).generation)" "$health")"
@@ -246,6 +249,12 @@ cmd_drive_health_admin_session() {
   local health_body health_code
   health_code="$(curl -sS -o "${VERIFY_SHELFDECK_EVIDENCE_DIR}/health.json" -w '%{http_code}' --connect-timeout 2 --max-time 5 "${base_url}/v1/health")"
   [ "$health_code" = "200" ] || die "health expected 200 got ${health_code}"
+  node -e "
+    const j=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'));
+    if(j.status!=='ok') throw new Error('drive expects health status ok');
+    if(typeof j.generation!=='string' || !j.generation.startsWith('helix-clean-')) throw new Error('drive expects helix-clean-* generation');
+    if(j.normalSupplyAllowed!==true) throw new Error('drive expects normalSupplyAllowed true');
+  " "${VERIFY_SHELFDECK_EVIDENCE_DIR}/health.json"
 
   local cookie_jar="${VERIFY_SHELFDECK_RUN_DIR}/cookies.txt"
   rm -f "$cookie_jar"
@@ -275,6 +284,7 @@ cmd_drive_health_admin_session() {
     }, null, 2)+'\\n');
   " "$exchange_headers" "${VERIFY_SHELFDECK_EVIDENCE_DIR}/session-exchange.json"
 
+  # Cookie-only probe: do not also send x-api-key (auth prefers a present API key).
   local security_code
   security_code="$(
     curl -sS -o "${VERIFY_SHELFDECK_EVIDENCE_DIR}/security.json" -w '%{http_code}' \
@@ -299,6 +309,19 @@ cmd_drive_health_admin_session() {
   )"
   [ "$wrong_code" = "401" ] || die "wrong-key probe expected 401 got ${wrong_code}"
 
+  local logout_code
+  logout_code="$(
+    curl -sS -o /dev/null -w '%{http_code}' -X DELETE \
+      -b "$cookie_jar" -c "$cookie_jar" "${base_url}/v1/admin/session"
+  )"
+  [ "$logout_code" = "204" ] || die "session delete expected 204 got ${logout_code}"
+  local after_logout_code
+  after_logout_code="$(
+    curl -sS -o "${VERIFY_SHELFDECK_EVIDENCE_DIR}/after-logout.json" -w '%{http_code}' \
+      -b "$cookie_jar" "${base_url}/v1/admin/settings/security"
+  )"
+  [ "$after_logout_code" = "401" ] || die "cookie-only probe after logout expected 401 got ${after_logout_code}"
+
   local admin_code
   admin_code="$(curl -sS -o "${VERIFY_SHELFDECK_EVIDENCE_DIR}/admin.html" -w '%{http_code}' "${base_url}/admin")"
   [ "$admin_code" = "200" ] || die "GET /admin expected 200 got ${admin_code}"
@@ -313,13 +336,15 @@ cmd_drive_health_admin_session() {
       baseUrl:process.argv[2],
       provedAt:new Date().toISOString(),
       checks:[
-        {name:'health-public', status:200, generation:health.generation||null, healthStatus:health.status||null},
+        {name:'health-public', status:200, generation:health.generation||null, healthStatus:health.status||null, normalSupplyAllowed:health.normalSupplyAllowed===true},
         {name:'session-exchange', status:204, cookiePresent:true},
-        {name:'session-authed-probe', status:200, credentialConfigured:true},
+        {name:'session-authed-probe', status:200, credentialConfigured:true, cookieOnly:true},
         {name:'wrong-key', status:401},
+        {name:'session-delete', status:204},
+        {name:'after-logout-cookie', status:401},
         {name:'admin-shell', status:200, rootPresent:true},
       ],
-      entryPoints:['GET /v1/health','POST /v1/admin/session','GET /v1/admin/settings/security','GET /admin'],
+      entryPoints:['GET /v1/health','POST /v1/admin/session','GET /v1/admin/settings/security','DELETE /v1/admin/session','GET /admin'],
       secretsCommitted:false,
     };
     fs.writeFileSync(process.argv[3], JSON.stringify(proof,null,2)+'\\n');
