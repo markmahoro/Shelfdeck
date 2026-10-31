@@ -126,9 +126,20 @@ test('People image execution exposes catalogue registration admission and people
   const {createPeopleImageExecutionRegistration}=require('../../src/helix/domains/people/public/image-execution-registration');
   const src=fs.readFileSync(path.resolve(__dirname,'../../src/helix/composition/create-procurement-execution-runtime.js'),'utf8');
   assert.match(src,/registerCataloguePerson/);
+  assert.match(src,/ensureCatalogueReferenceFeatures/);
   assert.match(src,/createCatalogueRegistrationAdmission/);
   assert.match(src,/peopleStore:peopleImageExecution\.peopleStore/);
   assert.equal(typeof createPeopleImageExecutionRegistration,'function');
+});
+
+test('Clean Host wires provider observation and buffalo People preparation for catalogue ensure',()=>{
+  const host=fs.readFileSync(path.resolve(__dirname,'../../src/clean-service-host.js'),'utf8');
+  assert.match(host,/createCatalogueProviderObservationPort/);
+  assert.match(host,/observeUsAdultCatalogueProviderSearch/);
+  assert.match(host,/readCatalogueRegistrationImageBytes/);
+  assert.match(host,/createBuffaloPeopleReferencePreparation/);
+  assert.match(host,/buffaloPreparation/);
+  assert.match(host,/hasOpenPeopleCatalogueImagePrep/);
 });
 
 test('LIBRA_ENABLED includes catalogue observe for Host registration',()=>{

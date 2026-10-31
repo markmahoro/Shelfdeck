@@ -25,8 +25,7 @@ function createUsAdultCatalogueSettlementCoordinator(options){
     return Object.freeze({kind:'settled',phase:'us_adult_catalogue_decision',libraRunId,
       decision:options.usAdultCatalogueDecisionStore.freeze(decision)});
   }
-  // After name bind, cast freeze still needs a publishable buffalo_l reference on that
-  // Person. Feature prep is secondary — never a hang-person / registration gate.
+  // Name bind is independent of buffalo publishability; Host ensure owns feature prep.
   function afterNameBind({compiled,resolution,hit,head,libraRunId,candidate}){
     const hasReference=Number.isSafeInteger(head.currentReferenceRevision)&&head.currentReferenceRevision>=1;
     if(hasReference){
@@ -35,21 +34,23 @@ function createUsAdultCatalogueSettlementCoordinator(options){
       const referenceAssetId=buffaloAsset(personSnapshot);
       if(referenceAssetId)return settleReused({compiled,resolution,personSnapshot,referenceAssetId,libraRunId});
     }
-    if(typeof options.ensureCatalogueReferenceFeatures==='function'){
-      const ensured=options.ensureCatalogueReferenceFeatures({personId:hit.personId,personRevision:hit.personRevision,
-        input:compiled.input,inputDigest:compiled.inputDigest,resolution,candidate});
-      if(ensured?.kind==='ready'&&ensured.personSnapshot&&ensured.referenceAssetId)
-        return settleReused({compiled,resolution,personSnapshot:ensured.personSnapshot,
-          referenceAssetId:ensured.referenceAssetId,libraRunId});
-      if(ensured?.kind==='pending'||ensured?.kind==='waiting')
-        return Object.freeze({kind:'pending',phase:'us_adult_catalogue_name_bound',libraRunId,
-          reasonCode:'us_adult_catalogue_reference_features_pending',personId:hit.personId,
-          inputDigest:compiled.inputDigest,winnerName:compiled.input.winner.name,
-          workId:ensured.workId||null,pendingCode:ensured.pendingCode||null});
-    }
+    if(typeof options.ensureCatalogueReferenceFeatures!=='function')
+      return Object.freeze({kind:'failed',phase:'us_adult_catalogue_name_bound',libraRunId,
+        reasonCode:'PEOPLE_CATALOGUE_ENSURE_UNWIRED',personId:hit.personId,
+        inputDigest:compiled.inputDigest,winnerName:compiled.input.winner.name});
+    const ensured=options.ensureCatalogueReferenceFeatures({personId:hit.personId,personRevision:hit.personRevision,
+      head,input:compiled.input,inputDigest:compiled.inputDigest,resolution,candidate});
+    if(ensured?.kind==='ready'&&ensured.personSnapshot&&ensured.referenceAssetId)
+      return settleReused({compiled,resolution,personSnapshot:ensured.personSnapshot,
+        referenceAssetId:ensured.referenceAssetId,libraRunId});
+    if(ensured?.kind==='failed')
+      return Object.freeze({kind:'failed',phase:'us_adult_catalogue_name_bound',libraRunId,
+        reasonCode:ensured.code||ensured.reasonCode||'PEOPLE_BUFFALO_REFRESH_FAILED',personId:hit.personId,
+        inputDigest:compiled.inputDigest,winnerName:compiled.input.winner.name});
     return Object.freeze({kind:'pending',phase:'us_adult_catalogue_name_bound',libraRunId,
       reasonCode:'us_adult_catalogue_reference_features_pending',personId:hit.personId,
-      inputDigest:compiled.inputDigest,winnerName:compiled.input.winner.name});
+      inputDigest:compiled.inputDigest,winnerName:compiled.input.winner.name,
+      workId:ensured?.workId||null,pendingCode:ensured?.pendingCode||null});
   }
   return Object.freeze({reconcile(candidate){
     if(!candidate||candidate.kind!=='catalogue_candidate'||!candidate.basis||!candidate.completedBatches)
