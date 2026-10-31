@@ -68,7 +68,7 @@ function createUsAdultCatalogueBuffaloRefresh(options){
       if(!Buffer.isBuffer(bytes)||!bytes.length)return pendingResult({pendingCode:'PEOPLE_BUFFALO_REFRESH_IMAGE_PENDING'});
       return {bytes,source:'stashbox'};
     }
-    if(typeof options.buildFrameImageProof!=='function')return pendingResult({pendingCode:'PEOPLE_CATALOGUE_FRAME_PROOF_PENDING'});
+    if(typeof options.buildFrameImageProof!=='function')return failed('PEOPLE_CATALOGUE_FRAME_PROOF_UNWIRED');
     const proof=options.buildFrameImageProof({input,providerObservation,providerResolution});
     if(!proof||proof.kind!=='frame'||!Buffer.isBuffer(proof.bytes)||!proof.bytes.length)
       return pendingResult({pendingCode:'PEOPLE_CATALOGUE_FRAME_PROOF_PENDING'});

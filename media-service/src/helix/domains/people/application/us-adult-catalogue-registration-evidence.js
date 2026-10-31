@@ -121,7 +121,7 @@ function createUsAdultCatalogueRegistrationEvidence(options){
     const selected=providerImageRequest(providerObservation,providerResolution);
     if(selected)return Object.freeze({...selected,providerResolution});
     if(typeof options.buildFrameImageProof!=='function')
-      pending('PEOPLE_CATALOGUE_FRAME_PROOF_PENDING','Catalogue registration needs a frame proof when Provider has no image.');
+      throw Object.assign(new Error('Catalogue registration frame proof is not wired.'),{code:'PEOPLE_CATALOGUE_FRAME_PROOF_UNWIRED'});
     const proof=options.buildFrameImageProof({input,resolution,observation,providerObservation,providerResolution});
     if(!proof||proof.kind!=='frame'||!proof.proof)
       pending('PEOPLE_CATALOGUE_FRAME_PROOF_PENDING','Frame proof for catalogue registration is not ready.');

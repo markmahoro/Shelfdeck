@@ -26,6 +26,9 @@ function createUsAdultCatalogueRegistrationAdmission(options){
           return Object.freeze({kind:'pending',phase:'us_adult_catalogue_registration',
             reasonCode:'us_adult_catalogue_registration_required',inputDigest,winnerName:input.winner.name,
             pendingCode:error.pendingCode||null});
+        if(error?.code==='PEOPLE_CATALOGUE_FRAME_PROOF_UNWIRED')
+          return Object.freeze({kind:'failed',phase:'us_adult_catalogue_registration',
+            reasonCode:'PEOPLE_CATALOGUE_FRAME_PROOF_UNWIRED',inputDigest,winnerName:input.winner.name});
         throw error;
       }
       if(!evidence||evidence.kind==='waiting')
