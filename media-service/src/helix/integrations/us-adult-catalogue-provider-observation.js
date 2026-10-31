@@ -9,7 +9,12 @@ const {fetchJson,fetchBytes}=require('./h1-provider-adapters');
 const QUERY='query ShelfDeckCataloguePerformers($term: String!, $limit: Int!) { searchPerformer(term: $term, limit: $limit) { id name aliases images { id url width height } } }';
 const LIMIT=25;
 const ENDPOINT='https://api.theporndb.net/graphql';
-const DEFAULT_WAITING_BOUND_MS=20_000;
+// Clash/TPDB dial recovery often exceeds the old 15s abort / 20s waitingBound.
+// waitingBound must cover maxAttempts × requestTimeout for a single-term search.
+const DEFAULT_WAITING_BOUND_MS=180_000;
+const DEFAULT_REQUEST_TIMEOUT_MS=45_000;
+const DEFAULT_MAX_ATTEMPTS=3;
+const DEFAULT_RETRY_BACKOFF_MS=Object.freeze([2_000,5_000]);
 
 function imageUrl(value){
   let url;
@@ -36,6 +41,13 @@ function imageFailure(message){
   });
 }
 
+function isRetryableProviderError(error){
+  const code=typeof error?.code==='string'?error.code:'';
+  if(code==='PEOPLE_CATALOGUE_PROVIDER_UNCONFIGURED')return false;
+  if(code==='PEOPLE_CATALOGUE_PROVIDER_INVALID')return false;
+  return true;
+}
+
 function createCatalogueProviderObservationPort(options){
   if(typeof options?.fetchImpl!=='function'||typeof options.readStashBoxConfiguration!=='function'||
     typeof options.withStashBoxCredential!=='function')
@@ -44,6 +56,15 @@ function createCatalogueProviderObservationPort(options){
   const now=typeof options.now==='function'?options.now:Date.now;
   const waitingBoundMs=Number.isSafeInteger(options.waitingBoundMs)&&options.waitingBoundMs>0
     ?options.waitingBoundMs:DEFAULT_WAITING_BOUND_MS;
+  const requestTimeoutMs=Number.isSafeInteger(options.requestTimeoutMs)&&options.requestTimeoutMs>0
+    ?options.requestTimeoutMs:DEFAULT_REQUEST_TIMEOUT_MS;
+  const maxAttempts=Number.isSafeInteger(options.maxAttempts)&&options.maxAttempts>0
+    ?options.maxAttempts:DEFAULT_MAX_ATTEMPTS;
+  const retryBackoffMs=Array.isArray(options.retryBackoffMs)&&options.retryBackoffMs.length
+    ?options.retryBackoffMs.map(value=>Number.isSafeInteger(value)&&value>=0?value:0)
+    :DEFAULT_RETRY_BACKOFF_MS;
+  const delay=typeof options.delay==='function'?options.delay
+    :(ms)=>new Promise(resolve=>setTimeout(resolve,ms));
   const cacheRoot=typeof options.cacheRoot==='string'&&options.cacheRoot?path.resolve(options.cacheRoot):null;
 
   function cacheFile(key){
@@ -82,7 +103,23 @@ function createCatalogueProviderObservationPort(options){
   }
 
   function init(){
-    return {redirect:'manual',signal:AbortSignal.timeout(15000),headers:{'User-Agent':'ShelfDeck/1.0 (catalogue registration)','accept':'application/json'}};
+    return {redirect:'manual',signal:AbortSignal.timeout(requestTimeoutMs),headers:{'User-Agent':'ShelfDeck/1.0 (catalogue registration)','accept':'application/json'}};
+  }
+  async function waitBeforeRetry(attempt){
+    const ms=retryBackoffMs[Math.min(attempt-1,retryBackoffMs.length-1)]||0;
+    if(ms>0)await delay(ms);
+  }
+  async function withRetries(run){
+    let lastError;
+    for(let attempt=1;attempt<=maxAttempts;attempt+=1){
+      try{return await run();}
+      catch(error){
+        lastError=error;
+        if(!isRetryableProviderError(error)||attempt>=maxAttempts)throw error;
+        await waitBeforeRetry(attempt);
+      }
+    }
+    throw lastError;
   }
   function candidate(person){
     if(typeof person?.id!=='string'||!person.id||typeof person.name!=='string'||!person.name)return null;
@@ -122,22 +159,27 @@ function createCatalogueProviderObservationPort(options){
     }
     return names.map(term=>({term,display:display.get(term)||term}));
   }
+  async function fetchTerm(configuration,display){
+    const result=await options.withStashBoxCredential(configuration.configRevision,async credential=>{
+      const request=init();
+      request.method='POST';
+      request.headers={...request.headers,'Content-Type':'application/json',ApiKey:credential.toString('utf8')};
+      request.body=JSON.stringify({query:QUERY,variables:{term:display,limit:LIMIT}});
+      return fetchJson(options.fetchImpl,configuration.endpoint,request,512*1024);
+    });
+    const rows=result?.data?.searchPerformer;
+    if(result?.errors?.length||!Array.isArray(rows))
+      throw Object.assign(new Error('ThePornDB did not return a performer search.'),{code:'PEOPLE_CATALOGUE_PROVIDER_INVALID'});
+    return rows;
+  }
   async function load(terms){
     const configuration=options.readStashBoxConfiguration();
     if(!configuration||configuration.endpoint!==ENDPOINT)
       throw Object.assign(new Error('ThePornDB is not configured for catalogue registration.'),{code:'PEOPLE_CATALOGUE_PROVIDER_UNCONFIGURED'});
     const rowsByTerm=new Map();
     for(const {term,display} of terms){
-      const result=await options.withStashBoxCredential(configuration.configRevision,async credential=>{
-        const request=init();
-        request.method='POST';
-        request.headers={...request.headers,'Content-Type':'application/json',ApiKey:credential.toString('utf8')};
-        request.body=JSON.stringify({query:QUERY,variables:{term:display,limit:LIMIT}});
-        return fetchJson(options.fetchImpl,configuration.endpoint,request,512*1024);
-      });
-      const rows=result?.data?.searchPerformer;
-      if(result?.errors?.length||!Array.isArray(rows))
-        throw Object.assign(new Error('ThePornDB did not return a performer search.'),{code:'PEOPLE_CATALOGUE_PROVIDER_INVALID'});
+      // Per-term bounded retry: transient Clash/TPDB dial fails recover without sticky Attention.
+      const rows=await withRetries(()=>fetchTerm(configuration,display));
       rowsByTerm.set(term,rows);
     }
     return observationFor(terms.map(item=>item.term),rowsByTerm);
@@ -191,7 +233,7 @@ function createCatalogueProviderObservationPort(options){
     inflight.set(request.urlDigest,now());
     const requestInit=init();
     requestInit.headers={...requestInit.headers,accept:'image/jpeg,image/png,image/webp'};
-    fetchBytes(options.fetchImpl,url,requestInit,10*1024*1024).then(result=>{
+    withRetries(()=>fetchBytes(options.fetchImpl,url,requestInit,10*1024*1024)).then(result=>{
       bytes.set(request.urlDigest,result.bytes);
       options.wake?.();
     }).catch(()=>{
@@ -204,4 +246,13 @@ function createCatalogueProviderObservationPort(options){
   return Object.freeze({observeProviderSearch,readImageBytes});
 }
 
-module.exports=Object.freeze({createCatalogueProviderObservationPort,QUERY,ENDPOINT,LIMIT,DEFAULT_WAITING_BOUND_MS});
+module.exports=Object.freeze({
+  createCatalogueProviderObservationPort,
+  QUERY,
+  ENDPOINT,
+  LIMIT,
+  DEFAULT_WAITING_BOUND_MS,
+  DEFAULT_REQUEST_TIMEOUT_MS,
+  DEFAULT_MAX_ATTEMPTS,
+  DEFAULT_RETRY_BACKOFF_MS,
+});
