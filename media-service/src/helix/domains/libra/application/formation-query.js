@@ -324,11 +324,19 @@ function isLocalAnalysisWork(work) {
   return /^libra-us-adult-(frames-work-|match-\d+-work-)/.test(String(work?.workId || ''));
 }
 function westernAdultProductIdentityIssue({ packaged, hasChoice, catalogueDecision, basisDigest, completion, works,
-  peoplePrepOpen = false }) {
+  peoplePrepOpen = false, settlementFailure = null }) {
   const list = works || [];
   if (packaged || hasChoice || catalogueDecision) return null;
   // Name-first bind / catalogue image prep in flight — stay in_progress, never fake 「等待建档」.
   if (peoplePrepOpen) return null;
+  // Fail-closed catalogue settlement (provider / ensure) must be Attention-visible — never idle analyzing.
+  if (settlementFailure?.reasonCode) {
+    return Object.freeze({
+      contentProfile: 'western_adult', result: 'unachievable',
+      reasonCode: settlementFailure.reasonCode,
+      candidateSetDigest: null, candidates: Object.freeze([]),
+    });
+  }
   if (completion && !completion.winner) return Object.freeze({
     contentProfile: 'western_adult', result: 'not_found',
     reasonCode: basisDigest ? 'us_adult_catalogue_unresolved' : 'us_adult_actor_unmatched',
@@ -438,13 +446,31 @@ function nextAction(works, classification, issue, runState, recovery, arcaStatus
   if (runState === 'suspended') return Object.freeze({ label: '整理已暂停，等待恢复评估', state: 'suspended', progress: null });
   if (recovery?.recoveryState === 'attention_required') return Object.freeze({ label: '接纳执行异常，需要处理', state: 'attention_required', progress: null });
   if (arcaStatus?.stage === 'attention_required') return Object.freeze({ label: '收藏架接纳或上架需要处理', state: 'attention_required', progress: null });
-  if (issue) return Object.freeze({ label: issue.contentProfile==='jav'
-    ?issue.reasonCode==='jav_source_not_configured'?'等待连接 JAV 资料来源':'需要确认番号'
-    :issue.contentProfile==='western_adult'
-      ?(issue.reasonCode==='us_adult_catalogue_registration_required'?'等待外库演员建档'
-        :issue.reasonCode==='us_adult_catalogue_unresolved'?'外库未确认演员，需要确认'
-        :'需要确认演员')
-    :issue.result === 'ambiguous' ? '需要确认媒体身份' : issue.result === 'conflicting' ? '媒体身份信息冲突' : '暂未找到匹配的媒体身份', state: 'attention_required', progress: null });
+  if (issue) {
+    const westernPrepFailed=issue.contentProfile==='western_adult'&&typeof issue.reasonCode==='string'&&(
+      issue.reasonCode.startsWith('PEOPLE_CATALOGUE_PROVIDER_')||
+      issue.reasonCode==='PEOPLE_CATALOGUE_ENSURE_UNWIRED'||
+      issue.reasonCode==='PEOPLE_CATALOGUE_IMAGE_FAILED'||
+      (issue.reasonCode.startsWith('PEOPLE_CATALOGUE_IMAGE_')&&issue.reasonCode!=='PEOPLE_CATALOGUE_IMAGE_PENDING')||
+      issue.reasonCode.startsWith('PEOPLE_CATALOGUE_FRAME_PROOF_')||
+      issue.reasonCode.startsWith('PEOPLE_BUFFALO_REFRESH_')
+    );
+    const label=issue.contentProfile==='jav'
+      ?issue.reasonCode==='jav_source_not_configured'?'等待连接 JAV 资料来源':'需要确认番号'
+      :issue.contentProfile==='western_adult'
+        ?(issue.reasonCode==='us_adult_catalogue_registration_required'?'等待外库演员建档'
+          :issue.reasonCode==='us_adult_catalogue_unresolved'?'外库未确认演员，需要确认'
+          :westernPrepFailed?'外库演员资料准备失败，需要处理'
+          :'需要确认演员')
+        :issue.result === 'ambiguous' ? '需要确认媒体身份' : issue.result === 'conflicting' ? '媒体身份信息冲突' : '暂未找到匹配的媒体身份';
+    // §9.8.6: Attention items must expose an explicit primaryAction + target page.
+    const primaryAction=issue.contentProfile==='western_adult'
+      ?Object.freeze({action:'choose_us_adult_actor',label:'选择演员',targetPage:'formation'})
+      :issue.contentProfile==='jav'
+        ?Object.freeze({action:'confirm_jav_identity',label:'确认番号',targetPage:'formation'})
+        :Object.freeze({action:'choose_product_identity',label:'确认媒体身份',targetPage:'formation'});
+    return Object.freeze({label,state:'attention_required',progress:null,primaryAction});
+  }
   if (waitingExternalIntegration) return Object.freeze({
     label: '等待配置外部获取服务后继续整理', state: 'waiting_external', progress: null,
   });
@@ -684,8 +710,11 @@ function createFormationProjectionSource(options) {
         const peoplePrepOpen=typeof options.hasOpenPeopleCatalogueImagePrep==='function'
           ?options.hasOpenPeopleCatalogueImagePrep({subjectId:subject.subject_id,libraRunId:run?.libra_run_id||null})===true
           :false;
+        const settlementFailure=typeof options.readUsAdultCatalogueSettlementFailure==='function'
+          ?options.readUsAdultCatalogueSettlementFailure({libraRunId:run?.libra_run_id||null})
+          :null;
         issue=westernAdultProductIdentityIssue({packaged:Boolean(pkg),hasChoice,catalogueDecision:Boolean(catalogueDecision),
-          basisDigest:catalogueBasis&&catalogueBasis.basis_digest,completion,works,peoplePrepOpen});
+          basisDigest:catalogueBasis&&catalogueBasis.basis_digest,completion,works,peoplePrepOpen,settlementFailure});
       }
       const waitingExternalIntegration = waitsForExternalIntegration(works, externalIntegrationReady);
       const recovery = pkg ? recoveries.get(pkg.offer_id) || null : null;

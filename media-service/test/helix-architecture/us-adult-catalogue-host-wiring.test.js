@@ -142,6 +142,7 @@ test('Clean Host wires provider observation and buffalo People preparation for c
   assert.match(host,/createBuffaloPeopleReferencePreparation/);
   assert.match(host,/buffaloPreparation/);
   assert.match(host,/hasOpenPeopleCatalogueImagePrep/);
+  assert.match(host,/readUsAdultCatalogueSettlementFailure/);
   // Observation must use platformIntegrations.networkFetch / stashbox adapter, not
   // out-of-scope locals from createPlatformIntegrationServices.
   assert.match(host,/platformIntegrations\.networkFetch/);

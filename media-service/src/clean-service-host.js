@@ -99,6 +99,7 @@ const { createCleanArcaInventoryPort } = require('./clean-arca-inventory-port');
 const { createCleanOffdeckDeletionPort } = require('./clean-offdeck-deletion-port');
 const { createLibraRoutingAdminApplication } = require('./helix/domains/libra/public/admin-application');
 const { createFormationProjectionSource, createFormationQuery } = require('./helix/domains/libra/application/formation-query');
+const { createUsAdultCatalogueSettlementFailureMemo } = require('./helix/domains/libra/application/us-adult-catalogue-settlement-failure-memo');
 const { createFormationProjectionHost } = require('./helix/domains/libra/application/formation-projection-host');
 const { createFormationProjectionStore } = require('./helix/domains/libra/persistence/formation-projection-store');
 const { createFormationRunHistoryStore } = require('./helix/domains/libra/persistence/formation-run-history-store');
@@ -1700,6 +1701,9 @@ async function createCleanServiceHost(options) {
   const formationProjectionStore = createFormationProjectionStore(constructed.applicationDependencies);
   const formationRunHistoryStore = createFormationRunHistoryStore(constructed.applicationDependencies);
   const executionProgressProjectionReader = createExecutionProgressProjectionReader(constructed.applicationDependencies);
+  const usAdultCatalogueSettlementFailureMemo=createUsAdultCatalogueSettlementFailureMemo({
+    persistRoot:path.join(options.dataDir,'runtime','us-adult-catalogue-settlement-failures'),
+  });
   const formationProjectionSource = createFormationProjectionSource({
     ...constructed.applicationDependencies,
     progressProjectionReader: executionProgressProjectionReader,
@@ -1711,6 +1715,7 @@ async function createCleanServiceHost(options) {
     readArcaFormationStatuses: (offerIds) => formationArcaStatusReader(offerIds),
     readJavIdentityStage: (libraRunId) => procurementExecution?.libraRunCoordinator.readJavIdentityStage(libraRunId),
     hasOpenPeopleCatalogueImagePrep:scope=>procurementExecution?.hasOpenPeopleCatalogueImagePrep?.(scope)===true,
+    readUsAdultCatalogueSettlementFailure:scope=>usAdultCatalogueSettlementFailureMemo.readUsAdultCatalogueSettlementFailure(scope),
   });
   const formationQuery = createFormationQuery({ store: formationProjectionStore, historyStore: formationRunHistoryStore,
     detailSource: formationProjectionSource,
@@ -1732,6 +1737,7 @@ async function createCleanServiceHost(options) {
       fetchImpl:platformIntegrations.networkFetch,
       readStashBoxConfiguration:stashBoxCatalogueAdapter.configuration,
       withStashBoxCredential:stashBoxCatalogueAdapter.withCredential,
+      cacheRoot:path.join(options.dataDir,'runtime','us-adult-catalogue-provider-cache'),
       wake(){procurementExecution?.host.wakeBackground({ownerDomain:'libra',reconcilerKey:'active-libra-runs'});},
     })
     :null;
@@ -1756,6 +1762,9 @@ async function createCleanServiceHost(options) {
     observeUsAdultCatalogueProviderSearch:catalogueProviderObservation?.observeProviderSearch||null,
     readCatalogueRegistrationImageBytes:catalogueProviderObservation?.readImageBytes||null,
     buildCatalogueRegistrationFrameProof:catalogueRegistrationFrameProof?.buildFrameImageProof||null,
+    recordUsAdultCatalogueSettlementFailure:usAdultCatalogueSettlementFailureMemo.recordUsAdultCatalogueSettlementFailure,
+    clearUsAdultCatalogueSettlementFailure:usAdultCatalogueSettlementFailureMemo.clearUsAdultCatalogueSettlementFailure,
+    readUsAdultCatalogueSettlementFailure:usAdultCatalogueSettlementFailureMemo.readUsAdultCatalogueSettlementFailure,
     captureUsAdultInventorySource:({assertAuthority,...request})=>require('./helix/integrations/us-adult-inventory-source')
       .createUsAdultInventorySource({assertAuthority,now:options.now||Date.now}).issueReadHandle(request),
     createUsAdultInventoryAnalysisPort:request=>require('./clean-us-adult-inventory-analysis-port').createCleanUsAdultInventoryAnalysisPort({

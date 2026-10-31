@@ -2,18 +2,14 @@
 /**
  * Fixture id: post_qualified_workless_provider_pending
  *
- * Hang class (post-#59 NAS dig / root-cause): after qualified_candidate,
- * ensure/register waits on ThePornDB; provider returns workless
- * PEOPLE_CATALOGUE_PROVIDER_PENDING (HTTP 5xx / proxy timeout silent-caught on tip) →
- * settlement pending with workId=null → 0 decisions, 0 ensure Work,
- * Formation productIdentityIssue=null (idle in_progress / actor-selection analyzing).
+ * Hang class (post-#59): after qualified_candidate, ensure/register waits on ThePornDB;
+ * tip silent-caught provider fail → workless PEOPLE_CATALOGUE_PROVIDER_PENDING →
+ * 0 decisions, 0 ensure Work, Formation productIdentityIssue=null (idle analyzing).
  *
- * SSOT frame (People §6.8.3 / catalogue registration): formal registration / reference
- * ensure image prep must open people_image_operations + people_image_preparation Work
- * (durable workId) OR fail-closed to Attention-visible productIdentityIssue — never
- * silent workless PROVIDER_PENDING forever outside the Work boundary.
- *
- * RED-first: this compound idle + frame breach must FAIL on unfixed tip. No product fix here.
+ * Product fix (#SD-143): provider fail caches kind:'failed' + wake; registration/ensure
+ * fail-closed; Formation surfaces Attention-visible productIdentityIssue. This suite must
+ * stay GREEN — forbid the tip compound idle and assert SSOT Work-boundary compliance
+ * via fail-closed Attention (or durable people_image_preparation Work).
  */
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {coordination}=require('./fixtures/us-adult-catalogue-coordination');
@@ -27,9 +23,16 @@ const {createUsAdultCatalogueBuffaloRefresh}=require('../../src/helix/domains/pe
 const {createUsAdultCatalogueRegistrationAdmission}=
   require('../../src/helix/domains/people/application/us-adult-catalogue-registration-admission');
 const {westernAdultProductIdentityIssue,classifyFormation}=require('../../src/helix/domains/libra/application/formation-query');
+const {createCatalogueProviderObservationPort}=require('../../src/helix/integrations/us-adult-catalogue-provider-observation');
+const {
+  recordUsAdultCatalogueSettlementFailure,
+  clearUsAdultCatalogueSettlementFailure,
+  readUsAdultCatalogueSettlementFailure,
+}=require('../../src/helix/domains/libra/application/us-adult-catalogue-settlement-failure-memo');
 
 const FIXTURE_ID='post_qualified_workless_provider_pending';
 const PROVIDER_PENDING='PEOPLE_CATALOGUE_PROVIDER_PENDING';
+const PROVIDER_FAILED='PEOPLE_CATALOGUE_PROVIDER_FAILED';
 
 function legacySnapshot(personId,factDigest,name='Example Performer'){
   const modelRef='0'.repeat(64),referenceAssetId='asset-legacy';
@@ -65,9 +68,9 @@ function settlementOptions(f,extra={}){
   };
 }
 
-/** Workless ThePornDB wait — tip observeProviderSearch shape (no workId). */
-function worklessProviderWaiting(){
-  return Object.freeze({kind:'waiting',pendingCode:PROVIDER_PENDING});
+/** Post-failure provider observation shape (cached after tip silent-catch was removed). */
+function providerFailed(code=PROVIDER_FAILED){
+  return Object.freeze({kind:'failed',code,message:'ThePornDB catalogue provider search failed.'});
 }
 
 function postObserveWorks(){
@@ -77,13 +80,15 @@ function postObserveWorks(){
   ];
 }
 
-function formationSurface({decision,openOps}){
+function formationSurface({decision,openOps,settled}){
+  const settlementFailure=settled?.kind==='failed'
+    ?{reasonCode:settled.reasonCode||PROVIDER_FAILED}:null;
   const issue=westernAdultProductIdentityIssue({
     basisDigest:'basis',works:postObserveWorks(),peoplePrepOpen:openOps.length>0,catalogueDecision:Boolean(decision),
+    settlementFailure,
   });
   const classification=classifyFormation({run:{state:'active'},works:postObserveWorks(),issue});
-  // Tip actor-selection: post-qualified catalogue basis present, no decision → analyzing.
-  const analysisState=decision?'completed':'analyzing';
+  const analysisState=decision?'completed':(issue?'attention_required':'analyzing');
   return {issue,classification,analysisState};
 }
 
@@ -96,7 +101,7 @@ function assertPostQualifiedWorklessProviderPendingForbidden({
 }){
   const decision=decisionStore.getByRun(settled.libraRunId||'run');
   const openOps=operationStore.listPendingPage({cursor:null,limit:100});
-  const {issue,classification,analysisState}=formationSurface({decision,openOps});
+  const {issue,classification,analysisState}=formationSurface({decision,openOps,settled});
   const worklessPending=settled.kind==='pending'&&!settled.workId&&
     (settled.pendingCode===PROVIDER_PENDING||settled.reasonCode==='us_adult_catalogue_reference_features_pending'||
       settled.reasonCode==='us_adult_catalogue_registration_required');
@@ -111,7 +116,7 @@ function assertPostQualifiedWorklessProviderPendingForbidden({
  * SSOT Work-boundary compliance (People people_image_operations + people_image_preparation).
  * After qualified_candidate, formal registration / ensure image prep must either:
  *   (A) open durable People image op + people_image_preparation workId, or
- *   (B) fail-closed to Attention-visible productIdentityIssue,
+ *   (B) fail-closed to Attention-visible productIdentityIssue / settlement failed,
  * and must never leave workless PROVIDER_PENDING forever with null issue + in_progress analyzing.
  */
 function assertSsotPeopleImageWorkBoundaryCompliance({
@@ -119,7 +124,7 @@ function assertSsotPeopleImageWorkBoundaryCompliance({
 }){
   const decision=decisionStore.getByRun(settled.libraRunId||'run');
   const openOps=operationStore.listPendingPage({cursor:null,limit:100});
-  const {issue,classification,analysisState}=formationSurface({decision,openOps});
+  const {issue,classification,analysisState}=formationSurface({decision,openOps,settled});
 
   const worklessProviderForever=settled.kind==='pending'&&settled.workId==null&&
     settled.pendingCode===PROVIDER_PENDING&&!decision&&openOps.length===0;
@@ -129,7 +134,7 @@ function assertSsotPeopleImageWorkBoundaryCompliance({
 
   const durablePeopleImageWork=Boolean(settled.workId)&&typeof settled.workId==='string'&&
     settled.workId.startsWith('people-image-work-')&&openOps.length>0;
-  const failClosedAttention=issue!=null&&classification==='attention_required';
+  const failClosedAttention=settled.kind==='failed'||(issue!=null&&classification==='attention_required');
   const frameCompliant=durablePeopleImageWork||failClosedAttention||Boolean(decision);
   assert.equal(frameCompliant,true,
     `${FIXTURE_ID} (${label}): SSOT frame — formal registration/ensure image prep must open `+
@@ -139,14 +144,13 @@ function assertSsotPeopleImageWorkBoundaryCompliance({
     `issue=${issue&&issue.reasonCode||'null'} classification=${classification}`);
 
   const silentIdleAnalyzing=issue==null&&classification==='in_progress'&&analysisState==='analyzing'&&
-    !decision&&openOps.length===0&&!settled.workId;
+    !decision&&openOps.length===0&&!settled.workId&&settled.kind!=='failed';
   assert.equal(silentIdleAnalyzing,false,
     `${FIXTURE_ID} (${label}): Formation/UI surface must not stay productIdentityIssue=null + `+
     `in_progress + analyzing for workless provider compound`);
 }
 
-test('post-qualified workless PROVIDER_PENDING must not idle without decision, ensure Work, or Attention',async t=>{
-  // Prefer Tia-shape: name-bound reuse without buffalo face (TLII/TTIA).
+test('post-qualified provider failure fail-closes ensure without workless PROVIDER_PENDING idle',async t=>{
   const {f,catalogue}=await qualifiedCandidate(t);
   const personId='person-tia-provider-pending',factDigest=D('person-tia-provider-pending');
   const operationStore=createPeopleImageOperationStore(f.workspaceOptions);
@@ -160,9 +164,9 @@ test('post-qualified workless PROVIDER_PENDING must not idle without decision, e
   let providerCalls=0;
   const refresh=createUsAdultCatalogueBuffaloRefresh({
     peopleStore,operationStore,
-    peopleImagePort:{stageUpload(){throw new Error('must not stage while provider is workless pending');}},
+    peopleImagePort:{stageUpload(){throw new Error('must not stage while provider failed');}},
     workResultReader:{status:()=>({state:'running'})},
-    observeProviderSearch:()=>{providerCalls+=1;return worklessProviderWaiting();},
+    observeProviderSearch:()=>{providerCalls+=1;return providerFailed();},
     readImageBytes:()=>null,
     buildFrameImageProof:()=>({kind:'waiting',pendingCode:'PEOPLE_CATALOGUE_FRAME_PROOF_PENDING'}),
   }).refreshBuffaloCatalogueReference;
@@ -175,14 +179,11 @@ test('post-qualified workless PROVIDER_PENDING must not idle without decision, e
   });
   const settled=createUsAdultCatalogueSettlementCoordinator(options).reconcile(catalogue);
   assert.ok(providerCalls>=1,'ensure must consult catalogue provider observation');
-  // Tip today: pending / reference_features_pending / workId=null / no op.
-  assert.equal(settled.kind,'pending');
-  assert.equal(settled.reasonCode,'us_adult_catalogue_reference_features_pending');
-  assert.equal(settled.pendingCode,PROVIDER_PENDING);
-  assert.equal(settled.workId,null);
+  assert.equal(settled.kind,'failed');
+  assert.equal(settled.reasonCode,PROVIDER_FAILED);
+  assert.equal(settled.workId,undefined);
   assert.equal(options.usAdultCatalogueDecisionStore.getByRun(catalogue.libraRunId),null);
   assert.equal(operationStore.listPendingPage({cursor:null,limit:100}).length,0);
-  // Gate: SSOT Work-boundary first, then compound idle forbid (RED on unfixed tip).
   assertSsotPeopleImageWorkBoundaryCompliance({
     settled,decisionStore:options.usAdultCatalogueDecisionStore,operationStore,label:'name-bound ensure frame',
   });
@@ -191,14 +192,13 @@ test('post-qualified workless PROVIDER_PENDING must not idle without decision, e
   });
 });
 
-test('post-qualified not_found registration workless PROVIDER_PENDING must not idle without decision, Work, or Attention',async t=>{
-  // Lea-shape: not_found create hits the same provider evidence gate.
+test('post-qualified not_found registration provider failure fail-closes without workless idle',async t=>{
   const {f,catalogue}=await qualifiedCandidate(t);
   const operationStore=createPeopleImageOperationStore(f.workspaceOptions);
   const admission=createUsAdultCatalogueRegistrationAdmission({
     peopleStore:{readUsAdultPersonSnapshot(){return null;}},
-    assembleEvidence:()=>({kind:'waiting',pendingCode:PROVIDER_PENDING}),
-    register(){throw new Error('must not register while provider is workless pending');},
+    assembleEvidence:()=>({kind:'failed',code:PROVIDER_FAILED}),
+    register(){throw new Error('must not register while provider failed');},
   });
   const options=settlementOptions(f,{
     people:[],
@@ -206,9 +206,9 @@ test('post-qualified not_found registration workless PROVIDER_PENDING must not i
       admission.registerCataloguePerson({input,inputDigest,resolution,candidate}),
   });
   const settled=createUsAdultCatalogueSettlementCoordinator(options).reconcile(catalogue);
-  assert.equal(settled.kind,'pending');
+  assert.equal(settled.kind,'failed');
+  assert.equal(settled.reasonCode,PROVIDER_FAILED);
   assert.ok(!settled.workId);
-  assert.equal(settled.pendingCode,PROVIDER_PENDING);
   assert.equal(options.usAdultCatalogueDecisionStore.getByRun(catalogue.libraRunId),null);
   assert.equal(operationStore.listPendingPage({cursor:null,limit:100}).length,0);
   assertSsotPeopleImageWorkBoundaryCompliance({
@@ -219,7 +219,7 @@ test('post-qualified not_found registration workless PROVIDER_PENDING must not i
   });
 });
 
-test('second reconcile after workless PROVIDER_PENDING still forbids compound idle and frame breach',async t=>{
+test('second reconcile after provider failure stays fail-closed (no workless PROVIDER_PENDING forever)',async t=>{
   const {f,catalogue}=await qualifiedCandidate(t);
   const personId='person-tia-retry',factDigest=D('person-tia-retry');
   const operationStore=createPeopleImageOperationStore(f.workspaceOptions);
@@ -234,7 +234,7 @@ test('second reconcile after workless PROVIDER_PENDING still forbids compound id
     peopleStore,operationStore,
     peopleImagePort:{stageUpload(){throw new Error('must not stage');}},
     workResultReader:{status:()=>({state:'running'})},
-    observeProviderSearch:()=>worklessProviderWaiting(),
+    observeProviderSearch:()=>providerFailed('PEOPLE_CATALOGUE_PROVIDER_INVALID'),
     readImageBytes:()=>null,
   }).refreshBuffaloCatalogueReference;
   const options=settlementOptions(f,{
@@ -247,11 +247,9 @@ test('second reconcile after workless PROVIDER_PENDING still forbids compound id
   const coordinator=createUsAdultCatalogueSettlementCoordinator(options);
   const first=coordinator.reconcile(catalogue);
   const second=coordinator.reconcile(catalogue);
-  assert.equal(first.kind,'pending');
-  assert.equal(second.kind,'pending');
-  assert.equal(second.workId,null);
-  assert.equal(second.pendingCode,PROVIDER_PENDING);
-  // Forever: second pass still workless — frame must stay RED until Work or Attention.
+  assert.equal(first.kind,'failed');
+  assert.equal(second.kind,'failed');
+  assert.equal(second.reasonCode,'PEOPLE_CATALOGUE_PROVIDER_INVALID');
   assertSsotPeopleImageWorkBoundaryCompliance({
     settled:second,decisionStore:options.usAdultCatalogueDecisionStore,operationStore,label:'second reconcile frame',
   });
@@ -260,28 +258,28 @@ test('second reconcile after workless PROVIDER_PENDING still forbids compound id
   });
 });
 
-test('Host fairness workId-only eligibility composes with Formation null issue into hang class',()=>{
-  // Tip: eligible = pending && workId; Formation idle post-observe returns null issue.
+test('Host fairness workId-only eligibility is not Happy when Formation surfaces provider settlement failure',()=>{
   const libraPublic=fs.readFileSync(path.resolve(__dirname,
     '../../src/helix/domains/libra/public/index.js'),'utf8');
   const formation=fs.readFileSync(path.resolve(__dirname,
     '../../src/helix/domains/libra/application/formation-query.js'),'utf8');
+  assert.match(libraPublic,/eligible\s*=\s*result\.kind\s*===\s*'pending'\s*&&\s*Boolean\(result\.workId\)/);
+  assert.match(formation,/settlementFailure/);
   const workless={kind:'pending',workId:null,pendingCode:PROVIDER_PENDING};
   const eligible=workless.kind==='pending'&&Boolean(workless.workId);
   const issue=westernAdultProductIdentityIssue({
     basisDigest:'basis',works:postObserveWorks(),peoplePrepOpen:false,catalogueDecision:false,
+    settlementFailure:{reasonCode:PROVIDER_FAILED},
   });
-  assert.match(libraPublic,/eligible\s*=\s*result\.kind\s*===\s*'pending'\s*&&\s*Boolean\(result\.workId\)/);
-  assert.match(formation,/Idle post-observe without a decision is no longer automatic registration Attention/);
+  assert.equal(issue?.reasonCode,PROVIDER_FAILED);
+  assert.equal(classifyFormation({run:{state:'active'},works:postObserveWorks(),issue}),'attention_required');
+  // Tip hang was fairness ineligible + null issue; product fix requires Attention-visible issue.
   const composedHang=!eligible&&issue==null;
   assert.equal(composedHang,false,
     `${FIXTURE_ID}: fairness ineligible + Formation issue null must not be an acceptable Happy idle`);
 });
 
 test('SSOT frame: people_image_preparation Work shape is the durable boundary registration/ensure must enter',()=>{
-  // Contract pin (always): once an operation exists, preparationWork is People-owned Supporting Work
-  // with durable people-image-work-* id. GREEN settle paths must land pending.workId on this prefix
-  // (or fail-closed Attention) — settle tests forbid tip workless PROVIDER_PENDING outside this boundary.
   const operation={operationId:'op-frame-boundary',payloadDigest:D('op-frame-boundary'),
     payload:{operationKind:'catalogue_registration'}};
   const work=preparationWork(operation);
@@ -294,15 +292,205 @@ test('SSOT frame: people_image_preparation Work shape is the durable boundary re
   assert.equal(work.dependencyRefs[0].ownerDomain,'people');
 });
 
-test('SSOT frame: Formation null + analyzing must not mask workless provider pending after qualified',()=>{
-  // Tip NAS surface for the hang class: productIdentityIssue=null, in_progress, actor-selection analyzing.
-  // Gate forbids that surface when settlement is still workless PROVIDER_PENDING (no op / no decision).
-  const settled={kind:'pending',workId:null,pendingCode:PROVIDER_PENDING,
-    reasonCode:'us_adult_catalogue_reference_features_pending',libraRunId:'run'};
+test('SSOT frame: Formation surfaces Attention for provider settlement failure (not null+analyzing)',()=>{
+  const settled={kind:'failed',workId:null,reasonCode:PROVIDER_FAILED,
+    phase:'us_adult_catalogue_name_bound',libraRunId:'run'};
   assertSsotPeopleImageWorkBoundaryCompliance({
     settled,
     decisionStore:{getByRun:()=>null},
     operationStore:{listPendingPage:()=>[]},
     label:'formation analyzing surface',
   });
+  const {issue,classification,analysisState}=formationSurface({
+    decision:null,openOps:[],settled,
+  });
+  assert.equal(issue.reasonCode,PROVIDER_FAILED);
+  assert.equal(classification,'attention_required');
+  assert.notEqual(analysisState,'analyzing');
+});
+
+test('catalogue provider observation caches failure and wakes instead of silent swallow',async()=>{
+  let wakes=0;
+  const port=createCatalogueProviderObservationPort({
+    fetchImpl:async()=>{throw Object.assign(new Error('dial timeout'),{code:'P5_PROVIDER_TRANSPORT_FAILED'});},
+    readStashBoxConfiguration:()=>({endpoint:'https://api.theporndb.net/graphql',configRevision:1}),
+    withStashBoxCredential:async(_rev,fn)=>fn(Buffer.from('test-key')),
+    wake:()=>{wakes+=1;},
+  });
+  const first=port.observeProviderSearch({name:'Tia Ling',aliases:[]});
+  assert.equal(first.kind,'waiting');
+  assert.equal(first.pendingCode,PROVIDER_PENDING);
+  await new Promise(resolve=>setImmediate(resolve));
+  await new Promise(resolve=>setImmediate(resolve));
+  const second=port.observeProviderSearch({name:'Tia Ling',aliases:[]});
+  assert.equal(second.kind,'failed');
+  assert.equal(second.code,PROVIDER_FAILED);
+  assert.ok(wakes>=1,'failure must wake settlement');
+});
+
+test('settlement failure memo is Attention-readable for Formation',()=>{
+  const runId='run-memo-provider-fail';
+  clearUsAdultCatalogueSettlementFailure(runId);
+  recordUsAdultCatalogueSettlementFailure({libraRunId:runId,reasonCode:PROVIDER_FAILED});
+  assert.equal(readUsAdultCatalogueSettlementFailure({libraRunId:runId}).reasonCode,PROVIDER_FAILED);
+  const issue=westernAdultProductIdentityIssue({
+    basisDigest:'basis',works:postObserveWorks(),peoplePrepOpen:false,catalogueDecision:false,
+    settlementFailure:readUsAdultCatalogueSettlementFailure({libraRunId:runId}),
+  });
+  assert.equal(issue.reasonCode,PROVIDER_FAILED);
+  clearUsAdultCatalogueSettlementFailure(runId);
+  assert.equal(readUsAdultCatalogueSettlementFailure({libraRunId:runId}),null);
+});
+
+test('settlement failure memo + provider failure cache survive across process-local rebind (wake/retry durable)',async t=>{
+  const {createUsAdultCatalogueSettlementFailureMemo}=
+    require('../../src/helix/domains/libra/application/us-adult-catalogue-settlement-failure-memo');
+  const root=fs.mkdtempSync(path.join(require('node:os').tmpdir(),'us-adult-settle-memo-'));
+  t.after(()=>{try{fs.rmSync(root,{recursive:true,force:true});}catch{/* ignore */}});
+  const first=createUsAdultCatalogueSettlementFailureMemo({persistRoot:root});
+  first.recordUsAdultCatalogueSettlementFailure({libraRunId:'run-durable',reasonCode:PROVIDER_FAILED});
+  // Simulate process rebind: new memo instance, same durable root — wake/retry across reconcile must still see diagnosis.
+  const second=createUsAdultCatalogueSettlementFailureMemo({persistRoot:root});
+  assert.equal(second.readUsAdultCatalogueSettlementFailure({libraRunId:'run-durable'}).reasonCode,PROVIDER_FAILED);
+
+  const cacheRoot=fs.mkdtempSync(path.join(require('node:os').tmpdir(),'us-adult-provider-cache-'));
+  t.after(()=>{try{fs.rmSync(cacheRoot,{recursive:true,force:true});}catch{/* ignore */}});
+  let wakes=0;
+  const portA=createCatalogueProviderObservationPort({
+    fetchImpl:async()=>{throw Object.assign(new Error('dial timeout'),{code:'P5_PROVIDER_TRANSPORT_FAILED'});},
+    readStashBoxConfiguration:()=>({endpoint:'https://api.theporndb.net/graphql',configRevision:1}),
+    withStashBoxCredential:async(_rev,fn)=>fn(Buffer.from('test-key')),
+    wake:()=>{wakes+=1;},
+    cacheRoot,
+  });
+  portA.observeProviderSearch({name:'Tia Ling',aliases:[]});
+  await new Promise(resolve=>setImmediate(resolve));
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.ok(wakes>=1);
+  const portB=createCatalogueProviderObservationPort({
+    fetchImpl:async()=>{throw new Error('must not refetch after durable failure');},
+    readStashBoxConfiguration:()=>({endpoint:'https://api.theporndb.net/graphql',configRevision:1}),
+    withStashBoxCredential:async(_rev,fn)=>fn(Buffer.from('test-key')),
+    cacheRoot,
+  });
+  const rebound=portB.observeProviderSearch({name:'Tia Ling',aliases:[]});
+  assert.equal(rebound.kind,'failed');
+  assert.equal(rebound.code,PROVIDER_FAILED);
+});
+
+test('first-tick provider waiting is bounded then fail-closed (no forever workless PROVIDER_PENDING)',async()=>{
+  let now=1_000_000;
+  const port=createCatalogueProviderObservationPort({
+    fetchImpl:()=>new Promise(()=>{}), // never settles
+    readStashBoxConfiguration:()=>({endpoint:'https://api.theporndb.net/graphql',configRevision:1}),
+    withStashBoxCredential:async(_rev,fn)=>fn(Buffer.from('test-key')),
+    now:()=>now,
+    waitingBoundMs:50,
+  });
+  const first=port.observeProviderSearch({name:'Hang Actor',aliases:[]});
+  assert.equal(first.kind,'waiting');
+  assert.equal(first.pendingCode,PROVIDER_PENDING);
+  assert.equal(first.workId,undefined);
+  now+=51;
+  const second=port.observeProviderSearch({name:'Hang Actor',aliases:[]});
+  assert.equal(second.kind,'failed');
+  assert.equal(second.code,PROVIDER_FAILED);
+  assertSsotPeopleImageWorkBoundaryCompliance({
+    settled:{kind:'failed',workId:null,reasonCode:second.code,phase:'us_adult_catalogue_name_bound',libraRunId:'run'},
+    decisionStore:{getByRun:()=>null},
+    operationStore:{listPendingPage:()=>[]},
+    label:'bounded first-tick waiting',
+  });
+});
+
+test('exhausted provider image bytes fail-closed (not forever IMAGE_PENDING)',async t=>{
+  const {f}=await qualifiedCandidate(t);
+  const personId='person-image-exhausted',factDigest=D('person-image-exhausted');
+  const operationStore=createPeopleImageOperationStore(f.workspaceOptions);
+  const urlDigest=D('https://cdn.example/tia.jpg');
+  const {queryNames}=require('../../src/helix/contracts/us-adult-name-query');
+  const candidates=[{providerKey:'perf-1',canonicalName:'Tia Ling',aliases:[],
+    images:[{imageId:'img-1',urlDigest,width:200,height:300}]}];
+  const queries=queryNames('Tia Ling',[]).map(term=>({term,limit:Math.max(candidates.length+1,1),
+    completion:'complete',responseDigest:D(candidates),candidates}));
+  const observationBody={schema:'people.us-adult-provider-search-observation@1',provider:'theporndb',queries};
+  const observation={...observationBody,observationDigest:D(observationBody)};
+  const peopleStore={
+    getPerson(){return {personId,currentRevision:1,currentReferenceRevision:0,
+      revision:{canonicalName:'Tia Ling',aliases:[]}};},
+    readUsAdultPersonSnapshot(){return null;},
+    getPersonReferenceProjection(){return null;},
+    hasReferenceImage(){return false;},
+  };
+  let imageReads=0;
+  const refresh=createUsAdultCatalogueBuffaloRefresh({
+    peopleStore,operationStore,
+    peopleImagePort:{stageUpload(){throw new Error('must not stage after image fail');}},
+    workResultReader:{status:()=>({state:'running'})},
+    observeProviderSearch:()=>observation,
+    readImageBytes:()=>{
+      imageReads+=1;
+      if(imageReads===1)return null; // short inflight wait
+      return Object.freeze({kind:'failed',code:'PEOPLE_CATALOGUE_IMAGE_FAILED',
+        message:'Provider image bytes are exhausted.'});
+    },
+  }).refreshBuffaloCatalogueReference;
+  const args={
+    personId,head:{personId,personRevision:1,personFactDigest:factDigest,currentReferenceRevision:0},
+    input:{winner:{name:'Tia Ling',aliases:[]},libraRunId:'run-img',observationHandle:{mode:'initial'}},
+    inputDigest:D('input-img'),candidate:{completedBatches:{mode:'initial'}},
+  };
+  const first=refresh(args);
+  assert.ok(first.kind==='pending'||first.kind==='failed');
+  const second=refresh(args);
+  assert.equal(second.kind,'failed');
+  assert.equal(second.code,'PEOPLE_CATALOGUE_IMAGE_FAILED');
+  assert.notEqual(second.pendingCode,'PEOPLE_BUFFALO_REFRESH_IMAGE_PENDING');
+
+  let wakes=0;
+  const seedPort=createCatalogueProviderObservationPort({
+    fetchImpl:async(url,init)=>{
+      if(init?.method==='POST'||String(url).includes('graphql')){
+        const body=Buffer.from(JSON.stringify({data:{searchPerformer:[{
+          id:'perf-1',name:'Tia Ling',aliases:[],
+          images:[{id:'img-1',url:'https://cdn.example/tia.jpg',width:200,height:300}],
+        }]}}));
+        return {ok:true,status:200,url:String(url),headers:{get:()=>null},
+          arrayBuffer:async()=>body.buffer.slice(body.byteOffset,body.byteOffset+body.byteLength)};
+      }
+      throw Object.assign(new Error('cdn down'),{code:'P5_PROVIDER_TRANSPORT_FAILED'});
+    },
+    readStashBoxConfiguration:()=>({endpoint:'https://api.theporndb.net/graphql',configRevision:1}),
+    withStashBoxCredential:async(_rev,fn)=>fn(Buffer.from('test-key')),
+    wake:()=>{wakes+=1;},
+  });
+  seedPort.observeProviderSearch({name:'Tia Ling',aliases:[]});
+  await new Promise(resolve=>setImmediate(resolve));
+  await new Promise(resolve=>setImmediate(resolve));
+  const seeded=seedPort.observeProviderSearch({name:'Tia Ling',aliases:[]});
+  assert.ok(seeded.queries);
+  const digestHex=seeded.queries[0].candidates[0].images[0].urlDigest;
+  assert.equal(seedPort.readImageBytes({kind:'provider',urlDigest:digestHex}),null);
+  await new Promise(resolve=>setImmediate(resolve));
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.ok(wakes>=1);
+  const exhausted=seedPort.readImageBytes({kind:'provider',urlDigest:digestHex});
+  assert.equal(exhausted?.kind,'failed');
+  assert.equal(exhausted.code,'PEOPLE_CATALOGUE_IMAGE_FAILED');
+});
+
+test('Formation Attention for provider settlement failure exposes actionable primaryAction',()=>{
+  const {nextAction}=require('../../src/helix/domains/libra/application/formation-query');
+  const issue=westernAdultProductIdentityIssue({
+    basisDigest:'basis',works:postObserveWorks(),peoplePrepOpen:false,catalogueDecision:false,
+    settlementFailure:{reasonCode:PROVIDER_FAILED},
+  });
+  assert.equal(issue.reasonCode,PROVIDER_FAILED);
+  const action=nextAction(postObserveWorks(),'attention_required',issue,'active',null,null,null,null);
+  assert.equal(action.state,'attention_required');
+  assert.match(action.label,/外库演员资料准备失败/);
+  assert.ok(action.primaryAction,'§9.8.6 Attention items need explicit primaryAction');
+  assert.equal(action.primaryAction.action,'choose_us_adult_actor');
+  assert.equal(action.primaryAction.label,'选择演员');
+  assert.equal(action.primaryAction.targetPage,'formation');
 });

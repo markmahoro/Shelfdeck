@@ -104,8 +104,13 @@ function createUsAdultCatalogueRegistrationEvidence(options){
     try{providerObservation=options.observeProviderSearch({name:input.winner.name,aliases:input.winner.aliases||[],input,candidate});}
     catch(error){
       if(error?.code==='PEOPLE_CATALOGUE_REGISTRATION_PENDING')throw error;
-      pending(error?.pendingCode||error?.code||'PEOPLE_CATALOGUE_PROVIDER_PENDING',error?.message||'Provider search for catalogue registration is not ready.');
+      const code=error?.pendingCode||error?.code||'PEOPLE_CATALOGUE_PROVIDER_PENDING';
+      if(typeof code==='string'&&code.startsWith('PEOPLE_CATALOGUE_PROVIDER_')&&code!=='PEOPLE_CATALOGUE_PROVIDER_PENDING')
+        return {failed:true,code};
+      pending(code,error?.message||'Provider search for catalogue registration is not ready.');
     }
+    if(providerObservation?.kind==='failed')
+      return {failed:true,code:providerObservation.code||'PEOPLE_CATALOGUE_PROVIDER_FAILED'};
     if(!providerObservation||providerObservation.kind==='waiting')
       return {waiting:true,pendingCode:providerObservation?.pendingCode||'PEOPLE_CATALOGUE_PROVIDER_PENDING',workId:providerObservation?.workId||null};
     return {providerObservation};
@@ -131,6 +136,9 @@ function createUsAdultCatalogueRegistrationEvidence(options){
     if(selected.kind==='provider'){
       const imageBytes=options.readImageBytes({kind:'provider',providerKey:selected.providerKey,imageId:selected.imageId,
         urlDigest:selected.urlDigest,input,candidate});
+      if(imageBytes?.kind==='failed')
+        throw Object.assign(new Error(imageBytes.message||'Provider image bytes are exhausted.'),{
+          code:imageBytes.code||'PEOPLE_CATALOGUE_IMAGE_FAILED'});
       if(!Buffer.isBuffer(imageBytes)||!imageBytes.length)
         pending('PEOPLE_CATALOGUE_IMAGE_PENDING','Provider image bytes are not ready for catalogue registration.');
       return {imageBytes,imageSourceProof:Object.freeze({kind:'provider',providerKey:selected.providerKey,imageId:selected.imageId,
@@ -181,9 +189,17 @@ function createUsAdultCatalogueRegistrationEvidence(options){
       pending('PEOPLE_CATALOGUE_RESOLUTION_REQUIRED','Catalogue registration evidence requires a not_found name resolution.');
     const observation=loadObservation(input,candidate);
     const provider=providerObservationFor(input,candidate);
+    if(provider.failed)return failed(provider.code||'PEOPLE_CATALOGUE_PROVIDER_FAILED');
     if(provider.waiting)return Object.freeze({kind:'waiting',pendingCode:provider.pendingCode,workId:provider.workId});
     const selected=selectProof({input,resolution,observation,providerObservation:provider.providerObservation});
-    const staged=imageFor(input,candidate,selected);
+    let staged;
+    try{staged=imageFor(input,candidate,selected);}
+    catch(error){
+      if(typeof error?.code==='string'&&(error.code==='PEOPLE_CATALOGUE_IMAGE_FAILED'||
+        error.code.startsWith('PEOPLE_CATALOGUE_IMAGE_')))
+        return failed(error.code);
+      throw error;
+    }
     const selectedImage=stageImage(input,candidate,staged.imageBytes,staged.imageSourceProof);
     const operation=ensureOperation({input,inputDigest,resolution,imageSourceProof:staged.imageSourceProof,selectedImage});
     if(typeof options.reconcileImageOperation==='function')options.reconcileImageOperation(operation.operationId);
@@ -228,6 +244,7 @@ function createUsAdultCatalogueRegistrationEvidence(options){
       throw error;
     }
     const provider=providerObservationFor(input,null);
+    if(provider.failed)return failed(provider.code||'PEOPLE_CATALOGUE_PROVIDER_FAILED',operation);
     if(provider.waiting)return Object.freeze({kind:'waiting',pendingCode:provider.pendingCode,operationId:operation.operationId});
     let selected;
     try{selected=selectProof({input,resolution,observation,providerObservation:provider.providerObservation});}
