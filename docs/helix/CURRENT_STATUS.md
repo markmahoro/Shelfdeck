@@ -19,11 +19,11 @@ git show f096af1b40cf71a4ce26f0441c686f7f36e707bc:docs/helix/CURRENT_STATUS.md
 | --- | --- |
 | 记录日期 | 2026-10-31 |
 | 镜像 tag | `markmahoro/shelfdeck:1.1.0` |
-| Source commit | `623e71353c6ec7cd238741816b8829844b19d56f`（PR #49 name-first People bind） |
-| Tar SHA-256 | `038bee328e39b70eabfe8e03bebbfc9a0bfddd0e554d62304084ffc60de80cfd` |
-| NAS ImageId | `sha256:c9c563c14b315897e5892317583b816e0293af0fe3bfcd909220de0c43b3b795` |
-| Runtime | `mode=running`；`normalSupplyAllowed=true`；revision **51** |
-| 备注 | 标准 safe-stop → build/upload/deploy → Formation Reset（17→0）→ Resume；TLII-047 Tia Ling 身份步 done、无 `buffalo_reference_required`；完整入藏 E2E 未宣称 |
+| Source commit | `49b2cd29fb87d352d1dff8f6d5c4bd8208d8b870`（#53+#54+#56+#55） |
+| Tar SHA-256 | `8fc4a8b6518229609e40d3571817b79a3de989ad2f04f7c83c22483f074f8f0d` |
+| NAS ImageId | `sha256:228624cf55385ef1b5d6e01e340b4b79de013f7108d84737bebf481647530060` |
+| Runtime | `mode=stopped`；`normalSupplyAllowed=false`；revision **58** |
+| 备注 | 标准 build/upload/deploy + 安全 Formation Reset（19→0）完成；Resume 被 `P4_EXECUTION_HOST_RECOVERY_BLOCKED` / `PLAN_CATALOG_DRIFT:people-image-plan-47e6ab8f…` 拦下（People `people_image_preparation` 中间态不在 Formation disposable 闭包）；脸库/builtin buffalo 仍在；US Adult 供给抽查未跑；L1+L2 合入前 E2E PASS 见 Project store |
 
 此后若 NAS 现网 tag 与上表不一致，以授权部署回写或只读核验结果为准再更新本表；**不要**把开发检查点堆回本文件。
 
