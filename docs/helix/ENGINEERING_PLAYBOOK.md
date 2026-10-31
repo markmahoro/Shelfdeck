@@ -2,7 +2,7 @@
 
 Status: active non-Canonical engineering governance；适用于版本开发与上线后问题处理，具体范围以用户授权为准；活工作以 GitHub PR 为台账（见根 `AGENTS.md` PR-ledger 指针）。
 
-Last updated: 2026-10-29
+Last updated: 2026-10-31
 
 ## 1. Purpose and authority
 
@@ -280,6 +280,18 @@ resolver、Signal驱动后效和Admin页面业务模型。
   后续提交只要影响用户表面，就重走受影响路径；旧UAT PASS不覆盖新diff，也不能用文案单测替代交互验收。
 - 若仅完成代码或文档审查，必须如实记录；缺少实际页面走查时，不得宣称UI/UAT PASS。
 
+### 11.2 三层验收与 RED-first（用户批准流程）
+
+2026-10-31 用户批准的验收分层；写入本 Playbook 为仓库内 durable 过程规则。不另建平行计划文档。规范补齐后须先完整跑通第 1–2 层；均通过后再提合入/部署。未通过不提部署。
+
+| 层 | 角色 | 要求 |
+| --- | --- | --- |
+| **1 · Agent 驱动** | 项目级 `.cursor/skills/verify-shelfdeck/` skill | Agent 按 feature map 在隔离环境 Launch → Doctor → Drive → Evidence → Cleanup；覆盖本变更相关 journey，不替代合入门禁 |
+| **2 · 合入门禁** | CI / 真 E2E（`tests/runner.sh` 等） | Merge gate 必须覆盖已知用户痛点路径；**RED-first**：对现网/分支上已知洞，须先让门禁在未修产品时失败，再修根因到绿。禁止安慰剂门禁、事后补丁式“必绿”断言 |
+| **3 · 生产** | 仅授权后的复验 | 生产只做授权范围内的抽查/复验，不是首次发现洞的地方；未获该次生产授权不得碰 NAS |
+
+交叉引用：skill 路径见 [`.cursor/skills/verify-shelfdeck/`](../../.cursor/skills/verify-shelfdeck/)（若当前 tip 尚未合入 skill 树，以该路径为 intended home，随 verify-shelfdeck skill PR 落地）。Helix SSOT / 生产门禁（§3）仍高于本分层。第 2 层“真 E2E”指隔离环境跑通全流程至可举证结果，不是仅 schema/observe 套件绿。
+
 ## 12. Review model
 
 ### 12.1 Work Package review
@@ -363,6 +375,7 @@ Phase结束时必须独立于实现顺序，从SSOT反向检查：
 - 不提交`dist/`、runtime JSON、debug dump、生产导出、Secret或旧restructure脚本；
 - 不把无关格式化、用户修改或后续Phase内容混入commit；
 - 合并范围的blocking finding必须关闭；无关待办不阻断本次独立交付；
+- 合入前须满足 §11.2 第 1–2 层（verify-shelfdeck + CI/真 E2E；RED-first 对已知洞）；仅 CI 绿且未经第 1 层/真 E2E 覆盖时，不得当作可合入交付；
 - Evidence记录baseline、实现commit、验证命令/范围和未测风险；镜像/文件处置等需要内容身份的场景追加digest，小型文案修改不强制生成manifest；
 - Passing tests不是完成声明的唯一依据；Final handoff必须列出未执行验证。
 
