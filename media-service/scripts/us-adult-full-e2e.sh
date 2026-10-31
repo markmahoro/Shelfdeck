@@ -13,5 +13,7 @@ node --test \
   test/helix-architecture/us-adult-catalogue-registration.test.js \
   test/helix-architecture/us-adult-catalogue-registration-host.test.js \
   test/helix-architecture/us-adult-name-resolution.test.js \
-  test/helix-architecture/us-adult-catalogue-assessment.test.js || exit 1
+  test/helix-architecture/us-adult-catalogue-assessment.test.js \
+  test/helix-architecture/us-adult-catalogue-selected-image-provenance-schema.test.js \
+  test/helix-architecture/us-adult-catalogue-cpu-session-stop.test.js || exit 1
 echo "us-adult-full-e2e: ensure reuse + create registration + Attention gate passed"

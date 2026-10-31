@@ -105,6 +105,10 @@ test('wired catalogue admission creates a catalogue_registration operation inste
   assert.equal(ops[0].operationKind,'catalogue_registration');
   assert.equal(D(ops[0].faceModelRef),D(buffaloModelReference('single_reference_face')));
   assert.equal(ops[0].selectedImage.provenance.source,'stashbox');
+  assert.equal(Object.hasOwn(ops[0].selectedImage.provenance,'providerKey'),false);
+  assert.equal(Object.hasOwn(ops[0].selectedImage.provenance,'imageId'),false);
+  sceneValue.f.validator.validate(
+    'helix://contracts/domain-types/PeopleSelectedImageHandle/v1',ops[0].selectedImage);
   assert.ok(result.workId);
 });
 
@@ -138,6 +142,9 @@ test('provider with no image falls back to a catalogue frame and still opens reg
   assertNotStubStall(result,ops);
   assert.equal(ops.length,1);
   assert.equal(ops[0].selectedImage.provenance.source,'catalogue_frame');
+  assert.equal(Object.hasOwn(ops[0].selectedImage.provenance,'proofDigest'),false);
+  sceneValue.f.validator.validate(
+    'helix://contracts/domain-types/PeopleSelectedImageHandle/v1',ops[0].selectedImage);
   assert.equal(result.pendingCode,'PEOPLE_CATALOGUE_IMAGE_PREP_PENDING');
 });
 

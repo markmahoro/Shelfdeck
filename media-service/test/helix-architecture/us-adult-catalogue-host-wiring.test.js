@@ -149,6 +149,17 @@ test('Clean Host wires provider observation and buffalo People preparation for c
   assert.doesNotMatch(host,/createCatalogueProviderObservationPort\(\{[\s\S]*fetchImpl:networkFetch/);
 });
 
+test('catalogue Host Event CPU sessions stop in finally and People embed is model-only',()=>{
+  const ports=fs.readFileSync(path.resolve(__dirname,'../../src/clean-us-adult-catalogue-ports.js'),'utf8');
+  const host=fs.readFileSync(path.resolve(__dirname,'../../src/clean-service-host.js'),'utf8');
+  assert.match(ports,/finally\{await stopSession\(cpuSession\);\}/);
+  assert.match(ports,/withSessionStop/);
+  const peoplePrep=host.match(/buffaloPeoplePreparation[\s\S]*?createPeopleReferencePreparation/);
+  assert.ok(peoplePrep);
+  assert.match(peoplePrep[0],/modelRoot:catalogueHostConfig\.buffaloModelRoot/);
+  assert.doesNotMatch(peoplePrep[0],/catalogueRoot:catalogueHostConfig\.catalogueRoot/);
+});
+
 test('missing catalogue frame proof fails closed and workless settlement does not call terminalWork',()=>{
   const refresh=fs.readFileSync(path.resolve(__dirname,'../../src/helix/domains/people/application/us-adult-catalogue-buffalo-refresh.js'),'utf8');
   const evidence=fs.readFileSync(path.resolve(__dirname,'../../src/helix/domains/people/application/us-adult-catalogue-registration-evidence.js'),'utf8');
