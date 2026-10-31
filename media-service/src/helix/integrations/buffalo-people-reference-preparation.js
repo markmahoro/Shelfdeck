@@ -31,7 +31,7 @@ function createBuffaloPeopleReferencePreparation(options){
     try{
       if(!cpu||typeof cpu.analyzeEvidence!=='function'||typeof cpu.stop!=='function'||canonicalJson(cpu.faceModelRef)!==canonicalJson(videoModel))
         fail('PEOPLE_REFERENCE_PREPARATION_FENCE','The technical CPU session does not use the qualified buffalo feature space.');
-      analyzed=await cpu.analyzeEvidence(bytes,{deadlineAtMs:context.deadlineAtMs,signal:context.abortSignal});
+      analyzed=await cpu.analyzeEvidence(bytes,{deadlineAtMs:Math.min(context.deadlineAtMs,now()+60000),signal:context.abortSignal});
       assertScope(context,operationId);
       if(!Array.isArray(analyzed?.faces)||analyzed.faces.length!==1)
         fail('FACE_REFERENCE_SINGLE_FACE_REQUIRED','The reference image must contain exactly one recognizable face.');
