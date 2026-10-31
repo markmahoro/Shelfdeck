@@ -100,3 +100,38 @@ test('name-first reuse: fuzzy name hit reuses personId without face as People ma
   assert.equal(catalogueDecision.nameResolution.kind,'reused');
   assert.equal(catalogueDecision.personSnapshot.personId,personId);
 });
+
+test('happy path shelf contract: face_catalogue cast is the actor fact On-deck shelf video+poster consume',()=>{
+  // Isolation gate cannot write NAS shelf files. It does prove the product cast On-deck
+  // consumes after catalogue recognize → name reuse/create: face_catalogue source and
+  // package actor guard. Host formation-host covers mkv+nfo+poster.jpg when models exist.
+  const {personSnapshot,referenceAssetId,personId}=personFixture('Mai Thai');
+  const {input,inputDigest}=decisionInput('May Thai');
+  const resolution=resolveUsAdultName({
+    name:input.winner.name,aliases:[],
+    people:[{personId,libraryKind:'us_adult',status:'active',personRevision:1,personFactDigest:D('person'),
+      canonicalName:'Mai Thai',aliases:[]}],
+  });
+  assert.equal(resolution.kind,'resolved');
+  assert.equal(resolution.candidates[0].matchKind,'light_spelling');
+  const catalogueDecision=buildCatalogueActorDecision({input,inputDigest,resolution,personSnapshot,referenceAssetId});
+  assert.equal(catalogueDecision.nameResolution.kind,'reused');
+  const snapshot={spec:{contentProfile:'western_adult'},run:{state:'active',libraRunId:'run-1',subjectId:'subject-1',
+    executionBasisDigest:input.runExecutionBasisDigest}};
+  const selection=currentSelection.build({snapshot,resolvedIdentityDigest:input.resolvedIdentityDigest,catalogueDecision,referenceAssetId});
+  const relation=currentSelection.actorRelation(selection);
+  assert.equal(relation.source,'face_catalogue');
+  assert.equal(relation.personId,personId);
+  const relations=[relation];
+  const castFact={schemaRef:'helix://contracts/types/MediaCastFact/v1',sourceBasisKind:'us_adult_actor',relationCount:1,relations,
+    relationsDigest:D({schema:'libra.media-cast-relations@1',relations})};
+  const packageValue={
+    resolvedIdentitySnapshot:{factValue:{contentProfile:'western_adult',identityKind:'internal_identity',structureKind:'single'}},
+    mediaCastSnapshot:{mediaCastFactId:'cast-fact',mediaCastFactRevision:1,factDigest:D(castFact),factValue:castFact,relations,
+      relationsDigest:castFact.relationsDigest},
+    productFactManifest:{items:[{productFactId:'cast-fact',factRevision:1,factDigest:D(castFact),factKind:'media_cast',factValue:castFact}]},
+  };
+  assert.equal(assertRequiredUsAdultActor(packageValue),packageValue);
+  assert.equal(packageValue.resolvedIdentitySnapshot.factValue.contentProfile,'western_adult');
+  assert.equal(packageValue.mediaCastSnapshot.relations[0].source,'face_catalogue');
+});

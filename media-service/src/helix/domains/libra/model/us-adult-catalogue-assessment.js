@@ -66,10 +66,12 @@ function assessCatalogueActors({groups,policy:frozenPolicy}){
       if(ranked[1]&&ranked[1].distance-best.distance<frozenPolicy.minimumDistanceMargin){ambiguousFaces++;continue;}
       decisive.push(best);matchedRepresentatives++;
     }
-    const winners=new Set(decisive.map(x=>x.identity)),strata=new Set(decisive.map(x=>x.stratum)),images=new Set(decisive.map(x=>x.imageDigest));
+    const winners=new Set(decisive.map(x=>x.identity));
     if(winners.size>1){ambiguousFaces+=decisive.length;continue;}
-    if(winners.size!==1||strata.size<frozenPolicy.minimumRepresentativeStrata||images.size<frozenPolicy.minimumRepresentativeStrata||
-      group.coverageStrata.length<frozenPolicy.minimumCoverageStrata)continue;
+    // Contribute unique decisive hits to the catalogue identity. Temporal coverage
+    // and representative floors apply on the aggregated identity (SSOT: cross-group
+    // supporting strata), not on one cluster's coverageStrata length alone.
+    if(winners.size!==1||!decisive.length)continue;
     counters.qualifiedGroupCount++;
     const identity=decisive[0].identity;
     if(!identities.has(identity))identities.set(identity,{identity,groups:[],strata:new Set(),memberKeys:new Set(),representatives:new Map()});
@@ -86,15 +88,22 @@ function assessCatalogueActors({groups,policy:frozenPolicy}){
       frames.set(frame,key);
     }
     const best=[...observations].sort((a,b)=>a.distance-b.distance||order(a.uid,b.uid))[0];
+    const supportingRepresentativeStrata=[...new Set(observations.map(x=>x.stratum))].sort((a,b)=>a-b);
+    const imageCount=new Set(observations.map(x=>x.imageDigest)).size;
     return {identity:item.identity,name:best.name,uid:best.uid,groupIds:item.groups.sort(order),
-      coverageStrata:[...item.strata].sort((a,b)=>a-b),supportingRepresentativeStrata:[...new Set(observations.map(x=>x.stratum))].sort((a,b)=>a-b),
-      minimumDistance:best.distance,meanDistance:observations.reduce((sum,x)=>sum+x.distance,0)/observations.length,cooccurrenceConflict};
+      coverageStrata:[...item.strata].sort((a,b)=>a-b),supportingRepresentativeStrata,
+      imageCount,minimumDistance:best.distance,meanDistance:observations.reduce((sum,x)=>sum+x.distance,0)/observations.length,cooccurrenceConflict};
   }).sort((a,b)=>b.coverageStrata.length-a.coverageStrata.length||b.supportingRepresentativeStrata.length-a.supportingRepresentativeStrata.length||
     a.meanDistance-b.meanDistance||order(a.identity,b.identity));
-  const eligible=candidates.filter(item=>!item.cooccurrenceConflict),winner=eligible[0]||null;
+  const eligible=candidates.filter(item=>!item.cooccurrenceConflict&&
+    item.coverageStrata.length>=frozenPolicy.minimumCoverageStrata&&
+    item.supportingRepresentativeStrata.length>=frozenPolicy.minimumRepresentativeStrata&&
+    item.imageCount>=frozenPolicy.minimumRepresentativeStrata);
+  const winner=eligible[0]||null;
   // Raw metadata may carry gender. It is intentionally absent from eligibility and ranking.
   const status=winner?'qualified_candidate':!groups.length?'no_faces':ambiguousFaces||candidates.some(x=>x.cooccurrenceConflict)?'ambiguous_identity':
     matchedRepresentatives?'insufficient_evidence':'no_match';
+  for(const item of candidates)delete item.imageCount;
   const value={schema:'libra.us-adult-catalogue-assessment@1',policyDigest:frozenPolicy.policyDigest,status,winner,candidates,
     ...counters,ambiguousRepresentativeCount:ambiguousFaces};
   return freeze({...value,assessmentDigest:canonicalDigest(value)});
