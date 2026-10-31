@@ -307,7 +307,8 @@ function createProcurementExecutionRuntime(options) {
   const peopleImageExecution = createPeopleImageExecutionRegistration({ ...options, workResultReader, contractValidator,
     artifactReferenceSources:[require('../domains/libra/public').createLibraArtifactAuditSource({...options,contractValidator}),
       require('../domains/arca/public').createArcaArtifactAuditSource({...options,contractValidator})],
-    wake: () => host?.wakeBackground({ownerDomain:'people',reconcilerKey:'image-operations'}) });
+    wake: () => host?.wakeBackground({ownerDomain:'people',reconcilerKey:'image-operations'}),
+    wakeCatalogueSettlement: () => host?.wakeBackground({ownerDomain:'libra',reconcilerKey:'active-libra-runs'}) });
   const peopleReferenceQuery=peopleImageExecution.createReferenceQuery();
   const peopleImageRegistrations = peopleImageExecution.createRegistrations(manifests).map(entry=>{
     if(entry.manifest.capabilityRef!=='shared.face.embedding.compute@1')return entry;
@@ -479,6 +480,21 @@ function createProcurementExecutionRuntime(options) {
       if(scope.ownerDomain==='perception'&&scope.processType==='perception_resolution'&&scope.processId.startsWith('subject:'))
         options.onFormationSubjectChanged?.(scope.processId.slice('subject:'.length));
     } });
+  const catalogueArtifactRepository=options.artifactRepository||(options.schemaManifest&&options.unitOfWork
+    ?require('../foundation/persistence/artifact-repository').createArtifactRepository({schemaManifest:options.schemaManifest,unitOfWork:options.unitOfWork})
+    :null);
+  const catalogueInputReader=options.catalogueInputReader||(options.workspaceProductPort?{
+    compile(request){
+      if(!libraProcessServices?.movieProductionReader)
+        throw Object.assign(new Error('Catalogue input is not ready.'),{code:'PEOPLE_CATALOGUE_INPUT_UNWIRED'});
+      return require('../domains/libra/model/us-adult-catalogue-decision-input').createUsAdultCatalogueDecisionInput({
+        movieProductionReader:libraProcessServices.movieProductionReader,
+        usAdultCatalogueStore:require('../domains/libra/persistence/us-adult-catalogue-store').createUsAdultCatalogueStore(options),
+        usAdultActorChoiceStore:require('../domains/libra/persistence/us-adult-actor-choice-store').createUsAdultActorChoiceStore(options),
+        workResultReader,workspaceProductPort:options.workspaceProductPort,contractValidator,
+      }).compile(request);
+    },
+  }:null);
   const catalogueRegistrationAdmission=peopleImageExecution.createCatalogueRegistrationAdmission
     ?peopleImageExecution.createCatalogueRegistrationAdmission({
       now,workResultReader,contractValidator,
@@ -488,13 +504,14 @@ function createProcurementExecutionRuntime(options) {
       readImageBytes:options.readCatalogueRegistrationImageBytes||options.readImageBytes||null,
       buildFrameImageProof:options.buildCatalogueRegistrationFrameProof||null,
       readObservation:options.readCatalogueObservation||null,
-      catalogueInputReader:options.catalogueInputReader||null,
-      artifactRepository:options.artifactRepository||null,
+      catalogueInputReader,artifactRepository:catalogueArtifactRepository,
+      workspaceProductPort:options.workspaceProductPort||null,
     })
     :null;
   libraProcessServices=libraConstruction.createProcessServices({...libraOptions,peopleReferenceQuery,
     peopleStore:peopleImageExecution.peopleStore||null,
     registerCataloguePerson:catalogueRegistrationAdmission?.registerCataloguePerson||options.registerCataloguePerson||null,
+    refreshBuffaloCatalogueReference:peopleImageExecution.refreshBuffaloCatalogueReference||null,
     now,workResultReader,contractValidator,onLibraPriorityChanged:resourcePriorityBridge.refresh,
     onTaskCancellationChanged:subjectId=>options.onFormationSubjectChanged?.(subjectId),
     onWorkshopTransferred:(subjectId)=>{
@@ -1477,7 +1494,8 @@ function createProcurementExecutionRuntime(options) {
     arcaShelfDeregistrationContextReader:arcaProcessServices.shelfDeregistrationContextReader,
     wakeWorkspaceReclaimer(){return drainCompletedWorkspaces();},workspaceReclaimer,
     cancelProcessWorks:(scope)=>workLifecycle.cancelProcess(scope),
-    perception:perceptionProcessServices, people:peopleProcessServices });
+    perception:perceptionProcessServices, people:peopleProcessServices,
+    hasOpenPeopleCatalogueImagePrep:scope=>peopleImageExecution.hasOpenPeopleCatalogueImagePrep(scope) });
 }
 
 module.exports = Object.freeze({
