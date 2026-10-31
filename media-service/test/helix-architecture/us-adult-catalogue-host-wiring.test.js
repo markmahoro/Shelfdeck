@@ -126,6 +126,7 @@ test('People image execution exposes catalogue registration admission and people
   const {createPeopleImageExecutionRegistration}=require('../../src/helix/domains/people/public/image-execution-registration');
   const src=fs.readFileSync(path.resolve(__dirname,'../../src/helix/composition/create-procurement-execution-runtime.js'),'utf8');
   assert.match(src,/registerCataloguePerson/);
+  assert.match(src,/refreshBuffaloCatalogueReference/);
   assert.match(src,/createCatalogueRegistrationAdmission/);
   assert.match(src,/peopleStore:peopleImageExecution\.peopleStore/);
   assert.equal(typeof createPeopleImageExecutionRegistration,'function');
@@ -141,6 +142,8 @@ test('Clean Host and Libra public wire catalogue stores and ports',()=>{
   const host=fs.readFileSync(path.resolve(__dirname,'../../src/clean-service-host.js'),'utf8');
   const pub=fs.readFileSync(path.resolve(__dirname,'../../src/helix/domains/libra/public/index.js'),'utf8');
   assert.match(host,/createCatalogueObservationPort/);
+  assert.match(host,/createCatalogueProviderObservationPort/);
+  assert.match(host,/hasOpenPeopleCatalogueImagePrep/);
   assert.match(host,/catalogueConfiguration/);
   assert.match(pub,/createUsAdultCatalogueStore/);
   assert.match(pub,/createUsAdultCatalogueDecisionStore/);

@@ -354,3 +354,90 @@ test('catalogue preparation without the registration hook stays preparing',async
   assert.equal(pending.state,'preparing');
   assert.equal(fix.peopleStore.getPerson(fix.payload.personId),undefined);
 });
+
+test('Host assembleEvidence opens catalogue_registration then registers; the evidence stub does not',async t=>{
+  const request=providerImage(await setup(t),[person]);
+  const imageBytes=Buffer.from([137,80,78,71,13,10,26,10,1]);
+  const vector=Array(512).fill(0);vector[0]=1;
+  const featureBytes=Buffer.from(canonicalJson({schema:'shared.face-embedding-set@1',dimension:512,vectors:[vector]}));
+  const options=request.f.workspaceOptions;
+  const operationStore=createPeopleImageOperationStore(options);
+  const identity=operationIdentity({inputDigest:request.inputDigest,nameResolutionDigest:request.resolution.resolutionDigest,
+    imageSourceProof:request.imageSourceProof});
+  let prepReady=false;
+  const ref=request.initialReference;
+  function stageUpload({bytes,actorId,idempotencyKey,provenance}){
+    const digestHex=crypto.createHash('sha256').update(bytes).digest('hex');
+    const basis={schemaRef:'helix://contracts/domain-types/PeopleSelectedImageHandle/v1',schemaVersion:1,
+      uploadId:D({schema:'people.selected-upload@1',actorId,idempotencyKey,digestHex}),
+      digestHex,sizeBytes:bytes.length,mediaType:'image/png',provenance};
+    return {...basis,handleDigest:D(basis)};
+  }
+  const asRecord=handle=>({artifactHandleId:handle.artifactHandleId,artifactKind:handle.artifactKind,ownerDomain:handle.ownerDomain,
+    ownerScopeType:handle.ownerScope.scopeType,ownerScopeId:handle.ownerScope.scopeId,storageRef:handle.storageRef,digestAlgorithm:handle.digestAlgorithm,
+    digestHex:handle.digestHex,sizeBytes:handle.sizeBytes,mediaType:handle.mediaType,provenanceRef:handle.provenanceRef,
+    referenceRevision:handle.referenceRevision,state:'active',createdAtMs:1});
+  const artifacts=new Map([ref.artifactHandle,ref.faceEmbeddingSetHandle.artifactHandle].map(handle=>[handle.artifactHandleId,asRecord(handle)]));
+  const execution=createPeopleImageExecutionRegistration({
+    ...options,contractValidator:request.f.validator,operationStore,
+    peopleImagePort:{stageUpload,readArtifact:handle=>handle.artifactHandleId==='photo'?imageBytes:featureBytes},
+    workResultReader:{
+      status(){
+        const operation=operationStore.get(identity.operationId);
+        if(!prepReady||!operation)return {state:'running'};
+        return {state:'succeeded',latestAttempt:{state:'succeeded',attempt_id:'attempt'},owner_domain:'people',
+          process_type:'people_image_preparation',process_id:operation.operationId,basis_digest:operation.payloadDigest};
+      },
+      readDefinition(){
+        const operation=operationStore.get(identity.operationId);
+        return {definition:preparationWork(operation)};
+      },
+      read(){
+        if(!prepReady)return [];
+        const operation=operationStore.get(identity.operationId),work=preparationWork(operation);
+        const result=(capabilityRef,value,eventId)=>({workId:work.workId,attemptId:'attempt',planId:'plan',eventId,eventAttemptId:'event-attempt-'+eventId,
+          state:'succeeded',outcomeKind:'succeeded',inputSnapshotDigest:D(eventId+'-input'),capabilityRef,
+          resultSchemaRef:'helix://contracts/capabilities/'+capabilityRef.replace('@1','/v1/result'),resultDigest:D(value),result:value});
+        return [result('people.reference_asset.import@1',ref.artifactHandle,'import'),
+          result('shared.face.embedding.compute@1',ref.faceEmbeddingSetHandle,'embed')];
+      },
+    },
+    observeProviderSearch:()=>request.providerObservation,
+    readCatalogueRegistrationImageBytes:()=>imageBytes,
+    readCatalogueObservation:()=>request.observation,
+    catalogueInputReader:{compile:()=>({kind:'qualified',input:request.input,inputDigest:request.inputDigest})},
+    artifactRepository:{get:id=>artifacts.get(id)},
+  });
+  const admission=execution.createCatalogueRegistrationAdmission({});
+  const catalogue=request.f.reconcile();
+  const decisionStore=createUsAdultCatalogueDecisionStore({...options,contractValidator:request.f.validator});
+  const coordinator=createUsAdultCatalogueSettlementCoordinator({
+    ...request.f.options,usAdultCatalogueDecisionStore:decisionStore,
+    resolveUsAdultName:input=>resolveUsAdultName({...input,people:[]}),
+    readUsAdultPersonSnapshot:input=>execution.peopleStore.readUsAdultPersonSnapshot(input),
+    readPersonHead(){return null;},
+    registerCataloguePerson:admission.registerCataloguePerson,
+  });
+  const waiting=coordinator.reconcile(catalogue);
+  assert.equal(waiting.kind,'pending');
+  assert.equal(waiting.pendingCode,'PEOPLE_CATALOGUE_IMAGE_PREP_PENDING');
+  assert.notEqual(waiting.pendingCode,'PEOPLE_CATALOGUE_EVIDENCE_PENDING');
+  assert.notEqual(waiting.pendingCode,'PEOPLE_CATALOGUE_EVIDENCE_UNWIRED');
+  assert.ok(waiting.workId);
+  const operation=operationStore.get(identity.operationId);
+  assert.equal(operation.payload.operationKind,'catalogue_registration');
+  assert.equal(operation.state,'preparing');
+  assert.equal(execution.peopleStore.getPerson(identity.personId),undefined);
+  const still=coordinator.reconcile(catalogue);
+  assert.equal(still.kind,'pending');
+  assert.equal(operationStore.listPendingPage({cursor:null,limit:100}).length,1);
+  prepReady=true;
+  const settled=coordinator.reconcile(catalogue);
+  assert.equal(settled.kind,'settled');
+  assert.notEqual(settled.kind,'waiting_registration');
+  assert.equal(settled.decision.nameResolution.kind,'registered');
+  assert.equal(execution.peopleStore.getPerson(identity.personId).currentRevision,1);
+  shelfFaceCatalogue(request.f,settled.decision);
+  const replay=coordinator.reconcile(catalogue);
+  assert.equal(replay.decision.decisionId,settled.decision.decisionId);
+});

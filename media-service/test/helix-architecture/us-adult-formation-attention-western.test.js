@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { classifyFormation, westernAdultProductIdentityIssue } = require('../../src/helix/domains/libra/application/formation-query');
+const { classifyFormation, nextAction, westernAdultProductIdentityIssue } = require('../../src/helix/domains/libra/application/formation-query');
 
 function work(workId, state) {
   return { workId, state, events: [] };
@@ -26,20 +26,34 @@ test('catalogue Basis without a succeeded observation stays in progress', () => 
   }), null);
 });
 
-test('idle succeeded catalogue observation stays in progress (name-first; no fake registration Attention)', () => {
+test('idle succeeded catalogue observation asks for registration when no People prep is open', () => {
   const issue = westernAdultProductIdentityIssue({
     basisDigest: 'basis', works: [idleFrames, observation],
   });
-  assert.equal(issue, null);
+  assert.equal(issue.reasonCode, 'us_adult_catalogue_registration_required');
   assert.equal(classifyFormation({
     run: { state: 'active' }, works: [idleFrames, observation], issue,
-  }), 'in_progress');
+  }), 'attention_required');
+  assert.equal(nextAction([idleFrames, observation], 'attention_required', issue, 'active').label, '等待外库演员建档');
 });
 
 test('open People catalogue image prep suppresses product identity Attention', () => {
   assert.equal(westernAdultProductIdentityIssue({
     basisDigest: 'basis', works: [idleFrames, observation], peoplePrepOpen: true,
   }), null);
+  assert.equal(westernAdultProductIdentityIssue({
+    basisDigest: 'basis', works: [idleFrames, observation], peoplePrepOpen: true,
+    catalogueIdentityReason: 'us_adult_catalogue_buffalo_reference_required',
+  }), null);
+});
+
+test('idle catalogue observation distinguishes a stale buffalo reference from a missing Person', () => {
+  const issue = westernAdultProductIdentityIssue({
+    basisDigest: 'basis', works: [idleFrames, observation],
+    catalogueIdentityReason: 'us_adult_catalogue_buffalo_reference_required',
+  });
+  assert.equal(issue.reasonCode, 'us_adult_catalogue_buffalo_reference_required');
+  assert.equal(nextAction([idleFrames, observation], 'attention_required', issue, 'active').label, '外库演员参考图未就绪');
 });
 
 test('local analysis and blocked catalogue work stay out of registration Attention', () => {
