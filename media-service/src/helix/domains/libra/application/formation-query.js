@@ -324,10 +324,9 @@ function isLocalAnalysisWork(work) {
   return /^libra-us-adult-(frames-work-|match-\d+-work-)/.test(String(work?.workId || ''));
 }
 function westernAdultProductIdentityIssue({ packaged, hasChoice, catalogueDecision, basisDigest, completion, works,
-  peoplePrepOpen = false }) {
+  peoplePrepOpen = false, catalogueIdentityReason = null }) {
   const list = works || [];
   if (packaged || hasChoice || catalogueDecision) return null;
-  // Name-first bind / catalogue image prep in flight — stay in_progress, never fake 「等待建档」.
   if (peoplePrepOpen) return null;
   if (completion && !completion.winner) return Object.freeze({
     contentProfile: 'western_adult', result: 'not_found',
@@ -336,11 +335,13 @@ function westernAdultProductIdentityIssue({ packaged, hasChoice, catalogueDecisi
   });
   if (!basisDigest || completion || hasOpenExecution(list) || hasBlockingExecution(list)) return null;
   if (!list.some((work) => work.state === 'succeeded' && isCatalogueObservationWork(work)) || list.some(isLocalAnalysisWork)) return null;
-  // Idle post-observe without a decision is no longer automatic registration Attention.
-  // Name-resolved subjects bind by People name (not buffalo hang). True not_found create
-  // surfaces via Host registration pending + open People image prep (peoplePrepOpen) or
-  // package/choice/decision once settled — not a blanket 「等待外库演员建档」.
-  return null;
+  return Object.freeze({
+    contentProfile: 'western_adult', result: 'not_found',
+    reasonCode: catalogueIdentityReason === 'us_adult_catalogue_buffalo_reference_required'
+      ? 'us_adult_catalogue_buffalo_reference_required'
+      : 'us_adult_catalogue_registration_required',
+    candidateSetDigest: basisDigest, candidates: Object.freeze([]),
+  });
 }
 function isTerminalBusinessFailure(event) {
   const value = event.result?.result;
@@ -442,6 +443,7 @@ function nextAction(works, classification, issue, runState, recovery, arcaStatus
     ?issue.reasonCode==='jav_source_not_configured'?'等待连接 JAV 资料来源':'需要确认番号'
     :issue.contentProfile==='western_adult'
       ?(issue.reasonCode==='us_adult_catalogue_registration_required'?'等待外库演员建档'
+        :issue.reasonCode==='us_adult_catalogue_buffalo_reference_required'?'外库演员参考图未就绪'
         :issue.reasonCode==='us_adult_catalogue_unresolved'?'外库未确认演员，需要确认'
         :'需要确认演员')
     :issue.result === 'ambiguous' ? '需要确认媒体身份' : issue.result === 'conflicting' ? '媒体身份信息冲突' : '暂未找到匹配的媒体身份', state: 'attention_required', progress: null });
@@ -681,11 +683,15 @@ function createFormationProjectionSource(options) {
           completion=row?assertCompletion(parse(row.completion_json)):null;
         if(completion&&(completion.completionDigest!==row.completion_digest||completion.subjectId!==subject.subject_id||completion.libraRunId!==run.libra_run_id))
           throw new Error('US Adult Formation completion scope changed.');
+        const prepScope={subjectId:subject.subject_id,libraRunId:run?.libra_run_id||null};
         const peoplePrepOpen=typeof options.hasOpenPeopleCatalogueImagePrep==='function'
-          ?options.hasOpenPeopleCatalogueImagePrep({subjectId:subject.subject_id,libraRunId:run?.libra_run_id||null})===true
+          ?options.hasOpenPeopleCatalogueImagePrep(prepScope)===true
           :false;
+        const catalogueIdentityReason=typeof options.catalogueIdentityReason==='function'
+          ?options.catalogueIdentityReason(prepScope)||null
+          :null;
         issue=westernAdultProductIdentityIssue({packaged:Boolean(pkg),hasChoice,catalogueDecision:Boolean(catalogueDecision),
-          basisDigest:catalogueBasis&&catalogueBasis.basis_digest,completion,works,peoplePrepOpen});
+          basisDigest:catalogueBasis&&catalogueBasis.basis_digest,completion,works,peoplePrepOpen,catalogueIdentityReason});
       }
       const waitingExternalIntegration = waitsForExternalIntegration(works, externalIntegrationReady);
       const recovery = pkg ? recoveries.get(pkg.offer_id) || null : null;
