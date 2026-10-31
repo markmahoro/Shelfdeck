@@ -1,0 +1,28 @@
+{
+  "featureId": "us-adult-recognition",
+  "skill": "verify-shelfdeck",
+  "provedAt": "2026-10-31T10:34:35.111Z",
+  "entryPoints": [
+    "media-service/scripts/us-adult-full-e2e.sh",
+    "npm run test:us-adult-full-e2e"
+  ],
+  "checks": [
+    {
+      "name": "true-full-e2e",
+      "exitCode": 0,
+      "successLinePresent": true,
+      "passed": true
+    },
+    {
+      "name": "ingress-ajv-listed",
+      "listed": true
+    },
+    {
+      "name": "host-session-lifecycle-listed",
+      "listed": true
+    }
+  ],
+  "stubGreen": false,
+  "secretsCommitted": false,
+  "pr53RequiredForIngressL2": false
+}

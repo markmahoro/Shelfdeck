@@ -1,0 +1,26 @@
+{
+  "featureId": "us-adult-recognition",
+  "entryPoint": "media-service/scripts/us-adult-full-e2e.sh",
+  "startedAt": "2026-10-31T10:34:27Z",
+  "finishedAt": "2026-10-31T10:34:35.111Z",
+  "exitCode": 0,
+  "successLinePresent": true,
+  "gateTestFiles": [
+    "test/helix-architecture/us-adult-formation-attention-western.test.js",
+    "test/helix-architecture/us-adult-actor-package.test.js",
+    "test/helix-architecture/us-adult-catalogue-registration-admission.test.js",
+    "test/helix-architecture/us-adult-catalogue-host-wiring.test.js",
+    "test/helix-architecture/us-adult-full-e2e-recognition.test.js",
+    "test/helix-architecture/us-adult-catalogue-settlement-register.test.js",
+    "test/helix-architecture/us-adult-catalogue-registration.test.js",
+    "test/helix-architecture/us-adult-catalogue-registration-host.test.js",
+    "test/helix-architecture/us-adult-name-resolution.test.js",
+    "test/helix-architecture/us-adult-catalogue-assessment.test.js",
+    "test/helix-architecture/us-adult-catalogue-selected-image-provenance-schema.test.js",
+    "test/helix-architecture/us-adult-catalogue-cpu-session-stop.test.js"
+  ],
+  "ingressAjvListed": true,
+  "hostSessionLifecycleListed": true,
+  "note": "Gate lists SelectedImage AJV and Host session lifecycle files.",
+  "productionTargeted": false
+}

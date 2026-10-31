@@ -1,0 +1,9 @@
+{
+  "featureId": "health-admin-session",
+  "entryPoint": "POST /v1/admin/session",
+  "status": 204,
+  "cookiePresent": true,
+  "cookieName": "shelfdeck_admin_session",
+  "cookieValue": "[REDACTED]",
+  "apiKey": "[REDACTED]"
+}
