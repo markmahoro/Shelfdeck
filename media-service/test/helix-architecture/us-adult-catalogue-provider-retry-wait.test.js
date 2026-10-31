@@ -141,3 +141,20 @@ test(`fixture ${FIXTURE_ID}: non-retryable INVALID fails closed without retry st
   assert.equal(hit.code,'PEOPLE_CATALOGUE_PROVIDER_INVALID');
   assert.equal(calls,1,'INVALID must not burn the transport retry budget');
 });
+
+test(`fixture ${FIXTURE_ID}: UNCONFIGURED fails closed without transport retry`,async()=>{
+  let calls=0;
+  const port=createCatalogueProviderObservationPort({
+    fetchImpl:async()=>{calls+=1;return emptySearch();},
+    readStashBoxConfiguration:()=>({endpoint:'https://example.invalid/graphql',configRevision:1}),
+    withStashBoxCredential:async(_rev,fn)=>fn(Buffer.from('test-key')),
+    delay:async()=>{},
+    maxAttempts:3,
+  });
+  port.observeProviderSearch({name:'No Config',aliases:[]});
+  await drain();
+  const hit=port.observeProviderSearch({name:'No Config',aliases:[]});
+  assert.equal(hit.kind,'failed');
+  assert.equal(hit.code,'PEOPLE_CATALOGUE_PROVIDER_UNCONFIGURED');
+  assert.equal(calls,0,'UNCONFIGURED must not call transport');
+});

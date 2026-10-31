@@ -316,12 +316,12 @@ test('catalogue provider observation caches failure and wakes instead of silent 
     readStashBoxConfiguration:()=>({endpoint:'https://api.theporndb.net/graphql',configRevision:1}),
     withStashBoxCredential:async(_rev,fn)=>fn(Buffer.from('test-key')),
     wake:()=>{wakes+=1;},
+    delay:async()=>{},
   });
   const first=port.observeProviderSearch({name:'Tia Ling',aliases:[]});
   assert.equal(first.kind,'waiting');
   assert.equal(first.pendingCode,PROVIDER_PENDING);
-  await new Promise(resolve=>setImmediate(resolve));
-  await new Promise(resolve=>setImmediate(resolve));
+  for(let i=0;i<40;i+=1)await new Promise(resolve=>setImmediate(resolve));
   const second=port.observeProviderSearch({name:'Tia Ling',aliases:[]});
   assert.equal(second.kind,'failed');
   assert.equal(second.code,PROVIDER_FAILED);
@@ -362,10 +362,10 @@ test('settlement failure memo + provider failure cache survive across process-lo
     withStashBoxCredential:async(_rev,fn)=>fn(Buffer.from('test-key')),
     wake:()=>{wakes+=1;},
     cacheRoot,
+    delay:async()=>{},
   });
   portA.observeProviderSearch({name:'Tia Ling',aliases:[]});
-  await new Promise(resolve=>setImmediate(resolve));
-  await new Promise(resolve=>setImmediate(resolve));
+  for(let i=0;i<40;i+=1)await new Promise(resolve=>setImmediate(resolve));
   assert.ok(wakes>=1);
   const portB=createCatalogueProviderObservationPort({
     fetchImpl:async()=>{throw new Error('must not refetch after durable failure');},
@@ -463,16 +463,15 @@ test('exhausted provider image bytes fail-closed (not forever IMAGE_PENDING)',as
     readStashBoxConfiguration:()=>({endpoint:'https://api.theporndb.net/graphql',configRevision:1}),
     withStashBoxCredential:async(_rev,fn)=>fn(Buffer.from('test-key')),
     wake:()=>{wakes+=1;},
+    delay:async()=>{},
   });
   seedPort.observeProviderSearch({name:'Tia Ling',aliases:[]});
-  await new Promise(resolve=>setImmediate(resolve));
-  await new Promise(resolve=>setImmediate(resolve));
+  for(let i=0;i<40;i+=1)await new Promise(resolve=>setImmediate(resolve));
   const seeded=seedPort.observeProviderSearch({name:'Tia Ling',aliases:[]});
   assert.ok(seeded.queries);
   const digestHex=seeded.queries[0].candidates[0].images[0].urlDigest;
   assert.equal(seedPort.readImageBytes({kind:'provider',urlDigest:digestHex}),null);
-  await new Promise(resolve=>setImmediate(resolve));
-  await new Promise(resolve=>setImmediate(resolve));
+  for(let i=0;i<40;i+=1)await new Promise(resolve=>setImmediate(resolve));
   assert.ok(wakes>=1);
   const exhausted=seedPort.readImageBytes({kind:'provider',urlDigest:digestHex});
   assert.equal(exhausted?.kind,'failed');
