@@ -9,7 +9,8 @@ const { createPeopleImageOperationCoordinator } = require('../application/people
 const {createPeopleProcessServices}=require('../application/people-process-services');
 const {createPeopleCatalogueRegistrationCommand}=require('../application/us-adult-catalogue-registration-command');
 const {createUsAdultCatalogueRegistrationAdmission,pending}=require('../application/us-adult-catalogue-registration-admission');
-const {createUsAdultCatalogueRegistrationEvidence}=require('../application/us-adult-catalogue-registration-evidence');
+const {createUsAdultCatalogueRegistrationEvidence,openCataloguePrepRunIds}=require('../application/us-adult-catalogue-registration-evidence');
+const {createUsAdultCatalogueBuffaloRefresh}=require('../application/us-adult-catalogue-buffalo-refresh');
 const {createPeopleImageOperationStore}=require('../persistence/people-image-operation-store');
 const {createCommandCommitCoordinator}=require('../../../foundation/persistence/commit-foundation');
 const { createPeopleImagePreparationPorts, IMPORT, EMBED } = require('../capabilities/people-image-preparation-ports');
@@ -73,9 +74,10 @@ function createPeopleImageExecutionRegistration(options) {
     catalogueCompletion.run = (operation) => {
       const initialReference = imageOperations.referenceDecision(operation.operationId);
       const built = readEvidence({ operation, initialReference });
-      if (!built || built.kind === 'waiting') return;
+      if (!built || built.kind === 'waiting' || built.kind === 'failed') return;
       catalogueRegistrationCommand(admissionOptions, admissionOptions.catalogueInputReader || options.catalogueInputReader)
         .register({ ...built, initialReference });
+      options.wakeCatalogueSettlement?.();
     };
   }
   bindCatalogueCompletion(options.readCatalogueRegistrationEvidence, {});
@@ -88,9 +90,13 @@ function createPeopleImageExecutionRegistration(options) {
   const ports={...artifactReclamation.ports,...preparationPorts,...systemPorts,...sharedPorts,[mergeModel.OBSERVE]:mergePorts[mergeModel.OBSERVE],
     [COMMIT]:createPeopleReferenceCommitPort({...options,peopleStore,referenceDecision:imageOperations.referenceDecision})};
   const profileUpdate=createPeopleProfileUpdate({...options,peopleStore});
-  function catalogueEvidencePorts(admissionOptions={}){
-    const operationStore=admissionOptions.operationStore||options.operationStore||
+  let refreshBuffaloCatalogueReference=null;
+  function operationStoreFor(admissionOptions={}){
+    return admissionOptions.operationStore||options.operationStore||options.peopleImageOperationStore||
       createPeopleImageOperationStore({ ...options, ...admissionOptions });
+  }
+  function catalogueEvidencePorts(admissionOptions={}){
+    const operationStore=operationStoreFor(admissionOptions);
     const peopleImagePort=admissionOptions.peopleImagePort||options.peopleImagePort;
     const workResultReader=admissionOptions.workResultReader||options.workResultReader;
     const observeProviderSearch=admissionOptions.observeProviderSearch||options.observeProviderSearch;
@@ -98,28 +104,42 @@ function createPeopleImageExecutionRegistration(options) {
     if(typeof observeProviderSearch!=='function'||typeof readImageBytes!=='function'||
       typeof peopleImagePort?.stageUpload!=='function'||typeof workResultReader?.status!=='function')
       return null;
-    return createUsAdultCatalogueRegistrationEvidence({
-      operationStore,peopleImagePort,workResultReader,observeProviderSearch,readImageBytes,
+    const shared={operationStore,peopleImagePort,workResultReader,observeProviderSearch,readImageBytes,peopleStore,
       buildFrameImageProof:admissionOptions.buildFrameImageProof||options.buildFrameImageProof||null,
       readObservation:admissionOptions.readObservation||options.readCatalogueObservation||null,
       reconcileImageOperation:(operationId)=>imageOperations.reconcile(operationId),
-      referenceDecision:(operationId)=>imageOperations.referenceDecision(operationId),
-      readPendingEvidence:admissionOptions.readPendingEvidence||null,
-    });
+      catalogueInputReader:admissionOptions.catalogueInputReader||options.catalogueInputReader||null,
+      workspaceProductPort:admissionOptions.workspaceProductPort||options.workspaceProductPort||null};
+    if(!refreshBuffaloCatalogueReference)
+      refreshBuffaloCatalogueReference=createUsAdultCatalogueBuffaloRefresh(shared).refreshBuffaloCatalogueReference;
+    return createUsAdultCatalogueRegistrationEvidence({
+      ...shared,referenceDecision:(operationId)=>imageOperations.referenceDecision(operationId)});
+  }
+  function ensureCatalogueReferenceFeatures({personId,personRevision,head,input,inputDigest,resolution,candidate}){
+    catalogueEvidencePorts({});
+    if(typeof refreshBuffaloCatalogueReference!=='function')
+      return Object.freeze({kind:'failed',code:'PEOPLE_CATALOGUE_ENSURE_UNWIRED'});
+    const personHead=head||(typeof peopleStore.getPerson==='function'?(()=>{
+      const person=peopleStore.getPerson(personId);
+      if(!person)return null;
+      return {personId,personRevision:person.currentRevision,personFactDigest:person.personFactDigest||person.revision?.personFactDigest,
+        currentReferenceRevision:person.currentReferenceRevision||0};
+    })():null);
+    if(!personHead||personHead.personId!==personId||
+      (Number.isSafeInteger(personRevision)&&personHead.personRevision!==personRevision))
+      return Object.freeze({kind:'failed',code:'PEOPLE_BUFFALO_REFRESH_STALE'});
+    return refreshBuffaloCatalogueReference({personId,head:personHead,input,inputDigest,resolution,candidate});
   }
   function createCatalogueRegistrationAdmission(admissionOptions={}){
-    // Name-first Host path: real evidence for not_found → Person create.
-    // Buffalo refresh for resolved-but-stale faces is parked pending Codex WIP /
-    // name-resolve bind design — do not wire it as the primary settlement gate.
     const evidence=catalogueEvidencePorts(admissionOptions);
     const readEvidence=admissionOptions.readCatalogueRegistrationEvidence||options.readCatalogueRegistrationEvidence||
       (evidence?evidence.readCatalogueRegistrationEvidence:null);
     if (typeof readEvidence === 'function')
       bindCatalogueCompletion(readEvidence, admissionOptions);
     const assembleEvidence=admissionOptions.assembleEvidence||options.assembleCatalogueRegistrationEvidence||
-      (evidence?evidence.assembleEvidence:null)||(({input,inputDigest})=>{
-      pending('PEOPLE_CATALOGUE_EVIDENCE_PENDING',
-        'Host catalogue registration evidence (provider/frame proof and image prep) is not ready for '+String(input?.winner?.name||inputDigest||'actor')+'.');
+      (evidence?evidence.assembleEvidence:null)||(()=>{
+      pending('PEOPLE_CATALOGUE_EVIDENCE_UNWIRED',
+        'Host catalogue registration evidence is not wired.');
     });
     return createUsAdultCatalogueRegistrationAdmission({
       peopleStore,
@@ -137,9 +157,11 @@ function createPeopleImageExecutionRegistration(options) {
   return Object.freeze({
     peopleStore,
     createCatalogueRegistrationAdmission,
-    hasOpenPeopleCatalogueImagePrep(){
-      const evidence=catalogueEvidencePorts({});
-      return evidence?evidence.hasOpenPrep():false;
+    ensureCatalogueReferenceFeatures,
+    get refreshBuffaloCatalogueReference(){return refreshBuffaloCatalogueReference;},
+    hasOpenPeopleCatalogueImagePrep(scope){
+      if(!scope?.libraRunId)return false;
+      return openCataloguePrepRunIds(operationStoreFor()).has(scope.libraRunId);
     },
     createProcessServices(processOptions){sources={cast:processOptions.onDeckPersonEvidenceProjection,nfo:processOptions.onDeckNfoPersonEvidence};
       return createPeopleProcessServices({...options,...processOptions,peopleStore,imageOperations,profileUpdate,systemRegistration,systemMerge,artifactReclamation});},

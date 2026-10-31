@@ -1408,7 +1408,6 @@ async function createCleanServiceHost(options) {
     afterPhysicalEffect: options.afterPeopleImagePhysicalEffect,afterReclamationPhysicalEffect:options.afterPeopleReferenceReclamationPhysicalEffect,
   });
   const localFaceModel = require('./helix/integrations/local-face-model').createLocalFaceModel({ modelRoot: options.faceModelRoot });
-  const peopleReferencePreparation = require('./helix/integrations/people-reference-preparation').createPeopleReferencePreparation({ imagePort: peopleImagePort, faceModel: localFaceModel });
   const durableLibraWorkspaceRoot=locationRegistryRepository.getWorkspaceRoot('service-libra-production-workspace');
   const libraWorkspaceRoot=path.resolve(durableLibraWorkspaceRoot?.resolvedRoot||options.libraWorkspaceRoot||
     path.join(options.dataDir,'workspaces','libra'));
@@ -1639,6 +1638,15 @@ async function createCleanServiceHost(options) {
     .resolveCatalogueHostConfiguration({dataDir:options.dataDir,...(options.usAdultCatalogue||options)});
   const cataloguePortFactories=require('./clean-us-adult-catalogue-ports').createUsAdultCataloguePortFactories({
     catalogueHost:catalogueHostConfig,frameExtractor:usAdultFrameExtractor,workspaceProductPort,now:options.now||Date.now});
+  const buffaloPeoplePreparation=catalogueHostConfig?require('./helix/integrations/buffalo-people-reference-preparation').createBuffaloPeopleReferencePreparation({
+    imagePort:peopleImagePort,now:options.now||Date.now,
+    createCpuSession(){return require('./helix/integrations/buffalo-cpu-session').createBuffaloCpuSession({
+      modelRoot:catalogueHostConfig.buffaloModelRoot,catalogueRoot:catalogueHostConfig.catalogueRoot,
+      catalogueGeneration:catalogueHostConfig.catalogueConfiguration.catalogueGeneration,
+      catalogueSearchPolicy:catalogueHostConfig.catalogueConfiguration.catalogueSearchPolicy});},
+  }):null;
+  const peopleReferencePreparation=require('./helix/integrations/people-reference-preparation').createPeopleReferencePreparation({
+    imagePort:peopleImagePort,faceModel:localFaceModel,buffaloPreparation:buffaloPeoplePreparation});
   function createUsAdultAnalysisPort({context,basis,actorPresentation}){
     const runtimeEffectAuthority=Object.freeze({effectClass:'workspace_write',eventAttemptId:context.eventAttemptId,
       idempotencyKey:context.idempotencyKey,recoveryDecision:context.recoveryDecision});
@@ -1713,12 +1721,19 @@ async function createCleanServiceHost(options) {
     readIntakeTasks:()=>procurementExecution?.libraPreparationRecovery.readIntakeTasks()||[],
     listAcceptanceAttention:(limit)=>formationAcceptanceAttention(limit),
     readPipelineSubjectIds:()=>procurementExecution?.pipelineAdmission.tokenSubjectIds() || new Set(),
+    hasOpenPeopleCatalogueImagePrep:scope=>procurementExecution?.hasOpenPeopleCatalogueImagePrep?.(scope)===true,
     state: () => formationProjectionHost?.state() || Object.freeze({ status: 'rebuilding', asOfMs: (options.now || Date.now)() }) });
   const fieldEnumerator = options.fieldObservationEnumerator || createCleanFieldObservationEnumerator({
     now: options.now || Date.now,
     onFingerprintRead: options.onPhysicalMaterialFingerprintRead,
   });
+  const catalogueProviderObservation=require('./helix/integrations/us-adult-catalogue-provider-observation').createCatalogueProviderObservationPort({
+    fetchImpl:networkFetch,readStashBoxConfiguration:stashBoxAdapter.configuration,withStashBoxCredential:stashBoxAdapter.withCredential,
+    wake(){procurementExecution?.host.wakeBackground({ownerDomain:'libra',reconcilerKey:'active-libra-runs'});},
+  });
   procurementExecution = createHelixExecutionRuntime({
+    observeUsAdultCatalogueProviderSearch:catalogueProviderObservation.observeProviderSearch,
+    readCatalogueRegistrationImageBytes:catalogueProviderObservation.readImageBytes,
     captureUsAdultInventorySource:({assertAuthority,...request})=>require('./helix/integrations/us-adult-inventory-source')
       .createUsAdultInventorySource({assertAuthority,now:options.now||Date.now}).issueReadHandle(request),
     createUsAdultInventoryAnalysisPort:request=>require('./clean-us-adult-inventory-analysis-port').createCleanUsAdultInventoryAnalysisPort({
