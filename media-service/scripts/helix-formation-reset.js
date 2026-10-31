@@ -5,10 +5,12 @@ const path = require('node:path');
 const Database = require('better-sqlite3');
 const { canonicalDigest } = require('../src/helix/contracts/canonical-json');
 const { activeRunScopeSetDigest } = require('../src/helix/domains/libra/model/run-admission-contracts');
+const { STARTUP_ROOT_STATES } = require('../src/helix/foundation/execution/startup-responsibility-snapshot');
+const { planPeopleReclaim, deletePeopleReclaimRows } = require('./people-process-reclaim');
 const CONFIRMATION = 'FORMATION_RESET_V2';
 const ACTIVE_RUN_STATES = Object.freeze(['active', 'suspended', 'frozen']);
-const ACTIVE_WORK_STATES = Object.freeze(['admitted', 'ready', 'running', 'blocked']);
-const ACTIVE_ATTEMPT_STATES = Object.freeze(['ready', 'running', 'blocked']);
+const ACTIVE_WORK_STATES = STARTUP_ROOT_STATES.works;
+const ACTIVE_ATTEMPT_STATES = STARTUP_ROOT_STATES.workAttempts;
 const EVENTLESS_FACT_MARKERS = Object.freeze([
   Object.freeze({ ownerDomain:'libra', scopeType:'acceptance_spec', table:'libra_acceptance_specs', key:'acceptance_spec_id' }),
   Object.freeze({ ownerDomain:'libra', scopeType:'intake_decision', table:'libra_intake_decisions', key:'intake_decision_id' }),
@@ -536,6 +538,7 @@ function discoverScope(database, options = {}) {
             AND NOT EXISTS (SELECT 1 FROM libra_product_packages package WHERE package.offer_id=work.process_id))
      ORDER BY work.work_id
   `).all());
+  const peopleReclaim = planPeopleReclaim(database, { enabled: !scoped });
   const processScopes = Object.freeze([
     ...typedProcessScope('libra', 'libra_intake', finalIntakeDecisionIds),
     ...typedProcessScope('libra', 'libra_routing', disposableSubjectIds),
@@ -546,6 +549,7 @@ function discoverScope(database, options = {}) {
     ...typedProcessScope('arca', 'arca_on_deck_run', onDeckRunIds),
     ...orphanFormationWorks.map((row) => Object.freeze({ ownerDomain:row.owner_domain,
       processType:row.process_type, processId:row.process_id })),
+    ...peopleReclaim.processScopes,
   ]);
   const orphanOwnedArtifacts = globalOnly(database.prepare(`
     SELECT artifact.artifact_handle_id,artifact.owner_domain,artifact.owner_scope_type,artifact.owner_scope_id
@@ -677,7 +681,7 @@ function discoverScope(database, options = {}) {
     workspaceMaterialHandleIds:Object.freeze(unique(workspaceMaterialHandleIds)),
     eventlessFactMarkerOrphans,
     materialKeys:Object.freeze(materialKeys), subjectControlMaterialKeys:Object.freeze(subjectControlMaterialKeys),
-    processScopes, ownerScopes, factScopes, commandTargetScopes,
+    processScopes, peopleReclaim, ownerScopes, factScopes, commandTargetScopes,
     ownedArtifacts:Object.freeze(ownedArtifacts.map((row) => Object.freeze({ ...row }))), works:Object.freeze(works),
     orphanWorkspaceIds:Object.freeze(orphanWorkspaceIds),
   });
@@ -734,6 +738,7 @@ function discoverOrphans(database, scope) {
 
 function inspectBlockers(database, scope) {
   const blockers = [];
+  if (scope.peopleReclaim && scope.peopleReclaim.blockers.length) blockers.push(...scope.peopleReclaim.blockers);
   const outsideAnalysis=tableExists(database,'libra_us_adult_analysis_bases')?rowsByIds(database,'SELECT analysis_id,subject_id,workspace_id FROM libra_us_adult_analysis_bases WHERE analysis_id IN',scope.usAdultAnalysisIds)
     .filter(row=>!scope.resetSubjectIds.includes(row.subject_id)||!scope.workspaceIds.includes(row.workspace_id)):[];
   const outsideChoices=tableExists(database,'libra_us_adult_actor_choice_intents')?rowsByIds(database,'SELECT intent_id,subject_id FROM libra_us_adult_actor_choice_intents WHERE intent_id IN',scope.usAdultActorChoiceIntentIds)
@@ -794,7 +799,7 @@ function inspectPlan(database, options = {}) {
   const activeWorks = scope.works.filter((row) => ACTIVE_WORK_STATES.includes(row.state));
   const activeAttempts = scope.works.length
     ? rowsByIds(database, 'SELECT attempt_id,work_id,state FROM fx_work_attempts WHERE work_id IN', scope.works.map((row) => row.work_id),
-      `AND state IN ('ready','running','blocked') ORDER BY attempt_id`)
+      `AND state IN (${placeholders(ACTIVE_ATTEMPT_STATES)}) ORDER BY attempt_id`, [...ACTIVE_ATTEMPT_STATES])
     : [];
   const controlledMaterials = rowsByIds(database, 'SELECT material_key,owner_domain,owner_scope_type,owner_scope_id,state FROM fx_material_controls WHERE material_key IN', scope.materialKeys)
     .filter((row) => controlBelongsToScope(row, scope));
@@ -826,6 +831,8 @@ function inspectPlan(database, options = {}) {
     eventlessFactMarkerOrphans:scope.eventlessFactMarkerOrphans.length,
     orphanRoutingDecisionMarkers:scope.eventlessFactMarkerOrphans.filter((row) => row.scope_type === 'routing_decision').length,
     orphanAcceptanceSpecMarkers:scope.eventlessFactMarkerOrphans.filter((row) => row.scope_type === 'acceptance_spec').length,
+    peopleOpenOperations:scope.peopleReclaim.openOperations.length,
+    peopleReclaimProcesses:scope.peopleReclaim.processScopes.length,
   });
   return Object.freeze({ confirmationRequired:CONFIRMATION, ready:blockers.length === 0,
     blockers, counts, scope, orphans, activeWorks:Object.freeze(activeWorks), activeAttempts:Object.freeze(activeAttempts) });
@@ -1392,6 +1399,12 @@ function verifyFrozenManifest(database, manifest) {
       WHERE material.owner_domain='libra' AND workspace.workspace_id IS NULL`).all(),
   };
   for (const [name, rows] of Object.entries(globalResiduals)) if (!scope.selectedSubjectIds && rows.length) residual[name] = rows;
+  if (!scope.selectedSubjectIds) {
+    const peopleReclaim = planPeopleReclaim(database);
+    if (peopleReclaim.processScopes.length || peopleReclaim.openOperations.length || peopleReclaim.blockers.length) {
+      residual.peopleReclaim = peopleReclaim;
+    }
+  }
   if (Object.keys(residual).length) {
     throw Object.assign(new Error('FORMATION_RESET_RESIDUAL'), { details:residual });
   }
@@ -1420,6 +1433,10 @@ function applyFormationReset(database, plan, nowMs) {
   }) });
   database.pragma('foreign_keys = OFF');
   const transaction = database.transaction(() => {
+    if (scope.peopleReclaim.blockers.length) {
+      throw Object.assign(new Error('FORMATION_RESET_BLOCKED'), { details: scope.peopleReclaim.blockers });
+    }
+    deletePeopleReclaimRows(database, scope.peopleReclaim);
     const procurementHandoffA = reopenProcurementHandoffA(database, scope, nowMs);
     deleteFormationBusinessGraph(database, scope, nowMs);
     releaseRecoveryReservations(database, graph.recoveryReservations, nowMs);

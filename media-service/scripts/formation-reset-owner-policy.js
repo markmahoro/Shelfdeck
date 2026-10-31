@@ -2,6 +2,7 @@
 
 const declaration = require('./formation-reset-owner-retention.json');
 const { canonicalDigest } = require('../src/helix/contracts/canonical-json');
+const { peopleOperationRetentionEdges } = require('./people-process-reclaim');
 
 // The Operator consumes a frozen, reviewable Owner declaration. A schema
 // addition is an error until its retention rule has been explicitly classified.
@@ -87,8 +88,9 @@ function buildOwnerRetentionPolicy(manifest, { seriesRetention, metadataRetentio
   edge('libra_handoff_a_receipts', 'proc_candidate_deliveries', [['offer_id', 'offer_id']]);
 
   children('people_persons', 'person_id', ['people_aliases', 'people_person_revisions', 'people_preference_revisions',
-    'people_provider_identities', 'people_reference_assets', 'people_reference_faces', 'people_reference_revisions', 'people_image_operations',
+    'people_provider_identities', 'people_reference_assets', 'people_reference_faces', 'people_reference_revisions',
     'people_us_adult_catalogue_registration_origins']);
+  for (const spec of peopleOperationRetentionEdges()) edge(spec.parent, spec.child, spec.pairs, spec.where, spec.required);
   edge('people_us_adult_catalogue_registration_origins','people_image_operations', [['operation_id','operation_id']],undefined,true);
 
   // Technical execution is retained only for exact business processes and

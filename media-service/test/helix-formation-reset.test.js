@@ -11,6 +11,8 @@ const { activeRunScopeSetDigest } = require('../src/helix/domains/libra/model/ru
 const { runStateDigest } = require('../src/helix/domains/libra/model/run-lifecycle-contracts');
 const { emptyReferenceSetDigest, workspaceStateDigest } = require('../src/helix/domains/libra/model/workspace-admission-contracts');
 const { applyReset, assertSafeTranscodeRoot, inspectPlan, verifyFrozenManifest } = require('../scripts/helix-formation-reset');
+const { PEOPLE_RECLAIMABLE_PROCESSES } = require('../scripts/people-process-reclaim');
+const { preparationWork } = require('../src/helix/domains/people/application/people-image-operation-coordinator');
 const { createRetainedDatabase } = require('../scripts/formation-reset-copy');
 const { buildOwnerRetentionPolicy } = require('../scripts/formation-reset-owner-policy');
 const { createStartupResponsibilitySnapshot } = require('../src/helix/foundation/execution/startup-responsibility-snapshot');
@@ -2314,4 +2316,19 @@ test('fresh generation refuses a preparing People image operation that already p
       `fresh copy threw ${thrown && (thrown.code || thrown.message)}`);
     assert.equal(f.database.prepare('SELECT state FROM people_image_operations WHERE operation_id=?').get(operationId).state, 'preparing');
   } finally { close(f); }
+});
+
+test('People image preparation work matches the reclaimable process registry', () => {
+  const kind = PEOPLE_RECLAIMABLE_PROCESSES[0];
+  const operationId = 'op-registry-match';
+  const work = preparationWork({
+    operationId,
+    payloadDigest: 'a'.repeat(64),
+    payload: { operationKind: 'reference_add' },
+  });
+  assert.equal(work.ownerDomain, kind.ownerDomain);
+  assert.equal(work.processType, kind.processType);
+  assert.equal(work.processId, operationId);
+  assert.equal(kind.operation.openState, 'preparing');
+  assert.deepEqual([...kind.operation.retainedStates], ['completed', 'failed']);
 });
