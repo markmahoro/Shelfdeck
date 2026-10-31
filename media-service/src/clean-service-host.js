@@ -1642,9 +1642,7 @@ async function createCleanServiceHost(options) {
   const buffaloPeoplePreparation=catalogueHostConfig?require('./helix/integrations/buffalo-people-reference-preparation').createBuffaloPeopleReferencePreparation({
     imagePort:peopleImagePort,now:options.now||Date.now,
     createCpuSession(){return require('./helix/integrations/buffalo-cpu-session').createBuffaloCpuSession({
-      modelRoot:catalogueHostConfig.buffaloModelRoot,catalogueRoot:catalogueHostConfig.catalogueRoot,
-      catalogueGeneration:catalogueHostConfig.catalogueConfiguration.catalogueGeneration,
-      catalogueSearchPolicy:catalogueHostConfig.catalogueConfiguration.catalogueSearchPolicy});},
+      modelRoot:catalogueHostConfig.buffaloModelRoot});},
   }):null;
   const peopleReferencePreparation=require('./helix/integrations/people-reference-preparation').createPeopleReferencePreparation({
     imagePort:peopleImagePort,faceModel:localFaceModel,buffaloPreparation:buffaloPeoplePreparation});

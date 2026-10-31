@@ -114,7 +114,7 @@ function createUsAdultCatalogueFrameCapabilityPorts(options){
         port=options.createCatalogueFramePort({context,basis,batch,recoveryFacts:recovery,capturePublicationFence:()=>captureFence(context)}),
         input=context.namedInputs;
       if(typeof port.inspectRecovery!=='function')return result('unobservable','PORT_UNAVAILABLE');
-      const candidate=port.inspectRecovery({capabilityRef:context.capabilityRef,sourceHandle:input.physicalMaterialReadHandleOrWorkspaceMaterialHandle,
+      const candidate=await port.inspectRecovery({capabilityRef:context.capabilityRef,sourceHandle:input.physicalMaterialReadHandleOrWorkspaceMaterialHandle,
         samplingPlan:input.samplingPlan,outputTarget:input.workspaceArtifactOutputTarget,frameArtifactSet,faceModelRef:input.faceModelRef,
         faceEmbeddingSetHandle:input.faceEmbeddingSetHandle,clusterParameters:input.clusterParameters});
       const after=recoveryScope(recovery);if(after.batch.batchDigest!==batch.batchDigest)fail('The frame batch changed during recovery inspection.');

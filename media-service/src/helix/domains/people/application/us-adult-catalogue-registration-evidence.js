@@ -78,11 +78,8 @@ function createUsAdultCatalogueRegistrationEvidence(options){
   function provenanceFor(input,candidate,imageSourceProof){
     if(typeof input?.libraRunId!=='string'||!input.libraRunId)
       pending('PEOPLE_CATALOGUE_OBSERVATION_PENDING','Catalogue registration needs the Libra run that observed this actor.');
-    const base={source:imageSourceProof.kind==='provider'?'stashbox':'catalogue_frame',
+    return {source:imageSourceProof.kind==='provider'?'stashbox':'catalogue_frame',
       sourceObjectId:catalogueRunToken(input.libraRunId,modeOf(input,candidate))};
-    if(imageSourceProof.kind==='provider')
-      return {...base,providerKey:imageSourceProof.providerKey,imageId:imageSourceProof.imageId};
-    return {...base,proofDigest:imageSourceProof.proof.proofDigest};
   }
   function loadObservation(input,candidate){
     if(candidate?.observation)return candidate.observation;
