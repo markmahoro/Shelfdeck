@@ -26,16 +26,20 @@ test('catalogue Basis without a succeeded observation stays in progress', () => 
   }), null);
 });
 
-test('idle succeeded catalogue observation is the closed registration wait', () => {
+test('idle succeeded catalogue observation stays in progress (name-first; no fake registration Attention)', () => {
   const issue = westernAdultProductIdentityIssue({
     basisDigest: 'basis', works: [idleFrames, observation],
   });
-  assert.equal(issue.reasonCode, 'us_adult_catalogue_registration_required');
-  assert.equal(issue.candidateSetDigest, 'basis');
-  assert.equal(issue.contentProfile, 'western_adult');
+  assert.equal(issue, null);
   assert.equal(classifyFormation({
     run: { state: 'active' }, works: [idleFrames, observation], issue,
-  }), 'attention_required');
+  }), 'in_progress');
+});
+
+test('open People catalogue image prep suppresses product identity Attention', () => {
+  assert.equal(westernAdultProductIdentityIssue({
+    basisDigest: 'basis', works: [idleFrames, observation], peoplePrepOpen: true,
+  }), null);
 });
 
 test('local analysis and blocked catalogue work stay out of registration Attention', () => {

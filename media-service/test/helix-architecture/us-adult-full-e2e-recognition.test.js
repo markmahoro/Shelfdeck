@@ -84,3 +84,19 @@ test('Host admission port is injectible and leaves waiting_registration until ev
   assert.equal(result.kind,'pending');
   assert.equal(result.reasonCode,'us_adult_catalogue_registration_required');
 });
+
+test('name-first reuse: fuzzy name hit reuses personId without face as People match key',()=>{
+  const {personSnapshot,referenceAssetId,personId}=personFixture('Examble Performer');
+  const {input,inputDigest}=decisionInput('Example Performer');
+  const resolution=resolveUsAdultName({
+    name:input.winner.name,aliases:[],
+    people:[{personId,libraryKind:'us_adult',status:'active',personRevision:1,personFactDigest:D('person'),
+      canonicalName:'Examble Performer',aliases:[]}],
+  });
+  assert.equal(resolution.kind,'resolved');
+  assert.equal(resolution.candidates[0].personId,personId);
+  assert.equal(resolution.candidates[0].matchKind,'light_spelling');
+  const catalogueDecision=buildCatalogueActorDecision({input,inputDigest,resolution,personSnapshot,referenceAssetId});
+  assert.equal(catalogueDecision.nameResolution.kind,'reused');
+  assert.equal(catalogueDecision.personSnapshot.personId,personId);
+});

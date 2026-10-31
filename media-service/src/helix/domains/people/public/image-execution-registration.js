@@ -9,6 +9,7 @@ const { createPeopleImageOperationCoordinator } = require('../application/people
 const {createPeopleProcessServices}=require('../application/people-process-services');
 const {createPeopleCatalogueRegistrationCommand}=require('../application/us-adult-catalogue-registration-command');
 const {createUsAdultCatalogueRegistrationAdmission,pending}=require('../application/us-adult-catalogue-registration-admission');
+const {createUsAdultCatalogueRegistrationEvidence}=require('../application/us-adult-catalogue-registration-evidence');
 const {createPeopleImageOperationStore}=require('../persistence/people-image-operation-store');
 const {createCommandCommitCoordinator}=require('../../../foundation/persistence/commit-foundation');
 const { createPeopleImagePreparationPorts, IMPORT, EMBED } = require('../capabilities/people-image-preparation-ports');
@@ -87,29 +88,59 @@ function createPeopleImageExecutionRegistration(options) {
   const ports={...artifactReclamation.ports,...preparationPorts,...systemPorts,...sharedPorts,[mergeModel.OBSERVE]:mergePorts[mergeModel.OBSERVE],
     [COMMIT]:createPeopleReferenceCommitPort({...options,peopleStore,referenceDecision:imageOperations.referenceDecision})};
   const profileUpdate=createPeopleProfileUpdate({...options,peopleStore});
+  function catalogueEvidencePorts(admissionOptions={}){
+    const operationStore=admissionOptions.operationStore||options.operationStore||
+      createPeopleImageOperationStore({ ...options, ...admissionOptions });
+    const peopleImagePort=admissionOptions.peopleImagePort||options.peopleImagePort;
+    const workResultReader=admissionOptions.workResultReader||options.workResultReader;
+    const observeProviderSearch=admissionOptions.observeProviderSearch||options.observeProviderSearch;
+    const readImageBytes=admissionOptions.readImageBytes||options.readCatalogueRegistrationImageBytes||options.readImageBytes;
+    if(typeof observeProviderSearch!=='function'||typeof readImageBytes!=='function'||
+      typeof peopleImagePort?.stageUpload!=='function'||typeof workResultReader?.status!=='function')
+      return null;
+    return createUsAdultCatalogueRegistrationEvidence({
+      operationStore,peopleImagePort,workResultReader,observeProviderSearch,readImageBytes,
+      buildFrameImageProof:admissionOptions.buildFrameImageProof||options.buildFrameImageProof||null,
+      readObservation:admissionOptions.readObservation||options.readCatalogueObservation||null,
+      reconcileImageOperation:(operationId)=>imageOperations.reconcile(operationId),
+      referenceDecision:(operationId)=>imageOperations.referenceDecision(operationId),
+      readPendingEvidence:admissionOptions.readPendingEvidence||null,
+    });
+  }
   function createCatalogueRegistrationAdmission(admissionOptions={}){
-    if (typeof admissionOptions.readCatalogueRegistrationEvidence === 'function')
-      bindCatalogueCompletion(admissionOptions.readCatalogueRegistrationEvidence, admissionOptions);
-    const assembleEvidence=admissionOptions.assembleEvidence||options.assembleCatalogueRegistrationEvidence||(({input,inputDigest})=>{
+    // Name-first Host path: real evidence for not_found → Person create.
+    // Buffalo refresh for resolved-but-stale faces is parked pending Codex WIP /
+    // name-resolve bind design — do not wire it as the primary settlement gate.
+    const evidence=catalogueEvidencePorts(admissionOptions);
+    const readEvidence=admissionOptions.readCatalogueRegistrationEvidence||options.readCatalogueRegistrationEvidence||
+      (evidence?evidence.readCatalogueRegistrationEvidence:null);
+    if (typeof readEvidence === 'function')
+      bindCatalogueCompletion(readEvidence, admissionOptions);
+    const assembleEvidence=admissionOptions.assembleEvidence||options.assembleCatalogueRegistrationEvidence||
+      (evidence?evidence.assembleEvidence:null)||(({input,inputDigest})=>{
       pending('PEOPLE_CATALOGUE_EVIDENCE_PENDING',
         'Host catalogue registration evidence (provider/frame proof and image prep) is not ready for '+String(input?.winner?.name||inputDigest||'actor')+'.');
     });
     return createUsAdultCatalogueRegistrationAdmission({
       peopleStore,
       assembleEvidence,
-      register(evidence){
+      register(evidenceValue){
         const catalogueInputReader=admissionOptions.catalogueInputReader||options.catalogueInputReader||{
           compile({libraRunId}){
-            if(evidence.input.libraRunId!==libraRunId)pending('PEOPLE_CATALOGUE_INPUT_STALE','Catalogue decision input Run changed.');
-            return {kind:'qualified',input:evidence.input,inputDigest:evidence.inputDigest};
+            if(evidenceValue.input.libraRunId!==libraRunId)pending('PEOPLE_CATALOGUE_INPUT_STALE','Catalogue decision input Run changed.');
+            return {kind:'qualified',input:evidenceValue.input,inputDigest:evidenceValue.inputDigest};
           }};
-        return catalogueRegistrationCommand(admissionOptions,catalogueInputReader).register(evidence);
+        return catalogueRegistrationCommand(admissionOptions,catalogueInputReader).register(evidenceValue);
       },
     });
   }
   return Object.freeze({
     peopleStore,
     createCatalogueRegistrationAdmission,
+    hasOpenPeopleCatalogueImagePrep(){
+      const evidence=catalogueEvidencePorts({});
+      return evidence?evidence.hasOpenPrep():false;
+    },
     createProcessServices(processOptions){sources={cast:processOptions.onDeckPersonEvidenceProjection,nfo:processOptions.onDeckNfoPersonEvidence};
       return createPeopleProcessServices({...options,...processOptions,peopleStore,imageOperations,profileUpdate,systemRegistration,systemMerge,artifactReclamation});},
     artifactReclamation,
