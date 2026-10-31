@@ -83,6 +83,7 @@ test('a package, choice, decision, or winner suppresses the registration wait', 
 });
 
 test('catalogue settlement provider failure is Attention-visible productIdentityIssue', () => {
+  const { nextAction } = require('../../src/helix/domains/libra/application/formation-query');
   const issue = westernAdultProductIdentityIssue({
     basisDigest: 'basis', works: [idleFrames, observation],
     settlementFailure: { reasonCode: 'PEOPLE_CATALOGUE_PROVIDER_FAILED' },
@@ -96,4 +97,8 @@ test('catalogue settlement provider failure is Attention-visible productIdentity
     basisDigest: 'basis', works: [idleFrames, observation], catalogueDecision: true,
     settlementFailure: { reasonCode: 'PEOPLE_CATALOGUE_PROVIDER_FAILED' },
   }), null);
+  const action = nextAction([idleFrames, observation], 'attention_required', issue, 'active', null, null, null, null);
+  assert.equal(action.primaryAction?.action, 'choose_us_adult_actor');
+  assert.equal(action.primaryAction?.targetPage, 'formation');
+  assert.equal(action.primaryAction?.label, '选择演员');
 });

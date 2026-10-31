@@ -341,3 +341,156 @@ test('settlement failure memo is Attention-readable for Formation',()=>{
   clearUsAdultCatalogueSettlementFailure(runId);
   assert.equal(readUsAdultCatalogueSettlementFailure({libraRunId:runId}),null);
 });
+
+test('settlement failure memo + provider failure cache survive across process-local rebind (wake/retry durable)',async t=>{
+  const {createUsAdultCatalogueSettlementFailureMemo}=
+    require('../../src/helix/domains/libra/application/us-adult-catalogue-settlement-failure-memo');
+  const root=fs.mkdtempSync(path.join(require('node:os').tmpdir(),'us-adult-settle-memo-'));
+  t.after(()=>{try{fs.rmSync(root,{recursive:true,force:true});}catch{/* ignore */}});
+  const first=createUsAdultCatalogueSettlementFailureMemo({persistRoot:root});
+  first.recordUsAdultCatalogueSettlementFailure({libraRunId:'run-durable',reasonCode:PROVIDER_FAILED});
+  // Simulate process rebind: new memo instance, same durable root — wake/retry across reconcile must still see diagnosis.
+  const second=createUsAdultCatalogueSettlementFailureMemo({persistRoot:root});
+  assert.equal(second.readUsAdultCatalogueSettlementFailure({libraRunId:'run-durable'}).reasonCode,PROVIDER_FAILED);
+
+  const cacheRoot=fs.mkdtempSync(path.join(require('node:os').tmpdir(),'us-adult-provider-cache-'));
+  t.after(()=>{try{fs.rmSync(cacheRoot,{recursive:true,force:true});}catch{/* ignore */}});
+  let wakes=0;
+  const portA=createCatalogueProviderObservationPort({
+    fetchImpl:async()=>{throw Object.assign(new Error('dial timeout'),{code:'P5_PROVIDER_TRANSPORT_FAILED'});},
+    readStashBoxConfiguration:()=>({endpoint:'https://api.theporndb.net/graphql',configRevision:1}),
+    withStashBoxCredential:async(_rev,fn)=>fn(Buffer.from('test-key')),
+    wake:()=>{wakes+=1;},
+    cacheRoot,
+  });
+  portA.observeProviderSearch({name:'Tia Ling',aliases:[]});
+  await new Promise(resolve=>setImmediate(resolve));
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.ok(wakes>=1);
+  const portB=createCatalogueProviderObservationPort({
+    fetchImpl:async()=>{throw new Error('must not refetch after durable failure');},
+    readStashBoxConfiguration:()=>({endpoint:'https://api.theporndb.net/graphql',configRevision:1}),
+    withStashBoxCredential:async(_rev,fn)=>fn(Buffer.from('test-key')),
+    cacheRoot,
+  });
+  const rebound=portB.observeProviderSearch({name:'Tia Ling',aliases:[]});
+  assert.equal(rebound.kind,'failed');
+  assert.equal(rebound.code,PROVIDER_FAILED);
+});
+
+test('first-tick provider waiting is bounded then fail-closed (no forever workless PROVIDER_PENDING)',async()=>{
+  let now=1_000_000;
+  const port=createCatalogueProviderObservationPort({
+    fetchImpl:()=>new Promise(()=>{}), // never settles
+    readStashBoxConfiguration:()=>({endpoint:'https://api.theporndb.net/graphql',configRevision:1}),
+    withStashBoxCredential:async(_rev,fn)=>fn(Buffer.from('test-key')),
+    now:()=>now,
+    waitingBoundMs:50,
+  });
+  const first=port.observeProviderSearch({name:'Hang Actor',aliases:[]});
+  assert.equal(first.kind,'waiting');
+  assert.equal(first.pendingCode,PROVIDER_PENDING);
+  assert.equal(first.workId,undefined);
+  now+=51;
+  const second=port.observeProviderSearch({name:'Hang Actor',aliases:[]});
+  assert.equal(second.kind,'failed');
+  assert.equal(second.code,PROVIDER_FAILED);
+  assertSsotPeopleImageWorkBoundaryCompliance({
+    settled:{kind:'failed',workId:null,reasonCode:second.code,phase:'us_adult_catalogue_name_bound',libraRunId:'run'},
+    decisionStore:{getByRun:()=>null},
+    operationStore:{listPendingPage:()=>[]},
+    label:'bounded first-tick waiting',
+  });
+});
+
+test('exhausted provider image bytes fail-closed (not forever IMAGE_PENDING)',async t=>{
+  const {f}=await qualifiedCandidate(t);
+  const personId='person-image-exhausted',factDigest=D('person-image-exhausted');
+  const operationStore=createPeopleImageOperationStore(f.workspaceOptions);
+  const urlDigest=D('https://cdn.example/tia.jpg');
+  const {queryNames}=require('../../src/helix/contracts/us-adult-name-query');
+  const candidates=[{providerKey:'perf-1',canonicalName:'Tia Ling',aliases:[],
+    images:[{imageId:'img-1',urlDigest,width:200,height:300}]}];
+  const queries=queryNames('Tia Ling',[]).map(term=>({term,limit:Math.max(candidates.length+1,1),
+    completion:'complete',responseDigest:D(candidates),candidates}));
+  const observationBody={schema:'people.us-adult-provider-search-observation@1',provider:'theporndb',queries};
+  const observation={...observationBody,observationDigest:D(observationBody)};
+  const peopleStore={
+    getPerson(){return {personId,currentRevision:1,currentReferenceRevision:0,
+      revision:{canonicalName:'Tia Ling',aliases:[]}};},
+    readUsAdultPersonSnapshot(){return null;},
+    getPersonReferenceProjection(){return null;},
+    hasReferenceImage(){return false;},
+  };
+  let imageReads=0;
+  const refresh=createUsAdultCatalogueBuffaloRefresh({
+    peopleStore,operationStore,
+    peopleImagePort:{stageUpload(){throw new Error('must not stage after image fail');}},
+    workResultReader:{status:()=>({state:'running'})},
+    observeProviderSearch:()=>observation,
+    readImageBytes:()=>{
+      imageReads+=1;
+      if(imageReads===1)return null; // short inflight wait
+      return Object.freeze({kind:'failed',code:'PEOPLE_CATALOGUE_IMAGE_FAILED',
+        message:'Provider image bytes are exhausted.'});
+    },
+  }).refreshBuffaloCatalogueReference;
+  const args={
+    personId,head:{personId,personRevision:1,personFactDigest:factDigest,currentReferenceRevision:0},
+    input:{winner:{name:'Tia Ling',aliases:[]},libraRunId:'run-img',observationHandle:{mode:'initial'}},
+    inputDigest:D('input-img'),candidate:{completedBatches:{mode:'initial'}},
+  };
+  const first=refresh(args);
+  assert.ok(first.kind==='pending'||first.kind==='failed');
+  const second=refresh(args);
+  assert.equal(second.kind,'failed');
+  assert.equal(second.code,'PEOPLE_CATALOGUE_IMAGE_FAILED');
+  assert.notEqual(second.pendingCode,'PEOPLE_BUFFALO_REFRESH_IMAGE_PENDING');
+
+  let wakes=0;
+  const seedPort=createCatalogueProviderObservationPort({
+    fetchImpl:async(url,init)=>{
+      if(init?.method==='POST'||String(url).includes('graphql')){
+        const body=Buffer.from(JSON.stringify({data:{searchPerformer:[{
+          id:'perf-1',name:'Tia Ling',aliases:[],
+          images:[{id:'img-1',url:'https://cdn.example/tia.jpg',width:200,height:300}],
+        }]}}));
+        return {ok:true,status:200,url:String(url),headers:{get:()=>null},
+          arrayBuffer:async()=>body.buffer.slice(body.byteOffset,body.byteOffset+body.byteLength)};
+      }
+      throw Object.assign(new Error('cdn down'),{code:'P5_PROVIDER_TRANSPORT_FAILED'});
+    },
+    readStashBoxConfiguration:()=>({endpoint:'https://api.theporndb.net/graphql',configRevision:1}),
+    withStashBoxCredential:async(_rev,fn)=>fn(Buffer.from('test-key')),
+    wake:()=>{wakes+=1;},
+  });
+  seedPort.observeProviderSearch({name:'Tia Ling',aliases:[]});
+  await new Promise(resolve=>setImmediate(resolve));
+  await new Promise(resolve=>setImmediate(resolve));
+  const seeded=seedPort.observeProviderSearch({name:'Tia Ling',aliases:[]});
+  assert.ok(seeded.queries);
+  const digestHex=seeded.queries[0].candidates[0].images[0].urlDigest;
+  assert.equal(seedPort.readImageBytes({kind:'provider',urlDigest:digestHex}),null);
+  await new Promise(resolve=>setImmediate(resolve));
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.ok(wakes>=1);
+  const exhausted=seedPort.readImageBytes({kind:'provider',urlDigest:digestHex});
+  assert.equal(exhausted?.kind,'failed');
+  assert.equal(exhausted.code,'PEOPLE_CATALOGUE_IMAGE_FAILED');
+});
+
+test('Formation Attention for provider settlement failure exposes actionable primaryAction',()=>{
+  const {nextAction}=require('../../src/helix/domains/libra/application/formation-query');
+  const issue=westernAdultProductIdentityIssue({
+    basisDigest:'basis',works:postObserveWorks(),peoplePrepOpen:false,catalogueDecision:false,
+    settlementFailure:{reasonCode:PROVIDER_FAILED},
+  });
+  assert.equal(issue.reasonCode,PROVIDER_FAILED);
+  const action=nextAction(postObserveWorks(),'attention_required',issue,'active',null,null,null,null);
+  assert.equal(action.state,'attention_required');
+  assert.match(action.label,/外库演员资料准备失败/);
+  assert.ok(action.primaryAction,'§9.8.6 Attention items need explicit primaryAction');
+  assert.equal(action.primaryAction.action,'choose_us_adult_actor');
+  assert.equal(action.primaryAction.label,'选择演员');
+  assert.equal(action.primaryAction.targetPage,'formation');
+});

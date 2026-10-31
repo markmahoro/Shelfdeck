@@ -80,6 +80,8 @@ function createUsAdultCatalogueBuffaloRefresh(options){
     const selected=providerImageRequest(providerObservation,providerResolution);
     if(selected){
       const bytes=options.readImageBytes({kind:'provider',...selected,input});
+      if(bytes?.kind==='failed')
+        return failed(bytes.code||'PEOPLE_CATALOGUE_IMAGE_FAILED');
       if(!Buffer.isBuffer(bytes)||!bytes.length)return pendingResult({pendingCode:'PEOPLE_BUFFALO_REFRESH_IMAGE_PENDING'});
       return {bytes,source:'stashbox'};
     }

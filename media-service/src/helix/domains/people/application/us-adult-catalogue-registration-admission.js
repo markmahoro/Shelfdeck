@@ -33,6 +33,10 @@ function createUsAdultCatalogueRegistrationAdmission(options){
           error.code!=='PEOPLE_CATALOGUE_PROVIDER_PENDING')
           return Object.freeze({kind:'failed',phase:'us_adult_catalogue_registration',
             reasonCode:error.code,inputDigest,winnerName:input.winner.name});
+        if(typeof error?.code==='string'&&(error.code==='PEOPLE_CATALOGUE_IMAGE_FAILED'||
+          error.code.startsWith('PEOPLE_CATALOGUE_IMAGE_'))&&error.code!=='PEOPLE_CATALOGUE_IMAGE_PENDING')
+          return Object.freeze({kind:'failed',phase:'us_adult_catalogue_registration',
+            reasonCode:error.code,inputDigest,winnerName:input.winner.name});
         throw error;
       }
       if(evidence?.kind==='failed')

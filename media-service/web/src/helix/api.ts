@@ -326,7 +326,7 @@ export type FormationSubject = {
       }>;
     }>;
   };
-  nextAction: { label:string; state:string; progress:null | { mode:'determinate'|'indeterminate'; currentValue:number|null; totalValue:number|null; unit:string|null; rate:number|null; etaMs:number|null; bucket:string } };
+  nextAction: { label:string; state:string; progress:null | { mode:'determinate'|'indeterminate'; currentValue:number|null; totalValue:number|null; unit:string|null; rate:number|null; etaMs:number|null; bucket:string }; primaryAction?: { action:string; label:string; targetPage:string } | null };
   routingState: 'preparing' | 'unresolved' | 'resolved';
   routingConfigurationFieldId?: string | null;
   routingPolicyMode: 'direct' | 'sorting' | null;

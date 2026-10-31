@@ -136,6 +136,9 @@ function createUsAdultCatalogueRegistrationEvidence(options){
     if(selected.kind==='provider'){
       const imageBytes=options.readImageBytes({kind:'provider',providerKey:selected.providerKey,imageId:selected.imageId,
         urlDigest:selected.urlDigest,input,candidate});
+      if(imageBytes?.kind==='failed')
+        throw Object.assign(new Error(imageBytes.message||'Provider image bytes are exhausted.'),{
+          code:imageBytes.code||'PEOPLE_CATALOGUE_IMAGE_FAILED'});
       if(!Buffer.isBuffer(imageBytes)||!imageBytes.length)
         pending('PEOPLE_CATALOGUE_IMAGE_PENDING','Provider image bytes are not ready for catalogue registration.');
       return {imageBytes,imageSourceProof:Object.freeze({kind:'provider',providerKey:selected.providerKey,imageId:selected.imageId,
@@ -189,7 +192,14 @@ function createUsAdultCatalogueRegistrationEvidence(options){
     if(provider.failed)return failed(provider.code||'PEOPLE_CATALOGUE_PROVIDER_FAILED');
     if(provider.waiting)return Object.freeze({kind:'waiting',pendingCode:provider.pendingCode,workId:provider.workId});
     const selected=selectProof({input,resolution,observation,providerObservation:provider.providerObservation});
-    const staged=imageFor(input,candidate,selected);
+    let staged;
+    try{staged=imageFor(input,candidate,selected);}
+    catch(error){
+      if(typeof error?.code==='string'&&(error.code==='PEOPLE_CATALOGUE_IMAGE_FAILED'||
+        error.code.startsWith('PEOPLE_CATALOGUE_IMAGE_')))
+        return failed(error.code);
+      throw error;
+    }
     const selectedImage=stageImage(input,candidate,staged.imageBytes,staged.imageSourceProof);
     const operation=ensureOperation({input,inputDigest,resolution,imageSourceProof:staged.imageSourceProof,selectedImage});
     if(typeof options.reconcileImageOperation==='function')options.reconcileImageOperation(operation.operationId);
