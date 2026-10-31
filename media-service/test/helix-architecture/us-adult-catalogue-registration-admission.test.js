@@ -11,9 +11,10 @@ test('settlement short-circuits not_found without registerCataloguePerson',()=>{
     '../../src/helix/domains/libra/application/us-adult-catalogue-settlement-coordinator.js'),'utf8');
   assert.match(source,/typeof options\.registerCataloguePerson!=='function'/);
   assert.match(source,/us_adult_catalogue_registration_required/);
-  // Name-first: buffalo model_ref is not a hang-person / waiting_registration gate.
   assert.doesNotMatch(source,/waiting_registration[\s\S]*buffalo_reference_required|buffalo_reference_required[\s\S]*waiting_registration/);
   assert.match(source,/us_adult_catalogue_name_bound|us_adult_catalogue_reference_features_pending/);
+  assert.match(source,/ensureCatalogueReferenceFeatures/);
+  assert.match(source,/PEOPLE_CATALOGUE_ENSURE_UNWIRED/);
 });
 
 test('People admission returns waiting_registration while evidence is pending',()=>{

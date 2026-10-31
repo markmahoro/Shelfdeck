@@ -743,6 +743,7 @@ function createPlatformIntegrationServices(options) {
 
   return Object.freeze({
     close: networkFetch.close,
+    networkFetch,
     admin,
     integrationHandleResolverPort:
       tmdbRuntime.integrationHandleResolverPort,
@@ -1408,7 +1409,6 @@ async function createCleanServiceHost(options) {
     afterPhysicalEffect: options.afterPeopleImagePhysicalEffect,afterReclamationPhysicalEffect:options.afterPeopleReferenceReclamationPhysicalEffect,
   });
   const localFaceModel = require('./helix/integrations/local-face-model').createLocalFaceModel({ modelRoot: options.faceModelRoot });
-  const peopleReferencePreparation = require('./helix/integrations/people-reference-preparation').createPeopleReferencePreparation({ imagePort: peopleImagePort, faceModel: localFaceModel });
   const durableLibraWorkspaceRoot=locationRegistryRepository.getWorkspaceRoot('service-libra-production-workspace');
   const libraWorkspaceRoot=path.resolve(durableLibraWorkspaceRoot?.resolvedRoot||options.libraWorkspaceRoot||
     path.join(options.dataDir,'workspaces','libra'));
@@ -1639,6 +1639,15 @@ async function createCleanServiceHost(options) {
     .resolveCatalogueHostConfiguration({dataDir:options.dataDir,...(options.usAdultCatalogue||options)});
   const cataloguePortFactories=require('./clean-us-adult-catalogue-ports').createUsAdultCataloguePortFactories({
     catalogueHost:catalogueHostConfig,frameExtractor:usAdultFrameExtractor,workspaceProductPort,now:options.now||Date.now});
+  const buffaloPeoplePreparation=catalogueHostConfig?require('./helix/integrations/buffalo-people-reference-preparation').createBuffaloPeopleReferencePreparation({
+    imagePort:peopleImagePort,now:options.now||Date.now,
+    createCpuSession(){return require('./helix/integrations/buffalo-cpu-session').createBuffaloCpuSession({
+      modelRoot:catalogueHostConfig.buffaloModelRoot,catalogueRoot:catalogueHostConfig.catalogueRoot,
+      catalogueGeneration:catalogueHostConfig.catalogueConfiguration.catalogueGeneration,
+      catalogueSearchPolicy:catalogueHostConfig.catalogueConfiguration.catalogueSearchPolicy});},
+  }):null;
+  const peopleReferencePreparation=require('./helix/integrations/people-reference-preparation').createPeopleReferencePreparation({
+    imagePort:peopleImagePort,faceModel:localFaceModel,buffaloPreparation:buffaloPeoplePreparation});
   function createUsAdultAnalysisPort({context,basis,actorPresentation}){
     const runtimeEffectAuthority=Object.freeze({effectClass:'workspace_write',eventAttemptId:context.eventAttemptId,
       idempotencyKey:context.idempotencyKey,recoveryDecision:context.recoveryDecision});
@@ -1703,6 +1712,7 @@ async function createCleanServiceHost(options) {
     readAcceptanceRecoveries: (offerIds) => new Map(offerIds.map((offerId) => [offerId, formationAcceptanceReader(offerId)])),
     readArcaFormationStatuses: (offerIds) => formationArcaStatusReader(offerIds),
     readJavIdentityStage: (libraRunId) => procurementExecution?.libraRunCoordinator.readJavIdentityStage(libraRunId),
+    hasOpenPeopleCatalogueImagePrep:scope=>procurementExecution?.hasOpenPeopleCatalogueImagePrep?.(scope)===true,
   });
   const formationQuery = createFormationQuery({ store: formationProjectionStore, historyStore: formationRunHistoryStore,
     detailSource: formationProjectionSource,
@@ -1718,7 +1728,36 @@ async function createCleanServiceHost(options) {
     now: options.now || Date.now,
     onFingerprintRead: options.onPhysicalMaterialFingerprintRead,
   });
+  const stashBoxCatalogueAdapter=platformIntegrations.providerAdapters.get('stashbox');
+  const catalogueProviderObservation=stashBoxCatalogueAdapter
+    ?require('./helix/integrations/us-adult-catalogue-provider-observation').createCatalogueProviderObservationPort({
+      fetchImpl:platformIntegrations.networkFetch,
+      readStashBoxConfiguration:stashBoxCatalogueAdapter.configuration,
+      withStashBoxCredential:stashBoxCatalogueAdapter.withCredential,
+      wake(){procurementExecution?.host.wakeBackground({ownerDomain:'libra',reconcilerKey:'active-libra-runs'});},
+    })
+    :null;
+  const catalogueRegistrationFrameProof=catalogueHostConfig
+    ?require('./helix/integrations/us-adult-catalogue-frame-proof').createCatalogueRegistrationFrameProofPort({
+      createCpuSession(){return require('./helix/integrations/buffalo-cpu-session').createBuffaloCpuSession({
+        modelRoot:catalogueHostConfig.buffaloModelRoot});},
+      readArtifactBytes:handle=>workspaceProductPort.readArtifactBytes(handle),
+      resolveCatalogueReaders(){
+        return {
+          movieProductionReader:procurementExecution?.movieProductionReader||null,
+          usAdultCatalogueStore:procurementExecution?.usAdultCatalogueStore||null,
+          workResultReader:procurementExecution?.workResultReader||null,
+          contractValidator:procurementExecution?.contractValidator||null,
+        };
+      },
+      wake(){procurementExecution?.host.wakeBackground({ownerDomain:'libra',reconcilerKey:'active-libra-runs'});},
+      now:options.now||Date.now,
+    })
+    :null;
   procurementExecution = createHelixExecutionRuntime({
+    observeUsAdultCatalogueProviderSearch:catalogueProviderObservation?.observeProviderSearch||null,
+    readCatalogueRegistrationImageBytes:catalogueProviderObservation?.readImageBytes||null,
+    buildCatalogueRegistrationFrameProof:catalogueRegistrationFrameProof?.buildFrameImageProof||null,
     captureUsAdultInventorySource:({assertAuthority,...request})=>require('./helix/integrations/us-adult-inventory-source')
       .createUsAdultInventorySource({assertAuthority,now:options.now||Date.now}).issueReadHandle(request),
     createUsAdultInventoryAnalysisPort:request=>require('./clean-us-adult-inventory-analysis-port').createCleanUsAdultInventoryAnalysisPort({

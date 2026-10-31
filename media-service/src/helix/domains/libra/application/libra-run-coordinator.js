@@ -115,6 +115,21 @@ function unresolvedMetadataTerminal(metadataStage) {
   });
 }
 
+function closeUsAdultProductStage(snapshot, stage, closeFailedWork){
+  if(stage?.kind!=='failed')return null;
+  if(!stage.work?.workId){
+    return Object.freeze({
+      kind:'product_unachievable',
+      libraRunId:snapshot.run.libraRunId,
+      phase:stage.phase||null,
+      reasonCode:stage.reasonCode||'US_ADULT_PRODUCT_FAILED',
+      personId:stage.personId||null,
+      winnerName:stage.winnerName||null,
+      inputDigest:stage.inputDigest||null,
+    });
+  }
+  return closeFailedWork(snapshot, stage.work, stage.status);
+}
 function createLibraRunCoordinator(options){
   if(!options?.movieProductionReader||!options.workResultReader||!options.workspaceProductPort)
     throw new TypeError('Libra Run Coordinator requires Owner facts, Foundation results, and Workspace projection.');
@@ -770,7 +785,7 @@ function createLibraRunCoordinator(options){
       if(targetWorkspace.kind==='workspace_admission_deferred')return Object.freeze({kind:'waiting_for_resource',phase:'workspace_admission',
         libraRunId,workspaceId:targetWorkspace.workspaceId,reasonCode:targetWorkspace.reasonCode,requiredFreeBytes:targetWorkspace.requiredFreeBytes});
       usAdultStage=createUsAdultProductCoordinator({...options,submit}).reconcile(snapshot,committed,targetWorkspace);
-      if(usAdultStage.kind==='failed')return terminalWork(snapshot,usAdultStage.work,usAdultStage.status);
+      if(usAdultStage.kind==='failed')return closeUsAdultProductStage(snapshot,usAdultStage,terminalWork);
       if(usAdultStage.kind!=='ready')return usAdultStage;
     }
     const metadataStage=usAdultStage||nextMetadataStage(options,snapshot,committed);
@@ -944,7 +959,7 @@ function createLibraRunCoordinator(options){
     }});
 }
 
-module.exports=Object.freeze({createLibraRunCoordinator,definitionForReplay,unresolvedMetadataTerminal,identityObservationWork,identityCommitWork,metadataObservationWork,artifactWork,productFactWork,
+module.exports=Object.freeze({createLibraRunCoordinator,closeUsAdultProductStage,definitionForReplay,unresolvedMetadataTerminal,identityObservationWork,identityCommitWork,metadataObservationWork,artifactWork,productFactWork,
   sourceMediaObservationWork,directMediaSelectionWork,remuxMediaSelectionWork,transcodeMediaSelectionWork,
   transcodeStrategyAssessmentWork,
   externalSearchSelectionWork,externalAcquireVerificationWork,externalImportSelectionWork});

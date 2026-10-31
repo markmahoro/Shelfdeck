@@ -11,6 +11,7 @@ node --test \
   test/helix-architecture/us-adult-full-e2e-recognition.test.js \
   test/helix-architecture/us-adult-catalogue-settlement-register.test.js \
   test/helix-architecture/us-adult-catalogue-registration.test.js \
+  test/helix-architecture/us-adult-catalogue-registration-host.test.js \
   test/helix-architecture/us-adult-name-resolution.test.js \
   test/helix-architecture/us-adult-catalogue-assessment.test.js || exit 1
-echo "us-adult-full-e2e: happy recognize→reuse/create→shelfable + non-happy Attention gate passed"
+echo "us-adult-full-e2e: ensure reuse + create registration + Attention gate passed"

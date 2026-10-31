@@ -380,6 +380,7 @@ test('assembleEvidence prefers ThePornDB provider image over frame when the uniq
   assert.equal(operation.payload.operationKind,'catalogue_registration');
   assert.equal(staged[0].provenance.source,'stashbox');
   assert.equal(staged[0].provenance.providerKey,'tpdb-1');
+  assert.match(staged[0].provenance.sourceObjectId,/^catalogue-run\/.+\/initial$/);
   assert.ok(Buffer.compare(staged[0].bytes,imageBytes)===0);
 });
 

@@ -126,9 +126,38 @@ test('People image execution exposes catalogue registration admission and people
   const {createPeopleImageExecutionRegistration}=require('../../src/helix/domains/people/public/image-execution-registration');
   const src=fs.readFileSync(path.resolve(__dirname,'../../src/helix/composition/create-procurement-execution-runtime.js'),'utf8');
   assert.match(src,/registerCataloguePerson/);
+  assert.match(src,/ensureCatalogueReferenceFeatures/);
   assert.match(src,/createCatalogueRegistrationAdmission/);
   assert.match(src,/peopleStore:peopleImageExecution\.peopleStore/);
   assert.equal(typeof createPeopleImageExecutionRegistration,'function');
+});
+
+test('Clean Host wires provider observation and buffalo People preparation for catalogue ensure',()=>{
+  const host=fs.readFileSync(path.resolve(__dirname,'../../src/clean-service-host.js'),'utf8');
+  assert.match(host,/createCatalogueProviderObservationPort/);
+  assert.match(host,/observeUsAdultCatalogueProviderSearch/);
+  assert.match(host,/readCatalogueRegistrationImageBytes/);
+  assert.match(host,/createCatalogueRegistrationFrameProofPort/);
+  assert.match(host,/buildCatalogueRegistrationFrameProof/);
+  assert.match(host,/createBuffaloPeopleReferencePreparation/);
+  assert.match(host,/buffaloPreparation/);
+  assert.match(host,/hasOpenPeopleCatalogueImagePrep/);
+  // Observation must use platformIntegrations.networkFetch / stashbox adapter, not
+  // out-of-scope locals from createPlatformIntegrationServices.
+  assert.match(host,/platformIntegrations\.networkFetch/);
+  assert.match(host,/providerAdapters\.get\('stashbox'\)/);
+  assert.doesNotMatch(host,/createCatalogueProviderObservationPort\(\{[\s\S]*fetchImpl:networkFetch/);
+});
+
+test('missing catalogue frame proof fails closed and workless settlement does not call terminalWork',()=>{
+  const refresh=fs.readFileSync(path.resolve(__dirname,'../../src/helix/domains/people/application/us-adult-catalogue-buffalo-refresh.js'),'utf8');
+  const evidence=fs.readFileSync(path.resolve(__dirname,'../../src/helix/domains/people/application/us-adult-catalogue-registration-evidence.js'),'utf8');
+  const coordinator=fs.readFileSync(path.resolve(__dirname,'../../src/helix/domains/libra/application/libra-run-coordinator.js'),'utf8');
+  assert.match(refresh,/PEOPLE_CATALOGUE_FRAME_PROOF_UNWIRED/);
+  assert.match(evidence,/PEOPLE_CATALOGUE_FRAME_PROOF_UNWIRED/);
+  assert.doesNotMatch(refresh,/buildFrameImageProof!=='function'\)return pendingResult\(\{pendingCode:'PEOPLE_CATALOGUE_FRAME_PROOF_PENDING'\}/);
+  assert.match(coordinator,/closeUsAdultProductStage/);
+  assert.match(coordinator,/if\(usAdultStage\.kind==='failed'\)return closeUsAdultProductStage/);
 });
 
 test('LIBRA_ENABLED includes catalogue observe for Host registration',()=>{
