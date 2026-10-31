@@ -16,5 +16,6 @@ node --test \
   test/helix-architecture/us-adult-catalogue-assessment.test.js \
   test/helix-architecture/us-adult-catalogue-selected-image-provenance-schema.test.js \
   test/helix-architecture/us-adult-catalogue-cpu-session-stop.test.js \
-  test/helix-architecture/us-adult-post-observe-settlement-hang.test.js || exit 1
+  test/helix-architecture/us-adult-post-observe-settlement-hang.test.js \
+  test/helix-architecture/us-adult-catalogue-provider-retry-wait.test.js || exit 1
 echo "us-adult-full-e2e: ensure reuse + create registration + Attention gate passed"
