@@ -1,6 +1,7 @@
 'use strict';
 
 const { canonicalDigest, canonicalJson } = require('../contracts/canonical-json');
+const { buffaloModelReference } = require('../contracts/buffalo-model-reference');
 const { faceModelReference, referenceFeatureCacheKey } = require('../contracts/us-adult-face-model');
 
 function fail(code, message) { throw Object.assign(new Error(message), { code }); }
@@ -10,7 +11,7 @@ function createPeopleReferencePreparation(options) {
       typeof options.imagePort.materialize !== 'function' || typeof options.faceModel?.analyzeImage !== 'function') {
     throw new TypeError('People Reference preparation requires controlled image storage and the pinned local CPU model.');
   }
-  const modelRef = faceModelReference('single_reference_face'), cache = new Map();
+  const modelRef = faceModelReference('single_reference_face'), buffaloRef = buffaloModelReference('single_reference_face'), cache = new Map();
 
   function importImage({ context, personId, operationId, selectedImage }) {
     const bytes = options.imagePort.readUpload(selectedImage);
@@ -20,6 +21,12 @@ function createPeopleReferencePreparation(options) {
   }
 
   async function computeEmbedding({ context, personId, operationId, referenceRevision, artifactHandle, faceModelRef }) {
+    if (faceModelRef && canonicalDigest(faceModelRef) === canonicalDigest(buffaloRef)) {
+      if (typeof options.buffaloPreparation?.computeEmbedding !== 'function') {
+        fail('PEOPLE_REFERENCE_PREPARATION_FENCE', 'Buffalo reference preparation is not configured for this face model.');
+      }
+      return options.buffaloPreparation.computeEmbedding({ context, personId, operationId, referenceRevision, artifactHandle, faceModelRef });
+    }
     if (canonicalJson(faceModelRef) !== canonicalJson(modelRef) || artifactHandle?.ownerDomain !== 'people' ||
         artifactHandle.ownerScope?.scopeType !== 'person' || artifactHandle.ownerScope.scopeId !== personId || artifactHandle.artifactKind !== 'reference-image') {
       fail('PEOPLE_REFERENCE_PREPARATION_FENCE', '参考图或人脸模型版本与建档操作不一致。');

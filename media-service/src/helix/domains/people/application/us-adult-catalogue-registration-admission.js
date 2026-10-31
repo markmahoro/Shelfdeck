@@ -25,13 +25,17 @@ function createUsAdultCatalogueRegistrationAdmission(options){
         if(error?.code==='PEOPLE_CATALOGUE_REGISTRATION_PENDING')
           return Object.freeze({kind:'pending',phase:'us_adult_catalogue_registration',
             reasonCode:'us_adult_catalogue_registration_required',inputDigest,winnerName:input.winner.name,
-            pendingCode:error.pendingCode||null});
+            pendingCode:error.pendingCode||null,workId:error.workId||null});
         throw error;
       }
+      if(evidence?.kind==='failed')
+        return Object.freeze({kind:'failed',phase:'us_adult_catalogue_registration',
+          reasonCode:evidence.code||'PEOPLE_CATALOGUE_REGISTRATION_FAILED',inputDigest,winnerName:input.winner.name,
+          workId:evidence.workId||null});
       if(!evidence||evidence.kind==='waiting')
         return Object.freeze({kind:'pending',phase:'us_adult_catalogue_registration',
           reasonCode:'us_adult_catalogue_registration_required',inputDigest,winnerName:input.winner.name,
-          pendingCode:evidence?.pendingCode||null});
+          pendingCode:evidence?.pendingCode||null,workId:evidence?.workId||null});
       const decision=buildCatalogueRegistration(evidence);
       options.register(evidence);
       const registration=Object.freeze({decisionId:decision.decisionId,decisionDigest:decision.decisionDigest,
