@@ -11,6 +11,13 @@ const { activeRunScopeSetDigest } = require('../src/helix/domains/libra/model/ru
 const { runStateDigest } = require('../src/helix/domains/libra/model/run-lifecycle-contracts');
 const { emptyReferenceSetDigest, workspaceStateDigest } = require('../src/helix/domains/libra/model/workspace-admission-contracts');
 const { applyReset, assertSafeTranscodeRoot, inspectPlan, verifyFrozenManifest } = require('../scripts/helix-formation-reset');
+const { PEOPLE_RECLAIMABLE_PROCESSES } = require('../scripts/people-process-reclaim');
+const { preparationWork } = require('../src/helix/domains/people/application/people-image-operation-coordinator');
+const { createRetainedDatabase } = require('../scripts/formation-reset-copy');
+const { buildOwnerRetentionPolicy } = require('../scripts/formation-reset-owner-policy');
+const { createStartupResponsibilitySnapshot } = require('../src/helix/foundation/execution/startup-responsibility-snapshot');
+const { createStartupRecovery } = require('../src/helix/foundation/execution/startup-recovery');
+const { createSqliteUnitOfWork } = require('../src/helix/foundation/persistence/sqlite-unit-of-work');
 const {createUserFormationReset}=require('../scripts/user-formation-reset');
 const {createUserFormationResetWorkerPort}=require('../src/clean-formation-reset-port');
 const {inspectRetirementPlan}=require('../scripts/formation-retirement-plan');
@@ -1879,4 +1886,449 @@ test('scoped Reset refuses US Adult leaves claiming another Subject',()=>{
     assert.throws(()=>applyReset({database:f.database,dataDir:f.dataDir,subjectIds:[chosen.subjectId]}),/FORMATION_RESET_BLOCKED/);
     assert.equal(f.database.prepare('SELECT count(*) n FROM libra_runs').get().n,2);
   }finally{close(f);}
+});
+
+const PEOPLE_IMAGE_WORK_ID = 'people-image-work-e592cf44713d4a3b66a12c249c8f8608313ce521';
+const PEOPLE_IMAGE_PLAN_ID = 'people-image-plan-47e6ab8fecdc5da72b77fd84291ba909293dc98e';
+const PEOPLE_IMAGE_OPERATION_ID = 'op-people-image-incident';
+const REFERENCE_COMMIT_CAPABILITY = 'people.reference_fact.commit@1';
+
+function databasePath(value) {
+  return path.join(value.dataDir, 'shelfdeck.db');
+}
+
+function countRows(database, sql, ...params) {
+  return database.prepare(sql).get(...params).n;
+}
+
+function seedPublishedPerson(database, personId) {
+  const imageHandle = canonicalDigest({ personId, kind: 'image' });
+  const faceHandle = canonicalDigest({ personId, kind: 'face' });
+  const imageDigest = canonicalDigest({ personId, bytes: 'image' });
+  const faceDigest = canonicalDigest({ personId, bytes: 'face' });
+  const assetId = `${personId}-asset`;
+  const faceId = `${personId}-face`;
+  database.transaction(() => {
+    database.pragma('defer_foreign_keys = ON');
+    database.prepare(`INSERT INTO people_persons(person_id,library_kind,status,created_at_ms)
+      VALUES (?,'us_adult','active',1)`).run(personId);
+    database.prepare(`INSERT INTO people_reference_revisions(person_id,revision,operation_kind,committed_at_ms)
+      VALUES (?,1,'add_image',1)`).run(personId);
+    database.prepare(`INSERT INTO fx_artifact_registry
+      (artifact_handle_id,artifact_kind,owner_domain,owner_scope_type,owner_scope_id,digest_algorithm,digest_hex,size_bytes,state,created_at_ms)
+      VALUES (?,'reference-image','people','person',?,'sha256',?,1,'active',1)`).run(imageHandle, personId, imageDigest);
+    database.prepare(`INSERT INTO fx_artifact_registry
+      (artifact_handle_id,artifact_kind,owner_domain,owner_scope_type,owner_scope_id,digest_algorithm,digest_hex,size_bytes,state,created_at_ms)
+      VALUES (?,'reference-embedding','people','person',?,'sha256',?,2,'active',1)`).run(faceHandle, personId, faceDigest);
+    database.prepare(`INSERT INTO people_reference_assets
+      (reference_asset_id,person_id,artifact_handle_id,artifact_digest,state,created_reference_revision,created_at_ms)
+      VALUES (?,?,?,?,'active',1,1)`).run(assetId, personId, imageHandle, imageDigest);
+    database.prepare(`INSERT INTO people_reference_faces
+      (reference_face_id,person_id,reference_asset_id,embedding_handle_id,embedding_digest,model_ref,state,created_reference_revision,created_at_ms)
+      VALUES (?,?,?,?,?,?,'active',1,1)`).run(faceId, personId, assetId, faceHandle, faceDigest, canonicalDigest({ model: personId }));
+    database.prepare(`UPDATE people_reference_revisions SET reference_asset_id=?,reference_face_id=? WHERE person_id=? AND revision=1`)
+      .run(assetId, faceId, personId);
+    database.prepare('UPDATE people_persons SET current_reference_revision=1 WHERE person_id=?').run(personId);
+  })();
+  return { personId, imageHandle, faceHandle, assetId, faceId };
+}
+
+function seedPeopleImageOperation(database, { operationId, personId, state, operationKind }) {
+  const payload = { schema: 'people.image-operation-request@1', operationKind, operationId, personId };
+  database.prepare(`INSERT INTO people_image_operations
+    (operation_id,person_id,actor_id,idempotency_key,request_digest,payload_schema_ref,payload_json,payload_digest,
+     state,result_schema_ref,result_json,result_digest,failure_code,created_at_ms,updated_at_ms)
+    VALUES (?,?,?,?,?,?,?,?,?,NULL,NULL,NULL,NULL,1,1)`)
+    .run(operationId, personId, 'actor-' + operationId, operationId, DIGEST, payload.schema, JSON.stringify(payload), DIGEST, state);
+}
+
+function seedPeopleImageIncident(database, { operationId, workId, planId }) {
+  const attemptId = `${workId}-attempt`;
+  const embedEventId = `${workId}-embed`;
+  const embedAttemptId = `${workId}-embed-attempt`;
+  database.prepare(`INSERT INTO fx_supporting_works
+    (work_id,owner_domain,process_type,process_id,work_kind,basis_digest,priority_class,
+     definition_json,definition_digest,state,idempotency_key,created_at_ms,updated_at_ms)
+    VALUES (?,'people','people_image_preparation',?,'people_image_preparation',?,'normal','{}',?,'running',?,1,1)`)
+    .run(workId, operationId, DIGEST, DIGEST, `people-image-key-${operationId}`);
+  database.prepare(`INSERT INTO fx_work_attempts(attempt_id,work_id,ordinal,basis_digest,state,started_at_ms)
+    VALUES (?,?,1,?,'running',1)`).run(attemptId, workId, DIGEST);
+  database.prepare(`INSERT INTO fx_workflow_plans
+    (plan_id,attempt_id,planner_ref,planner_version,catalog_digest,basis_digest,graph_digest,state,created_at_ms)
+    VALUES (?,?, 'helix://people/planners/ImagePreparation/v1',1,?,?,?,'planned',1)`)
+    .run(planId, attemptId, DIGEST, DIGEST, DIGEST);
+  database.prepare(`INSERT INTO fx_execution_contracts
+    (contract_digest,format_version,contract_schema_ref,contract_json,created_at_ms)
+    VALUES (?,1,'test-contract','{}',1)`).run(DIGEST);
+  database.prepare(`INSERT INTO fx_plan_contracts
+    (plan_id,contract_digest,graph_digest,catalog_digest,provenance_schema_ref,provenance_json,created_at_ms)
+    VALUES (?,?,?,?,'test-provenance','{}',1)`).run(planId, DIGEST, DIGEST, DIGEST);
+  const events = [
+    ['import', 'people.reference_asset.import@1', 'succeeded'],
+    ['embed', 'shared.face.embedding.compute@1', 'executing'],
+    ['commit', REFERENCE_COMMIT_CAPABILITY, 'pending'],
+  ];
+  for (const [nodeId, capability, state] of events) {
+    database.prepare(`INSERT INTO fx_workflow_events
+      (event_id,plan_id,node_id,work_id,attempt_id,owner_domain,capability_ref,contract_version,state,priority_class,ready_at_ms)
+      VALUES (?,?,?,?,?,'people',?,1,?,'normal',1)`)
+      .run(`${workId}-${nodeId}`, planId, nodeId, workId, attemptId, capability, state);
+  }
+  database.prepare(`INSERT INTO fx_event_attempts
+    (event_attempt_id,event_id,ordinal,executor_ref,executor_version,input_snapshot_digest,fence_snapshot_digest,state,started_at_ms)
+    VALUES (?,?,1,'test',1,?,?,'executing',1)`).run(embedAttemptId, embedEventId, DIGEST, DIGEST);
+  database.prepare(`INSERT INTO fx_effect_journal
+    (effect_id,event_attempt_id,effect_class,idempotency_key,intent_digest,state,updated_at_ms)
+    VALUES (?,?, 'workspace_write',?,?,'effect_observed',1)`)
+    .run(`${workId}-effect`, embedAttemptId, `effect-key-${operationId}`, DIGEST);
+  database.prepare(`INSERT INTO fx_command_receipts
+    (command_receipt_id,owner_domain,command_contract,caller_scope,idempotency_key,request_digest,
+     target_type,target_id,result_schema_ref,result_ref_json,result_digest,committed_at_ms)
+    VALUES (?,'people','helix.foundation.work.submit@1',?,?,?,'supporting_work',?,'result','{}',?,1)`)
+    .run(`receipt-${operationId}`, `people:${operationId}`, `submit-${operationId}`, DIGEST, workId, DIGEST);
+  return { workId, planId, attemptId };
+}
+
+function peopleImageStartupRoots(database, workId) {
+  return {
+    works: database.prepare(`SELECT work_id,state FROM fx_supporting_works
+      WHERE work_id=? AND state IN ('admitted','ready','running','blocked')`).all(workId),
+    attempts: database.prepare(`SELECT attempt_id,state FROM fx_work_attempts
+      WHERE work_id=? AND state IN ('ready','running','blocked')`).all(workId),
+    events: database.prepare(`SELECT event_id,state FROM fx_workflow_events
+      WHERE work_id=? AND state IN ('pending','ready','executing','waiting_for_external','waiting_for_resource','waiting_for_approval')`).all(workId),
+    eventAttempts: database.prepare(`SELECT ea.event_attempt_id,ea.state FROM fx_event_attempts ea
+      JOIN fx_workflow_events e ON e.event_id=ea.event_id
+      WHERE e.work_id=? AND ea.state='executing'`).all(workId),
+    effects: database.prepare(`SELECT j.effect_id,j.state FROM fx_effect_journal j
+      JOIN fx_event_attempts ea ON ea.event_attempt_id=j.event_attempt_id
+      JOIN fx_workflow_events e ON e.event_id=ea.event_id
+      WHERE e.work_id=? AND j.state IN ('intended','effect_observed','reconcile_required')`).all(workId),
+    defers: database.prepare(`SELECT d.event_id,d.state FROM fx_resource_defer d
+      JOIN fx_workflow_events e ON e.event_id=d.event_id
+      WHERE e.work_id=? AND d.state='waiting'`).all(workId),
+  };
+}
+
+async function peopleImageResumeView(databasePath) {
+  const kernel = openSqliteKernel({ Database, databasePath, schemaDdl, schemaManifest, now: () => 1 });
+  try {
+    const unitOfWork = createSqliteUnitOfWork({ kernel });
+    const facts = createStartupResponsibilitySnapshot({ schemaManifest, unitOfWork }).read();
+    const readiness = await createStartupRecovery({
+      schemaManifest,
+      unitOfWork,
+      registry: { resolve() { return {}; } },
+      policyRegistry: { bindingFor() { return { retryPolicyRef: 'retry', timeoutPolicyRef: 'timeout' }; } },
+      integrityVerifier: { verify: () => ({ ok: true }) },
+      catalogVerifier: { verify: () => false },
+      effectReconciler: { async reconcile() { return { decision: 'continue_forward', evidenceDigest: DIGEST }; } },
+    }).recover();
+    return { facts, findings: readiness.findings };
+  } finally { kernel.close(); }
+}
+
+function retainedPeopleSignature(database) {
+  return {
+    persons: database.prepare('SELECT * FROM people_persons ORDER BY person_id').all(),
+    assets: database.prepare('SELECT * FROM people_reference_assets ORDER BY reference_asset_id').all(),
+    faces: database.prepare('SELECT * FROM people_reference_faces ORDER BY reference_face_id').all(),
+    artifacts: database.prepare(`SELECT artifact_handle_id,artifact_kind,owner_scope_id,digest_hex,state
+      FROM fx_artifact_registry ORDER BY artifact_handle_id`).all(),
+  };
+}
+
+function fullReset(value, nowMs) {
+  return applyReset({ database: value.database, dataDir: value.dataDir, transcodeDir: null, nowMs });
+}
+
+test('full Formation Reset reclaims open People image preparation and leaves published references', async () => {
+  const f = fixture('people-image-incident');
+  const failures = [];
+  const expect = (condition, message) => { if (!condition) failures.push(message); };
+  try {
+    const personId = 'person-incident';
+    const published = seedPublishedPerson(f.database, personId);
+    seedPeopleImageOperation(f.database, {
+      operationId: PEOPLE_IMAGE_OPERATION_ID, personId, state: 'preparing', operationKind: 'reference_add',
+    });
+    seedPeopleImageIncident(f.database, {
+      operationId: PEOPLE_IMAGE_OPERATION_ID, workId: PEOPLE_IMAGE_WORK_ID, planId: PEOPLE_IMAGE_PLAN_ID,
+    });
+    const terminalOperationId = 'op-people-image-terminal';
+    seedPeopleImageOperation(f.database, {
+      operationId: terminalOperationId, personId, state: 'completed', operationKind: 'reference_add',
+    });
+    const terminal = seedExecution(f.database, 'people', 'people_image_preparation', terminalOperationId, 'people-image-terminal');
+    f.database.prepare("UPDATE fx_supporting_works SET state='succeeded' WHERE work_id=?").run(terminal.workId);
+    f.database.prepare("UPDATE fx_work_attempts SET state='succeeded' WHERE attempt_id=?").run(terminal.attemptId);
+    f.database.prepare("UPDATE fx_workflow_events SET state='succeeded' WHERE event_id=?").run(terminal.eventId);
+    f.database.prepare("UPDATE fx_event_attempts SET state='completed',outcome_kind='succeeded' WHERE event_attempt_id=?").run(terminal.eventAttemptId);
+    f.database.prepare("UPDATE fx_effect_journal SET state='committed' WHERE effect_id=?").run('effect-people-image-terminal');
+    const collision = seedExecution(f.database, 'libra', 'libra_note', PEOPLE_IMAGE_OPERATION_ID, 'people-image-collision');
+    f.database.prepare("UPDATE fx_supporting_works SET state='succeeded' WHERE work_id=?").run(collision.workId);
+    f.database.prepare("UPDATE fx_work_attempts SET state='succeeded' WHERE attempt_id=?").run(collision.attemptId);
+    f.database.prepare("UPDATE fx_workflow_events SET state='succeeded' WHERE event_id=?").run(collision.eventId);
+    f.database.prepare("UPDATE fx_event_attempts SET state='completed',outcome_kind='succeeded' WHERE event_attempt_id=?").run(collision.eventAttemptId);
+    f.database.prepare("UPDATE fx_effect_journal SET state='committed' WHERE effect_id=?").run('effect-people-image-collision');
+    const beforeInventory = retainedPeopleSignature(f.database);
+    let firstError = null;
+    try { fullReset(f, 8100); }
+    catch (error) { firstError = error; }
+    expect(firstError === null, `applyReset threw ${firstError && (firstError.message + ' ' + JSON.stringify(firstError.details || null))}`);
+    if (firstError) {
+      assert.deepEqual(failures, []);
+      return;
+    }
+    const view = await peopleImageResumeView(databasePath(f));
+    const drift = `PLAN_CATALOG_DRIFT:${PEOPLE_IMAGE_PLAN_ID}`;
+    const planPresent = view.facts.plans.some((plan) => plan.plan_id === PEOPLE_IMAGE_PLAN_ID);
+    expect(planPresent === false && view.findings.includes(drift) === false,
+      `people image plan still blocks Resume planInSnapshot=${planPresent} drift=${view.findings.includes(drift)} findings=${JSON.stringify(view.findings)}`);
+    expect(JSON.stringify(peopleImageStartupRoots(f.database, PEOPLE_IMAGE_WORK_ID)) === JSON.stringify({
+      works: [], attempts: [], events: [], eventAttempts: [], effects: [], defers: [],
+    }), `startup roots remain ${JSON.stringify(peopleImageStartupRoots(f.database, PEOPLE_IMAGE_WORK_ID))}`);
+    expect(countRows(f.database, 'SELECT count(*) n FROM people_image_operations WHERE operation_id=?', PEOPLE_IMAGE_OPERATION_ID) === 0,
+      'preparing people image operation was not deleted');
+    expect(countRows(f.database, `SELECT count(*) n FROM fx_command_receipts
+      WHERE owner_domain='people' AND target_type='supporting_work' AND target_id=?`, PEOPLE_IMAGE_WORK_ID) === 0,
+      'people image work-submit receipt remains');
+    expect(JSON.stringify(retainedPeopleSignature(f.database)) === JSON.stringify(beforeInventory),
+      'published person or reference artifacts changed');
+    expect(f.database.prepare('SELECT artifact_handle_id FROM fx_artifact_registry WHERE artifact_handle_id=?').get(published.imageHandle),
+      'reference image artifact handle is missing');
+    expect(f.database.prepare('SELECT state FROM people_image_operations WHERE operation_id=?').get(terminalOperationId)?.state === 'completed',
+      'terminal people image operation was removed');
+    expect(countRows(f.database, 'SELECT count(*) n FROM fx_supporting_works WHERE work_id=?', terminal.workId) === 1,
+      'terminal people image work was removed');
+    expect(countRows(f.database, 'SELECT count(*) n FROM fx_supporting_works WHERE work_id=?', collision.workId) === 1,
+      'Libra work reusing the operation id under another process type was removed');
+    const afterFirst = {
+      inventory: retainedPeopleSignature(f.database),
+      operations: f.database.prepare('SELECT operation_id,state FROM people_image_operations ORDER BY operation_id').all(),
+      works: f.database.prepare('SELECT work_id,state FROM fx_supporting_works ORDER BY work_id').all(),
+    };
+    let secondError = null;
+    try { fullReset(f, 8101); }
+    catch (error) { secondError = error; }
+    expect(secondError === null, `second applyReset threw ${secondError && secondError.message}`);
+    const afterSecond = {
+      inventory: retainedPeopleSignature(f.database),
+      operations: f.database.prepare('SELECT operation_id,state FROM people_image_operations ORDER BY operation_id').all(),
+      works: f.database.prepare('SELECT work_id,state FROM fx_supporting_works ORDER BY work_id').all(),
+    };
+    expect(JSON.stringify(afterSecond) === JSON.stringify(afterFirst), 'second applyReset removed further rows');
+    assert.deepEqual(failures, []);
+  } finally { close(f); }
+});
+
+test('full Formation Reset refuses a preparing People image operation that already published', () => {
+  const cases = [
+    {
+      name: 'committed-reference',
+      operationKind: 'reference_replace',
+      origin: false,
+      commit: true,
+    },
+    {
+      name: 'registration-person',
+      operationKind: 'registration',
+      origin: false,
+      commit: false,
+    },
+    {
+      name: 'catalogue-origin',
+      operationKind: 'reference_add',
+      origin: true,
+      commit: false,
+    },
+  ];
+  const failures = [];
+  for (const item of cases) {
+    const f = fixture(`people-image-published-${item.name}`);
+    try {
+      const personId = `person-${item.name}`;
+      const operationId = `op-${item.name}`;
+      seedPublishedPerson(f.database, personId);
+      seedPeopleImageOperation(f.database, { operationId, personId, state: 'preparing', operationKind: item.operationKind });
+      const workId = `work-${item.name}`;
+      const attemptId = `attempt-${item.name}`;
+      const planId = `plan-${item.name}`;
+      const eventId = `event-${item.name}`;
+      const eventAttemptId = `event-attempt-${item.name}`;
+      f.database.prepare(`INSERT INTO fx_supporting_works
+        (work_id,owner_domain,process_type,process_id,work_kind,basis_digest,priority_class,
+         definition_json,definition_digest,state,idempotency_key,created_at_ms,updated_at_ms)
+        VALUES (?,'people','people_image_preparation',?,'people_image_preparation',?,'normal','{}',?,'running',?,1,1)`)
+        .run(workId, operationId, DIGEST, DIGEST, `key-${item.name}`);
+      f.database.prepare(`INSERT INTO fx_work_attempts(attempt_id,work_id,ordinal,basis_digest,state,started_at_ms)
+        VALUES (?,?,1,?,'running',1)`).run(attemptId, workId, DIGEST);
+      f.database.prepare(`INSERT INTO fx_workflow_plans
+        (plan_id,attempt_id,planner_ref,planner_version,catalog_digest,basis_digest,graph_digest,state,created_at_ms)
+        VALUES (?,?, 'test',1,?,?,?,'planned',1)`).run(planId, attemptId, DIGEST, DIGEST, DIGEST);
+      const capability = item.commit ? REFERENCE_COMMIT_CAPABILITY : 'people.reference_asset.import@1';
+      const effectState = item.commit ? 'committed' : 'effect_observed';
+      f.database.prepare(`INSERT INTO fx_workflow_events
+        (event_id,plan_id,node_id,work_id,attempt_id,owner_domain,capability_ref,contract_version,state,priority_class,ready_at_ms)
+        VALUES (?,?, 'node',?,?,'people',?,1,'executing','normal',1)`)
+        .run(eventId, planId, workId, attemptId, capability);
+      f.database.prepare(`INSERT INTO fx_event_attempts
+        (event_attempt_id,event_id,ordinal,executor_ref,executor_version,input_snapshot_digest,fence_snapshot_digest,state,started_at_ms)
+        VALUES (?,?,1,'test',1,?,?,'executing',1)`).run(eventAttemptId, eventId, DIGEST, DIGEST);
+      f.database.prepare(`INSERT INTO fx_effect_journal
+        (effect_id,event_attempt_id,effect_class,idempotency_key,intent_digest,state,updated_at_ms)
+        VALUES (?,?,?,?,?,?,1)`)
+        .run(`effect-${item.name}`, eventAttemptId, item.commit ? 'domain_fact_commit' : 'workspace_write',
+          `effect-key-${item.name}`, DIGEST, effectState);
+      if (item.origin) {
+        f.database.prepare(`INSERT INTO people_us_adult_catalogue_registration_origins
+          (person_id,operation_id,decision_json,origin_json,catalogue_input_json,name_resolution_json,observation_json,provider_observation_json)
+          VALUES (?,?, '{}','{}','{}','{}','{}','{}')`).run(personId, operationId);
+      }
+      const plan = inspectPlan(f.database);
+      const blocker = plan.blockers.find((row) => row.code === 'RESET_PEOPLE_IMAGE_RESULT_ALREADY_PUBLISHED');
+      if (plan.ready !== false || !blocker || !blocker.rows.some((row) => row.operation_id === operationId)) {
+        failures.push(`${item.name} preview ready=${plan.ready} blockers=${JSON.stringify(plan.blockers.map((row) => row.code))}`);
+      }
+      let thrown = null;
+      try { fullReset(f, 8200); }
+      catch (error) { thrown = error; }
+      if (!thrown || thrown.message !== 'FORMATION_RESET_BLOCKED') {
+        failures.push(`${item.name} applyReset threw ${thrown && thrown.message}`);
+      }
+      const work = f.database.prepare('SELECT state FROM fx_supporting_works WHERE work_id=?').get(workId);
+      const operation = f.database.prepare('SELECT state FROM people_image_operations WHERE operation_id=?').get(operationId);
+      if (work?.state !== 'running' || operation?.state !== 'preparing') {
+        failures.push(`${item.name} mutated work=${work && work.state} operation=${operation && operation.state}`);
+      }
+    } finally { close(f); }
+  }
+  assert.deepEqual(failures, []);
+});
+
+test('full Formation Reset reclaims an orphan People image work', () => {
+  const orphan = fixture('people-image-orphan');
+  try {
+    const work = seedExecution(orphan.database, 'people', 'people_image_preparation', 'missing-people-image-op', 'orphan-people-image');
+    fullReset(orphan, 8300);
+    assert.equal(countRows(orphan.database, 'SELECT count(*) n FROM fx_supporting_works WHERE work_id=?', work.workId), 0,
+      'orphan people image work remains a startup root');
+  } finally { close(orphan); }
+});
+
+test('full Formation Reset reclaims a rooted terminal People image operation without deleting it', () => {
+  const rooted = fixture('people-image-rooted');
+  try {
+    const personId = 'person-rooted';
+    const operationId = 'op-people-image-rooted';
+    seedPublishedPerson(rooted.database, personId);
+    seedPeopleImageOperation(rooted.database, { operationId, personId, state: 'completed', operationKind: 'reference_add' });
+    const work = seedExecution(rooted.database, 'people', 'people_image_preparation', operationId, 'rooted-people-image');
+    rooted.database.prepare("UPDATE fx_supporting_works SET state='succeeded' WHERE work_id=?").run(work.workId);
+    rooted.database.prepare("UPDATE fx_work_attempts SET state='succeeded' WHERE attempt_id=?").run(work.attemptId);
+    rooted.database.prepare("UPDATE fx_workflow_events SET state='succeeded' WHERE event_id=?").run(work.eventId);
+    rooted.database.prepare("UPDATE fx_event_attempts SET state='completed',outcome_kind='succeeded' WHERE event_attempt_id=?").run(work.eventAttemptId);
+    rooted.database.prepare("UPDATE fx_effect_journal SET state='reconcile_required' WHERE effect_id=?").run('effect-rooted-people-image');
+    fullReset(rooted, 8301);
+    assert.equal(countRows(rooted.database, 'SELECT count(*) n FROM fx_effect_journal WHERE effect_id=?', 'effect-rooted-people-image'), 0,
+      'reconcile_required people image effect remains a startup root');
+    assert.equal(rooted.database.prepare('SELECT state FROM people_image_operations WHERE operation_id=?').get(operationId).state, 'completed');
+  } finally { close(rooted); }
+});
+
+test('subject-scoped Formation Reset leaves People image preparation in place', () => {
+  const f = fixture('people-image-subject-scope');
+  try {
+    const subject = seedSubjectRun(f.database, 'film-scope');
+    const personId = 'person-scoped';
+    const operationId = 'op-people-image-scoped';
+    seedPublishedPerson(f.database, personId);
+    seedPeopleImageOperation(f.database, { operationId, personId, state: 'preparing', operationKind: 'registration' });
+    const work = seedExecution(f.database, 'people', 'people_image_preparation', operationId, 'scoped-people-image');
+    const plan = inspectPlan(f.database, { subjectIds: [subject.subjectId] });
+    assert.equal(plan.ready, true, JSON.stringify(plan.blockers));
+    applyReset({ ...f, transcodeDir: null, subjectIds: [subject.subjectId], nowMs: 8400 });
+    assert.equal(f.database.prepare('SELECT state FROM fx_supporting_works WHERE work_id=?').get(work.workId).state, 'running');
+    assert.equal(f.database.prepare('SELECT state FROM people_image_operations WHERE operation_id=?').get(operationId).state, 'preparing');
+  } finally { close(f); }
+});
+
+function retainPeople(value) {
+  const targetPath = path.join(value.root, 'retained.db');
+  return createRetainedDatabase({
+    Database,
+    sourcePath: databasePath(value),
+    targetPath,
+    policy: buildOwnerRetentionPolicy(schemaManifest),
+    targetSchema: { schemaManifest, schemaDdl },
+  });
+}
+
+test('fresh generation omits preparing People image operations and keeps completed ones', () => {
+  const f = fixture('people-image-fresh');
+  try {
+    const personId = 'person-fresh';
+    seedPublishedPerson(f.database, personId);
+    seedPeopleImageOperation(f.database, {
+      operationId: 'op-fresh-preparing', personId, state: 'preparing', operationKind: 'reference_add',
+    });
+    seedPeopleImageOperation(f.database, {
+      operationId: 'op-fresh-completed', personId, state: 'completed', operationKind: 'reference_add',
+    });
+    seedPeopleImageIncident(f.database, {
+      operationId: 'op-fresh-preparing', workId: 'people-image-work-fresh', planId: 'people-image-plan-fresh',
+    });
+    retainPeople(f);
+    const target = new Database(path.join(f.root, 'retained.db'), { readonly: true });
+    try {
+      assert.equal(countRows(target, "SELECT count(*) n FROM people_image_operations WHERE state='preparing'"), 0,
+        'fresh generation copied a preparing people image operation');
+      assert.equal(target.prepare("SELECT state FROM people_image_operations WHERE operation_id='op-fresh-completed'").get().state, 'completed');
+      assert.equal(countRows(target, 'SELECT count(*) n FROM people_persons WHERE person_id=?', personId), 1);
+      assert.equal(countRows(target, 'SELECT count(*) n FROM people_reference_assets WHERE person_id=?', personId), 1);
+      assert.equal(countRows(target, 'SELECT count(*) n FROM people_reference_faces WHERE person_id=?', personId), 1);
+      assert.equal(countRows(target, "SELECT count(*) n FROM fx_artifact_registry WHERE owner_domain='people' AND owner_scope_id=?", personId), 2);
+      assert.equal(countRows(target, "SELECT count(*) n FROM fx_supporting_works WHERE process_type='people_image_preparation'"), 0);
+      const kept = buildOwnerRetentionPolicy(schemaManifest).edges
+        .filter((edge) => edge.parent === 'people_persons' && edge.child === 'people_image_operations')
+        .map((edge) => edge.where && edge.where.state).sort();
+      assert.deepEqual(kept, ['completed', 'failed']);
+      assert.equal(buildOwnerRetentionPolicy(schemaManifest).edges.some((edge) => edge.child === 'fx_supporting_works'
+        && edge.where && edge.where.process_type === 'people_image_preparation'), false);
+    } finally { target.close(); }
+  } finally { close(f); }
+});
+
+test('fresh generation refuses a preparing People image operation that already published a reference fact', () => {
+  const f = fixture('people-image-fresh-published');
+  try {
+    const personId = 'person-fresh-published';
+    const operationId = 'op-fresh-published';
+    seedPublishedPerson(f.database, personId);
+    seedPeopleImageOperation(f.database, { operationId, personId, state: 'preparing', operationKind: 'reference_add' });
+    const work = seedExecution(f.database, 'people', 'people_image_preparation', operationId, 'fresh-published');
+    f.database.prepare("UPDATE fx_workflow_events SET capability_ref=? WHERE event_id=?").run(REFERENCE_COMMIT_CAPABILITY, work.eventId);
+    f.database.prepare("UPDATE fx_effect_journal SET state='committed',effect_class='domain_fact_commit' WHERE effect_id=?").run('effect-fresh-published');
+    let thrown = null;
+    try { retainPeople(f); }
+    catch (error) { thrown = error; }
+    assert.equal(thrown && thrown.code, 'RESET_PEOPLE_IMAGE_RESULT_ALREADY_PUBLISHED',
+      `fresh copy threw ${thrown && (thrown.code || thrown.message)}`);
+    assert.equal(f.database.prepare('SELECT state FROM people_image_operations WHERE operation_id=?').get(operationId).state, 'preparing');
+  } finally { close(f); }
+});
+
+test('People image preparation work matches the reclaimable process registry', () => {
+  const kind = PEOPLE_RECLAIMABLE_PROCESSES[0];
+  const operationId = 'op-registry-match';
+  const work = preparationWork({
+    operationId,
+    payloadDigest: 'a'.repeat(64),
+    payload: { operationKind: 'reference_add' },
+  });
+  assert.equal(work.ownerDomain, kind.ownerDomain);
+  assert.equal(work.processType, kind.processType);
+  assert.equal(work.processId, operationId);
+  assert.equal(kind.operation.openState, 'preparing');
+  assert.deepEqual([...kind.operation.retainedStates], ['completed', 'failed']);
 });

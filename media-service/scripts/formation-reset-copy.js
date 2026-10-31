@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { canonicalDigest, canonicalJson } = require('../src/helix/contracts/canonical-json');
+const { assertPeopleImageReclaimAllowed } = require('./people-process-reclaim');
 const { initializeResetTarget } = require('./formation-reset-schema');
 const { digestResetSnapshot } = require('./formation-reset-snapshot-digest');
 const IDENTIFIER = /^[a-z][a-z0-9_]*$/;
@@ -26,6 +27,7 @@ function decodeKey(value) {
 // This module is offline Operator infrastructure, not a cross-domain Store.
 function retainIntoSnapshot(source, target, policy, schemaTransition) {
   if (!source.readonly || !source.inTransaction) fail('RESET_COPY_SNAPSHOT_REQUIRED');
+  assertPeopleImageReclaimAllowed(source);
   const tableRows = source.prepare("SELECT name,sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all();
   const names = tableRows.map(t => t.name);
   const additions = schemaTransition?.addedTables || [];

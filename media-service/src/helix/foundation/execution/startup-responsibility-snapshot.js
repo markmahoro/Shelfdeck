@@ -4,6 +4,15 @@ const { createRepositoryDefinition } = require('../persistence/owner-repository'
 
 // Startup roots are current responsibility, including unresolved Effects on
 // terminal Work. Closed, unrelated history is visited by the separate audit.
+const STARTUP_ROOT_STATES = Object.freeze({
+  works: Object.freeze(['admitted', 'ready', 'running', 'blocked']),
+  workAttempts: Object.freeze(['ready', 'running', 'blocked']),
+  events: Object.freeze(['pending', 'ready', 'executing', 'waiting_for_external', 'waiting_for_resource', 'waiting_for_approval']),
+  attempts: Object.freeze(['executing']),
+  effects: Object.freeze(['intended', 'effect_observed', 'reconcile_required']),
+  defers: Object.freeze(['waiting']),
+});
+
 const TABLES = {
   works: ['fx_supporting_works', 'work_id', ['work_id', 'owner_domain', 'process_type', 'process_id', 'work_kind', 'state'], []],
   workAttempts: ['fx_work_attempts', 'attempt_id', ['attempt_id', 'work_id', 'ordinal', 'state'], ['work_id']],
@@ -41,11 +50,11 @@ function createStartupResponsibilitySnapshot({ schemaManifest, unitOfWork }) {
           return selected;
         }
         const values = (name, column) => [...rows[name].values()].map(row => row[column]);
-        const activeWorks = read('works', 'state', ['admitted', 'ready', 'running', 'blocked']);
-        read('workAttempts', 'state', ['ready', 'running', 'blocked']);
-        read('events', 'state', ['pending', 'ready', 'executing', 'waiting_for_external', 'waiting_for_resource', 'waiting_for_approval']);
-        read('attempts', 'state', ['executing']);
-        read('effects', 'state', ['intended', 'effect_observed', 'reconcile_required']);
+        const activeWorks = read('works', 'state', STARTUP_ROOT_STATES.works);
+        read('workAttempts', 'state', STARTUP_ROOT_STATES.workAttempts);
+        read('events', 'state', STARTUP_ROOT_STATES.events);
+        read('attempts', 'state', STARTUP_ROOT_STATES.attempts);
+        read('effects', 'state', STARTUP_ROOT_STATES.effects);
         let cursor = null;
         for (;;) {
           const page = context.repository(definitions.effects.repositoryId).invoke('standalone', { cursor, limit: 500 });
@@ -53,7 +62,7 @@ function createStartupResponsibilitySnapshot({ schemaManifest, unitOfWork }) {
           if (page.length < 500) break;
           cursor = page.at(-1).effect_id;
         }
-        read('defers', 'state', ['waiting']);
+        read('defers', 'state', STARTUP_ROOT_STATES.defers);
         read('circuits', 'state', ['open', 'recovering']);
         read('attempts', 'event_attempt_id', values('effects', 'event_attempt_id'));
         read('events', 'event_id', [...values('attempts', 'event_id'), ...values('defers', 'event_id')]);
@@ -77,4 +86,4 @@ function createStartupResponsibilitySnapshot({ schemaManifest, unitOfWork }) {
   } });
 }
 
-module.exports = Object.freeze({ createStartupResponsibilitySnapshot });
+module.exports = Object.freeze({ createStartupResponsibilitySnapshot, STARTUP_ROOT_STATES });
