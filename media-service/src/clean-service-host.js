@@ -1737,9 +1737,27 @@ async function createCleanServiceHost(options) {
       wake(){procurementExecution?.host.wakeBackground({ownerDomain:'libra',reconcilerKey:'active-libra-runs'});},
     })
     :null;
+  const catalogueRegistrationFrameProof=catalogueHostConfig
+    ?require('./helix/integrations/us-adult-catalogue-frame-proof').createCatalogueRegistrationFrameProofPort({
+      createCpuSession(){return require('./helix/integrations/buffalo-cpu-session').createBuffaloCpuSession({
+        modelRoot:catalogueHostConfig.buffaloModelRoot});},
+      readArtifactBytes:handle=>workspaceProductPort.readArtifactBytes(handle),
+      resolveCatalogueReaders(){
+        return {
+          movieProductionReader:procurementExecution?.movieProductionReader||null,
+          usAdultCatalogueStore:procurementExecution?.usAdultCatalogueStore||null,
+          workResultReader:procurementExecution?.workResultReader||null,
+          contractValidator:procurementExecution?.contractValidator||null,
+        };
+      },
+      wake(){procurementExecution?.host.wakeBackground({ownerDomain:'libra',reconcilerKey:'active-libra-runs'});},
+      now:options.now||Date.now,
+    })
+    :null;
   procurementExecution = createHelixExecutionRuntime({
     observeUsAdultCatalogueProviderSearch:catalogueProviderObservation?.observeProviderSearch||null,
     readCatalogueRegistrationImageBytes:catalogueProviderObservation?.readImageBytes||null,
+    buildCatalogueRegistrationFrameProof:catalogueRegistrationFrameProof?.buildFrameImageProof||null,
     captureUsAdultInventorySource:({assertAuthority,...request})=>require('./helix/integrations/us-adult-inventory-source')
       .createUsAdultInventorySource({assertAuthority,now:options.now||Date.now}).issueReadHandle(request),
     createUsAdultInventoryAnalysisPort:request=>require('./clean-us-adult-inventory-analysis-port').createCleanUsAdultInventoryAnalysisPort({

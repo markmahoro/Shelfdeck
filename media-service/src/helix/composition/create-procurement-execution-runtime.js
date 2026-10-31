@@ -1475,7 +1475,7 @@ function createProcurementExecutionRuntime(options) {
     onExecutionScopeStarted:options.onExecutionScopeStarted,
     onError: options.onError,maxInFlightEvents:16,shutdownTimeoutMs:options.shutdownTimeoutMs });
   return Object.freeze({ host, registry, policyRegistry, contractValidator, bindingProjectionRegistry, terminalEffectObserver,
-    catalogProofReader, catalogVerifier, planHistoryAudit, progressReader, procurementAutomation,
+    catalogProofReader, catalogVerifier, planHistoryAudit, progressReader, procurementAutomation, workResultReader,
     readProcessFailures(scope){return workResultReader.listWorks(scope).slice().sort((a,b)=>Number(b.created_at_ms)-Number(a.created_at_ms)).slice(0,3)
       .flatMap(w=>workResultReader.readFailures(w.work_id)).slice(0,16);},triageReader,runCoordinator,
     intakeCoordinator:libraProcessServices.coordinator,intakeOfferReader:libraProcessServices.offerReader,
@@ -1483,6 +1483,7 @@ function createProcurementExecutionRuntime(options) {
     acceptanceSpecCoordinator:libraProcessServices.acceptanceSpecCoordinator,
     libraRunCreator:libraProcessServices.libraRunCreator,libraRunContextReader:libraProcessServices.libraRunContextReader,
     libraRunCoordinator:libraProcessServices.libraRunCoordinator,movieProductionReader:libraProcessServices.movieProductionReader,
+    usAdultCatalogueStore:libraProcessServices.usAdultCatalogueStore,
     libraPreparationRecovery:libraProcessServices.preparationRecovery,
     libraRunExecutionProjection:libraProcessServices.libraRunExecutionProjection,
     productIdentitySelection:libraProcessServices.productIdentitySelection,

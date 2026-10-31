@@ -137,6 +137,8 @@ test('Clean Host wires provider observation and buffalo People preparation for c
   assert.match(host,/createCatalogueProviderObservationPort/);
   assert.match(host,/observeUsAdultCatalogueProviderSearch/);
   assert.match(host,/readCatalogueRegistrationImageBytes/);
+  assert.match(host,/createCatalogueRegistrationFrameProofPort/);
+  assert.match(host,/buildCatalogueRegistrationFrameProof/);
   assert.match(host,/createBuffaloPeopleReferencePreparation/);
   assert.match(host,/buffaloPreparation/);
   assert.match(host,/hasOpenPeopleCatalogueImagePrep/);

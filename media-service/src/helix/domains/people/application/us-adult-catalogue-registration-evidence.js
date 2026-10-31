@@ -123,6 +123,9 @@ function createUsAdultCatalogueRegistrationEvidence(options){
     if(typeof options.buildFrameImageProof!=='function')
       throw Object.assign(new Error('Catalogue registration frame proof is not wired.'),{code:'PEOPLE_CATALOGUE_FRAME_PROOF_UNWIRED'});
     const proof=options.buildFrameImageProof({input,resolution,observation,providerObservation,providerResolution});
+    if(proof?.kind==='failed')
+      throw Object.assign(new Error(proof.message||'Catalogue registration frame proof failed.'),{
+        code:proof.code||'PEOPLE_CATALOGUE_FRAME_PROOF_FAILED'});
     if(!proof||proof.kind!=='frame'||!proof.proof)
       pending('PEOPLE_CATALOGUE_FRAME_PROOF_PENDING','Frame proof for catalogue registration is not ready.');
     return Object.freeze({kind:'frame',bytes:proof.bytes,proof:proof.proof,providerResolution});

@@ -26,11 +26,15 @@ function createUsAdultCatalogueRegistrationAdmission(options){
           return Object.freeze({kind:'pending',phase:'us_adult_catalogue_registration',
             reasonCode:'us_adult_catalogue_registration_required',inputDigest,winnerName:input.winner.name,
             pendingCode:error.pendingCode||null});
-        if(error?.code==='PEOPLE_CATALOGUE_FRAME_PROOF_UNWIRED')
+        if(typeof error?.code==='string'&&error.code.startsWith('PEOPLE_CATALOGUE_FRAME_PROOF_'))
           return Object.freeze({kind:'failed',phase:'us_adult_catalogue_registration',
-            reasonCode:'PEOPLE_CATALOGUE_FRAME_PROOF_UNWIRED',inputDigest,winnerName:input.winner.name});
+            reasonCode:error.code,inputDigest,winnerName:input.winner.name});
         throw error;
       }
+      if(evidence?.kind==='failed')
+        return Object.freeze({kind:'failed',phase:'us_adult_catalogue_registration',
+          reasonCode:evidence.code||'PEOPLE_CATALOGUE_EVIDENCE_FAILED',inputDigest,winnerName:input.winner.name,
+          workId:evidence.workId||null,operationId:evidence.operationId||null});
       if(!evidence||evidence.kind==='waiting')
         return Object.freeze({kind:'pending',phase:'us_adult_catalogue_registration',
           reasonCode:'us_adult_catalogue_registration_required',inputDigest,winnerName:input.winner.name,
