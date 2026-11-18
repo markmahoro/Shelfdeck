@@ -69,7 +69,7 @@ Helix-beta 已于 2026-08-28 在旧飞牛 NAS 上线，现生产宿主迁移至 
 | 生产形态 | Debian 12 Docker (`20.10.24+dfsg1` + Compose v2 CLI plugin) 单容器 `shelfdeck` |
 | 生产地址 | `http://192.168.12.215:18080` |
 | 宿主 SSH | `192.168.12.215:22`，用户 `gezhu`；优先私钥 `shelfdeck-gezhu2403` |
-| compose 目录（SSD） | `/srv/apps/shelfdeck`（`/dev/sdc1` ext4，UUID `2e4fda48-ccbd-40cd-9b6b-1b66c4eb2dda`） |
+| compose 目录（SSD） | `/srv/apps/shelfdeck`（`/dev/sdb1` ext4，UUID `2e4fda48-ccbd-40cd-9b6b-1b66c4eb2dda`） |
 | compose 文件（SSD） | `/srv/apps/shelfdeck/docker-compose.yml` |
 | 数据目录（SSD） | `/srv/apps/shelfdeck/data` |
 | 镜像包目录（SSD） | `/srv/apps/shelfdeck/releases` |
@@ -79,7 +79,7 @@ Helix-beta 已于 2026-08-28 在旧飞牛 NAS 上线，现生产宿主迁移至 
 | 容器内数据目录 | `/app/data` |
 | 普通媒体挂载 | `/media`（群晖 `.45/Media` CIFS autofs） -> 容器 `/media` |
 | 洗版/外部落地 | `/mnt/shelfdeck_upgrade`（fnOS `.218` NFSv4.2 autofs） -> 容器 `/upgrade` |
-| Production Workspace / 转码目录（HDD） | `/srv/shelfdeck/transcode`（`/dev/sdb1` ext4，UUID `11cf7e64-e7fa-4573-8588-5afb97ce3854`） -> 容器 `/transcode`。**`/transcode` 就是本机 Production Workspace 根**，留在 HDD 以隔离转码临时写入与 SSD 数据库 |
+| Production Workspace / 转码目录（HDD） | `/srv/shelfdeck/transcode`（`/dev/sdc1` ext4，UUID `11cf7e64-e7fa-4573-8588-5afb97ce3854`） -> 容器 `/transcode`。**`/transcode` 就是本机 Production Workspace 根**，留在 HDD 以隔离转码临时写入与 SSD 数据库 |
 | 维护与 Reset 备份卷（HDD） | `/srv/shelfdeck/operator-backups` -> 容器 `/app/data/operator-backups`（存在 Reset 挂载时另挂 `/operator-backups`） |
 | 成人库挂载 | `/adult`（群晖 `.45/Adult` CIFS autofs） -> 容器 `/adult_media` 与 `/adult` |
 | NVIDIA GPU | `runtime: nvidia`（`nvidia-container-toolkit`），`NVIDIA_VISIBLE_DEVICES=all`，`NVIDIA_DRIVER_CAPABILITIES=compute,video,utility`（Quadro T2000 NVENC） |
