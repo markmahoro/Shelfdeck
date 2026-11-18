@@ -13,7 +13,7 @@ const path = require('path');
 const { Client } = require(path.join(__dirname, '..', 'tools', 'node_modules', 'ssh2'));
 const { loadNasSshConfig } = require(path.join(__dirname, '..', 'tools', 'nas-ssh-config'));
 
-const DEFAULT_REMOTE_DIR = '/vol1/1000/docker/shelfdeck';
+const DEFAULT_REMOTE_DIR = '/srv/apps/shelfdeck/releases';
 
 function usage() {
   console.error('Usage: node scripts/upload-nas-image.js <local-shelfdeck-tar> [--remote-dir <nas-dir>]');

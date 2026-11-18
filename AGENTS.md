@@ -36,7 +36,7 @@ Do not add generated `media-service/dist/`, root debug dumps, runtime JSON, expo
 ## Production Safety
 
 - Deployment coordination follows docs/helix/ENGINEERING_PLAYBOOK.md §3.5; the centralized deployment-owner role was cancelled by the user. Version-specific UI verification follows §12.3, including its UI-only development exception.
-- NAS ShelfDeck Docker at `192.168.12.230:18080` is production.
+- NAS ShelfDeck Docker on `heavy` (`192.168.12.215:18080`, Debian 12 + Quadro T2000) is production; legacy fnOS `.230` is retired and must never be dual-run.
 - Do not delete, park, reset, migrate, or directly edit production data unless the user explicitly asks for that production action.
 - A direct user request to deploy, release, publish, or upgrade NAS production authorizes the standard deploy flow, including `deploy-nas.js --apply` after dry run and checksum validation pass.
 - Production deploy must use `scripts/build-image.js` (with `scripts/build-image.sh` only as its compatibility wrapper), `scripts/upload-nas-image.js`, and `scripts/deploy-nas.js`; SSH config must go through `tools/nas-ssh-config.js`.
