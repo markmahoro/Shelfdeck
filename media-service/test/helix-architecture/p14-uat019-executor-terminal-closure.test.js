@@ -361,3 +361,77 @@ test('Libra consumes and fully acknowledges its internal workspace-cleanup wake'
     assert.equal(wakes, 1);
   } finally { check.close(); }
 }));
+
+test('automatic On-deck recovery stops at generation 1 on NON_RETRYABLE failure and enforces RECHECKABLE user retry', () => fixture(({ unitOfWork }) => {
+  const refs = Object.freeze([{ ownerDomain:'libra', objectType:'on_deck_package', objectId:'package-non-retry', revision:1, digest:hex('a') }]);
+  const acceptedRef = Object.freeze({ ownerDomain:'arca', objectType:'supporting_work', objectId:'acceptance-commit-non-retry', revision:1, digest:hex('b') });
+  const runs = new Map([
+    ['run-occupied', { workId:'work-occupied', code:'CLEAN_ARCA_STAGE_TARGET_OCCUPIED', state:'offloading', reason:'on_deck_run_not_blocked', eligible:false }],
+    ['run-uncertain-blocked', { workId:'work-uncertain', code:'CLEAN_ARCA_SHORT_STAGE_UNCERTAIN', state:'blocked', reason:null, eligible:true }],
+    ['run-transient-blocked', { workId:'work-transient', code:'EIO', state:'blocked', reason:null, eligible:true }],
+  ]);
+  const calls = [];
+  const coordinator = createOnDeckProcessCoordinator({
+    schemaManifest, unitOfWork,
+    workResultReader:{
+      listOwnerWorks:() => [...runs.entries()].map(([process_id, item]) => ({ process_id, work_id:item.workId })),
+      listWorks:({ processId }) => {
+        const item = runs.get(processId);
+        return item ? [{ work_id:item.workId, state:'failed', created_at_ms:10, updated_at_ms:20 }] : [];
+      },
+      readFailures:(workId) => {
+        const item = [...runs.values()].find(entry => entry.workId === workId);
+        return item ? [{ code:item.code }] : [];
+      },
+      readDefinition:() => ({ definition:{ dependencyRefs:[...refs, acceptedRef] } }),
+    },
+    contextReader:{
+      readAccepted:() => ({ offer:{ subjectId:'subject-non-retry' }, finalInventoryDecision:{ decisionDigest:hex('c') } }),
+      onDeck:{
+        recoveryEligibility:(runId) => {
+          const item = runs.get(runId);
+          return { eligible:item.eligible, reasonCode:item.reason, state:item.state };
+        },
+        attentionRetryEligibility:() => ({ eligible:true, state:'blocked' }),
+        block:(runId) => {
+          const item = runs.get(runId);
+          item.state = 'blocked'; item.reason = null; item.eligible = true;
+          calls.push('block:' + runId);
+          return { replayed:false };
+        },
+        requireAttention:(runId) => { calls.push('attention:' + runId); return { replayed:false }; },
+        resume:(runId) => { calls.push('resume:' + runId); return { replayed:false }; },
+      },
+    },
+  });
+
+  // listRecoverableOnDeck selects generation-1 planning-gap non-retryable once, skips already-blocked non-retryable, and keeps retryable.
+  assert.deepEqual(
+    coordinator.listRecoverableOnDeck(10).map(item => item.scope.onDeckRunId),
+    ['run-occupied', 'run-transient-blocked'],
+  );
+
+  // Automatic recovery closes gap to blocked and enters attention_required at generation 1 without resuming.
+  const first = coordinator.recoverOnDeck('run-occupied', 3, 'automatic');
+  assert.deepEqual({
+    kind:first.kind, reasonCode:first.reasonCode, generation:first.recoveryGeneration,
+  }, {
+    kind:'attention_required', reasonCode:'CLEAN_ARCA_STAGE_TARGET_OCCUPIED', generation:1,
+  });
+  assert.deepEqual(calls, ['block:run-occupied', 'attention:run-occupied']);
+
+  // Once blocked with NON_RETRYABLE failure, listRecoverableOnDeck no longer polls it.
+  assert.deepEqual(
+    coordinator.listRecoverableOnDeck(10).map(item => item.scope.onDeckRunId),
+    ['run-transient-blocked'],
+  );
+
+  // User retry permits RECHECKABLE codes (CLEAN_ARCA_STAGE_TARGET_OCCUPIED) and rejects non-recheckable NON_RETRYABLE codes.
+  assert.throws(
+    () => coordinator.recoverOnDeck('run-uncertain-blocked', 3, 'user'),
+    { code:'ARCA_ONDECK_RETRY_FORBIDDEN', statusCode:409 },
+  );
+  const userRecheck = coordinator.recoverOnDeck('run-occupied', 3, 'user');
+  assert.equal(userRecheck.kind, 'recovering');
+  assert.equal(userRecheck.recoveryGeneration, 2);
+}));

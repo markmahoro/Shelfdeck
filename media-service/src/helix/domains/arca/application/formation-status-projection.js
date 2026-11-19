@@ -182,4 +182,4 @@ function createFormationStatusProjection(options) {
   return Object.freeze({ read });
 }
 
-module.exports = Object.freeze({ MAX_ITEMS, createFormationStatusProjection });
+module.exports = Object.freeze({ MAX_ITEMS, NON_RETRYABLE, RECHECKABLE, createFormationStatusProjection });

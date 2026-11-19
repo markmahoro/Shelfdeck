@@ -1608,6 +1608,7 @@ async function createCleanServiceHost(options) {
   const arcaInventoryPort = options.arcaInventoryPort || createCleanArcaInventoryPort({
     ...constructed.applicationDependencies,
     readSeriesRootBinding:require('./helix/domains/arca/public').createSeriesPresentationQuery(constructed.applicationDependencies).readRootBinding,
+    readOccupiedTargetDirectories:require('./helix/domains/arca/public').createTargetDirectoryOccupancyQuery(constructed.applicationDependencies).readOccupiedTargetDirectories,
     workspaceRoot: workspaceProductPort.rootPath,
     now: options.now || Date.now,
     statfsSync: options.arcaStatfsSync,

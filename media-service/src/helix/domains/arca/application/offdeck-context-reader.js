@@ -44,7 +44,65 @@ function createOffdeckContextReader(options) {
         recoveryRevision:Number(value.case.recovery_revision),memberDigests:materials.map((item)=>item.memberDigest)})});
   }
   function evaluateEntry(shelfEntryId){const policy=store.ensurePolicy(),entry=store.entryFacts(shelfEntryId);if(!entry)return null;const rating=options.readPerceptionRating?.(shelfEntryId),people=options.readPeoplePreferences?.(entry.canonical_identity_key),care=options.readAftercareHealth?.(shelfEntryId),facts=Object.freeze({shelfId:entry.shelf_id,rating:rating?.state==='ready'?rating.rating:null,collectionAgeDays:Math.max(0,Math.floor((now()-Number(entry.created_at_ms))/86_400_000)),peoplePreferences:people?.state==='ready'?people.items:null,care:care?.basisCurrent?care:null}),evaluated=evaluateEntryPolicy(policy,facts),reasonBasis={shelfEntryId,policyRevision:policy.revision,matchedRuleId:evaluated.matchedRuleId,result:evaluated.result,facts};return Object.freeze({entry,policy,facts,evaluated,reasonDigest:canonicalDigest(reasonBasis),basisDigest:canonicalDigest(reasonBasis)});}
-  function activeIdentityProjectionPages(limit=100){const entries=store.allEntryFacts().map((entry)=>Object.freeze({objectId:entry.shelf_entry_id,revision:Number(entry.current_inventory_revision),schemaRef:'helix://arca/types/ActiveShelfEntryIdentity/v1',digest:entry.identity?.identity_digest||canonicalDigest({shelfEntryId:entry.shelf_entry_id,canonicalIdentityKey:entry.canonical_identity_key}),objectKind:'active-shelf-entry-identity'})).sort((a,b)=>a.digest.localeCompare(b.digest)||a.objectId.localeCompare(b.objectId)),groups=[];
+  function strongDuplicateIdentityDigest(entry) {
+    const identity = entry?.identity;
+    if (identity?.identity_kind === 'tmdb_movie' &&
+        identity.provider === 'tmdb' &&
+        typeof identity.provider_key === 'string' &&
+        /^\d+$/.test(identity.provider_key)) {
+      return canonicalDigest({
+        schema: 'arca.offdeck-duplicate-identity@1',
+        kind: 'movie',
+        provider: 'tmdb',
+        providerKey: identity.provider_key,
+      });
+    }
+    if (entry?.structure_kind === 'season' &&
+        identity?.identity_kind === 'tmdb_series_season' &&
+        identity.provider === 'tmdb' &&
+        typeof identity.provider_key === 'string' &&
+        /^\d+$/.test(identity.provider_key) &&
+        Number.isSafeInteger(entry.seasonNumber) &&
+        entry.seasonNumber >= 1) {
+      return canonicalDigest({
+        schema: 'arca.offdeck-duplicate-identity@1',
+        kind: 'series',
+        provider: 'tmdb',
+        providerKey: identity.provider_key,
+        seasonNumber: entry.seasonNumber,
+      });
+    }
+    if (identity?.identity_kind === 'jav_code' &&
+        identity.provider === 'jav' &&
+        typeof identity.provider_key === 'string' &&
+        identity.provider_key.trim() !== '') {
+      return canonicalDigest({
+        schema: 'arca.offdeck-duplicate-identity@1',
+        kind: 'jav',
+        provider: 'jav',
+        providerKey: identity.provider_key.trim(),
+      });
+    }
+    if (identity?.identity_kind === 'internal_identity' &&
+        typeof entry?.canonical_identity_key === 'string' &&
+        entry.canonical_identity_key.length > 0) {
+      return canonicalDigest({
+        schema: 'arca.offdeck-duplicate-identity@1',
+        kind: 'western_adult',
+        canonicalIdentityKey: entry.canonical_identity_key,
+      });
+    }
+    if (!identity?.identity_kind &&
+        typeof identity?.identity_digest === 'string' &&
+        /^[a-f0-9]{64}$/.test(identity.identity_digest)) {
+      return identity.identity_digest;
+    }
+    return canonicalDigest({
+      shelfEntryId: entry.shelf_entry_id,
+      canonicalIdentityKey: entry.canonical_identity_key || null,
+    });
+  }
+  function activeIdentityProjectionPages(limit=100){const entries=store.allEntryFacts().map((entry)=>Object.freeze({objectId:entry.shelf_entry_id,revision:Number(entry.current_inventory_revision),schemaRef:'helix://arca/types/ActiveShelfEntryIdentity/v1',digest:strongDuplicateIdentityDigest(entry),objectKind:'active-shelf-entry-identity'})).sort((a,b)=>a.digest.localeCompare(b.digest)||a.objectId.localeCompare(b.objectId)),groups=[];
     for(const entry of entries){const current=groups.at(-1);if(current&&current[0].digest===entry.digest)current.push(entry);else groups.push([entry]);}
     if(groups.some((group)=>group.length>limit))throw Object.assign(new Error('One strong Identity duplicate group exceeds the bounded 100-Entry detection page.'),{code:'ARCA_OFFDECK_DUPLICATE_GROUP_TOO_LARGE'});
     const pages=[],pageGroups=[];let count=0;const flush=()=>{if(pageGroups.length===0)return;const pageEntries=pageGroups.flat(),range={firstIdentityDigest:pageEntries[0].digest,lastIdentityDigest:pageEntries.at(-1).digest,entryCount:pageEntries.length},objectId=stablePageId(range),base={schemaRef:'helix://contracts/domain-types/ActiveShelfEntryIdentityProjection/v1',schemaVersion:1,objectId,revision:1,entries:Object.freeze(pageEntries),projectionRevision:pageEntries.length};pages.push(Object.freeze({...base,digest:canonicalDigest(base)}));pageGroups.length=0;count=0;};

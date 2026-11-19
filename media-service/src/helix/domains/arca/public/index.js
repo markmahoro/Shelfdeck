@@ -214,4 +214,5 @@ module.exports = Object.freeze({describeFreshResetWorkspaceRetention:require('..
   createArcaFormationRetirementStore:require('../persistence/formation-retirement-store').createArcaFormationRetirementStore,
   createFormationSharedRetirement:require('../persistence/formation-shared-retirement').createFormationSharedRetirement,
   createSeriesPresentationQuery:require('../application/series-presentation-query').createSeriesPresentationQuery,
+  createTargetDirectoryOccupancyQuery:require('../application/target-directory-occupancy-query').createTargetDirectoryOccupancyQuery,
   createArcaArtifactAuditSource(options){const source=require('../persistence/reference-artifact-audit-source').createArcaArtifactAuditSource(options);return Object.freeze({sourceId:source.sourceId,epoch:source.epoch,page:source.page});}, PACKAGE_ID:packageId, ArcaExecutionRegistration:createArcaExecutionRegistration });

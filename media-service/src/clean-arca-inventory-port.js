@@ -198,6 +198,16 @@ function observationDigest(observed) {
 
 const JAV_DIRECTORY_BUDGET = 255 - Buffer.byteLength('.shelfdeck-stage-' + '0'.repeat(16));
 const JAV_MEMBER_BUDGET = 255 - Buffer.byteLength('.restore-' + '0'.repeat(16));
+const MAX_DUPLICATE_ORDINAL = 1024;
+
+function duplicateDirectorySuffix(ordinal) {
+  return ordinal <= 1 ? '' : ' (' + String(ordinal) + ')';
+}
+
+function normalizePathKey(value) {
+  const resolved = path.resolve(value);
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+}
 
 function newJavOnDeck(request) {
   const packageValue = request?.onDeckProductPackage;
@@ -446,6 +456,15 @@ function createCleanArcaInventoryPort(options) {
   const computeFingerprint = options.computeFingerprint ||
     computeBoundedMaterialFingerprint;
   const shortStageLeases = new Map();
+  const defaultOccupancyReader = typeof options.unitOfWork?.execute === 'function'
+    ? require('./helix/domains/arca/public').createTargetDirectoryOccupancyQuery({
+        schemaManifest: options.schemaManifest,
+        unitOfWork: options.unitOfWork,
+      }).readOccupiedTargetDirectories
+    : null;
+  const readOccupiedTargetDirectories = typeof options.readOccupiedTargetDirectories === 'function'
+    ? options.readOccupiedTargetDirectories
+    : defaultOccupancyReader;
 
   function releaseShortStage(slotId) {
     const lease = shortStageLeases.get(slotId);
@@ -606,7 +625,7 @@ function createCleanArcaInventoryPort(options) {
         contentFingerprint:bounded.contentFingerprint }) });
   }
 
-  function resolveTargetLocationWithIdentity(request, policyOnly = false, identityOverride = null) {
+  function resolveTargetLocationWithIdentity(request, policyOnly = false, identityOverride = null, duplicateOrdinal = 1) {
     const targetRoot = path.resolve(request?.shelf?.target?.rootLocation || '');
     const shelf = request?.shelf;
     const packageValue = request?.onDeckProductPackage;
@@ -633,12 +652,18 @@ function createCleanArcaInventoryPort(options) {
     }).replace(/\s+\(\s*\)$/, '');
     const segment = identity.usAdultNaming ? exactUsAdultSegment :
       identity.javTitleBudget ? value => safeSegment(value, true) : safeSegment;
-    const folder = segment(identity.edition
-      ? renderedFolder + ' - ' + identity.edition
-      : renderedFolder);
     if(request.inventoryArtifactScopes!==undefined&&!request.aftercareCaseId)
       fail('CLEAN_ARCA_INVENTORY_INPUT','Registered Inventory Artifact scopes require an Aftercare Case.');
     const series=seriesPlacementContext(packageValue,request.inventoryArtifactScopes);
+    const baseFolder = segment(identity.edition
+      ? renderedFolder + ' - ' + identity.edition
+      : renderedFolder);
+    const suffix = series ? '' : duplicateDirectorySuffix(duplicateOrdinal);
+    const folder = !suffix
+      ? baseFolder
+      : identity.usAdultNaming
+        ? exactUsAdultSegment(baseFolder + suffix)
+        : safeSegment(baseFolder + suffix, true);
     const rootBinding=!policyOnly&&series&&options.readSeriesRootBinding?.({shelfId:shelf.shelfId,
       providerKey:(packageValue.resolvedIdentitySnapshot.factValue.resolvedProductIdentity||packageValue.resolvedIdentitySnapshot.factValue)
         .providerIdentities.find(item=>item.namespace==='tmdb_series').providerKey});
@@ -649,11 +674,10 @@ function createCleanArcaInventoryPort(options) {
       fail('CLEAN_ARCA_TARGET_ESCAPE',
         'Final Inventory directory escaped the Shelf Target.');
     }
-    return Object.freeze({ targetRoot, targetDirectory, identity, placement, series });
+    return Object.freeze({ targetRoot, targetDirectory, identity, placement, series, duplicateOrdinal });
   }
 
-  function resolveTargetLocation(request, policyOnly = false) {
-    if (!newJavOnDeck(request)) return resolveTargetLocationWithIdentity(request, policyOnly);
+  function renderNewJavTargetForOrdinal(request, policyOnly, duplicateOrdinal) {
     const packageValue = request.onDeckProductPackage;
     const original = inventoryDisplayIdentity(packageValue, request);
     const fact = packageValue.resolvedIdentitySnapshot.factValue.resolvedProductIdentity ||
@@ -661,7 +685,7 @@ function createCleanArcaInventoryPort(options) {
     let lastNameError = null;
     const render = (title, shortened) => {
       const identity = Object.freeze({ ...original, title, javTitleBudget:true });
-      const resolved = resolveTargetLocationWithIdentity(request, policyOnly, identity);
+      const resolved = resolveTargetLocationWithIdentity(request, policyOnly, identity, duplicateOrdinal);
       if (Buffer.byteLength(path.basename(resolved.targetDirectory), 'utf8') > JAV_DIRECTORY_BUDGET) return null;
       const members = packageValue.productMaterialManifest.members.map(member => {
         const source = sourcePath(member);
@@ -704,6 +728,76 @@ function createCleanArcaInventoryPort(options) {
     }
     const result = render(choice.title, choice.shortened);
     return Object.freeze({ ...result, shortenedJavTitle:choice.shortened });
+  }
+
+  function resolveTargetLocation(request, policyOnly = false) {
+    const isJav = newJavOnDeck(request);
+    const renderOrdinal = (ordinal) => (isJav
+      ? renderNewJavTargetForOrdinal(request, policyOnly, ordinal)
+      : resolveTargetLocationWithIdentity(request, policyOnly, null, ordinal));
+    const base = renderOrdinal(1);
+    if (policyOnly || base.series || request?.correctionId) return base;
+
+    const frozenMemberLocation = request?.finalInventoryMember?.targetLocation ||
+      request?.finalInventoryMembers?.[0]?.targetLocation ||
+      request?.finalInventoryDecision?.members?.[0]?.targetLocation || null;
+    if (frozenMemberLocation) {
+      const frozenDir = path.dirname(path.resolve(frozenMemberLocation));
+      const frozenKey = normalizePathKey(frozenDir);
+      // Test ordinal 1 first so titles naturally ending in " (2)" keep ordinal 1.
+      if (normalizePathKey(base.targetDirectory) === frozenKey) return base;
+      const match = /^.+ \((\d+)\)$/.exec(path.basename(frozenDir));
+      if (match) {
+        const ordinal = Number(match[1]);
+        if (Number.isSafeInteger(ordinal) && ordinal >= 2 && ordinal <= MAX_DUPLICATE_ORDINAL) {
+          const candidate = renderOrdinal(ordinal);
+          if (candidate && normalizePathKey(candidate.targetDirectory) === frozenKey) {
+            return candidate;
+          }
+        }
+      }
+      fail('CLEAN_ARCA_FINAL_DECISION_DRIFT',
+        'Inventory target directory does not match the immutable Final Inventory Decision.');
+    }
+
+    if (!readOccupiedTargetDirectories) return base;
+    const rawOccupied = readOccupiedTargetDirectories({
+      endpointId: request.shelf.target.endpointId,
+      excludeShelfEntryId: request.shelfEntryId || null,
+      excludeOnDeckRunId: request.aftercareCaseId ? null : (request.onDeckRunId || null),
+    });
+    const occupied = new Set();
+    for (const item of rawOccupied || []) {
+      if (typeof item === 'string' && item) occupied.add(normalizePathKey(item));
+    }
+
+    if (typeof request?.preferredTargetDirectory === 'string' && request.preferredTargetDirectory) {
+      const preferredDir = path.resolve(request.preferredTargetDirectory);
+      const preferredKey = normalizePathKey(preferredDir);
+      if (!occupied.has(preferredKey)) {
+        if (normalizePathKey(base.targetDirectory) === preferredKey) return base;
+        const match = /^.+ \((\d+)\)$/.exec(path.basename(preferredDir));
+        if (match) {
+          const ordinal = Number(match[1]);
+          if (Number.isSafeInteger(ordinal) && ordinal >= 2 && ordinal <= MAX_DUPLICATE_ORDINAL) {
+            const candidate = renderOrdinal(ordinal);
+            if (candidate && normalizePathKey(candidate.targetDirectory) === preferredKey) {
+              return candidate;
+            }
+          }
+        }
+      }
+    }
+
+    if (!occupied.has(normalizePathKey(base.targetDirectory))) return base;
+    for (let ordinal = 2; ordinal <= MAX_DUPLICATE_ORDINAL; ordinal += 1) {
+      const candidate = renderOrdinal(ordinal);
+      if (!occupied.has(normalizePathKey(candidate.targetDirectory))) {
+        return candidate;
+      }
+    }
+    fail('CLEAN_ARCA_TARGET_COLLISION',
+      'All duplicate subdirectory ordinals on this Shelf Target are exhausted.');
   }
 
   function buildPlan(request) {
