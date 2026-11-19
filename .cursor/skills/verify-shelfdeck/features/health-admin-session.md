@@ -35,7 +35,7 @@ Preconditions:
 
 ## Gotchas
 
-- Production NAS (`192.168.12.230:18080`) is never a valid drive target for this skill.
+- Production (`heavy` `192.168.12.215:18080` and retired `192.168.12.230:18080`) is never a valid drive target for this skill.
 - A process listening is not ready. Wait for health `ok` + `helix-clean-*` generation + `normalSupplyAllowed`, and clean-init `--readiness` `state: ready`.
 - Sending `x-api-key` on an Admin GET does not prove the session cookie. Auth prefers a present API key. Cookie-only probes are required.
 - Do not store the plaintext API key in browser storage during verification. Prefer session cookie exchange (Helix Admin Web path).

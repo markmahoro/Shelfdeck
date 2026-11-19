@@ -151,3 +151,65 @@ test('an actual process exit during stage discard resumes the original exact tem
   assert.equal(receipt.deletedCount,manifest.members.length-1);assert.equal(fs.existsSync(manifest.directory),false);
   x.plan.members.forEach((member,i)=>assert.deepEqual(fs.readFileSync(member.original.location),before[i]));
 });
+
+test('stage tolerates CIFS cached ctimeNs shift and closes temporary write descriptors before verification',async t=>{
+  const x=fixture(t),originalLstatSync=fs.lstatSync,originalPromisesOpen=fs.promises.open;
+  const openCalls=[],writeFdsClosedBeforeRead=[];
+  let activePartWrite=false;
+  t.after(()=>{fs.lstatSync=originalLstatSync;fs.promises.open=originalPromisesOpen;});
+  fs.promises.open=async function wrappedOpen(location,flags,mode){
+    const handle=await originalPromisesOpen.call(fs.promises,location,flags,mode);
+    const name=path.basename(String(location));
+    if(name.endsWith('.part')&&flags==='wx'){
+      activePartWrite=true;openCalls.push(name);
+      const originalClose=handle.close.bind(handle);
+      handle.close=async ()=>{activePartWrite=false;return originalClose();};
+    }else if(name.endsWith('.part')&&flags==='r'){
+      writeFdsClosedBeforeRead.push(!activePartWrite);
+      if(process.platform==='linux'){
+        const fdDir='/proc/self/fd';
+        const links=fs.readdirSync(fdDir).map(fd=>{try{return fs.readlinkSync(path.join(fdDir,fd));}catch{return null;}});
+        assert.equal(links.filter(target=>target===path.resolve(String(location))).length,1);
+      }
+    }
+    return handle;
+  };
+  let stageStatCalls=0;
+  fs.lstatSync=function wrappedLstat(location,opts){
+    const stat=originalLstatSync.call(fs,location,opts);
+    if(opts?.bigint&&String(location).includes('.stage')){
+      stageStatCalls+=1;
+      if(stageStatCalls%2===0){
+        return new Proxy(stat,{get(target,prop){return prop==='ctimeNs'?target.ctimeNs+500000n:typeof target[prop]==='function'?target[prop].bind(target):target[prop];}});
+      }
+    }
+    return stat;
+  };
+  const stage=await x.io.stage(x.plan,x.settings);
+  assert.equal(stage.members.length,4);
+  assert.ok(openCalls.length>=2);
+  assert.ok(writeFdsClosedBeforeRead.length>=2);
+  assert.ok(writeFdsClosedBeforeRead.every(Boolean));
+});
+
+test('only a fresh pre-stage failure proves no stage directory was written',async t=>{
+  const x=fixture(t),stageDir=path.join(x.shelf,'.shelfdeck-us-'+D(x.plan.aftercareCaseId).slice(0,32)+'-stage');
+  fs.appendFileSync(x.plan.members[0].original.location,'changed');
+  await assert.rejects(x.io.stage(x.plan,x.settings),error=>{
+    assert.equal(error.code,'ARCA_US_ADULT_FILE_CHANGED');
+    assert.deepEqual(error.details,{effectWriteStarted:false,boundary:'before_stage'});
+    return true;
+  });
+  assert.equal(fs.existsSync(stageDir),false);
+  await assert.rejects(x.io.stage(x.plan,{...x.settings,recoveryDecision:'continue_forward'}),error=>{
+    assert.equal(error.code,'ARCA_US_ADULT_FILE_CHANGED');
+    assert.equal(error.details,undefined);
+    return true;
+  });
+  fs.mkdirSync(stageDir);
+  await assert.rejects(x.io.stage(x.plan,x.settings),error=>{
+    assert.equal(error.code,'ARCA_US_ADULT_FILE_CHANGED');
+    assert.equal(error.details,undefined);
+    return true;
+  });
+});

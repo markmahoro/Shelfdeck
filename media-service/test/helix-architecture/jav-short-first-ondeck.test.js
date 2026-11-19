@@ -187,3 +187,116 @@ test('over-budget JAV duplicate disambiguates within 222-byte stage budget while
     await assert.rejects(()=>port.stage({...request2,targetCommitSlotHandle:slot2}),{code:'CLEAN_ARCA_JAV_SHORT_TARGET_OCCUPIED'});
   }finally{fs.rmSync(f.root,{recursive:true,force:true});}
 });
+
+test('shortened JAV staging tolerates CIFS write-close timestamp flush, cached dentry ctime, and releases pins before unlink',async()=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'jav-short-cifs-')),source=path.join(root,'source'),target=path.join(root,'target');
+  fs.mkdirSync(source);fs.mkdirSync(target);
+  const files={primary:path.join(source,'input.mkv'),nfo:path.join(source,'input.nfo'),poster:path.join(source,'input.jpg')};
+  fs.writeFileSync(files.primary,'synthetic media');fs.writeFileSync(files.nfo,'<movie><title>synthetic</title></movie>');fs.writeFileSync(files.poster,'synthetic poster');
+  const shelf={shelfId:'shelf',status:'active',currentStandardRevision:1,currentPlacementRevision:1,target:{endpointId:'target',rootLocation:target,mountScopeId:'mount',mountScopeRevision:1},
+    placement:{value:{folderTemplate:'{title}'}}};
+  const packageValue={onDeckPackageId:'package',packageDigest:'package-digest',shelfId:'shelf',resolvedIdentitySnapshot:{factValue:{contentProfile:'jav',structureKind:'single',
+    identityKind:'jav_code',title:'HALT-094 '+'題'.repeat(80),year:2026,providerIdentities:[{provider:'jav',namespace:'jav_code',providerKey:'HALT-094'}]}},
+    productStructureSnapshot:{structureKind:'single'},productMaterialManifest:{manifestDigest:'manifest',members:[member(files.primary,'primary_payload'),
+      member(files.nfo,'metadata_sidecar'),member(files.poster,'poster')]},offloadContextManifest:{manifestDigest:'offload',members:[]}};
+  const countOpenDescriptors=(location)=>{
+    if(process.platform!=='linux')return 0;
+    const resolved=path.resolve(location);
+    let count=0;
+    for(const entry of fs.readdirSync('/proc/self/fd')){
+      try{if(path.resolve(fs.readlinkSync('/proc/self/fd/'+entry))===resolved)count+=1;}catch{}
+    }
+    return count;
+  };
+  const tempObservations=[];
+  const port=createCleanArcaInventoryPort({schemaManifest,unitOfWork:{},workspaceRoot:path.join(root,'workspace'),
+    async computeFingerprint(location){
+      const baseName=path.basename(location);
+      if(baseName.includes('.tmp-')){
+        tempObservations.push({location,openFds:countOpenDescriptors(location)});
+        assert.equal(countOpenDescriptors(location),0,'CIFS temporary file must not keep an open write handle during fingerprint read.');
+      }
+      const real=await require('../../src/helix/integrations/bounded-material-fingerprint').computeBoundedMaterialFingerprint(location);
+      if(baseName.includes('.tmp-')){
+        return Object.freeze({...real,stat:Object.freeze({...real.stat,mtimeNs:real.stat.mtimeNs+1000000000n,ctimeNs:real.stat.ctimeNs+1000000000n})});
+      }
+      if(!path.dirname(location).includes('.shelfdeck-stage-')&&path.dirname(location)!==source){
+        return Object.freeze({...real,stat:Object.freeze({...real.stat,ctimeNs:real.stat.ctimeNs+500000000n})});
+      }
+      return real;
+    }});
+  try{
+    const req={onDeckRunId:'run-cifs',custodyId:'custody-cifs',shelf,onDeckProductPackage:packageValue,observedAtMs:10};
+    const decision=port.prepare(req),request={...req,finalInventoryDecision:decision},slot=port.prepareSlot(request);
+    const staged=await port.stage({...request,targetCommitSlotHandle:slot});
+    assert.equal(tempObservations.length,decision.members.length);
+    const verification=await port.verifyStaged({...request,stagedInventoryManifest:staged});
+    const receipt=await port.switchPlacement({...request,stagedInventoryManifest:staged,stagedInventoryVerification:verification,
+      targetBindings:{bindingSetDigest:'binding'},replacedInputSetDigest:'inputs'});
+    assert.equal(receipt.receiptKind,'placement_switched');
+    assert.equal(fs.existsSync(slot.slotDirectory),false);
+    const primary=decision.members.find(item=>item.role==='primary_payload');
+    assert.equal(fs.readFileSync(primary.targetLocation,'utf8'),'synthetic media');
+    assert.equal(countOpenDescriptors(primary.targetLocation),0);
+  }finally{fs.rmSync(root,{recursive:true,force:true});}
+});
+
+test('On-deck slot, stage, and placement Capability ports return non-retryable failed Outcomes for shortened Stage uncertainty',async()=>{
+  const {createOnDeckCapabilityPorts}=require('../../src/helix/domains/arca/capabilities/on-deck-capability-ports');
+  const {CAPABILITY_REFS}=require('../../src/helix/domains/arca/model/on-deck-contract');
+  const {CleanArcaInventoryPortError}=require('../../src/clean-arca-inventory-port');
+  const shelf={shelfId:'shelf',status:'active',currentStandardRevision:1,currentPlacementRevision:1,
+    target:{endpointId:'target',rootLocation:'/target',mountScopeId:'mount',mountScopeRevision:1},placement:{value:{folderTemplate:'{title}'}}};
+  const packageValue={onDeckPackageId:'package',packageDigest:'pkg-digest',shelfId:'shelf',
+    resolvedIdentitySnapshot:{factValue:{contentProfile:'jav',structureKind:'single',identityKind:'jav_code',title:'HALT-094 '+'題'.repeat(80),
+      providerIdentities:[{provider:'jav',namespace:'jav_code',providerKey:'HALT-094'}]}},
+    productStructureSnapshot:{structureKind:'single'},
+    productMaterialManifest:{manifestDigest:'prod-manifest',members:[]},
+    offloadContextManifest:{manifestDigest:'offload-manifest',members:[]}};
+  const decision={decisionDigest:'decision-digest',placementRevision:1,members:[]};
+  const slotHandle={slotId:'slot-1',slotDirectory:'/target/.shelfdeck-stage-1',targetDirectory:'/target/short'};
+  const dependencyRefs=[{objectType:'on_deck_package',objectId:'package'}];
+  const stagedManifest={schemaRef:'helix://contracts/types/StagedInventoryManifest/v1',manifestDigest:'staged-manifest',targetCommitSlotId:'slot-1',stagedMembers:[]};
+  const workResultReader={
+    readBindings:()=>[{inputBindings:{bindings:[{bindingKind:'projected_owner_facts',parameters:{dependencyRefs}}]}}],
+    listWorks:()=>[],
+    read:()=>[{capabilityRef:CAPABILITY_REFS.stage,outcomeKind:'succeeded',result:stagedManifest}],
+  };
+  const unitOfWork={execute:(participants)=>Object.fromEntries(participants.map(p=>[p.participantId,p.participantId==='arca_ondeck_accepted_responsibility_read'?{replayed:true,state:'offloading',decision}:'offloading']))};
+  let nextError=null;
+  const ports=createOnDeckCapabilityPorts({
+    schemaManifest,unitOfWork,now:()=>100,workResultReader,
+    contextReader:{readAccepted:(onDeckRunId,refs)=>({
+      offer:{offerId:'offer-1',onDeckPackageId:'package',packageDigest:'pkg-digest',libraRunId:'libra-run-1',subjectId:'subject-1'},
+      shelf,packageValue,finalInventoryDecision:decision,targetLocation:'/target/short',
+      responsibility:{onDeckRunId,custodyId:'custody-1'},
+    })},
+    inventoryPort:{
+      resolveTargetLocation:()=>({targetDirectory:'/target/short',shortenedJavTitle:true}),
+      prepareSlot(){throw nextError;},
+      async stage(){throw nextError;},
+      async switchPlacement(){throw nextError;},
+    },
+  });
+  const baseExecution={ownerScope:{processType:'arca_ondeck_run',processId:'ondeck-run-1'},workId:'work-1',eventId:'ev-1',idempotencyKey:'idem-1',effectOccurredAtMs:100};
+  nextError=new CleanArcaInventoryPortError('CLEAN_ARCA_SHORT_STAGE_UNCERTAIN','The shortened target has an unclassified staged member; its files were retained.',{preWrite:true});
+  const slotOutcome=await ports[CAPABILITY_REFS.slot].execute({...baseExecution,namedInputs:{finalInventoryDecision:decision,targetHandle:slotHandle}});
+  assert.equal(slotOutcome.kind,'failed');assert.equal(slotOutcome.code,'CLEAN_ARCA_SHORT_STAGE_UNCERTAIN');
+  assert.equal(slotOutcome.failureClass,'stage_precondition');assert.equal(slotOutcome.retryDirective,'never');
+  const stageOutcome=await ports[CAPABILITY_REFS.stage].execute({...baseExecution,namedInputs:{productMaterialHandleList:[],targetCommitSlotHandle:slotHandle}});
+  assert.equal(stageOutcome.kind,'failed');assert.equal(stageOutcome.code,'CLEAN_ARCA_SHORT_STAGE_UNCERTAIN');
+  assert.equal(stageOutcome.failureClass,'stage_precondition');assert.equal(stageOutcome.retryDirective,'never');
+  const placeStageOutcome=await ports[CAPABILITY_REFS.placement].execute({...baseExecution,namedInputs:{verifiedStagedManifest:{stagedInventoryManifestDigest:'staged-manifest'},targetBindings:{}}});
+  assert.equal(placeStageOutcome.kind,'failed');assert.equal(placeStageOutcome.code,'CLEAN_ARCA_SHORT_STAGE_UNCERTAIN');
+  assert.equal(placeStageOutcome.failureClass,'stage_precondition');assert.equal(placeStageOutcome.retryDirective,'never');
+  nextError=new CleanArcaInventoryPortError('CLEAN_ARCA_SHORT_PUBLICATION_UNCERTAIN','The shortened target already exists and its publication is unclassified.',{preWrite:true});
+  const placePubOutcome=await ports[CAPABILITY_REFS.placement].execute({...baseExecution,namedInputs:{verifiedStagedManifest:{stagedInventoryManifestDigest:'staged-manifest'},targetBindings:{}}});
+  assert.equal(placePubOutcome.kind,'failed');assert.equal(placePubOutcome.code,'CLEAN_ARCA_SHORT_PUBLICATION_UNCERTAIN');
+  assert.equal(placePubOutcome.failureClass,'placement_precondition');assert.equal(placePubOutcome.retryDirective,'never');
+  nextError=new CleanArcaInventoryPortError('CLEAN_ARCA_SHORT_STAGE_UNCERTAIN','The shortened target has an unclassified staged member; its files were retained.',{preWrite:true});
+  await assert.rejects(()=>ports[CAPABILITY_REFS.stage].execute({...baseExecution,recoveryDecision:'continue_forward',namedInputs:{productMaterialHandleList:[],targetCommitSlotHandle:slotHandle}}),{code:'CLEAN_ARCA_SHORT_STAGE_UNCERTAIN'});
+  nextError=new CleanArcaInventoryPortError('CLEAN_ARCA_SHORT_STAGE_UNCERTAIN','The copied member no longer matches its live descriptor.');
+  await assert.rejects(()=>ports[CAPABILITY_REFS.stage].execute({...baseExecution,namedInputs:{productMaterialHandleList:[],targetCommitSlotHandle:slotHandle}}),{code:'CLEAN_ARCA_SHORT_STAGE_UNCERTAIN'});
+  nextError=new CleanArcaInventoryPortError('CLEAN_ARCA_SHORT_PUBLICATION_UNCERTAIN','Published and staged member identities no longer agree.');
+  await assert.rejects(()=>ports[CAPABILITY_REFS.placement].execute({...baseExecution,namedInputs:{verifiedStagedManifest:{stagedInventoryManifestDigest:'staged-manifest'},targetBindings:{}}}),{code:'CLEAN_ARCA_SHORT_PUBLICATION_UNCERTAIN'});
+});

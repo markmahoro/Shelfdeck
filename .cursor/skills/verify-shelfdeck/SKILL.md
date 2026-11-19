@@ -7,7 +7,7 @@ description: "Drive ShelfDeck Admin Web and service HTTP on isolated Linux/Node 
 
 Project-local verification skill for ShelfDeck. Agents read this cold mid-task.
 
-Helix SSOT (`docs/helix/TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`) and production gates stay higher authority. This skill does **not** authorize production NAS deploy, Formation Reset on production, or any mutation of `192.168.12.230:18080`. Refuse those actions unless the human already authorized them outside this skill.
+Helix SSOT (`docs/helix/TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`) and production gates stay higher authority. This skill does **not** authorize production deploy, Formation Reset on production, or any mutation of `heavy` (`192.168.12.215:18080`, or retired `192.168.12.230:18080`). Refuse those actions unless the human already authorized them outside this skill.
 
 **Surface.** Admin Web (primary) + service HTTP. Linux / local Node and Linux Docker only. Windows desktop and Windows service are out of scope.
 
@@ -16,6 +16,12 @@ Helix SSOT (`docs/helix/TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`) and production g
 ## Launch
 
 Prefer an isolated local Node run. Docker is optional when an image is already built.
+
+### Execution Host (from Windows workstation)
+
+- **Routine targeted unit / SQLite / static architecture checks & Admin Web build (`Workstation` Windows Node `22.23.5 LTS`)**: Reuse `H:\shefldeck\media-service\node_modules`, `web\node_modules`, and `tools\node_modules` inside `.worktrees/<topic>` via `cmd /c mklink /J` (cleanup with `cmd /c rmdir` before `git worktree remove`; reinstall `media-service` only via `npm ci --ignore-scripts --no-audit --no-fund` + `npm rebuild better-sqlite3 sharp onnxruntime-node @ffprobe-installer/ffprobe ffmpeg-static`, as `usearch@2.25.3` has no `win32-x64` prebuild). **Never probe or launch local Docker Desktop / WSL to run tests.**
+- **Linux-only / full `test:helix-architecture` / HTTP / Admin Web drives (`worker` `192.168.12.216`)**: Run full `test:helix-architecture` (including `jav-host-journey.test.js` Linux UTF-8 path-budget/host suites), `usearch`, `/proc/self/fd`, POSIX/CIFS, Linux E2E, and `verify-shelfdeck` HTTP drives inside a disposable detached worktree `/tmp/sd-verify-$RUN_ID` on `worker` (symlink `/home/gezhu/repos/Shelfdeck/media-service/node_modules`, no GPU/Docker; never touch `/home/gezhu/repos/Shelfdeck` directly, remove worktree after cleanup).
+- **GPU / NVENC / Docker proofs (`heavy` `192.168.12.215`)**: Because `worker` has no GPU or Docker, run GPU (`Quadro T2000`, `--runtime=nvidia`) or Docker container proofs inside an isolated disposable container on `heavy` with `/tmp/sd-gpu-verify-$RUN_ID` data dir, disposable `SHELFDECK_SECRET_ROOT`, and `127.0.0.1:<ephemeral-port>:18080` (`!= 18080`). Never touch live container `shelfdeck`, port `18080`, or mount `/srv/apps/shelfdeck/data`, `/srv/shelfdeck/transcode`, `/srv/shelfdeck/operator-backups`, `/media`, `/adult`, or `/mnt/shelfdeck_upgrade`.
 
 1. Choose a run id and roots:
 
@@ -69,7 +75,7 @@ Doctor is read-only. It fails closed unless:
 - `run.json` exists and was written by this skill for the current `VERIFY_SHELFDECK_RUN_DIR`.
 - The recorded PID (or Docker container) is still the owner of `127.0.0.1:<port>`.
 - Health JSON matches Launch ready criteria.
-- `baseUrl` host is `127.0.0.1` (refuse `192.168.12.230` and any non-loopback target).
+- `baseUrl` host is `127.0.0.1` (refuse `192.168.12.215`, retired `192.168.12.230`, and any non-loopback target).
 
 If doctor fails, stop driving. Clean up the run you started, then relaunch. Never double-drive a shared instance or an instance you did not launch.
 

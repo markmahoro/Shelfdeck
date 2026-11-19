@@ -1,8 +1,9 @@
 'use strict';
 
 /**
- * Sync ShelfDeck NAS runtime data into a local ignored directory for fast,
- * production-shaped debugging without deploying every slice.
+ * Sync legacy v2/v3 runtime files into a local ignored directory for debugging.
+ * Targets legacy config.json / library.db / tasks.db and is not used for Clean
+ * Helix (which persists state in a single shelfdeck.db).
  *
  * Usage:
  *   node scripts/sync-nas-runtime-data.js
@@ -15,7 +16,7 @@ const path = require('path');
 const { Client } = require(path.join(__dirname, '..', 'tools', 'node_modules', 'ssh2'));
 const { loadNasSshConfig } = require(path.join(__dirname, '..', 'tools', 'nas-ssh-config'));
 
-const DEFAULT_REMOTE_DIR = '/vol1/1000/docker/shelfdeck/data';
+const DEFAULT_REMOTE_DIR = '/srv/apps/shelfdeck/data';
 const DEFAULT_OUT = path.join('.codex', 'local-prod-data');
 const BASE_FILES = [
   'config.json',

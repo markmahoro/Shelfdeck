@@ -6,7 +6,7 @@ Maintained source for verifying user-facing ShelfDeck behavior. Read this index,
 
 - Launch via `bash .cursor/skills/verify-shelfdeck/bin/verify-shelfdeck launch` (isolated `127.0.0.1` port + disposable data dir).
 - Run `bash .cursor/skills/verify-shelfdeck/bin/verify-shelfdeck doctor` and require the recorded URL, data dir, and process ownership.
-- Never drive an instance this run did not start. Never target production NAS (`192.168.12.230:18080`).
+- Never drive an instance this run did not start. Never target production (`heavy` `192.168.12.215:18080` or retired `192.168.12.230:18080`).
 - Keep disposable admin API keys in the private run dir only. Do not copy `tests/TEST_ENV_CHECKLIST.md` contents into evidence or commits.
 - Platform is Linux / local Node or Linux Docker. Windows is out of scope.
 

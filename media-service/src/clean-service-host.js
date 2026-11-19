@@ -1639,11 +1639,21 @@ async function createCleanServiceHost(options) {
   const usAdultReferenceCache=new Map();
   const catalogueHostConfig=require('./helix/domains/libra/application/us-adult-catalogue-host-config')
     .resolveCatalogueHostConfiguration({dataDir:options.dataDir,...(options.usAdultCatalogue||options)});
+  const buffaloSessionPools=catalogueHostConfig?require('./helix/integrations/buffalo-session-pool'):null;
+  const buffaloCatalogueSessionPool=buffaloSessionPools?buffaloSessionPools.createBuffaloSessionPool():null;
+  const buffaloModelSessionPool=buffaloSessionPools?buffaloSessionPools.createBuffaloSessionPool():null;
   const cataloguePortFactories=require('./clean-us-adult-catalogue-ports').createUsAdultCataloguePortFactories({
-    catalogueHost:catalogueHostConfig,frameExtractor:usAdultFrameExtractor,workspaceProductPort,now:options.now||Date.now});
+    catalogueHost:catalogueHostConfig,frameExtractor:usAdultFrameExtractor,workspaceProductPort,now:options.now||Date.now,
+    ...(buffaloCatalogueSessionPool?{createCpuSession:()=>buffaloCatalogueSessionPool.acquire({
+      modelRoot:catalogueHostConfig.buffaloModelRoot,
+      catalogueRoot:catalogueHostConfig.catalogueRoot,
+      catalogueGeneration:catalogueHostConfig.catalogueConfiguration.catalogueGeneration,
+      catalogueSearchPolicy:catalogueHostConfig.catalogueConfiguration.catalogueSearchPolicy,
+    })}:{}),
+  });
   const buffaloPeoplePreparation=catalogueHostConfig?require('./helix/integrations/buffalo-people-reference-preparation').createBuffaloPeopleReferencePreparation({
     imagePort:peopleImagePort,now:options.now||Date.now,
-    createCpuSession(){return require('./helix/integrations/buffalo-cpu-session').createBuffaloCpuSession({
+    createCpuSession(){return buffaloModelSessionPool.acquire({
       modelRoot:catalogueHostConfig.buffaloModelRoot});},
   }):null;
   const peopleReferencePreparation=require('./helix/integrations/people-reference-preparation').createPeopleReferencePreparation({
@@ -1739,12 +1749,15 @@ async function createCleanServiceHost(options) {
       readStashBoxConfiguration:stashBoxCatalogueAdapter.configuration,
       withStashBoxCredential:stashBoxCatalogueAdapter.withCredential,
       cacheRoot:path.join(options.dataDir,'runtime','us-adult-catalogue-provider-cache'),
-      wake(){procurementExecution?.host.wakeBackground({ownerDomain:'libra',reconcilerKey:'active-libra-runs'});},
+      wake(){
+        procurementExecution?.host.wakeBackground({ownerDomain:'libra',reconcilerKey:'active-libra-runs'});
+        procurementExecution?.host.wakeBackground({ownerDomain:'people',reconcilerKey:'image-operations'});
+      },
     })
     :null;
   const catalogueRegistrationFrameProof=catalogueHostConfig
     ?require('./helix/integrations/us-adult-catalogue-frame-proof').createCatalogueRegistrationFrameProofPort({
-      createCpuSession(){return require('./helix/integrations/buffalo-cpu-session').createBuffaloCpuSession({
+      createCpuSession(){return buffaloModelSessionPool.acquire({
         modelRoot:catalogueHostConfig.buffaloModelRoot});},
       readArtifactBytes:handle=>workspaceProductPort.readArtifactBytes(handle),
       resolveCatalogueReaders(){
@@ -1755,7 +1768,10 @@ async function createCleanServiceHost(options) {
           contractValidator:procurementExecution?.contractValidator||null,
         };
       },
-      wake(){procurementExecution?.host.wakeBackground({ownerDomain:'libra',reconcilerKey:'active-libra-runs'});},
+      wake(){
+        procurementExecution?.host.wakeBackground({ownerDomain:'libra',reconcilerKey:'active-libra-runs'});
+        procurementExecution?.host.wakeBackground({ownerDomain:'people',reconcilerKey:'image-operations'});
+      },
       now:options.now||Date.now,
     })
     :null;
@@ -2351,9 +2367,16 @@ async function createCleanServiceHost(options) {
       },
     });
   }
+  async function closeBuffaloPools() {
+    await Promise.allSettled([
+      buffaloCatalogueSessionPool?.close(),
+      buffaloModelSessionPool?.close(),
+    ]);
+  }
   try {
     await server.ready();
   } catch (error) {
+    await closeBuffaloPools();
     constructed.close();
     throw error;
   }
@@ -2365,6 +2388,7 @@ async function createCleanServiceHost(options) {
   } catch (error) {
     await application.stop();
     await server.close();
+    await closeBuffaloPools();
     constructed.close();
     throw error;
   }
@@ -2385,6 +2409,7 @@ async function createCleanServiceHost(options) {
       try {
         await platformIntegrations.close();
         peopleReferencePreparation.clearCache();
+        await closeBuffaloPools();
         await localFaceModel.close();
       } finally {
         try { operatorObservability.close(); } catch { /* ignore */ }

@@ -48,15 +48,23 @@ function createUsAdultActorPipelineQuery(options){
       assertAuthority:()=>assertAuthority(intent.shelfEntryId,care.aftercareCaseId,!execution),workspaceRegistry:{rootSnapshot:store.aftercareWorkspaceRootSnapshot,
         ensureWorkspace:id=>store.ensureAftercareWorkspace(id),registerMaterial:handle=>store.registerAftercareWorkspaceMaterial(handle),listHandles:id=>store.listAftercareWorkspaceHandles(id)}});
   }
-  function publicationFailure(snapshot){
-    const work=snapshot.stages.publish?.work;
+  function noWritePreconditionFailure(snapshot,{phaseName,schema,message}){
+    const work=snapshot.stages[phaseName]?.work;
     if(!work||options.workResultReader.status(work.workId)?.state!=='failed')return null;
     const failures=options.workResultReader.readFailures(work.workId,{includeEvidence:true});
-    if(failures.length!==1||failures[0].evidence?.diagnostics?.schema!=='arca.actor-publication-precondition@1')return null;
+    if(failures.length!==1||failures[0].evidence?.diagnostics?.schema!==schema)return null;
     const binding={work,failure:failures[0]},proof=assertPublicationFailure(binding,{caseId:snapshot.care.aftercareCaseId,
       intentDigest:snapshot.intent.intentDigest,shelfEntryId:snapshot.intent.shelfEntryId});
-    if(proof.planDigest!==snapshot.plan?.planDigest)fail('Failed publication refers to a different frozen File Plan.');
+    if(proof.planDigest!==snapshot.plan?.planDigest)fail(message);
     return binding;
+  }
+  function publicationFailure(snapshot){
+    return noWritePreconditionFailure(snapshot,{phaseName:'publish',schema:'arca.actor-publication-precondition@1',
+      message:'Failed publication refers to a different frozen File Plan.'});
+  }
+  function stageFailure(snapshot){
+    return noWritePreconditionFailure(snapshot,{phaseName:'stage',schema:'arca.actor-stage-precondition@1',
+      message:'Failed stage refers to a different frozen File Plan.'});
   }
   function inspect(entryId,caseId){
     const current=base(entryId,caseId),{intent,care}=current,snapshot={...current,stages:{},source:{work:sourceWork(intent,caseId)},matching:[],selection:null,completion:null,plan:null,facts:null};
@@ -102,6 +110,10 @@ function createUsAdultActorPipelineQuery(options){
         ...(previous.work.workId===assets.workId?[]:[dependency(previous.work,previous.record.resultDigest)])],work=phaseWork(intent,care,action,dependencies),
         record=completed(options,work,action);snapshot.stages[action]={work,record};
       if(!record){
+        if(action==='stage'){
+          const failure=stageFailure(snapshot);
+          if(failure)snapshot.stageFailure=failure;
+        }
         if(action==='publish'){
           const failure=publicationFailure(snapshot);
           if(failure){

@@ -5,8 +5,15 @@ const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 const {
+  APPS_MOUNT,
+  APPS_UUID,
   BACKUP_ROOT,
+  COMPOSE_DIR,
   CONFIRMATION,
+  DATA_DIR,
+  SHELFDECK_HDD_MOUNT,
+  SHELFDECK_HDD_UUID,
+  TRANSCODE_HOST,
   backupCommand,
   imageCommand,
   parseArgs,
@@ -22,14 +29,22 @@ test('NAS Formation Reset has one contract and requires its apply confirmation',
 });
 
 test('NAS Formation Reset command is offline, image-bounded, and mounts only data and transcode', () => {
+  assert.equal(COMPOSE_DIR, '/srv/apps/shelfdeck');
+  assert.equal(DATA_DIR, '/srv/apps/shelfdeck/data');
+  assert.equal(TRANSCODE_HOST, '/srv/shelfdeck/transcode');
+  assert.equal(BACKUP_ROOT, '/srv/shelfdeck/operator-backups');
+  assert.equal(APPS_MOUNT, '/srv/apps');
+  assert.equal(APPS_UUID, '2e4fda48-ccbd-40cd-9b6b-1b66c4eb2dda');
+  assert.equal(SHELFDECK_HDD_MOUNT, '/srv/shelfdeck');
+  assert.equal(SHELFDECK_HDD_UUID, '11cf7e64-e7fa-4573-8588-5afb97ce3854');
   const command = resetCommand('markmahoro/shelfdeck:test',true);
   assert.match(command, /helix-formation-reset\.js/);
   assert.doesNotMatch(command, /--mode/);
   assert.match(command, /--offline-confirmed/);
   assert.match(command, /FORMATION_RESET_V2/);
-  assert.match(command, /shelfdeck\/data:\/app\/data/);
-  assert.match(command, /shelfdeck_transcode:\/transcode/);
-  assert.doesNotMatch(command, /:\/media/);
+  assert.match(command, /\/srv\/apps\/shelfdeck\/data:\/app\/data/);
+  assert.match(command, /\/srv\/shelfdeck\/transcode:\/transcode/);
+  assert.doesNotMatch(command, /\/vol1\/1000|\/vol2\/1000|:\s*\/media/);
 });
 
 test('NAS Formation Reset forwards an explicit validated Subject scope without broadening it', () => {
@@ -93,4 +108,14 @@ test('offline upgrade Reset image override requires an immutable identity and bo
     [...scope,'--reset-image-id','sha256:short']])
     assert.throws(()=>parseArgs(args),/Reset image override/);
   assert.throws(()=>parseArgs([...scope,'--reset-image-id',id,'--apply']),/FORMATION_RESET_V2/);
+});
+
+test('NAS Formation Reset verifies heavy SSD and HDD mount UUIDs and avoids legacy fnOS paths', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../../scripts/formation-reset-nas.js'), 'utf8');
+  assert.match(source, /findmnt/);
+  assert.match(source, /2e4fda48-ccbd-40cd-9b6b-1b66c4eb2dda/);
+  assert.match(source, /11cf7e64-e7fa-4573-8588-5afb97ce3854/);
+  assert.match(source, /\/srv\/apps\/shelfdeck/);
+  assert.match(source, /\/srv\/shelfdeck\/operator-backups/);
+  assert.doesNotMatch(source, /\/vol1\/1000|\/vol2\/1000/);
 });

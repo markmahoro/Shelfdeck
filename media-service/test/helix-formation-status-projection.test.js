@@ -72,6 +72,9 @@ test('Arca Formation completion requires one On-deck Commit, Shelf Entry, and ma
     blockedCode='CLEAN_ARCA_SHORT_STAGE_UNCERTAIN';
     const uncertain=projection.read(['offer-blocked']).get('offer-blocked');
     assert.equal(uncertain.failureCode,blockedCode);assert.equal(uncertain.retryAvailable,false);assert.equal(uncertain.canRecheck,false);
+    blockedCode='CLEAN_ARCA_SHORT_PUBLICATION_UNCERTAIN';
+    const publicationUncertain=projection.read(['offer-blocked']).get('offer-blocked');
+    assert.equal(publicationUncertain.failureCode,blockedCode);assert.equal(publicationUncertain.retryAvailable,false);assert.equal(publicationUncertain.canRecheck,false);
     assert.equal(result.get('offer-complete').stage, 'completed');
     assert.equal(result.get('offer-complete').onDeckCommitReceipt.receiptId, 'commit-complete');
     assert.equal(result.has('offer-without-receipt'), false);

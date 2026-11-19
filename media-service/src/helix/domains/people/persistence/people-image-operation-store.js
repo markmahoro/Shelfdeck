@@ -56,7 +56,7 @@ function createPeopleImageOperationStore(options) {
   function createOperation({ operationId, personId, actorId, idempotencyKey, requestDigest, payload }) {
     const payloadJson = canonicalJson(payload),catalogue=payload?.schema===CATALOGUE_SCHEMA;
     if(catalogue)assertCatalogueImagePayload(payload);
-    if (![operationId, personId, actorId, idempotencyKey].every(requiredString) || !SHA256.test(requestDigest) || Buffer.byteLength(payloadJson) > 16384 ||
+    if (![operationId, personId, actorId, idempotencyKey].every(requiredString) || !SHA256.test(requestDigest) || Buffer.byteLength(payloadJson) > 65536 ||
         payload.personId !== personId || payload.actorId !== actorId || payload.operationId !== operationId ||
         (catalogue ? actorId!==SYSTEM||idempotencyKey!==operationId||requestDigest!==canonicalDigest(payload) : payload.schema !== 'people.image-operation-request@1')) {
       fail('PEOPLE_IMAGE_OPERATION_INPUT_INVALID', '建档操作参数无效或超出大小限制。');

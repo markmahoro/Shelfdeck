@@ -11,15 +11,16 @@ function freeze(value){if(value&&typeof value==='object'){Object.values(value).f
 // Pure People-owned interpretation of a complete, bounded Provider
 // Observation. It cannot send requests, create Person facts or choose images.
 function resolveUsAdultProviderName({name,aliases=[],observation}){
-  if(!Array.isArray(aliases)||aliases.length>16)fail('PEOPLE_PROVIDER_NAME_INPUT_INVALID','Provider name aliases exceed their bound.');
+  if(!Array.isArray(aliases)||aliases.length>128)fail('PEOPLE_PROVIDER_NAME_INPUT_INVALID','Provider name aliases exceed their bound.');
+  const primaryTerm=normalizeName(name);
   const names=queryNames(name,aliases),queryDigest=canonicalDigest({policyRef:POLICY,names});
   if(!exact(observation,['schema','provider','queries','observationDigest'])||observation.schema!==OBSERVATION||observation.provider!=='theporndb'||
-    !Array.isArray(observation.queries)||observation.queries.length!==names.length||observation.queries.length>17||
-    !HASH.test(observation.observationDigest||'')||Buffer.byteLength(canonicalJson(observation),'utf8')>512*1024)
+    !Array.isArray(observation.queries)||observation.queries.length!==names.length||observation.queries.length>129||
+    !HASH.test(observation.observationDigest||'')||Buffer.byteLength(canonicalJson(observation),'utf8')>2*1024*1024)
     fail('PEOPLE_PROVIDER_NAME_OBSERVATION_INVALID','Provider name lookup requires the exact bounded Observation.');
   const {observationDigest,...observationBody}=observation;
   if(canonicalDigest(observationBody)!==observationDigest)fail('PEOPLE_PROVIDER_NAME_OBSERVATION_INVALID','Provider Observation digest changed.');
-  const seenTerms=new Set(),people=new Map();let saturated=false;
+  const seenTerms=new Set(),people=new Map();let saturated=false,primarySaturated=false;
   for(const query of observation.queries){
     if(!exact(query,['term','limit','completion','responseDigest','candidates'])||!text(query.term)||!Number.isSafeInteger(query.limit)||
       query.limit<1||query.limit>100||!['complete','saturated'].includes(query.completion)||!HASH.test(query.responseDigest||'')||
@@ -29,10 +30,11 @@ function resolveUsAdultProviderName({name,aliases=[],observation}){
       fail('PEOPLE_PROVIDER_NAME_OBSERVATION_INVALID','Provider response is incomplete, oversized or internally inconsistent.');
     const term=normalizeName(query.term);
     if(seenTerms.has(term)||!names.includes(term))fail('PEOPLE_PROVIDER_NAME_OBSERVATION_INVALID','Provider queries do not exactly cover the frozen requested names.');
-    seenTerms.add(term);if(query.completion==='saturated')saturated=true;
+    seenTerms.add(term);
+    if(query.completion==='saturated'){saturated=true;if(term===primaryTerm)primarySaturated=true;}
     for(const item of query.candidates){
       if(!exact(item,['providerKey','canonicalName','aliases','images'])||!text(item.providerKey)||!text(item.canonicalName)||
-        !Array.isArray(item.aliases)||item.aliases.length>128||item.aliases.some(value=>!text(value))||
+        !Array.isArray(item.aliases)||item.aliases.length>256||item.aliases.some(value=>!text(value))||
         !Array.isArray(item.images)||item.images.length>128)
         fail('PEOPLE_PROVIDER_NAME_OBSERVATION_INVALID','Provider person projection exceeds its closed bound.');
       normalizeName(item.canonicalName);item.aliases.forEach(normalizeName);
@@ -48,20 +50,35 @@ function resolveUsAdultProviderName({name,aliases=[],observation}){
       people.set(candidate.providerKey,candidate);
     }
   }
-  if(seenTerms.size!==names.length||people.size>1700)fail('PEOPLE_PROVIDER_NAME_OBSERVATION_INVALID','Provider queries do not cover their frozen names.');
+  if(seenTerms.size!==names.length||people.size>4096)fail('PEOPLE_PROVIDER_NAME_OBSERVATION_INVALID','Provider queries do not cover their frozen names.');
   const snapshot=[...people.values()].sort((a,b)=>compare(a.providerKey,b.providerKey));
-  let steps=0;const consume=()=>{if(++steps>2_000_000)fail('PEOPLE_PROVIDER_NAME_LIMIT','Provider comparison exceeds its work bound.');};
-  const matches=[];
-  for(const candidate of snapshot){
-    const best=bestNameMatch(names,[candidate.canonicalName,...candidate.aliases],consume);
-    if(best)matches.push({providerKey:candidate.providerKey,candidateDigest:canonicalDigest(candidate),...best});
+  let steps=0;const consume=()=>{if(++steps>8_000_000)fail('PEOPLE_PROVIDER_NAME_LIMIT','Provider comparison exceeds its work bound.');};
+  let candidates=null,isIncomplete=false;
+  if(!primarySaturated){
+    // Complete primary-name exact matches uniquely disambiguate even when a short alias query saturates.
+    const primaryExact=[];
+    for(const candidate of snapshot){
+      const best=bestNameMatch([primaryTerm],[candidate.canonicalName,...candidate.aliases],consume);
+      if(best&&best.distance===0)primaryExact.push({providerKey:candidate.providerKey,candidateDigest:canonicalDigest(candidate),...best});
+    }
+    if(primaryExact.length>32)fail('PEOPLE_PROVIDER_NAME_LIMIT','Ambiguous Provider candidates exceed their response bound.');
+    if(primaryExact.length===1)candidates=primaryExact;
+    else if(primaryExact.length>1)candidates=primaryExact.sort((a,b)=>compare(a.providerKey,b.providerKey));
   }
-  const candidates=bestCandidates(matches).sort((a,b)=>compare(a.providerKey,b.providerKey));
-  if(candidates.length>32)fail('PEOPLE_PROVIDER_NAME_LIMIT','Ambiguous Provider candidates exceed their response bound.');
-  const body={schema:SCHEMA,policyRef:POLICY,kind:saturated?'incomplete':candidates.length===1?'resolved':candidates.length?'ambiguous':'not_found',
+  if(!candidates){
+    const matches=[];
+    for(const candidate of snapshot){
+      const best=bestNameMatch(names,[candidate.canonicalName,...candidate.aliases],consume);
+      if(best)matches.push({providerKey:candidate.providerKey,candidateDigest:canonicalDigest(candidate),...best});
+    }
+    candidates=bestCandidates(matches).sort((a,b)=>compare(a.providerKey,b.providerKey));
+    if(candidates.length>32)fail('PEOPLE_PROVIDER_NAME_LIMIT','Ambiguous Provider candidates exceed their response bound.');
+    isIncomplete=saturated;
+  }
+  const body={schema:SCHEMA,policyRef:POLICY,kind:isIncomplete?'incomplete':candidates.length===1?'resolved':candidates.length?'ambiguous':'not_found',
     nameQueryDigest:queryDigest,providerObservationDigest:observationDigest,
     providerCandidateSetDigest:canonicalDigest({schema:'people.us-adult-provider-candidate-set@1',people:snapshot}),
-    candidates:saturated?[]:candidates};
+    candidates:isIncomplete?[]:candidates};
   return freeze({...body,resolutionDigest:canonicalDigest(body)});
 }
 module.exports=Object.freeze({SCHEMA,OBSERVATION,resolveUsAdultProviderName});

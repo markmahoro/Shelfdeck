@@ -3,24 +3,33 @@
 ## 常用命令
 
 ```bash
-cd media-service && npm test
-cd media-service && node --test test/task-model.test.js test/priority-engine.test.js
+# Windows 工作站（Node 22.23.5 LTS；.worktrees/<slug> 通过 mklink /J 复用 media-service/web/tools node_modules，严禁拉起 Docker Desktop 跑单测）
+node --test media-service/test/formation-reset-nas.test.js media-service/test/production-deploy-contract.test.js tests/nas-reset-bootstrap.test.js
+cd media-service && node --test test/<target>.test.js
 cd media-service && npm run build:web
-cd media-desktop && npm test
+
+# worker VM（192.168.12.216，在 /tmp detached worktree 中运行全量 helix-architecture / usearch / POSIX / Linux E2E 测试）
+cd /tmp/sd-verify-<slug>/media-service
+npm run test:helix-architecture
+npm run test:helix-runtime
+npm run test:us-adult-full-e2e
 bash tests/runner.sh health-check tests/env/ci.env
-bash tests/runner.sh all tests/env/docker-fn.env
+
+# heavy 隔离 GPU/Docker 副本（192.168.12.215，--runtime=nvidia，/tmp 一次性目录）
+docker run --rm --runtime=nvidia -e NVIDIA_VISIBLE_DEVICES=all -e NVIDIA_DRIVER_CAPABILITIES=compute,video,utility markmahoro/shelfdeck:<tag> node --test test/clean-ffmpeg-pipeline.test.js
 ```
 
 ## 环境
 
 | 环境 | 覆盖 | 说明 |
 | --- | --- | --- |
-| local Windows | service Windows + desktop | `http://127.0.0.1:18080` |
-| NAS Docker | service Docker + 外部依赖 | `http://192.168.12.230:18080` |
-| transcode node | remote FFmpeg/GPU worker | 默认 `http://<node>:19000` |
-| CI | 无外部依赖 smoke | GitHub Actions |
+| Windows 工作站 | 代码编辑、`.worktrees/*`、纯 JS 契约、定向单测 / SQLite / sharp / `build:web` | Node `22.23.5 LTS`（`--ignore-scripts` + 原生模块 `rebuild` 预装 `better-sqlite3`/`sharp`/`onnxruntime-node`，`.worktrees/*` 用 `mklink /J` 复用 `media-service`、`web` 与 `tools` 依赖）；**严禁拉起本机 Docker Desktop**；`media-desktop` 已退役；全量 `test:helix-architecture`（含 `jav-host-journey.test.js` 等长文件/全宿主矩阵）、`usearch`、`/proc/self/fd`、POSIX/CIFS 行为与 Linux E2E 交由 `worker` 执行 |
+| `worker` VM (`192.168.12.216`) | Linux 专属（全量 `test:helix-architecture` / `usearch` / `/proc/self/fd` / POSIX/CIFS）/ Linux E2E / `verify-shelfdeck` | `/tmp` detached worktree（4 vCPU / 7.7 GiB RAM / 0 Swap，限制 `--test-concurrency=2`；仅预装 `media-service/node_modules`，无 `tools/node_modules`、`web/node_modules`、GPU 与 Docker） |
+| `heavy` 隔离 Docker 副本 (`192.168.12.215`) | Quadro T2000 NVENC + Docker 运行时 + E2E | `--runtime=nvidia` + `/tmp` 一次性目录 + `127.0.0.1:<ephemeral-port>`，严禁碰 `:18080` 或生产挂载 |
+| `heavy` 生产 (`http://192.168.12.215:18080`) | 只读诊断 / 授权发布后复验 | 旧飞牛 `.230` 已退役禁止双跑 |
+| CI | 无外部依赖 Docker smoke | GitHub Actions (`ubuntu-latest`) |
 
-私有凭据在 `tests/TEST_ENV_CHECKLIST.md`，不提交。
+私有凭据在可选的 `tests/TEST_ENV_CHECKLIST.md`（gitignored，不提交；若本机不存在则 `tools/nas-ssh-config.js` 自动使用 `heavy` 默认 SSH 配置）。
 
 ## Helix 验证入口
 
