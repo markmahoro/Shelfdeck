@@ -3886,6 +3886,8 @@ Final Inventory Decision必须为每个成员冻结`sourceMaterialKey`、role、
 这些字段共同进入成员及Decision digest。Workspace中的`transcode-*`、Event/Package ID、digest或其他内部技术名
 不是Placement Evidence，不得直接成为永久Shelf名称；只有显式用户Placement模板的渲染结果可以改变上述默认名。
 
+同一Shelf上的`single`形态内容（`movie | jav | western_adult`，不含共享剧集/季目录的`Series Season`与保留同一Entry所有权的JAV身份纠正）在首次解析`Final Inventory Decision`时，若默认目标子目录`{folder}`已被Arca当前active `Shelf Entry` Inventory或同Endpoint尚未终结的`On-deck Run`（`ready | offloading | blocked`）占用，Arca按最小可用正整数序号`2..1024`将目标子目录消歧为`{folder} (2)`、`{folder} (3)`……，子目录内部的Primary、NFO、Poster、Fanart与Subtitle文件名保持冻结Placement模板原样不变，使重复片源能够按§5.5.3与§5.8.3正常建立独立`Shelf Entry`并进入后续`Off-deck Duplicate Detection`审阅。对JAV超长标题场景，` (k)`计入目录UTF-8字节预算后再执行同一`arca.jav-title-prefix@1`前缀选择，内部Primary与NFO继续共享不含序号后缀的同一stem。`Final Inventory Decision`一经冻结，后续Stage、Placement、Verification与Settlement均严格锁定该冻结目标子目录，不因并发或后续目录占用变化漂移；未被Arca Inventory或`On-deck Run`证明拥有的外来目录或同名媒体文件不得通过自动追加序号跳过，仍按既有冲突保护阻断并交用户处理。
+
 Final Inventory完成合同必须同时消费Off-load Context中每个成员冻结的`settlementExpectation`与
 `source-to-final mapping`。`carried_forward + replace_or_move`与`replaced_and_settled + remove_after_place`
 都要求逐成员Completion Evidence；前者只说明产品成员连续，不授权原location留下第二份现实。同路径且Identity、字节与
@@ -16339,7 +16341,7 @@ Libra-owned不可变Selection Intent只用于正式JAV身份尚未确认时的�
 
 缩短规则`arca.jav-title-prefix@1`使用固定版本`unicode-segmenter@0.17.3`的Unicode 17.0/UAX #29 revision 47 extended grapheme cluster分段，不切开code point或该版本的组合字形；选择满足完整渲染结果的最长非空标题前缀，不按UTF-16长度截取。依赖及规则版本冻结，升级不能改变既有Decision的解释。预算逐项包含目录、每个实际文件名及其所有可能使用的Stage/临时/恢复后缀：按当前保守255 UTF-8 bytes上限，目录预留33 bytes、文件预留25 bytes；更小或未知的Endpoint实际限制不得被当作已证明可用，必须由Endpoint能力及现实检查安全收口。若完整番号、固定字段、实际扩展名及至少一个完整标题字形无法容纳，或原样保留的成员本身超限，则明确失败，不进入确定性无效重试。
 
-截短产生的同目标、同号不同Entry、现有外来目录或文件、大小写/Unicode等价和并发目标竞争，必须由Arca结合Inventory/Control、目标Reservation和实际Endpoint等价语义安全区分；不能证明唯一与当前责任时拒绝并保留原内容，不能以番号、短名前缀或相同文件字节推定同一Entry，不自动加hash、数字或其他永久后缀。中断恢复须凭原Decision与Effect/Receipt证明继续，不凭目标存在推断成功。用户界面应呈现实际命名及可执行的冲突或失败处理，不展示恒定无效的重试为解决办法。Movie、Series、Western Adult、JAV Correction、Aftercare、既有Accepted/Decision及正式收藏保持各自现行合同；既有冻结Decision不得静默改写，本授权不包含生产部署、重试、清理或迁移。
+截短产生的同目标、同号不同Entry、现有外来目录或文件、大小写/Unicode等价和并发目标竞争，必须由Arca结合Inventory/Control、目标Reservation和实际Endpoint等价语义安全区分；不能证明唯一与当前责任时拒绝并保留原内容，不能以番号、短名前缀或相同文件字节推定同一Entry；对未被Arca Inventory或同Endpoint在途On-deck Run证明拥有的外来冲突目录或文件，不自动加hash、数字或其他永久后缀跳过（已由Arca证明拥有的同Shelf重复single入藏子目录消歧遵循§5.5.10统一`{folder} (k)`规则，内部成员文件名不加后缀，JAV身份纠正仍禁止后缀避让）。中断恢复须凭原Decision与Effect/Receipt证明继续，不凭目标存在推断成功。用户界面应呈现实际命名及可执行的冲突或失败处理，不展示恒定无效的重试为解决办法。Movie、Series、Western Adult、JAV Correction、Aftercare、既有Accepted/Decision及正式收藏保持各自现行合同；既有冻结Decision不得静默改写，本授权不包含生产部署、重试、清理或迁移。
 
 ### JAV身份纠正范围（2026-10-13，用户确认纳入首版）
 

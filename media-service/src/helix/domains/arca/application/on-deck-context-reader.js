@@ -64,12 +64,13 @@ function messageFromRefs(dependencyRefs) {
   return Object.freeze({ ...value, messageId, dedupKey: messageId });
 }
 
-function assessAcceptedInventory(inventoryPort, onDeckRunId, responsibility, context) {
+function assessAcceptedInventory(inventoryPort, onDeckRunId, responsibility, context, finalInventoryDecision) {
   return inventoryPort.assess({
     onDeckRunId,
     custodyId: responsibility.custodyId,
     shelf: context.shelf,
     onDeckProductPackage: context.packageValue,
+    finalInventoryDecision,
     observedAtMs: 0,
     // After Handoff B Acceptance, Placement and per-member Settlement advance
     // the physical reality legitimately.  Later Event input projections must
@@ -236,6 +237,7 @@ function createOnDeckContextReader(options) {
       onDeckRunId,
       responsibility,
       context,
+      accepted.finalInventoryDecision,
     );
     return Object.freeze({ ...context, assessment, responsibility, accepted, verified,
       feasibility, targetLocation,

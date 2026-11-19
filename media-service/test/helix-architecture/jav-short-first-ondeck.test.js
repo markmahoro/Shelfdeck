@@ -159,3 +159,31 @@ test('only deterministic JAV naming failures become non-retryable feasibility ou
   assert.equal(unknown.retryDirective,'never');assert.equal(unknown.failureClass,'stage_precondition');
   assert.equal(shortenedStageObservationFailureOutcome(Object.assign(new Error('io'),{code:'EIO'})),null);
 });
+
+test('over-budget JAV duplicate disambiguates within 222-byte stage budget while keeping matching unsuffixed inner stems',async()=>{
+  const f=fixture('HALT-094 '+'題'.repeat(80));
+  try{
+    const occupied=new Set();
+    const port=createCleanArcaInventoryPort({
+      schemaManifest,unitOfWork:{},workspaceRoot:path.join(f.root,'workspace-dup'),
+      readOccupiedTargetDirectories:()=>occupied,
+    });
+    const firstTarget=port.resolveTargetLocation(f.request).targetDirectory;
+    occupied.add(firstTarget);
+    const secondReq={...f.request,onDeckRunId:'run-dup-2',custodyId:'custody-dup-2'};
+    const secondDecision=port.prepare(secondReq);
+    const secondDir=path.dirname(secondDecision.members[0].targetLocation);
+    assert.notEqual(secondDir,firstTarget);
+    assert.equal(path.basename(secondDir).endsWith(' (2)'),true);
+    assert.ok(Buffer.byteLength(path.basename(secondDir)+'.shelfdeck-stage-'+'0'.repeat(16),'utf8')<=255);
+    const primary=secondDecision.members.find(item=>item.role==='primary_payload');
+    const nfo=secondDecision.members.find(item=>item.role==='metadata_sidecar');
+    assert.equal(path.basename(primary.finalName,'.mkv'),path.basename(nfo.finalName,'.nfo'));
+    assert.equal(primary.finalName.includes(' (2).'),false);
+    // Unowned existing target at the disambiguated path must still trigger conflict protection.
+    fs.mkdirSync(secondDir);fs.copyFileSync(f.files.primary,primary.targetLocation);
+    const request2={...secondReq,finalInventoryDecision:secondDecision};
+    const slot2=port.prepareSlot(request2);
+    await assert.rejects(()=>port.stage({...request2,targetCommitSlotHandle:slot2}),{code:'CLEAN_ARCA_JAV_SHORT_TARGET_OCCUPIED'});
+  }finally{fs.rmSync(f.root,{recursive:true,force:true});}
+});

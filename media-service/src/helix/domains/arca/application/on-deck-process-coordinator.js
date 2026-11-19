@@ -9,6 +9,7 @@ const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { createWorkAdmission } = require('../../../foundation/execution/work-admission');
 const { createAcceptanceRecoveryStore } = require('../persistence/acceptance-recovery-store');
 const { createArcaFormationRetirementStore } = require('../persistence/formation-retirement-store');
+const { NON_RETRYABLE, RECHECKABLE } = require('./formation-status-projection');
 
 const LIMITS = Object.freeze({ globalOpenWorks:256, ownerOpenWorks:256, openEvents:256 });
 
@@ -169,6 +170,21 @@ function createOnDeckProcessCoordinator(options) {
       .slice().sort((left,right)=>Number(left.created_at_ms)-Number(right.created_at_ms) ||
         String(left.work_id).localeCompare(String(right.work_id)));
   }
+  function latestOnDeckFailureCode(rows) {
+    const reader = options.workResultReader;
+    for (let index = rows.length - 1; index >= 0; index -= 1) {
+      const workId = rows[index].work_id;
+      const eventFailure = typeof reader?.readFailures === 'function'
+        ? reader.readFailures(workId)?.[0]?.code
+        : null;
+      if (eventFailure) return eventFailure;
+      const attemptFailure = typeof reader?.status === 'function'
+        ? reader.status(workId)?.latestAttempt?.failure_code
+        : null;
+      if (attemptFailure) return attemptFailure;
+    }
+    return null;
+  }
   function acceptedWorkForRecovery(workId) {
     const definition = options.workResultReader.readDefinition?.(workId)?.definition;
     const ref = definition?.dependencyRefs?.find((item)=>item.ownerDomain === 'arca' &&
@@ -300,10 +316,19 @@ function createOnDeckProcessCoordinator(options) {
     }
     const refs = refsFromWorkDefinition(latest.work_id);
     const context = options.contextReader.readAccepted(onDeckRunId, refs);
-    if (mode === 'automatic' && rows.length >= maxGenerations) {
+    const failureCode = latestOnDeckFailureCode(rows);
+    const nonRetryableFailure = Boolean(failureCode && NON_RETRYABLE.has(failureCode));
+    if (mode === 'user' && nonRetryableFailure && !RECHECKABLE.has(failureCode)) {
+      throw Object.assign(
+        new Error('Non-retryable On-deck failure requires resolving the underlying target issue first.'),
+        { code:'ARCA_ONDECK_RETRY_FORBIDDEN', statusCode:409, details:{ failureCode } },
+      );
+    }
+    if (mode === 'automatic' && (nonRetryableFailure || rows.length >= maxGenerations)) {
       const attention=options.contextReader.onDeck.requireAttention(onDeckRunId,
         context.finalInventoryDecision.decisionDigest);
-      return Object.freeze({ kind:'attention_required', reasonCode:'ARCA_ONDECK_RECOVERY_EXHAUSTED',
+      return Object.freeze({ kind:'attention_required',
+        reasonCode:nonRetryableFailure ? failureCode : 'ARCA_ONDECK_RECOVERY_EXHAUSTED',
         onDeckRunId, subjectId:context.offer.subjectId, workId:latest.work_id,
         recoveryGeneration:rows.length, replayed:attention.replayed });
     }
@@ -324,7 +349,8 @@ function createOnDeckProcessCoordinator(options) {
       const eligibility=options.contextReader.onDeck.recoveryEligibility(onDeckRunId);
       const closesPlanningGap=!eligibility.eligible&&eligibility.reasonCode==='on_deck_run_not_blocked'&&
         ['ready','offloading'].includes(eligibility.state);
-      if(rows.length>=3&&eligibility.eligible)continue;
+      const failureCode=eligibility.eligible ? latestOnDeckFailureCode(rows) : null;
+      if((rows.length>=3||(failureCode&&NON_RETRYABLE.has(failureCode)))&&eligibility.eligible)continue;
       if(!eligibility.eligible&&!closesPlanningGap)continue;
       result.push(Object.freeze({cursor:onDeckRunId,scope:Object.freeze({onDeckRunId})}));
       if(result.length>=limit)break;

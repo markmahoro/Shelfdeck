@@ -112,6 +112,58 @@ test('Duplicate detection pages stay bounded and never split one strong Identity
     JSON.stringify(validateActiveShelfEntryIdentityProjection.errors));
 });
 
+test('Off-deck duplicate projection groups distinct Subjects by strong canonical content identity across profiles', () => {
+  const entries = [
+    { shelf_entry_id:'movie-a', current_inventory_revision:1, structure_kind:'single', canonical_identity_key:'ck-movie-1',
+      identity:{ identity_kind:'tmdb_movie', provider:'tmdb', provider_key:'550', identity_digest:canonicalDigest({ subj:'s1' }) } },
+    { shelf_entry_id:'movie-b', current_inventory_revision:1, structure_kind:'single', canonical_identity_key:'ck-movie-2',
+      identity:{ identity_kind:'tmdb_movie', provider:'tmdb', provider_key:'550', identity_digest:canonicalDigest({ subj:'s2' }) } },
+    { shelf_entry_id:'jav-a', current_inventory_revision:1, structure_kind:'single', canonical_identity_key:'ck-jav-1',
+      identity:{ identity_kind:'jav_code', provider:'jav', provider_key:'DDOB-019', identity_digest:canonicalDigest({ subj:'s3' }) } },
+    { shelf_entry_id:'jav-b', current_inventory_revision:1, structure_kind:'single', canonical_identity_key:'ck-jav-2',
+      identity:{ identity_kind:'jav_code', provider:'jav', provider_key:'DDOB-019', identity_digest:canonicalDigest({ subj:'s4' }) } },
+    { shelf_entry_id:'series-s1-a', current_inventory_revision:1, structure_kind:'season', seasonNumber:1, canonical_identity_key:'ck-s1-a',
+      identity:{ identity_kind:'tmdb_series_season', provider:'tmdb', provider_key:'1399', identity_digest:canonicalDigest({ subj:'s5' }) } },
+    { shelf_entry_id:'series-s1-b', current_inventory_revision:1, structure_kind:'season', seasonNumber:1, canonical_identity_key:'ck-s1-b',
+      identity:{ identity_kind:'tmdb_series_season', provider:'tmdb', provider_key:'1399', identity_digest:canonicalDigest({ subj:'s6' }) } },
+    { shelf_entry_id:'series-s2', current_inventory_revision:1, structure_kind:'season', seasonNumber:2, canonical_identity_key:'ck-s2',
+      identity:{ identity_kind:'tmdb_series_season', provider:'tmdb', provider_key:'1399', identity_digest:canonicalDigest({ subj:'s7' }) } },
+    { shelf_entry_id:'western-a', current_inventory_revision:1, structure_kind:'single', canonical_identity_key:'ck-western-shared',
+      identity:{ identity_kind:'internal_identity', provider:'internal', provider_key:'us-adult:a', identity_digest:canonicalDigest({ subj:'s8' }) } },
+    { shelf_entry_id:'western-b', current_inventory_revision:1, structure_kind:'single', canonical_identity_key:'ck-western-shared',
+      identity:{ identity_kind:'internal_identity', provider:'internal', provider_key:'us-adult:b', identity_digest:canonicalDigest({ subj:'s9' }) } },
+    { shelf_entry_id:'western-other', current_inventory_revision:1, structure_kind:'single', canonical_identity_key:'ck-western-other',
+      identity:{ identity_kind:'internal_identity', provider:'internal', provider_key:'us-adult:c', identity_digest:canonicalDigest({ subj:'s10' }) } },
+    { shelf_entry_id:'weak-1', current_inventory_revision:1, structure_kind:'single', canonical_identity_key:'ck-weak-same',
+      identity:{ identity_kind:'tmdb_movie', provider:'tmdb', provider_key:'not-a-tmdb-id', identity_digest:canonicalDigest({ subj:'shared' }) } },
+    { shelf_entry_id:'weak-2', current_inventory_revision:1, structure_kind:'single', canonical_identity_key:'ck-weak-same',
+      identity:{ identity_kind:'tmdb_movie', provider:'tmdb', provider_key:'not-a-tmdb-id', identity_digest:canonicalDigest({ subj:'shared' }) } },
+  ];
+  const reader = createOffdeckContextReader({ offdeckStore:{ allEntryFacts:()=>entries },
+    materialControlProjectionPort:{ getMaterialControlProjections:()=>[] } });
+  const pages = reader.activeIdentityProjectionPages(100);
+  const byDigest = new Map();
+  for (const page of pages) {
+    assert.equal(validateActiveShelfEntryIdentityProjection(page), true,
+      JSON.stringify(validateActiveShelfEntryIdentityProjection.errors));
+    for (const item of page.entries) {
+      const list = byDigest.get(item.digest) || [];
+      list.push(item.objectId);
+      byDigest.set(item.digest, list);
+    }
+  }
+  const duplicateGroups = [...byDigest.values()].filter((ids) => ids.length >= 2).map((ids) => ids.sort());
+  duplicateGroups.sort((a, b) => a[0].localeCompare(b[0]));
+  assert.deepEqual(duplicateGroups, [
+    ['jav-a', 'jav-b'],
+    ['movie-a', 'movie-b'],
+    ['series-s1-a', 'series-s1-b'],
+    ['western-a', 'western-b'],
+  ]);
+  const singles = [...byDigest.values()].filter((ids) => ids.length === 1).flat().sort();
+  assert.deepEqual(singles, ['series-s2', 'weak-1', 'weak-2', 'western-other']);
+});
+
 test('Off-deck Candidate query converts SQLite safe integers into JSON values', () => {
   const rows = {
     list_candidates:[{ candidate_id:'candidate-1', candidate_kind:'entry', shelf_entry_id:'entry-1',
@@ -119,7 +171,7 @@ test('Off-deck Candidate query converts SQLite safe integers into JSON values', 
       condition_evidence_schema_ref:'arca://types/OffdeckConditionEvidence/v1', condition_evidence_json:'{}',
       condition_evidence_digest:'b'.repeat(64), reason_digest:'c'.repeat(64), state:'open', created_at_ms:10n }],
     list_duplicate_groups:[{ duplicate_group_id:'group-1', canonical_identity_digest:'d'.repeat(64),
-      member_set_digest:'e'.repeat(64), state:'active', detected_at_ms:11n, superseded_at_ms:null }],
+      member_set_digest:'e'.repeat(64), state:'open', detected_at_ms:11n, superseded_at_ms:null }],
     list_duplicate_members:[{ duplicate_group_id:'group-1', shelf_entry_id:'entry-1',
       inventory_revision:4n, member_digest:'f'.repeat(64) }],
     list_suppressions:[{ suppression_id:'suppression-1', shelf_entry_id:'entry-1', candidate_kind:'entry',
