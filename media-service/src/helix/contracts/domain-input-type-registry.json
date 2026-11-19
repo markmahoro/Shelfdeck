@@ -1558,7 +1558,7 @@
       "relativePath": "domain-types/PeopleCatalogueRegistrationDecision/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "c8beaf640e883f123c6d9b0c547c006a46c078393eb1ca215a7dbce8913f9097"
+        "value": "841597223a74f2810424a2cf8a563c75c53eeda024f10e461455b5ac6a83d3b4"
       },
       "usedBy": []
     },
@@ -3604,7 +3604,7 @@
       "relativePath": "domain-types/UsAdultCatalogueActorDecision/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "6dc69fbf7b2e10dc62c3e47a8d1d6b70b3b0abbeef08279eee9114ee9b8c3943"
+        "value": "a75f65ed24844c474cec84b829a007fbf6b0cad244cba77649110aced9ca7cc7"
       },
       "usedBy": [
         {

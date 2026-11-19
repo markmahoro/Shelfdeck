@@ -22,8 +22,8 @@ function schema() {
   const result = objectSchema({workId:idSchema(),attemptId:idSchema(),planId:idSchema(),eventId:idSchema(),resultId:idSchema(),
     capabilityRef:{const:CAPABILITY},resultSchemaRef:{const:resultRef(CAPABILITY)},resultDigest:digestSchema(),inputBindingDigest:digestSchema()});
   const strata = minimum => ({type:'array',minItems:minimum,maxItems:20,uniqueItems:true,items:{type:'integer',minimum:0,maximum:19}});
-  const winner = objectSchema({identityKey:idSchema(),uid:idSchema(),name:{type:'string',minLength:1,maxLength:200},
-    aliases:{type:'array',maxItems:16,uniqueItems:true,items:{type:'string',minLength:1,maxLength:200}},
+  const winner = objectSchema({identityKey:idSchema(),uid:idSchema(),name:{type:'string',minLength:1,maxLength:256},
+    aliases:{type:'array',maxItems:128,uniqueItems:true,items:{type:'string',minLength:1,maxLength:256}},
     groupIds:{type:'array',minItems:1,maxItems:1280,uniqueItems:true,items:idSchema()},coverageStrata:strata(3),supportingRepresentativeStrata:strata(2)});
   const nameResolution = objectSchema({kind:{enum:['reused','registered']},policyRef:{const:POLICY},nameQueryDigest:digestSchema(),
     libraryNamesDigest:digestSchema(),resolutionDigest:digestSchema(),registrationDecisionId:nullable(digestSchema()),registrationDecisionDigest:nullable(digestSchema())});
