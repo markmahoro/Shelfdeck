@@ -327,3 +327,34 @@ test('Scheduler source has no Domain Store, capacity, Capability substitution, o
     assert.equal(source.includes(forbidden), false, forbidden);
   }
 });
+
+test('incidentTargetEligibilityProvider filters blocked work and event targets and memoizes per workId', () => {
+  const calls = [];
+  fixture(({ scheduler, seedRows, projections }) => {
+    seedRows((repository) => {
+      addEventGraph(repository, projections, 'blocked', { localPriority: 200, readyAtMs: 100000 });
+      addEventGraph(repository, projections, 'allowed', { localPriority: 0, readyAtMs: 100000 });
+      repository.invoke('event', {
+        event_id: 'event-blocked-2', plan_id: 'plan-blocked', node_id: 'node-blocked-2',
+        work_id: 'work-blocked', owner_domain: 'libra', priority_class: 'normal_foreground',
+        state: 'ready', ready_at_ms: 100000, retry_at_ms: null,
+      });
+    });
+    const leased = scheduler.acquire({ targetType: 'event' });
+    assert.equal(leased.lease.targetId, 'event-allowed');
+    scheduler.release(leased.lease);
+    assert.equal(calls.filter((id) => id === 'work-blocked').length, 1);
+  }, {
+    incidentTargetEligibilityProvider: {
+      check: (scope) => {
+        calls.push(scope.workId);
+        return scope.workId !== 'work-blocked';
+      },
+    },
+  });
+
+  fixture(({ scheduler, seedRows, projections }) => {
+    seedRows((repository) => addWork(repository, projections, 'invalid'));
+    assert.throws(() => scheduler.acquire({ targetType: 'work' }), { code: 'P4_SCHEDULER_INCIDENT_ELIGIBILITY_INVALID' });
+  }, { incidentTargetEligibilityProvider: { check: () => 'yes' } });
+});

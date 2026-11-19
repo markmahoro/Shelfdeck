@@ -243,3 +243,38 @@ test('Supply source has no Planner, Capability selection, capacity decision, del
     assert.equal(source.includes(parts.join('')), false, parts.join(''));
   }
 });
+
+test('recovery reservation holder bypasses dispatchableEvent caps while non-holders and activeAttemptHard still defer', () => {
+  const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
+  for (const kind of ['scope', 'resource']) fixture(({ controller, databasePath, seedRows }) => {
+    seedRows((repository) => {
+      addWork(repository, 'holder', 'normal_foreground', 'ready', 'procurement', 'evidence_assessment');
+      addWork(repository, 'sibling', 'normal_foreground', 'ready', 'procurement', 'evidence_assessment');
+      addEventGraph(repository, 'ev-1');
+      addEventGraph(repository, 'ev-2');
+      addEventGraph(repository, 'ev-3');
+    });
+    const circuitKey = 'owner/procurement/fixture_process/evidence_assessment' +
+      (kind === 'resource' ? '/resource/' + canonicalDigest({ resourceKey: 'volume_read:mount-1' }) : '');
+    const evidenceDigest = canonicalDigest({ schema: 'foundation.executor-incident-recovery-work@1', circuitKey, workId: 'holder' });
+    const db = new Database(databasePath);
+    try {
+      db.prepare('INSERT INTO fx_circuit_states(circuit_key,state,reason_code,evidence_digest,opened_at_ms,reviewed_at_ms) VALUES(?,?,?,?,?,?)')
+        .run(circuitKey, 'recovering', 'EIO', evidenceDigest, 1000, 1000);
+    } finally { db.close(); }
+    // Even with dispatchableEvent (3) == dispatchableEventHard (3) and activeAttempt (3) == activeAttemptHard (3)...
+    // First test with activeAttempt below hard cap (delete 1 active attempt, keep 3 ready events).
+    const db2 = new Database(databasePath);
+    try {
+      db2.prepare("UPDATE fx_work_attempts SET state='succeeded' WHERE attempt_id='attempt-ev-1'").run();
+    } finally { db2.close(); }
+    assert.equal(controller.evaluate({ supplyKind: 'work_attempt', targetId: 'holder' }).kind, 'permitted');
+    assert.deepEqual(controller.evaluate({ supplyKind: 'work_attempt', targetId: 'sibling' }).reasonCode, 'SUPPLY_HARD_CAP');
+    // Raising activeAttempt back to activeAttemptHard still blocks the holder.
+    const db3 = new Database(databasePath);
+    try {
+      db3.prepare("UPDATE fx_work_attempts SET state='running' WHERE attempt_id='attempt-ev-1'").run();
+    } finally { db3.close(); }
+    assert.deepEqual(controller.evaluate({ supplyKind: 'work_attempt', targetId: 'holder' }).reasonCode, 'SUPPLY_HARD_CAP');
+  });
+});

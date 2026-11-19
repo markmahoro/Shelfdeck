@@ -870,3 +870,202 @@ test('shutdown stops dispatch and bounds a pending Event without synthesizing co
     assert.equal((await host.drainOnce()).kind,'inactive');
   }finally{release({kind:'succeeded'});await new Promise(resolve=>setImmediate(resolve));}
 });
+
+test('pre-attempt deferred or waiting outcomes skip aggregateEvent and back off fallback polling', async () => {
+  for (const deferredOutcome of [
+    { kind: 'circuit_deferred', eventId: 'ev-1', circuitKey: 'owner/test/circuit', reason: 'resource_recovery_in_progress' },
+    { kind: 'waiting', eventId: 'ev-1', retryAtMs: Date.now() + 5000 },
+    { kind: 'unavailable', reasonCode: 'RESOURCE_MAP_UNSATISFIABLE', resourceKey: 'volume_read:mount-1' },
+    { kind: 'deferred', reasonCode: 'RESOURCE_QUEUE_HARD_CAP', retryAtMs: Date.now() + 5000, replayed: false },
+  ]) {
+    let aggregated = 0;
+    let polls = 0;
+    const host = createExecutionRuntimeHost({
+      tickIntervalMs: 20, maxIdlePollMs: 500, maxActionsPerTick: 1,
+      startupRecovery: { recover: async () => ({ state: 'ready', normalSupplyAllowed: true }) },
+      scheduler: {
+        acquire({ targetType }) {
+          if (targetType === 'work') return { kind: 'idle' };
+          polls += 1;
+          return { kind: 'leased', lease: { targetType: 'event', targetId: 'ev-spin', leaseId: 'lease-' + polls } };
+        },
+        release() {},
+      },
+      plannerRegistry: { resolve() {} }, planPublisher: { publish() {} },
+      workLifecycle: {
+        ensurePlanningAttempt() {}, startPlanned() {},
+        aggregateEvent() { aggregated += 1; return { attemptTerminal: false, workTerminal: false, replayed: false }; },
+        settleWork() {},
+      },
+      eventRuntime: { async run() { return deferredOutcome; } },
+      domainReconciler: { reconcile() {} }, fallbackReconciler: { async start() {}, async stop() {} },
+    });
+    await host.start();
+    await new Promise((resolve) => setTimeout(resolve, 140));
+    await host.stop();
+    assert.equal(aggregated, 0);
+    // Exponential backoff (20 -> 50 -> 100 -> 200ms) yields <= 4 polls in 140ms (vs >= 6 at unbacked-off 20ms).
+    assert.ok(polls <= 4, 'expected backoff <= 4 polls in 140ms for ' + deferredOutcome.kind + ', got ' + polls);
+  }
+});
+
+test('recovery holder Work bypasses dispatchableEventHard after replan while siblings yield until circuit closes', async () => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const path = require('node:path');
+  const Database = require('better-sqlite3');
+  const { canonicalDigest, canonicalJson } = require('../../src/helix/contracts/canonical-json');
+  const { openSqliteKernel } = require('../../src/helix/foundation/persistence/sqlite-kernel');
+  const { createSqliteUnitOfWork } = require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
+  const { createCircuitBreaker } = require('../../src/helix/foundation/diagnostics/pressure-guard');
+  const { createExecutorIncidentRegistry, OPEN_THRESHOLD } = require('../../src/helix/foundation/execution/executor-incident-registry');
+  const { createExecutorIncidentObserver } = require('../../src/helix/foundation/execution/executor-incident-observer');
+  const { createWorkSupplyController } = require('../../src/helix/foundation/execution/work-supply-controller');
+  const { createWorkScheduler } = require('../../src/helix/foundation/execution/work-scheduler');
+  const { createWorkLifecycle } = require('../../src/helix/foundation/execution/work-lifecycle');
+
+  const generated = path.resolve(__dirname, '../../src/helix/foundation/persistence/generated');
+  const schemaDdl = fs.readFileSync(path.join(generated, 'clean-schema.sql'), 'utf8');
+  const schemaManifest = JSON.parse(fs.readFileSync(path.join(generated, 'clean-schema.manifest.json'), 'utf8'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-deadlock-spin-'));
+  const databasePath = path.join(root, 'shelfdeck.db');
+  let now = 100_000, seq = 0;
+  const kernel = openSqliteKernel({ Database, databasePath, schemaDdl, schemaManifest, now: () => now++ });
+  const unitOfWork = createSqliteUnitOfWork({ kernel });
+  try {
+    const breaker = createCircuitBreaker({ schemaManifest, unitOfWork });
+    const registry = createExecutorIncidentRegistry({ schemaManifest, unitOfWork, circuitBreaker: breaker, now: () => now++ });
+    const observer = createExecutorIncidentObserver({ schemaManifest, unitOfWork, registry });
+    const scope = { ownerDomain: 'procurement', processType: 'procurement_run', workKind: 'evidence_assessment' };
+    for (let i = 0; i < OPEN_THRESHOLD; i += 1) {
+      registry.recordFailure({ ...scope, errorCode: 'EXECUTOR_ERROR', occurrenceId: 'fail-' + i });
+    }
+    const limits = Object.freeze({
+      openWorkSoft: 16, openWorkHard: 32, activeAttemptSoft: 16, activeAttemptHard: 32,
+      dispatchableEventSoft: 4, dispatchableEventHard: 6, backgroundWorkSoft: 4, backgroundWorkHard: 8,
+    });
+    const priorityProjectionProvider = { read: () => Object.freeze({ priorityClass: 'normal_foreground', localPriority: 100, priorityRevision: 1, supplyRole: 'expansion' }) };
+    const supplyController = createWorkSupplyController({ schemaManifest, unitOfWork, limits, now: () => now, executionProjectionProvider: priorityProjectionProvider });
+    const scheduler = createWorkScheduler({
+      schemaManifest, unitOfWork, supplyController, priorityProjectionProvider,
+      incidentTargetEligibilityProvider: { check: (req) => observer.allowsTargetScheduling(req) },
+      now: () => now, nextLeaseId: () => 'lease-' + (++seq),
+    });
+    const workLifecycle = createWorkLifecycle({ schemaManifest, unitOfWork, nextWorkAttemptId: (w, ord) => w + ':attempt:' + ord });
+    const planPublisher = {
+      publish({ attemptId, workId, executionBasisDigest }) {
+        const planId = workId + ':plan:2', eId = workId + ':replan-ev:1';
+        const pdb = new Database(databasePath);
+        try {
+          pdb.prepare('INSERT INTO fx_workflow_plans(plan_id,attempt_id,planner_ref,planner_version,catalog_digest,basis_digest,graph_digest,state,created_at_ms) VALUES(?,?,?,?,?,?,?,?,?)')
+            .run(planId, attemptId, 'helix://test/planner/v1', 1, canonicalDigest('cat'), executionBasisDigest, canonicalDigest('g2-' + workId), 'planned', now);
+          pdb.prepare('INSERT INTO fx_plan_nodes(plan_id,node_id,capability_ref,contract_version,input_binding_schema_ref,input_bindings_json,parameter_schema_ref,parameters_json,effect_class,fence_schema_ref,fence_basis_json,resource_demand_schema_ref,resource_demand_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)')
+            .run(planId, 'node-r', 'procurement.triage.bdmv.assess@1', 1, 'helix://foundation/types/EventInputBindingSet/v1', '{"bindings":[],"schemaRef":"helix://foundation/types/EventInputBindingSet/v1","schemaVersion":1}', 'helix://test/p/v1', '{}', 'pure_observation', 'helix://test/f/v1', '{}', 'helix://test/d/v1', '{}');
+          pdb.prepare('INSERT INTO fx_workflow_events(event_id,plan_id,node_id,work_id,attempt_id,owner_domain,capability_ref,contract_version,state,priority_class,ready_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+            .run(eId, planId, 'node-r', workId, attemptId, 'procurement', 'procurement.triage.bdmv.assess@1', 1, 'ready', 'normal_foreground', now);
+        } finally { pdb.close(); }
+        return { planId, resolution: 'planned' };
+      },
+    };
+
+    // Seed 1 recovering Work in 'ready' (post-replan) and 3 running sibling Works with 6 ready Events (>= dispatchableEventHard=6).
+    const db = new Database(databasePath);
+    try {
+      const insertWork = db.prepare('INSERT INTO fx_supporting_works(work_id,owner_domain,process_type,process_id,work_kind,basis_digest,priority_class,definition_schema_ref,definition_json,definition_digest,state,idempotency_key,created_at_ms,updated_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+      const insertAttempt = db.prepare('INSERT INTO fx_work_attempts(attempt_id,work_id,ordinal,basis_digest,state,started_at_ms,finished_at_ms) VALUES(?,?,?,?,?,?,?)');
+      const insertPlan = db.prepare('INSERT INTO fx_workflow_plans(plan_id,attempt_id,planner_ref,planner_version,catalog_digest,basis_digest,graph_digest,state,created_at_ms) VALUES(?,?,?,?,?,?,?,?,?)');
+      const insertNode = db.prepare('INSERT INTO fx_plan_nodes(plan_id,node_id,capability_ref,contract_version,input_binding_schema_ref,input_bindings_json,parameter_schema_ref,parameters_json,effect_class,fence_schema_ref,fence_basis_json,resource_demand_schema_ref,resource_demand_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)');
+      const insertEvent = db.prepare('INSERT INTO fx_workflow_events(event_id,plan_id,node_id,work_id,attempt_id,owner_domain,capability_ref,contract_version,state,priority_class,ready_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?)');
+
+      const holderDef = {
+        schemaRef: 'helix://foundation/types/SupportingWorkDefinition/v1', schemaVersion: 1,
+        workId: 'work-holder', ownerDomain: 'procurement', processType: 'procurement_run', processId: 'proc-holder',
+        workKind: 'evidence_assessment', workObjectiveTypeRef: 'helix://test/obj/v1', workObjectiveVersion: 1,
+        executionBasisId: 'basis-holder', executionBasisDigest: canonicalDigest('basis-holder'), dependencyRefs: [],
+        priorityClass: 'normal_foreground', priorityRevision: 1, capabilityCatalogScope: 'procurement', workspaceMaterialScope: [],
+        idempotencyKey: 'key-holder', concurrencyScope: 'proc-holder', outputContractRef: 'helix://test/out/v1',
+      };
+      insertWork.run('work-holder', 'procurement', 'procurement_run', 'proc-holder', 'evidence_assessment', holderDef.executionBasisDigest,
+        'normal_foreground', holderDef.schemaRef, canonicalJson(holderDef), canonicalDigest(holderDef), 'ready', 'key-holder', 90_000, 90_000);
+      insertAttempt.run('work-holder:attempt:1', 'work-holder', 1, holderDef.executionBasisDigest, 'cancelled', 90_000, 91_000);
+
+      for (const s of ['sib-1', 'sib-2', 'sib-3']) {
+        const wId = 'work-' + s, aId = wId + ':attempt:1', pId = wId + ':plan:1';
+        const basis = canonicalDigest(wId);
+        insertWork.run(wId, 'procurement', 'procurement_run', 'proc-' + s, 'evidence_assessment', basis, 'normal_foreground', 'helix://test/work/v1', '{}', canonicalDigest(wId + '-def'), 'running', 'key-' + s, 92_000, 92_000);
+        insertAttempt.run(aId, wId, 1, basis, 'running', 92_000, null);
+        insertPlan.run(pId, aId, 'helix://test/planner/v1', 1, canonicalDigest('cat'), basis, canonicalDigest(pId + '-g'), 'planned', 92_000);
+        for (let k = 0; k < 2; k += 1) {
+          const nId = 'node-' + k, eId = wId + ':ev:' + k;
+          insertNode.run(pId, nId, 'procurement.triage.bdmv.assess@1', 1, 'helix://foundation/types/EventInputBindingSet/v1', '{"bindings":[],"schemaRef":"helix://foundation/types/EventInputBindingSet/v1","schemaVersion":1}', 'helix://test/p/v1', '{}', 'pure_observation', 'helix://test/f/v1', '{}', 'helix://test/d/v1', '{}');
+          insertEvent.run(eId, pId, nId, wId, aId, 'procurement', 'procurement.triage.bdmv.assess@1', 1, 'ready', 'normal_foreground', 92_000);
+        }
+      }
+    } finally { db.close(); }
+
+    assert.equal(observer.prepareExecution({ ...scope, resourceKeys: [], workId: 'work-holder' }).allowed, true);
+
+    const dispatched = [];
+    const errors = [];
+    const host = createExecutionRuntimeHost({
+      tickIntervalMs: 100, maxIdlePollMs: 1000, maxActionsPerTick: 16,
+      onError: (err) => errors.push(err),
+      startupRecovery: { recover: async () => ({ state: 'ready', normalSupplyAllowed: true }) },
+      scheduler,
+      plannerRegistry: {
+        resolve() {
+          return {
+            plannerContractRef: 'helix://test/planner/v1', plannerVersion: 1,
+            planner: {
+              plan({ workId, workAttemptId, executionBasisDigest }) {
+                return { attemptId: workAttemptId, workId, executionBasisDigest, diagnosticClassification: 'normal' };
+              },
+            },
+          };
+        },
+      },
+      planPublisher, workLifecycle, incidentObserver: observer,
+      eventRuntime: {
+        async run({ schedulerLease }) {
+          const eventId = schedulerLease.targetId;
+          const evDb = new Database(databasePath);
+          let workId;
+          try { workId = evDb.prepare('SELECT work_id FROM fx_workflow_events WHERE event_id=?').get(eventId).work_id; }
+          finally { evDb.close(); }
+          const decision = observer.prepareExecution({ ...scope, resourceKeys: [], workId });
+          if (!decision.allowed) {
+            scheduler.noteDispatchOutcome(schedulerLease, { kind: 'circuit_wait' });
+            scheduler.release(schedulerLease);
+            return { kind: 'circuit_deferred', eventId, circuitKey: decision.circuitKey, reason: decision.reason };
+          }
+          scheduler.release(schedulerLease);
+          dispatched.push(eventId);
+          const completeDb = new Database(databasePath);
+          try {
+            completeDb.prepare("UPDATE fx_workflow_events SET state='succeeded' WHERE event_id=?").run(eventId);
+          } finally { completeDb.close(); }
+          return { kind: 'succeeded', eventId };
+        },
+      },
+      domainReconciler: {
+        reconcile(req) {
+          return req.reconcilePhase === 'attempt_terminal' ? { workId: req.workId, disposition: req.workAttemptState } : null;
+        },
+      },
+      fallbackReconciler: { async start() {}, async stop() {} },
+    });
+    await host.start();
+    const deadline = Date.now() + 3000;
+    while (dispatched.length < 7 && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    await host.stop();
+    assert.deepEqual(errors, []);
+    assert.equal(dispatched[0], 'work-holder:replan-ev:1');
+    assert.equal(dispatched.length, 7);
+    assert.equal(registry.scopeStatus(scope).blocked, false);
+  } finally {
+    kernel.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

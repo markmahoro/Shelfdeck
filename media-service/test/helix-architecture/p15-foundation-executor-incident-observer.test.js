@@ -174,3 +174,33 @@ for (const interrupted of [false,true]) test('release preserves the Circuit open
  assert.deepEqual(registry.read(registry.incidentKey(older)),olderBefore);
  assert.equal(registry.read(registry.incidentKey(mediaScope)).occurrence_count,3n);
 }));
+
+test('io pure-observation failures scope incidents to the single volume resource without blocking global workKind', () => fixture(({ database, registry, observer, seedWork }) => {
+  const procScope = { ownerDomain: 'procurement', processType: 'procurement_run', workKind: 'evidence_assessment' };
+  const terminal = seedWork({
+    ...procScope, workId: 'proc-io-failed', workState: 'failed', eventState: 'failed', outcomeKind: 'failed',
+    failureClass: 'io', failureCode: 'EIO', resourceKeys: ['volume_read:mount-1'],
+  });
+  observer.observeTerminalWork(terminal);
+  const row = database.prepare("SELECT circuit_key FROM fx_executor_incidents WHERE owner_domain='procurement'").get();
+  assert.match(row.circuit_key, /\/resource\//);
+  assert.equal(registry.scopeStatus(procScope).blocked, false);
+  assert.equal(registry.scopeStatus({ ...procScope, resourceKey: 'volume_read:mount-1' }).blocked, false);
+}));
+
+test('allowsTargetScheduling gates sibling Works when open running or recovering', () => fixture(({ database, registry, observer, seedWork }) => {
+  const scope = { ownerDomain: 'procurement', processType: 'procurement_run', workKind: 'evidence_assessment' };
+  assert.equal(observer.allowsTargetScheduling({ ...scope, targetType: 'work', workId: 'w1' }), true);
+  for (let i = 0; i < OPEN_THRESHOLD; i += 1) {
+    registry.recordFailure({ ...scope, errorCode: 'EXECUTOR_ERROR', occurrenceId: 'occ-' + i });
+  }
+  assert.equal(observer.allowsTargetScheduling({ ...scope, targetType: 'work', workId: 'w1' }), true);
+  seedWork({ ...scope, workId: 'w1', workState: 'running', eventState: 'ready', outcomeKind: 'succeeded' });
+  assert.equal(observer.allowsTargetScheduling({ ...scope, targetType: 'work', workId: 'w2' }), false);
+  assert.equal(observer.allowsTargetScheduling({ ...scope, targetType: 'event', workId: 'w1' }), true);
+  assert.equal(observer.prepareExecution({ ...scope, resourceKeys: [], workId: 'w1' }).allowed, true);
+  assert.equal(observer.allowsTargetScheduling({ ...scope, targetType: 'work', workId: 'w1' }), true);
+  assert.equal(observer.allowsTargetScheduling({ ...scope, targetType: 'event', workId: 'w1' }), true);
+  assert.equal(observer.allowsTargetScheduling({ ...scope, targetType: 'work', workId: 'w2' }), false);
+  assert.equal(observer.allowsTargetScheduling({ ...scope, targetType: 'event', workId: 'w2' }), false);
+}));

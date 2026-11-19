@@ -34,6 +34,12 @@ function deferRecoveryUntilReady(action) {
   return false;
 }
 
+function isPreAttemptDeferral(outcome) {
+  if (!outcome || typeof outcome !== 'object') return false;
+  if (outcome.kind === 'circuit_deferred' || outcome.kind === 'waiting' || outcome.kind === 'unavailable') return true;
+  return outcome.kind === 'deferred' && !outcome.eventAttemptId;
+}
+
 function createExecutionRuntimeHost(options) {
   const required = ['startupRecovery', 'scheduler', 'plannerRegistry', 'planPublisher', 'workLifecycle', 'eventRuntime', 'domainReconciler','fallbackReconciler'];
   if (!options || required.some((name) => !options[name]) ||
@@ -76,6 +82,7 @@ function createExecutionRuntimeHost(options) {
   let lastRecovery = null;
   let firstFault = null;
   const inFlightEvents = new Map();
+  const dispatchProgress = new WeakMap();
   let inFlightPlanning = 0;
   const inFlightRecoveries = new Map();
   const deferredRecoveries = new Map();
@@ -209,10 +216,16 @@ function createExecutionRuntimeHost(options) {
     const scheduled = options.scheduler.acquire({ targetType: 'event' });
     if (scheduled.kind !== 'leased') return scheduled;
     const eventId=scheduled.lease.targetId;
+    const progressState={settled:false,progressed:true};
     let wakeAfterCompletion=false,finishScope;
     const operation=(async()=>{
       finishScope=options.onExecutionScopeStarted?.(scheduled.executionScope);
       const outcome=await options.eventRuntime.run({schedulerLease:scheduled.lease});
+      if(isPreAttemptDeferral(outcome)){
+        progressState.progressed=false;
+        progressState.settled=true;
+        return Object.freeze({kind:'event_deferred',eventId,outcome});
+      }
       if(outcome?.kind==='effect_recovery_required'){
         deferredRecoveries.set(eventId,{
           eventId,effectId:outcome.effectId,action:null,retryAtMs:Date.now(),
@@ -259,13 +272,16 @@ function createExecutionRuntimeHost(options) {
       }
       return Object.freeze({kind:'event_faulted',eventId,error});
     }).finally(()=>{
+        progressState.settled=true;
         try { finishScope?.(); } finally {
           inFlightEvents.delete(eventId);
           if(wakeAfterCompletion&&['ready','draining'].includes(state))wake();
         }
     });
     inFlightEvents.set(eventId,operation);
-    return Object.freeze({kind:'event_launched',eventId,inFlight:inFlightEvents.size});
+    const launched=Object.freeze({kind:'event_launched',eventId,inFlight:inFlightEvents.size});
+    dispatchProgress.set(launched,progressState);
+    return launched;
   }
 
   async function drainOneOwnerReconciliation() {
@@ -407,16 +423,25 @@ function createExecutionRuntimeHost(options) {
       try {
         let count = 0;
         let result = Object.freeze({ kind: 'idle' });
+        const launchedEvents = [];
+        let nonEventProgress = false;
         while (count < maxActionsPerTick) {
           result = await drainOnce();
           if (result.kind === 'idle' || result.kind === 'inactive') break;
           count += 1;
+          if (result.recovery?.kind === 'recovery_launched' || result.work?.kind === 'work_planned' ||
+              ['owner_reconciled', 'terminal_event_aggregated'].includes(result.owner?.kind)) {
+            nonEventProgress = true;
+          }
+          if (result.event?.kind === 'event_launched') launchedEvents.push(result.event);
           // A large ready graph can complete synchronously and immediately
           // wake the next drain. Give HTTP and operational timers a poll
           // opportunity before another batch monopolizes the Node thread.
           await new Promise((resolve) => setImmediate(resolve));
         }
-        return Object.freeze({ kind: 'tick_complete', actions: count, last: result });
+        const progressed = nonEventProgress ||
+          launchedEvents.some((item) => dispatchProgress.get(item)?.progressed !== false);
+        return Object.freeze({ kind: 'tick_complete', actions: count, progressed, last: result });
       } finally {
         draining = null;
         if (state === 'draining') state = 'ready';
@@ -464,7 +489,7 @@ function createExecutionRuntimeHost(options) {
           queueTick(false);
           return;
         }
-        if (result.actions > 0) idlePollMs = tickIntervalMs;
+        if (result.progressed) idlePollMs = tickIntervalMs;
         scheduleFallbackPoll();
       }).catch((error) => {
           state = 'faulted';

@@ -358,10 +358,19 @@ function createProcurementExecutionRuntime(options) {
   }});
   const supplyController = createWorkSupplyController({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork, now,
     executionProjectionProvider });
+  const breaker = createCircuitBreaker({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork });
+  const executorIncidents = createExecutorIncidentRegistry({ schemaManifest:options.schemaManifest,
+    unitOfWork:options.unitOfWork, circuitBreaker:breaker, now });
+  const executorIncidentObserver=createExecutorIncidentObserver({schemaManifest:options.schemaManifest,
+    unitOfWork:options.unitOfWork,registry:executorIncidents});
+  const executorIncidentProjection=Object.freeze({
+    projectionForWork:(request)=>executorIncidentObserver.projectionForWork(request),
+  });
   let sequence = 0;
   const scheduler = createWorkScheduler({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
     supplyController, now, nextLeaseId: () => 'lease-' + (++sequence),
     targetEligibilityProvider:options.executionEligibilityProvider,
+    incidentTargetEligibilityProvider:{check:(request)=>executorIncidentObserver.allowsTargetScheduling(request)},
     workSupplyEligibilityProvider:{check:({ownerDomain,workKind})=>
       !(ownerDomain==='procurement'&&workKind==='failed_preparation_retry')},
     priorityProjectionProvider: executionProjectionProvider });
@@ -385,14 +394,6 @@ function createProcurementExecutionRuntime(options) {
   const resourcePriorityBridge=createLibraResourcePriorityBridge({governor:baseGovernor,
     readProjection:scope=>executionProjectionProvider.read(scope),wake:()=>host?.wake()});
   const governor=resourcePriorityBridge.governor;
-  const breaker = createCircuitBreaker({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork });
-  const executorIncidents = createExecutorIncidentRegistry({ schemaManifest:options.schemaManifest,
-    unitOfWork:options.unitOfWork, circuitBreaker:breaker, now });
-  const executorIncidentObserver=createExecutorIncidentObserver({schemaManifest:options.schemaManifest,
-    unitOfWork:options.unitOfWork,registry:executorIncidents});
-  const executorIncidentProjection=Object.freeze({
-    projectionForWork:(request)=>executorIncidentObserver.projectionForWork(request),
-  });
   const realityVerifiers = Object.fromEntries(['workspace_write', 'external_request', 'domain_fact_commit',
     'responsibility_control_commit', 'material_commit', 'destructive_commit'].map((effectClass) => [effectClass,
     { verify: async ({ receipt }) => ({ verified: true, evidenceDigest: receipt.verificationEvidenceDigest }) }]));

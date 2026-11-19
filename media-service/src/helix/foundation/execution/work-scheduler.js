@@ -105,7 +105,8 @@ function createWorkScheduler(options) {
       !options.supplyController || typeof options.supplyController.evaluate !== 'function' ||
       !options.priorityProjectionProvider || typeof options.priorityProjectionProvider.read !== 'function' || typeof options.now !== 'function' ||
       typeof options.nextLeaseId !== 'function' || (options.workSupplyEligibilityProvider &&
-        typeof options.workSupplyEligibilityProvider.check !== 'function')) {
+        typeof options.workSupplyEligibilityProvider.check !== 'function') ||
+      (options.incidentTargetEligibilityProvider && typeof options.incidentTargetEligibilityProvider.check !== 'function')) {
     fail('P4_SCHEDULER_DEPENDENCIES_REQUIRED', 'Scheduler requires scoped persistence, Supply Controller, Owner priority provider, clock, and lease ID source.');
   }
   const leaseTtlMs = options.leaseTtlMs === undefined ? DEFAULT_LEASE_TTL_MS : options.leaseTtlMs;
@@ -172,6 +173,7 @@ function createWorkScheduler(options) {
     purgeExpired(nowMs);
     const facts = snapshot(request.targetType, nowMs);
     const workById = new Map(facts.works.map((work) => [work.work_id, work]));
+    const incidentEligibilityByWorkId = new Map();
     const candidates = [];
     for (const target of facts.candidates) {
       const work = request.targetType === 'work' ? target : workById.get(target.work_id);
@@ -180,6 +182,24 @@ function createWorkScheduler(options) {
         const eligible = options.targetEligibilityProvider.check(Object.freeze({ targetType: request.targetType,
           ownerDomain: work.owner_domain, processType: work.process_type, processId: work.process_id, workKind: work.work_kind }));
         if (typeof eligible !== 'boolean') fail('P4_SCHEDULER_TARGET_ELIGIBILITY_INVALID', 'Target eligibility must return a boolean.');
+        if (!eligible) continue;
+      }
+      if (options.incidentTargetEligibilityProvider) {
+        let eligible = incidentEligibilityByWorkId.get(work.work_id);
+        if (eligible === undefined) {
+          eligible = options.incidentTargetEligibilityProvider.check(Object.freeze({
+            targetType: request.targetType,
+            workId: work.work_id,
+            ownerDomain: work.owner_domain,
+            processType: work.process_type,
+            processId: work.process_id,
+            workKind: work.work_kind,
+          }));
+          if (typeof eligible !== 'boolean') {
+            fail('P4_SCHEDULER_INCIDENT_ELIGIBILITY_INVALID', 'Incident target eligibility provider must return a boolean.', { workId: work.work_id });
+          }
+          incidentEligibilityByWorkId.set(work.work_id, eligible);
+        }
         if (!eligible) continue;
       }
       if(request.targetType==='work'&&options.workSupplyEligibilityProvider){
