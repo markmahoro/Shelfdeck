@@ -1,6 +1,7 @@
 'use strict';
 const test = require('node:test'), assert = require('node:assert/strict');
 const {samplingPoints, clusterFaces, candidateEvidence} = require('../../scripts/qualification/buffalo/video-evidence');
+const {assessCatalogueActors, policy} = require('../../src/helix/domains/libra/model/us-adult-catalogue-assessment');
 const {createHash} = require('node:crypto');
 const digest = x => createHash('sha256').update(String(x)).digest('hex');
 function face(frameOrdinal, angle, options = {}) {
@@ -55,4 +56,51 @@ test('malformed features, duplicate faces, unbound representatives and cancellat
   assert.throws(() => clusterFaces([face(0, 0), face(0, 90, {faceOrdinal:1,timestampMs:99})]), {code:'BUFFALO_VIDEO_EVIDENCE_INVALID'});
   assert.throws(() => candidateEvidence({representativeKeys:['9:0'], memberKeys:['9:0']}, [face(0, 0)]), {code:'BUFFALO_VIDEO_EVIDENCE_INVALID'});
   assert.throws(() => clusterFaces([face(0, 0)], {assertActive:() => {throw Object.assign(new Error('Stopped'), {code:'STOPPED'});}}), {code:'STOPPED'});
+});
+test('representatives prefer centroid-consistent clean faces across strata instead of boundary outliers', () => {
+  const vec = (x, y = 0, z = 0, w = 0) => {
+    const v = Array(512).fill(0);
+    v[0] = x; v[1] = y; v[2] = z; v[3] = w;
+    return v;
+  };
+  const match = combinedDistance => ({
+    uid:'stashdb.org:frida', identityKey:'freeones:363801', name:'Wild Frida', combinedDistance,
+  });
+  const faces = [
+    face(0, 0, {stratum:0, quality:1.0, vector:vec(1), matches:[match(0.41)]}),
+    face(1, 0, {stratum:1, quality:0.92, vector:vec(Math.cos(0.2), Math.sin(0.2)), matches:[match(0.46)]}),
+    face(2, 0, {stratum:2, quality:0.95, vector:vec(Math.cos(0.2), -Math.sin(0.2)), matches:[match(0.47)]}),
+    face(3, 0, {stratum:3, quality:0.94, vector:vec(Math.cos(0.85), 0, Math.sin(0.85)), matches:[]}),
+    face(4, 0, {stratum:4, quality:0.82, vector:vec(Math.cos(0.82), 0, 0, Math.sin(0.82)), matches:[match(0.59)]}),
+  ];
+  const groups = clusterFaces(faces);
+  assert.equal(groups.length, 1);
+  assert.equal(groups[0].memberKeys.length, 5);
+  assert.deepEqual([...groups[0].representativeKeys].sort(), ['0:0', '1:0', '2:0']);
+  assert.deepEqual(clusterFaces([...faces].reverse()), groups);
+
+  const candidates = candidateEvidence(groups[0], faces).map(({identity, observations}) => ({
+    identity,
+    observations:observations.map(({faceKey, stratum, imageDigest, uid, name, distance}) => ({
+      faceKey, stratum, imageDigest, uid, name, distance,
+    })),
+  }));
+  const assessment = assessCatalogueActors({
+    groups:[{
+      clusterId:groups[0].clusterId,
+      memberKeys:groups[0].memberKeys,
+      coverageStrata:groups[0].coverageStrata,
+      representativeKeys:groups[0].representativeKeys,
+      candidates,
+    }],
+    policy:policy({
+      maximumDistance:0.5,
+      minimumDistanceMargin:0.05,
+      minimumRepresentativeStrata:2,
+      minimumCoverageStrata:3,
+    }),
+  });
+  assert.equal(assessment.status, 'qualified_candidate');
+  assert.equal(assessment.winner?.name, 'Wild Frida');
+  assert.equal(assessment.winner?.supportingRepresentativeStrata.length, 3);
 });
