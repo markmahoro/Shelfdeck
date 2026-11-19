@@ -10,10 +10,41 @@
 
 | 角色 | 主机 / 路径 | 硬件与运行时 | 适用范围 | 硬边界 |
 | --- | --- | --- | --- | --- |
-| **Windows 工作站** | `H:\shefldeck`（隔离开发用 `.worktrees/<slug>`） | Windows Node，无 Linux 原生插件，Docker Desktop/WSL 默认关闭 | 代码编辑、Git 分支/PR、纯 JS 契约测试（如 `production-deploy-contract`、`formation-reset-nas`） | 不跑依赖 Linux `better-sqlite3`/`sharp`/`onnxruntime-node`/`usearch` 或 `/proc/self/fd` 的测试 |
-| **CPU / Linux 验证 VM** | `worker` (`192.168.12.216`) | Linux 4 vCPU / 7.7 GiB RAM / **0 Swap**，Node 22 + `ffmpeg`/`ffprobe`，仅预装 `/home/gezhu/repos/Shelfdeck/media-service/node_modules`（无 `tools/node_modules` 与 `web/node_modules`），**无 GPU、无 Docker** | `media-service` 架构/Runtime/E2E 全量测试、`verify-shelfdeck` HTTP、Linux 文件系统与 fd 句柄校验（SSH 工具契约单测在 Windows 工作站跑） | 禁止改 `/home/gezhu/repos/Shelfdeck` 原目录；并发严格限制 `--test-concurrency=2`；禁止 `pkill node`；结束即删 `/tmp/sd-verify-*` |
+| **Windows 工作站** | `H:\shefldeck`（隔离开发用 `.worktrees/<slug>`） | Windows **Node `22.23.5 LTS`**（已预装 `media-service\node_modules`、`web\node_modules` 与 `tools\node_modules`），Docker Desktop/WSL 默认关闭 | 代码编辑、Git 分支/PR、纯 JS 契约测试、定向 `media-service` 单测 / SQLite / sharp / 静态架构守卫与 `npm run build:web` | **严禁为跑单测探测或拉起本机 Docker Desktop / WSL**；重装依赖须用 `npm ci --ignore-scripts` + 指定原生模块 `npm rebuild`（`usearch@2.25.3` 无 `win32-x64` prebuild）；全量 `test:helix-architecture`（含 `jav-host-journey.test.js` 等长文件/全宿主矩阵）、`usearch`、`/proc/self/fd`、POSIX/CIFS 语义与 Linux E2E 交由 `worker` 执行 |
+| **CPU / Linux 专属验证 VM** | `worker` (`192.168.12.216`) | Linux 4 vCPU / 7.7 GiB RAM / **0 Swap**，Node 22 + `ffmpeg`/`ffprobe`，仅预装 `/home/gezhu/repos/Shelfdeck/media-service/node_modules`（无 `tools/node_modules` 与 `web/node_modules`），**无 GPU、无 Docker** | 全量 `test:helix-architecture`、`usearch` 原生检索、`/proc/self/fd` 与 POSIX/CIFS 语义校验、Linux E2E、`verify-shelfdeck` HTTP（SSH 工具契约单测在 Windows 工作站跑） | 禁止改 `/home/gezhu/repos/Shelfdeck` 原目录；并发严格限制 `--test-concurrency=2`；禁止 `pkill node`；结束即删 `/tmp/sd-verify-*` |
 | **GPU / Docker 隔离副本** | `heavy` (`192.168.12.215`) | Debian 12 + NVIDIA Quadro T2000 (`TU117` NVENC)，Docker + `nvidia-container-toolkit` | `hevc_nvenc` / GPU 管线验证、容器化运行时 / Dockerfile / `verify-shelfdeck` Docker 模式 | 必须使用 `/tmp/sd-gpu-verify-*` 临时目录、一次性 `SHELFDECK_SECRET_ROOT`、非 `18080` 的 `127.0.0.1:<port>`；严禁碰 `shelfdeck` 容器、`:18080` 或生产挂载；用完即删 |
 | **生产服务** | `heavy` (`http://192.168.12.215:18080`) | 容器 `shelfdeck`（SSD `/srv/apps/shelfdeck` + HDD `/srv/shelfdeck`） | 仅只读诊断，或用户明确授权的标准发布/Reset | 严禁未授权写数据、启停容器或执行 `--apply`；旧 `.230` 已退役禁止双跑 |
+
+### 0. Windows 工作站（`H:\shefldeck`）Node 22 LTS 本地依赖与 Worktree 复用
+
+本机已统一为 **Node.js `22.23.5 LTS`**（与 `worker` 一致），主工作区 `H:\shefldeck\media-service\node_modules`、`H:\shefldeck\media-service\web\node_modules` 与 `H:\shefldeck\tools\node_modules` 为常驻预装目录：
+
+1. **隔离开发 worktree 零拷贝复用依赖**（禁止直接对每个 worktree 跑原生 `npm ci`，也禁止为此启动 Docker Desktop）：
+
+```powershell
+cmd /c mklink /J "H:\shefldeck\.worktrees\<slug>\media-service\node_modules" "H:\shefldeck\media-service\node_modules"
+cmd /c mklink /J "H:\shefldeck\.worktrees\<slug>\media-service\web\node_modules" "H:\shefldeck\media-service\web\node_modules"
+cmd /c mklink /J "H:\shefldeck\.worktrees\<slug>\tools\node_modules" "H:\shefldeck\tools\node_modules"
+```
+
+2. **清理 worktree 前必须先卸除 junction**（使用 `cmd /c rmdir`，**严禁**用 `Remove-Item -Recurse` 直接删 junction）：
+
+```powershell
+cmd /c rmdir "H:\shefldeck\.worktrees\<slug>\media-service\node_modules"
+cmd /c rmdir "H:\shefldeck\.worktrees\<slug>\media-service\web\node_modules"
+cmd /c rmdir "H:\shefldeck\.worktrees\<slug>\tools\node_modules"
+git -C H:\shefldeck worktree remove H:\shefldeck\.worktrees\<slug>
+```
+
+3. **仅当依赖锁文件变更需要刷新 Windows 预装缓存时**（因 `usearch@2.25.3` 无 `win32-x64` prebuild，必须跳过其 install script）：
+
+```powershell
+cd H:\shefldeck\media-service
+npm ci --ignore-scripts --no-audit --no-fund
+npm rebuild better-sqlite3 sharp onnxruntime-node @ffprobe-installer/ffprobe ffmpeg-static
+cd H:\shefldeck\media-service\web
+npm ci --no-audit --no-fund
+```
 
 ### 1. `worker` (`192.168.12.216`) CPU / Linux 隔离验证标准操作
 
@@ -114,7 +145,7 @@ docker compose -f media-service/docker-compose.example.yml up -d
 
 | 术语 | 含义 |
 | --- | --- |
-| 测试环境 | `worker` (`192.168.12.216`) `/tmp` detached worktree（Linux CPU），或 `heavy` 隔离 Docker 副本；**不是** Windows |
+| 测试环境 | Windows 工作站 **Node `22.23.5 LTS`**（常规单测 / SQLite / 架构校验 / `build:web`，不启 Docker Desktop）、`worker` (`192.168.12.216`) `/tmp` detached worktree（`usearch` / POSIX / Linux E2E），或 `heavy` 隔离 Docker 副本（GPU/Docker） |
 | 生产环境 | `heavy` (`192.168.12.215:18080`) 上的 ShelfDeck Docker（旧飞牛 `.230` 已退役） |
 
 普通切片默认先在测试环境验证，不需要每次部署生产。
