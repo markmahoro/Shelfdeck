@@ -70,3 +70,23 @@ test('production dry run mounts the heavy SSD/HDD split, verifies mount UUIDs, a
   assert.ok(result.stdout.includes('Dry run only.'));
   assert.ok(!result.stdout.includes('deployment-contract-fixture-secret-root'));
 });
+
+test('readonly diagnostics treats legacy v2/v3 databases as optional and inspects heavy operator backups', () => {
+  const {
+    COMPOSE_DIR,
+    DATA_DIR,
+    OPERATOR_BACKUP_HOST,
+    commandPlan,
+    sqliteAggregateCmd,
+  } = require('../../scripts/production-readonly-diagnostics');
+  assert.equal(COMPOSE_DIR, '/srv/apps/shelfdeck');
+  assert.equal(DATA_DIR, '/srv/apps/shelfdeck/data');
+  assert.equal(OPERATOR_BACKUP_HOST, '/srv/shelfdeck/operator-backups');
+  const plan = Object.fromEntries(commandPlan());
+  assert.match(plan['latest deployment backups'], /\/srv\/shelfdeck\/operator-backups/);
+  const sqlScript = sqliteAggregateCmd();
+  assert.match(sqlScript, /query_only = ON/);
+  assert.match(sqlScript, /fs\.existsSync\([^)]*library\.db/);
+  assert.match(sqlScript, /fs\.existsSync\([^)]*tasks\.db/);
+  assert.match(sqlScript, /fs\.existsSync\(helixPath\)/);
+});
