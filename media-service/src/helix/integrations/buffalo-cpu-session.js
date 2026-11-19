@@ -104,7 +104,8 @@ if(!isMainThread&&workerData?.protocol==='shelfdeck.buffalo-cpu@1'){
       loadCatalogue:options=>send('loadCatalogue',{},options),searchCatalogue:(vector,options)=>send('query',{vector},options),
       analyzeEvidence:(bytes,options)=>send('analyze',{bytes},options),
       groupFaces:(faces,parameters,options)=>send('group',{faces,parameters},options),
-      renderRepresentative:({frameBytes,evidence,faceOrdinal,policy},options)=>send('representative',{bytes:frameBytes,parameters:{evidence,faceOrdinal,policy}},options),stop});
+      renderRepresentative:({frameBytes,evidence,faceOrdinal,policy},options)=>send('representative',{bytes:frameBytes,parameters:{evidence,faceOrdinal,policy}},options),
+      isHealthy:()=>!closed&&!stopping&&!pending,stop});
   }
   module.exports=Object.freeze({createBuffaloCpuSession});
 }
