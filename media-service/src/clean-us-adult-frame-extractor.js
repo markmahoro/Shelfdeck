@@ -1,16 +1,24 @@
 'use strict';
+const fs=require('node:fs');
 const {spawn}=require('node:child_process');
 const {createHash}=require('node:crypto');
 const {createFfmpegProcessRegistry}=require('./clean-ffmpeg-process-registry');
 const {computeBoundedMaterialFingerprint}=require('./helix/integrations/bounded-material-fingerprint');
 const {uniformFrameTimes}=require('./helix/integrations/us-adult-frame-analysis');
 function fail(code,message,details){throw Object.assign(new Error(message),{code,details});}
+function defaultHasCudaDevice(){return fs.existsSync('/dev/nvidia0')||fs.existsSync('/dev/nvidiactl');}
 function createCleanUsAdultFrameExtractor(options){
   if(typeof options?.mediaProbe?.probe!=='function')throw new TypeError('US Adult frame extraction requires the Service media probe.');
   let binary=options.ffmpegPath||process.env.FFMPEG_PATH;
   if(!binary){try{binary=require('ffmpeg-static');}catch{fail('US_ADULT_FFMPEG_UNAVAILABLE','The bundled Service FFmpeg is unavailable.');}}
   if(typeof binary!=='string'||!binary)fail('US_ADULT_FFMPEG_UNAVAILABLE','The bundled Service FFmpeg is unavailable.');
   const registry=options.ffmpegProcessRegistry||createFfmpegProcessRegistry();
+  const spawnImpl=options.spawnImpl||spawn;
+  const platform=options.platform||process.platform;
+  const hwaccelMode=String(options.hwaccelMode||process.env.SHELFDECK_US_ADULT_FFMPEG_HWACCEL||'auto').toLowerCase();
+  const hasCudaDevice=options.hasCudaDevice||defaultHasCudaDevice;
+  let cudaEnabled=hwaccelMode==='cuda'||(hwaccelMode==='auto'&&platform==='linux'&&Boolean(hasCudaDevice()));
+  let consecutiveHwaccelFailures=0;
   async function verifySource(handle){
     const identity=handle.identity,observed=await computeBoundedMaterialFingerprint(handle.location),stat=observed.stat;
     if(String(stat.ino)!==identity.inode||Number(stat.size)!==identity.sizeBytes||observed.contentFingerprint!==identity.contentFingerprint||
@@ -18,12 +26,14 @@ function createCleanUsAdultFrameExtractor(options){
       Number(stat.mtimeNs/1000000n)!==handle.expectedMtimeNs||Number(stat.ctimeNs/1000000n)!==handle.expectedCtimeNs)
       fail('US_ADULT_SOURCE_CHANGED','The frozen US Adult source file has changed.');
   }
-  function readFrame(handle,timestampMs,assertActive){
+  function spawnOnce(handle,timestampMs,assertActive,useCuda){
     return new Promise((resolve,reject)=>{
       assertActive();
-      const child=spawn(binary,['-hide_banner','-nostdin','-loglevel','error','-ss',(timestampMs/1000).toFixed(3),'-threads','1','-i',handle.location,
+      const args=['-hide_banner','-nostdin','-loglevel','error',...(useCuda?['-hwaccel','cuda']:[]),
+        '-ss',(timestampMs/1000).toFixed(3),'-threads','1','-i',handle.location,
         '-map','0:v:0','-frames:v','1','-an','-sn','-vf','scale=1280:1280:force_original_aspect_ratio=decrease','-threads','1',
-        '-f','image2pipe','-c:v','mjpeg','-q:v','2','pipe:1'],{stdio:['ignore','pipe','pipe'],windowsHide:true});
+        '-f','image2pipe','-c:v','mjpeg','-q:v','2','pipe:1'];
+      const child=spawnImpl(binary,args,{stdio:['ignore','pipe','pipe'],windowsHide:true});
       const chunks=[];let size=0,error=null,stderrSize=0;const stderrHash=createHash('sha256');
       const stop=cause=>{if(!error)error=cause;child.kill('SIGKILL');};
       const timeout=setTimeout(()=>stop(Object.assign(new Error('US Adult frame extraction timed out.'),{code:'US_ADULT_FRAME_TIMEOUT'})),30000);
@@ -40,6 +50,19 @@ function createCleanUsAdultFrameExtractor(options){
         try{assertActive();resolve(Object.freeze({timestampMs,bytes:Buffer.concat(chunks,size)}));}catch(cause){reject(cause);}
       });
     });
+  }
+  async function readFrame(handle,timestampMs,assertActive){
+    if(!cudaEnabled)return spawnOnce(handle,timestampMs,assertActive,false);
+    try{
+      const frame=await spawnOnce(handle,timestampMs,assertActive,true);
+      consecutiveHwaccelFailures=0;
+      return frame;
+    }catch(error){
+      if(error?.code!=='US_ADULT_FRAME_FAILED'||hwaccelMode==='cuda')throw error;
+      consecutiveHwaccelFailures+=1;
+      if(consecutiveHwaccelFailures>=3)cudaEnabled=false;
+      return spawnOnce(handle,timestampMs,assertActive,false);
+    }
   }
   async function extractPoints({sourceHandle,context,durationMs,timestampsMs,onFrame}){
     const owner=sourceHandle?.ownerDomain,authority=owner==='libra'?{scopeType:'libra_run',processType:'libra_run'}:

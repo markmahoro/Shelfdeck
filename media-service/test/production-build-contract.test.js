@@ -57,3 +57,12 @@ test('operator incident wrappers bind the canonical deploy entry and safeguards'
   assert.match(prod064, /helix-prod064-aftercare-placement-incident-correction\.js/);
   assert.match(prod064, /deploy-nas\.js/);
 });
+
+test('production image packages CUDA runtime libraries for ONNX Runtime CUDA EP', () => {
+  const dockerfile = fs.readFileSync(path.join(root, 'media-service', 'Dockerfile'), 'utf8');
+  assert.match(dockerfile, /FROM nvidia\/cuda:13\.5\.0-cudnn-runtime-ubuntu24\.04 AS cuda-runtime/);
+  assert.match(dockerfile, /ARG ONNXRUNTIME_NODE_INSTALL=cuda12/);
+  assert.match(dockerfile, /\/etc\/ld\.so\.conf\.d\/onnxruntime-cuda\.conf/);
+  assert.match(dockerfile, /libonnxruntime_providers_cuda\.so/);
+  assert.match(dockerfile, /ldd \/app\/node_modules\/onnxruntime-node\/bin\/napi-v6\/linux\/x64\/libonnxruntime_providers_cuda\.so/);
+});
