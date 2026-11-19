@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Offline Formation Reset for the fnOS ShelfDeck production project.
+ * Offline Formation Reset for the heavy (192.168.12.215) ShelfDeck production host.
  *
  * Usage:
  *   node scripts/formation-reset-nas.js
@@ -18,10 +18,14 @@ const path = require('node:path');
 const { Client } = require(path.join(__dirname, '..', 'tools', 'node_modules', 'ssh2'));
 const { loadNasSshConfig } = require(path.join(__dirname, '..', 'tools', 'nas-ssh-config'));
 
-const COMPOSE_DIR = '/vol1/1000/docker/shelfdeck';
+const APPS_MOUNT = '/srv/apps';
+const APPS_UUID = '2e4fda48-ccbd-40cd-9b6b-1b66c4eb2dda';
+const SHELFDECK_HDD_MOUNT = '/srv/shelfdeck';
+const SHELFDECK_HDD_UUID = '11cf7e64-e7fa-4573-8588-5afb97ce3854';
+const COMPOSE_DIR = '/srv/apps/shelfdeck';
 const DATA_DIR = `${COMPOSE_DIR}/data`;
-const BACKUP_ROOT = `${COMPOSE_DIR}/backups`;
-const TRANSCODE_HOST = '/vol2/1000/shelfdeck_transcode';
+const BACKUP_ROOT = '/srv/shelfdeck/operator-backups';
+const TRANSCODE_HOST = '/srv/shelfdeck/transcode';
 const SERVICE = 'shelfdeck';
 const HEALTH_URL = 'http://127.0.0.1:18080/v1/health';
 const CONFIRMATION = 'FORMATION_RESET_V2';
@@ -137,9 +141,13 @@ async function main(argv = process.argv.slice(2)) {
   let image = '';
   try {
     await step(connection, 'Verify ShelfDeck application paths', [
-      `test ${shellQuote(COMPOSE_DIR)} = /vol1/1000/docker/shelfdeck`,
+      `test ${shellQuote(COMPOSE_DIR)} = /srv/apps/shelfdeck`,
+      `test ${shellQuote(BACKUP_ROOT)} = /srv/shelfdeck/operator-backups`,
+      `[ "$(findmnt -rn -M ${shellQuote(APPS_MOUNT)} -o FSTYPE,UUID)" = "ext4 ${APPS_UUID}" ]`,
+      `[ "$(findmnt -rn -M ${shellQuote(SHELFDECK_HDD_MOUNT)} -o FSTYPE,UUID)" = "ext4 ${SHELFDECK_HDD_UUID}" ]`,
       `test -d ${shellQuote(COMPOSE_DIR)} && test ! -L ${shellQuote(COMPOSE_DIR)}`,
       `test -d ${shellQuote(DATA_DIR)} && test ! -L ${shellQuote(DATA_DIR)}`,
+      `test -d ${shellQuote(BACKUP_ROOT)} && test ! -L ${shellQuote(BACKUP_ROOT)}`,
       `test -d ${shellQuote(TRANSCODE_HOST)} && test ! -L ${shellQuote(TRANSCODE_HOST)}`,
       `test -f ${shellQuote(`${DATA_DIR}/shelfdeck.db`)}`,
     ].join(' && '));
@@ -194,5 +202,6 @@ if (require.main === module) {
   });
 }
 
-module.exports = Object.freeze({ BACKUP_ROOT, COMPOSE_DIR, CONFIRMATION, DATA_DIR, HEALTH_URL,
-  SERVICE, TRANSCODE_HOST, backupCommand, imageCommand, main, parseArgs, resetCommand, shellQuote });
+module.exports = Object.freeze({ APPS_MOUNT, APPS_UUID, BACKUP_ROOT, COMPOSE_DIR, CONFIRMATION, DATA_DIR,
+  HEALTH_URL, SERVICE, SHELFDECK_HDD_MOUNT, SHELFDECK_HDD_UUID, TRANSCODE_HOST, backupCommand, imageCommand,
+  main, parseArgs, resetCommand, shellQuote });
