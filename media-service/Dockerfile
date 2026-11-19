@@ -54,8 +54,10 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY media-service/package.json media-service/package-lock.json ./
+COPY media-service/scripts/install-onnxruntime-cuda.js ./scripts/install-onnxruntime-cuda.js
 ARG ONNXRUNTIME_NODE_INSTALL=cuda12
-RUN GLOBAL_AGENT_ENVIRONMENT_VARIABLE_NAMESPACE="" ONNXRUNTIME_NODE_INSTALL=${ONNXRUNTIME_NODE_INSTALL} npm ci --omit=dev \
+RUN ONNXRUNTIME_NODE_INSTALL=skip npm ci --omit=dev \
+    && ONNXRUNTIME_NODE_INSTALL=${ONNXRUNTIME_NODE_INSTALL} node scripts/install-onnxruntime-cuda.js \
     && rm -rf node_modules/onnxruntime-node/bin/napi-v6/win32 \
               node_modules/onnxruntime-node/bin/napi-v6/darwin \
               node_modules/onnxruntime-node/bin/napi-v6/linux/arm64 \
