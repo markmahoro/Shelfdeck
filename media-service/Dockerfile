@@ -55,7 +55,7 @@ RUN apt-get update \
 
 COPY media-service/package.json media-service/package-lock.json ./
 ARG ONNXRUNTIME_NODE_INSTALL=cuda12
-RUN ONNXRUNTIME_NODE_INSTALL=${ONNXRUNTIME_NODE_INSTALL} npm ci --omit=dev \
+RUN GLOBAL_AGENT_ENVIRONMENT_VARIABLE_NAMESPACE="" ONNXRUNTIME_NODE_INSTALL=${ONNXRUNTIME_NODE_INSTALL} npm ci --omit=dev \
     && rm -rf node_modules/onnxruntime-node/bin/napi-v6/win32 \
               node_modules/onnxruntime-node/bin/napi-v6/darwin \
               node_modules/onnxruntime-node/bin/napi-v6/linux/arm64 \

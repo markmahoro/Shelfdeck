@@ -3,7 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { createHash, randomUUID } = require('node:crypto');
-const { Agent, fetch } = require('undici');
+const { Agent, EnvHttpProxyAgent, fetch } = require('undici');
 const manifest = require('../src/helix/contracts/buffalo-model-pack.json');
 
 // Download URLs live here (not in buffalo-model-pack.json) so FaceModelRef digests stay stable.
@@ -26,7 +26,10 @@ async function installBuffaloModels(target, options = {}) {
   const root = path.resolve(target);
   fs.mkdirSync(root, { recursive: true });
   if (fs.lstatSync(root).isSymbolicLink()) throw new Error('Buffalo model output directory cannot be a symbolic link.');
-  const dispatcher = options.dispatcher || new Agent({ connect: { family: 4, timeout: 60000 } });
+  const hasProxy = Boolean(process.env.HTTPS_PROXY || process.env.HTTP_PROXY || process.env.https_proxy || process.env.http_proxy);
+  const dispatcher = options.dispatcher || (hasProxy
+    ? new EnvHttpProxyAgent({ connect: { family: 4, timeout: 60000 } })
+    : new Agent({ connect: { family: 4, timeout: 60000 } }));
   try {
     for (const model of manifest.models) {
       const file = path.join(root, model.file);
