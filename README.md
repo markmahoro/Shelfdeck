@@ -11,8 +11,8 @@ ShelfDeck 从用户配置的物理 Material Field 建立并运营个人媒体收
 
 | 路径 | 说明 |
 | --- | --- |
-| `media-service/` | Fastify service、Admin Web、Helix modular monolith、集成与 Docker/Windows runtime |
-| `media-desktop/` | Electron thin client；通过 service HTTP API 工作 |
+| `media-service/` | Fastify service、Admin Web、Helix modular monolith、集成与 Docker/Linux runtime |
+| `media-desktop/` | 历史 Electron thin client 目录（**已退役 / 不再支持**） |
 | `media-worker/` | 被 service 调用的被动 FFmpeg/AI compute worker |
 | `tests/` | Shell E2E runner 与本地私密环境文件 |
 | `docs/helix/` | 当前 ShelfDeck / Helix 权威文档 |
@@ -22,20 +22,25 @@ ShelfDeck 从用户配置的物理 Material Field 建立并运营个人媒体收
 ## 开发命令
 
 ```bash
-cd media-service && npm install && npm test
+# Linux / worker（Node >= 20，建议 Node 22 LTS）
+cd media-service && npm ci && npm test
 cd media-service && npm run build:web
 
-cd media-desktop && npm install && npm test
-cd media-desktop && npm run dist:win
+# Windows 开发工作站（Node 22 LTS，避开无 win32 prebuild 的 usearch 编译）
+cd media-service && npm ci --ignore-scripts --no-audit --no-fund
+npm rebuild better-sqlite3 sharp onnxruntime-node @ffprobe-installer/ffprobe ffmpeg-static
+cd web && npm ci --no-audit --no-fund && npm run build
 
+# 被动 worker（按需）
 cd media-worker && npm install && npm start
 
-bash tests/runner.sh all tests/env/docker-fn.env
+# E2E smoke（针对已运行的服务实例）
+bash tests/runner.sh health-check tests/env/ci.env
 ```
 
-不要在仓库根目录执行 `npm install`，也不要让自动化长期阻塞在 `npm run dev`。
+不要在仓库根目录执行 `npm install`，也不要让自动化长期阻塞在 `npm run dev`；Windows 工作站上各 `.worktrees/*` 通过目录联接（`mklink /J`）复用主目录依赖，禁止为跑单测启动本机 Docker Desktop（详见 `docs/v2/DEVELOPMENT_WORKFLOW.md`）。
 
-生产 NAS 部署只走 `docs/v2/PRODUCTION_DEPLOYMENT.md` 规定的
+生产部署（当前目标为 `heavy` `192.168.12.215`）只走 `docs/v2/PRODUCTION_DEPLOYMENT.md` 规定的
 `scripts/build-image.js` → `scripts/upload-nas-image.js` → `scripts/deploy-nas.js`。当前部署身份见
 `docs/helix/CURRENT_STATUS.md` 和 `docs/v3/VERSIONING.md`。
 

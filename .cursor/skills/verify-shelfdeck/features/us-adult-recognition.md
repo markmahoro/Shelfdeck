@@ -68,7 +68,7 @@ cd media-service && bash scripts/us-adult-full-e2e.sh
 
 - **Optional Host file proof.** When `SHELFDECK_FACE_MODEL_ROOT` and `SHELFDECK_FACE_TEST_IMAGE` are set, Host formation-host may additionally cover real `mkv` + `nfo` + `poster.jpg`. Absence of those pins is an honest skip, not a green claim for live shelf file write.
 
-- **Production.** Production NAS is diagnosis-only for this journey. Never use this drive against `192.168.12.230:18080`. Do not deploy, Reset, or mutate production from this skill.
+- **Production.** Production is diagnosis-only for this journey. Never use this drive against `heavy` (`192.168.12.215:18080`) or retired `192.168.12.230:18080`. Do not deploy, Reset, or mutate production from this skill.
 
 ## Gotchas
 

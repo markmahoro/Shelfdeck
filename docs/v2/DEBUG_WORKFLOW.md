@@ -2,30 +2,56 @@
 
 排查目标是找到根因并修复，不做绕过、兜底或降级。
 
-## 1. 必读文件
+## 1. 必读文件与当前拓扑
 
 排查任何 runtime 问题前，先读：
 
-1. `tests/TEST_ENV_CHECKLIST.md` - NAS SSH、Emby API Key、MoviePilot token、测试库和影片清单。
-2. `docs/v2/DEBUG_WORKFLOW.md` - 本文。
+1. `docs/v2/DEBUG_WORKFLOW.md` - 本文。
+2. `tests/TEST_ENV_CHECKLIST.md`（可选、已 gitignore，含凭据，不得提交或泄露；若本机不存在该文件，**不要扫描局域网 IP**，直接使用 `tools/nas-ssh-config.js` 默认生产连接：`heavy` `192.168.12.215`、用户 `gezhu`、私钥 `~/.ssh/shelfdeck-gezhu2403`）。
 
-`tests/TEST_ENV_CHECKLIST.md` 含凭据，已在 `.gitignore` 中，不提交。
+当前生产拓扑速查（旧飞牛 NAS `192.168.12.230` 已退役，禁止当作在线生产排查）：
+
+| 角色 | 地址 / 路径 | 说明 |
+| --- | --- | --- |
+| 生产主服务 (`heavy`) | `http://192.168.12.215:18080` | Debian 12 Docker 容器 `shelfdeck`；NVIDIA Quadro T2000 (`TU117` NVENC) |
+| SSD 应用与主库 | `/srv/apps/shelfdeck/data/shelfdeck.db` (`/dev/sdb1`) | 容器内挂载为 `/app/data` |
+| HDD 转码与备份 | `/srv/shelfdeck/transcode`、`/srv/shelfdeck/operator-backups` (`/dev/sdc1`) | 容器内 `/transcode` 与 `/app/data/operator-backups` |
+| 外部存储挂载 | `/media` (`192.168.12.45/Media` CIFS)、`/adult` (`192.168.12.45/Adult` CIFS)、`/mnt/shelfdeck_upgrade` (`192.168.12.218` NFSv4) | 容器内 `/media`、`/adult`（含 `/adult_media`）、`/upgrade` |
+| 外部上游 | HTTP 代理 `http://192.168.12.219:7890`；MoviePilot `http://192.168.12.217:3000` | `network-main`、`tmdb-main` 及活跃 `jav-*` 均走 `.219:7890` |
+| CPU 验证 VM (`worker`) | `192.168.12.216`（用户 `gezhu`） | 仅用于隔离 `/tmp` worktree 跑单测/E2E（无 GPU、无 Docker） |
 
 ## 2. 诊断层级
 
-### Layer 1 - ShelfDeck API
+### Layer 1 - Clean Helix Runtime（当前现网）
+
+优先使用只读脚本与 Clean Helix Admin API，禁止向运行中的 `shelfdeck.db` 写入或创建额外 WAL/SHM：
+
+| 入口 | 用途 |
+| --- | --- |
+| `GET /v1/health` | 公开存活与供给开关（`status`、`generation`、`normalSupplyAllowed`） |
+| `GET /v1/admin/runtime` | Runtime 模式（`running`/`stopped`）、revision、在飞活动计数 |
+| `GET /v1/admin/formation` | 当前整理工作区条目状态、Attention 与运行投影 |
+| `GET /v1/admin/care` | 照看 / 异常与恢复状态 |
+| `node scripts/production-readonly-diagnostics.js` | 只读汇总容器、SSD/HDD 空间、DB 大小与聚合计数 |
+| `node scripts/formation-active-production-diagnostics.js` | 只读诊断当前整理工作区在飞任务、Effect 与源文件状态 |
+| `node scripts/production-helix-execution-diagnostics.js` | 只读诊断 Execution Foundation 残留与 `/srv/shelfdeck/transcode` 存储 |
+| 容器内只读 SQLite 查询 | `new Database('/app/data/shelfdeck.db', { readonly: true, fileMustExist: true })` + `db.pragma('query_only = ON')` |
+
+### 历史 v2/v3 ShelfDeck API（Clean Helix 已废弃，仅留作兼容参考）
+
+> 注意：以下端点（`/v1/admin/health`、`/v1/tasks`、`/v1/config`）以及 `/app/data/config.json` 属于历史 v2/v3 架构，Clean Helix 现网不存在。
 
 | 端点 | 用途 |
 | --- | --- |
 | `GET /v1/health` | 服务存活和总体状态 |
-| `GET /v1/admin/health` | scheduler/emby/transcode/upgrade 等模块状态 |
+| `GET /v1/admin/health` | scheduler/emby/transcode/upgrade 等模块状态（历史） |
 | `GET /v1/library/status` | 子库刷新和同步状态 |
 | `GET /v1/library?subLibraryId=X` | 媒体库内容、action、评分 |
 | `GET /v1/admin/sublibraries` | 子库配置、pathMap、sectionId、embyServerId |
-| `GET /v1/tasks` | 活跃任务 |
-| `GET /v1/admin/tasks/:id` | 单任务详情和日志 |
+| `GET /v1/tasks` | 活跃任务（历史） |
+| `GET /v1/admin/tasks/:id` | 单任务详情和日志（历史） |
 | `GET /v1/activity-log` | 最近活动 |
-| `GET /v1/config` | 配置，敏感字段可能被掩码 |
+| `GET /v1/config` | 配置，敏感字段可能被掩码（历史） |
 
 ### Layer 2 - Emby API
 
@@ -53,13 +79,12 @@ Use:
 node tools/ssh-exec.js "<cmd>"
 ```
 
-Common remote checks:
+Common remote checks (`heavy` `192.168.12.215`):
 
 ```bash
 docker ps
 docker logs shelfdeck 2>&1 | tail -80
-docker exec shelfdeck cat /app/data/config.json
-docker exec shelfdeck ls /media/test/
+docker exec shelfdeck ls /media/ /adult/
 ```
 
 ## 3. 常见决策树
@@ -139,9 +164,9 @@ node scripts/formation-reset-nas.js
 node scripts/formation-reset-nas.js --apply --confirm FORMATION_RESET_V2
 ```
 
-NAS包装会解析当前精确镜像、只停止ShelfDeck服务、在应用目录下创建并校验完整data备份、离线执行Reset、重复plan验证幂等，
+NAS包装会解析当前精确镜像、只停止ShelfDeck服务、在应用备份目录下创建并校验完整data备份、离线执行Reset、重复plan验证幂等，
 然后启动服务并对连接重置等瞬时启动错误进行有界health重试。任一步骤失败都停止继续执行；apply失败时ShelfDeck可能保持停止，必须先保留现场并按脚本输出的
-`/vol1/1000/docker/shelfdeck/backups/formation-reset-*/data`恢复，禁止手工补SQL。
+`/srv/shelfdeck/operator-backups/formation-reset-*/data`恢复，禁止手工补SQL。
 
 ## 5. 排查后必须产出
 

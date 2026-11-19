@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # verify-shelfdeck — Launch / Doctor / Drive / Cleanup / Prove for isolated ShelfDeck verification.
-# Never targets production NAS. Never prints or commits admin API keys / secret roots.
+# Never targets production (heavy 192.168.12.215 or retired NAS 192.168.12.230). Never prints or commits admin API keys / secret roots.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../../../.." && pwd)"
@@ -16,7 +16,7 @@ require_cmd() {
 refuse_production_url() {
   local url="$1"
   case "$url" in
-    *192.168.12.230*|*nas*|*18080*192.168*)
+    *192.168.12.215*|*192.168.12.230*|*heavy*|*nas*|*192.168.*:18080*|*18080*192.168*)
       die "refusing non-isolated or production-looking URL: $url"
       ;;
   esac
