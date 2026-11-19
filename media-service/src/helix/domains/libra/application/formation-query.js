@@ -33,7 +33,7 @@ function requirementLabel(spec) {
   if (media.minimumRasterClass && media.minimumRasterClass !== 'none') parts.push(media.minimumRasterClass);
   if (space.maxSizeGiB !== null && space.maxSizeGiB !== undefined) parts.push((contract.contentProfile === 'series' ? '每集不超过 ' : '不超过 ') + space.maxSizeGiB + ' GiB');
   if (artifacts.length) parts.push('补齐 ' + artifacts.join('、'));
-  return parts.length ? parts.join(' · ') : '保持原媒体并完成资料';
+  return (contract.targetKind === 'user_custom' ? '自定义标准 · ' : '') + (parts.length ? parts.join(' · ') : '保持原媒体并完成资料');
 }
 function eventState(event) {
   if (!event) return 'pending';
@@ -501,6 +501,10 @@ function createFormationProjectionSource(options) {
       columns:['libra_run_id','completion_json','completion_digest']},
     find_us_actor_choices:{kind:'select-in',tableId:'libra_us_adult_actor_choice_heads',keyColumn:'subject_id',maxItems:PAGE_SIZE,
       columns:['subject_id','current_revision','intent_id','record_digest']},
+    find_custom_target_heads:{kind:'select-in',tableId:'libra_custom_target_heads',keyColumn:'subject_id',maxItems:PAGE_SIZE,
+      columns:['subject_id','product_scope_digest','current_revision','intent_id','record_digest'],safeIntegers:true},
+    find_custom_target_intents:{kind:'select-in',tableId:'libra_custom_target_intents',keyColumn:'intent_id',maxItems:PAGE_SIZE,
+      columns:['intent_id','subject_id','libra_run_id','product_scope_digest','target_revision','record_json'],safeIntegers:true},
   } });
 
   function readPage(cursor, limit = PAGE_SIZE) {
@@ -544,8 +548,11 @@ function createFormationProjectionSource(options) {
       const usSubjects=subjects.filter(subject=>subject.content_profile==='western_adult').map(subject=>subject.subject_id),
         usRunIds=runs.filter(run=>usSubjects.includes(run.subject_id)).map(run=>run.libra_run_id),
         usCompletions=usRunIds.length?chunks(usRunIds).flatMap(values=>repo.invoke('find_us_completions',{values})):[],
-        usChoices=usSubjects.length?repo.invoke('find_us_actor_choices',{values:usSubjects}):[];
-      return { cancellations:repo.invoke('find_cancellations',{values:subjectIds}), decisions, routingFields, bindings, identities, routingDecisions, routingPolicies, decisionHeads, acceptanceSpecs, runs, runRevisions, packages, identityIntents,usCompletions,usChoices };
+        usChoices=usSubjects.length?repo.invoke('find_us_actor_choices',{values:usSubjects}):[],
+        customTargetHeads=repo.invoke('find_custom_target_heads',{values:subjectIds}),
+        customIntentIds=unique(customTargetHeads.map(row=>row.intent_id)),
+        customTargetIntents=customIntentIds.length?chunks(customIntentIds,PAGE_SIZE).flatMap(values=>repo.invoke('find_custom_target_intents',{values})):[];
+      return { cancellations:repo.invoke('find_cancellations',{values:subjectIds}), decisions, routingFields, bindings, identities, routingDecisions, routingPolicies, decisionHeads, acceptanceSpecs, runs, runRevisions, packages, identityIntents,usCompletions,usChoices,customTargetHeads,customTargetIntents };
     } }]).libra_formation_batch;
   }
   function buildBatch(subjects, buildOptions = {}) {
@@ -655,8 +662,27 @@ function createFormationProjectionSource(options) {
       const routingReadiness = !routing && !latestRun && sourceFieldId
         ? routingPreparationReadiness(value.routingFields.has(sourceFieldId)) : null;
       const missingRoutingPolicy = routingReadiness?.result === 'unresolved';
-      const classification = classifyFormation({ run, works, issue, recovery, arcaStatus, productPackage: pkg,
+      const specContract = parse(spec?.spec_json);
+      const customHead = (value.customTargetHeads || []).find((item) => item.subject_id === subject.subject_id &&
+        (!specContract?.productScope?.scopeDigest || item.product_scope_digest === specContract.productScope.scopeDigest)) || null;
+      const customIntentRow = customHead ? (value.customTargetIntents || []).find((item) => item.intent_id === customHead.intent_id) : null;
+      const customIntent = parse(customIntentRow?.record_json);
+      const replacingWithCustomTarget = Boolean(run && customIntent && customIntent.basis?.libraRunId === run.libra_run_id &&
+        specContract?.targetKind !== 'user_custom');
+      const baseClassification = classifyFormation({ run, works, issue, recovery, arcaStatus, productPackage: pkg,
         routingUnresolved: missingRoutingPolicy || routing?.decision === 'unresolved', waitingExternalIntegration });
+      const classification = replacingWithCustomTarget && arcaStatus?.stage !== 'completed' ? 'in_progress' : baseClassification;
+      const pkgAccepted = Boolean(arcaStatus?.onDeckRunId) || arcaStatus?.stage === 'completed';
+      const customTarget = Object.freeze({
+        active: specContract?.targetKind === 'user_custom' || Boolean(customHead),
+        targetKind: specContract?.targetKind === 'user_custom' ? 'user_custom' : 'standard',
+        revision: customHead ? Number(customHead.current_revision) : 0,
+        changes: Object.freeze([...(customIntent?.target?.changes || [])]),
+        replacingRun: replacingWithCustomTarget,
+        canCustomize: subject.content_profile === 'movie' && subject.structure_kind === 'single' &&
+          subject.status === 'active' && Boolean(run && ['active', 'suspended', 'frozen'].includes(run.state)) &&
+          !pkgAccepted && !replacingWithCustomTarget && cancellation?.state !== 'pending',
+      });
       const rating = ratings.get(subject.subject_id) || null;
       const stepOptions = Object.freeze({ latestRunState: latestRun?.state || null, waitingExternalIntegration,
         runState: run?.state || null, terminalEvidence });
@@ -694,7 +720,7 @@ function createFormationProjectionSource(options) {
         routingConfigurationFieldId: missingRoutingPolicy ? sourceFieldId : null,
         processDetail:buildOptions.includeProcessDetail === true ? detail : undefined,
         currentPlan:missingRoutingPolicy||issue?.contentProfile==='western_adult' ? undefined : detail ? currentPlanSummary(detail) : undefined,
-        targetShelfId: routing?.shelf_id || null, targetShelfName: shelfNames.get(routing?.shelf_id) || null, routingState: routing?.decision || (missingRoutingPolicy ? 'unresolved' : 'preparing'), unresolvedReasonCode: cancellation?.state==='pending'?'task_cancellation_pending':subject.status==='abandoned'?'task_cancelled':routing?.unresolved_reason_code || routingReadiness?.reasonCode || null, routingPolicyMode: policy?.mode || null, routingPolicyRevision: routing?.routing_policy_revision == null ? null : Number(routing.routing_policy_revision), routingDecisionRevision: routing ? Number(routing.decision_revision) : null, routingDecisionDigest: routing?.decision_digest || null, routingDecisionHeadRevision: head ? Number(head.head_revision) : null, routingDecisionHeadDigest: head?.head_digest || null, acceptanceSpecId: spec?.acceptance_spec_id || null, acceptanceSpecRevision: spec ? Number(spec.spec_revision) : null, acceptanceSpecDigest: spec?.spec_digest || null, acceptanceSpecPublishedAtMs: spec ? Number(spec.published_at_ms) : null, primaryMaterialCount: primaryCount, addedAtMs: Number(subject.created_at_ms), organizingRequirement: requirementLabel(spec), organizingAction: actionLabel(actionWorks, spec, stepOptions), organizingSteps: steps, nextAction: cancellation?.state==='pending'?Object.freeze({label:'正在取消整理任务',state:'pending',progress:null}):subject.status==='abandoned'?Object.freeze({label:'已取消整理任务',state:'cancelled',progress:null}):missingRoutingPolicy ? Object.freeze({label:'尚未配置收藏去向',state:'attention_required',progress:null}) : nextAction(works, classification, issue, run?.state, recovery, arcaStatus, pkg, latestRun?.state || null, waitingExternalIntegration, terminalEvidence, spec, onDeckWorks), currentRun: run ? Object.freeze({ libraRunId: run.libra_run_id, state: run.state, stateRevision: Number(run.state_revision), stateDigest: run.state_digest, priorityClass: run.priority_class, packageRevisionHead: Number(run.package_revision_head), currentIdentityRevision: subject.current_identity_revision === null ? null : Number(subject.current_identity_revision) }) : null, handoffB: pkg ? Object.freeze({ onDeckPackageId: pkg.on_deck_package_id, offerId: pkg.offer_id, packageRevision: Number(pkg.package_revision), packageDigest: pkg.package_digest, state: pkg.state, publishedAtMs: Number(pkg.published_at_ms) }) : null, completedAtMs: arcaStatus?.stage === 'completed' ? arcaStatus.completedAtMs : null });
+        targetShelfId: routing?.shelf_id || null, targetShelfName: shelfNames.get(routing?.shelf_id) || null, routingState: routing?.decision || (missingRoutingPolicy ? 'unresolved' : 'preparing'), unresolvedReasonCode: cancellation?.state==='pending'?'task_cancellation_pending':subject.status==='abandoned'?'task_cancelled':routing?.unresolved_reason_code || routingReadiness?.reasonCode || null, routingPolicyMode: policy?.mode || null, routingPolicyRevision: routing?.routing_policy_revision == null ? null : Number(routing.routing_policy_revision), routingDecisionRevision: routing ? Number(routing.decision_revision) : null, routingDecisionDigest: routing?.decision_digest || null, routingDecisionHeadRevision: head ? Number(head.head_revision) : null, routingDecisionHeadDigest: head?.head_digest || null, acceptanceSpecId: spec?.acceptance_spec_id || null, acceptanceSpecRevision: spec ? Number(spec.spec_revision) : null, acceptanceSpecDigest: spec?.spec_digest || null, acceptanceSpecPublishedAtMs: spec ? Number(spec.published_at_ms) : null, primaryMaterialCount: primaryCount, addedAtMs: Number(subject.created_at_ms), organizingRequirement: requirementLabel(spec), organizingAction: actionLabel(actionWorks, spec, stepOptions), organizingSteps: steps, nextAction: cancellation?.state==='pending'?Object.freeze({label:'正在取消整理任务',state:'pending',progress:null}):subject.status==='abandoned'?Object.freeze({label:'已取消整理任务',state:'cancelled',progress:null}):missingRoutingPolicy ? Object.freeze({label:'尚未配置收藏去向',state:'attention_required',progress:null}) : replacingWithCustomTarget ? Object.freeze({label:'按新标准重新整理',state:'running',progress:null}) : nextAction(works, classification, issue, run?.state, recovery, arcaStatus, pkg, latestRun?.state || null, waitingExternalIntegration, terminalEvidence, spec, onDeckWorks), customTarget, currentRun: run ? Object.freeze({ libraRunId: run.libra_run_id, state: run.state, stateRevision: Number(run.state_revision), stateDigest: run.state_digest, priorityClass: run.priority_class, packageRevisionHead: Number(run.package_revision_head), currentIdentityRevision: subject.current_identity_revision === null ? null : Number(subject.current_identity_revision) }) : null, handoffB: pkg ? Object.freeze({ onDeckPackageId: pkg.on_deck_package_id, offerId: pkg.offer_id, packageRevision: Number(pkg.package_revision), packageDigest: pkg.package_digest, state: pkg.state, publishedAtMs: Number(pkg.published_at_ms) }) : null, completedAtMs: arcaStatus?.stage === 'completed' ? arcaStatus.completedAtMs : null });
     });
   }
   function scan(visitor) {
@@ -753,6 +779,7 @@ function buildFormationProjectionRow(item, nowMs) {
     action: item.organizingSteps || item.organizingAction,
     addedAtMs: item.addedAtMs, nextAction: item.nextAction, identityIssueDigest: identityDigest,
     acceptanceSpec: [item.acceptanceSpecId, item.acceptanceSpecRevision, item.acceptanceSpecDigest],
+    customTarget: item.customTarget ? [item.customTarget.active, item.customTarget.targetKind, item.customTarget.revision, item.customTarget.replacingRun] : null,
     run: item.currentRun, package: item.handoffB, acceptanceRecovery:item.acceptanceRecovery,
     arcaStatus:item.arcaStatus, completedAtMs:item.completedAtMs,
   };

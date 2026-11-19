@@ -3,6 +3,7 @@
 const { boundSeriesNfoProvenance } = require('./series-nfo-provenance-schema');
 const { javPartSetSchema } = require('../../src/helix/contracts/jav-part-set');
 const { customAcceptanceHandoffSchema } = require('../../src/helix/contracts/custom-acceptance-handoff');
+const { episodeMetadataScopeSchema } = require('../../src/helix/contracts/episode-metadata-scope');
 
 const crypto = require('crypto');
 const { selectedCandidateSelectedValueSchema } = require('./result-type-schema-builder');
@@ -1417,7 +1418,7 @@ function acceptanceRequirementSetSchema() {
     'episode_title', 'episode_plot', 'jav_code', 'studio', 'internal_identity'), 18),
     requiredArtifactKinds: arrayOf(enumText('nfo', 'poster', 'fanart'), 3), requireRenderableSidecar: bool(), requireDecodableImages: bool() });
   const mandatoryMedia = object({ mediaForm: enumText('any', 'stream_file'), videoCodec: enumText('any', 'hevc'),
-    container: enumText('any', 'matroska'), fileExtension: enumText('any', 'mkv'), minimumRasterClass: enumText('none', '4k'),
+    container: enumText('any', 'matroska'), fileExtension: enumText('any', 'mkv'), minimumRasterClass: enumText('none', '720p', '1080p', '4k'),
     acceptedPrimaryAudioClasses: arrayOf(enumText('eac3_atmos', 'truehd', 'truehd_atmos', 'dts_hd_ma', 'dts_x'), 5),
     forbidSystemUpscaleFor4k: bool() });
   const space = object({ unit: enumText('product', 'episode'), maxSizeGiB: nullable({type:'number',exclusiveMinimum:0}), maxSizeBytes: nullablePositiveInteger() });
@@ -1427,14 +1428,50 @@ function acceptanceRequirementSetSchema() {
 }
 
 function acceptanceSpecValueSchema() {
-  return object({ schemaRef: { const: 'libra.acceptance-spec@1' }, schemaVersion: { const: 1 },
+  const baseProperties = {
+    schemaRef: { const: 'libra.acceptance-spec@1' }, schemaVersion: { const: 1 },
     draftId: id(), draftKind: text(), basisDigest: digest(), draftDigest: digest(), producedAtMs: nonNegativeInteger(),
     subjectId: id(), targetShelfId: id(), contentProfile: contentProfile(), structureKind: acceptanceStructureKind(),
     productScope: object({ subjectId: id(), scopeKind: enumText('single', 'episode_manifest'),
       subjectIntakeRevision: positiveInteger(), episodeKeys: arrayOf(text(), 1024), scopeDigest: digest() }),
     shelfRoutingProjectionRevision: positiveInteger(), shelfProjectionDigest: digest(), shelfStandardRevision: positiveInteger(),
     shelfStandardDigest: digest(), decisionBasisId: id(), decisionBasisDigest: digest(), requirements: acceptanceRequirementSetSchema(),
-    specDigest: digest(), acceptanceSpecId: id(), specRevision: positiveInteger(), recordDigest: digest(), publishedAtMs: nonNegativeInteger() });
+    specDigest: digest(), acceptanceSpecId: id(), specRevision: positiveInteger(), recordDigest: digest(), publishedAtMs: nonNegativeInteger(),
+  };
+  const customTargetRef = object({
+    schemaRef: { const: 'libra.custom-target-reference@1' },
+    intentId: digest(),
+    intentDigest: digest(),
+    targetRevision: positiveInteger(),
+    previewDigest: digest(),
+    targetRequirementsDigest: digest(),
+  });
+  const originalTarget = object({
+    acceptanceSpecId: id(),
+    specRevision: positiveInteger(),
+    recordDigest: digest(),
+    specDigest: digest(),
+    requirements: acceptanceRequirementSetSchema(),
+  });
+  const episodeMetadataOverrides = arrayOf(object({
+    episodeScope: episodeMetadataScopeSchema(),
+    requiredFieldCodes: arrayOf(enumText('tmdb_movie_id', 'tmdb_series_id', 'title', 'series_title',
+      'year_or_release_date', 'release_date', 'plot', 'genre', 'actor', 'director', 'season_number', 'episode_number',
+      'episode_title', 'episode_plot', 'jav_code', 'studio', 'internal_identity'), 18),
+  }), 1024);
+  return {
+    oneOf: [
+      object(baseProperties),
+      object({
+        ...baseProperties,
+        targetKind: { const: 'user_custom' },
+        customTargetRef,
+        originalTarget,
+        targetInputDigest: digest(),
+        episodeMetadataOverrides,
+      }),
+    ],
+  };
 }
 
 function mediaRequirementValueSchema() {

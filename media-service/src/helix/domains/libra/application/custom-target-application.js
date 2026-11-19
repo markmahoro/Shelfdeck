@@ -18,13 +18,14 @@ function createCustomTargetApplication(options){
   const targets=options.customTargetStore||createCustomTargetStore(options),coordinator=createCommandCommitCoordinator(options),now=options.now||Date.now;
   function view(subjectId,libraRunId){
     const result=options.currentViewReader.read(Object.freeze({subjectId,libraRunId}));
-    if(result?.kind==='pending')return null;
+    if(result?.kind==='pending')return Object.freeze({kind:'pending'});
+    if(result?.kind==='ineligible')return Object.freeze({kind:'ineligible',reasonCode:result.reasonCode||'custom_target_ineligible'});
     if(!result||result.kind!=='ready')fail('LIBRA_CUSTOM_TARGET_VIEW_INVALID');
     const basis=validateBasis(result.basis);
     if(basis.subjectId!==subjectId||basis.libraRunId!==libraRunId)
       fail('LIBRA_CUSTOM_TARGET_PREVIEW_STALE');
     const baseline=options.readCurrentCustomTargetBaseline(Object.freeze({subjectId,libraRunId,productScopeDigest:basis.productScopeDigest}));
-    if(baseline?.kind==='unavailable')return null;
+    if(baseline?.kind==='unavailable')return Object.freeze({kind:'pending'});
     if(!baseline||baseline.kind!=='ready'||!['no_offer','not_accepted','accepted'].includes(baseline.handoffState))
       fail('LIBRA_CUSTOM_TARGET_BASELINE_INVALID');
     if(baseline.handoffState==='accepted'||basis.handoffState==='accepted')fail('LIBRA_CUSTOM_TARGET_ARCA_RESPONSIBILITY');
@@ -74,7 +75,8 @@ function createCustomTargetApplication(options){
         requestDigest=canonicalDigest({schema:'libra.custom-target-preview-request@1',subjectId,libraRunId});
       const replay=prior('preview',actorId,key,requestDigest);if(replay)return replay;
       const readFence=options.unitOfWork.captureReadFence(),current=view(subjectId,libraRunId);
-      if(!current)return Object.freeze({kind:'evidence_pending',replayed:false});
+      if(current.kind==='pending')return Object.freeze({kind:'evidence_pending',replayed:false});
+      if(current.kind==='ineligible')return Object.freeze({kind:'ineligible',reasonCode:current.reasonCode,replayed:false});
       const record=buildCustomTargetPreview({basis:current.basis,requirements:current.requirements,episodeScopes:current.episodeScopes,
         proposals:current.proposals,actorId,createdAtMs:now()});
       return command('preview',actorId,key,requestDigest,record,current.basis,readFence);
@@ -96,7 +98,8 @@ function createCustomTargetApplication(options){
         replay=prior('intent',actorId,key,provisional.requestDigest);
       if(replay)return replay;
       const readFence=options.unitOfWork.captureReadFence(),current=view(preview.basis.subjectId,preview.basis.libraRunId);
-      if(!current)return Object.freeze({kind:'evidence_pending',replayed:false});
+      if(current.kind==='pending')return Object.freeze({kind:'evidence_pending',replayed:false});
+      if(current.kind==='ineligible')fail('LIBRA_CUSTOM_TARGET_PREVIEW_STALE');
       const record=confirmCustomTarget({preview,expectedPreviewDigest:body.previewDigest,currentBasis:current.basis,
         selectedChangeDigests:body.selectedChangeDigests,acknowledged:body.acknowledged,actorId,idempotencyKey:key,confirmedAtMs:provisional.confirmedAtMs});
       return command('intent',actorId,key,record.requestDigest,record,current.basis,readFence);

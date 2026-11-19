@@ -277,6 +277,7 @@ export type FormationSubject = {
   primaryMaterialCount: number;
   addedAtMs: number;
   organizingRequirement: string;
+  customTarget?: FormationCustomTarget | null;
   organizingAction: string;
   organizingSteps: Array<{
     key: string;
@@ -413,11 +414,68 @@ export type CollectionEntry = {
   videoCodec: string | null;
   videoRaster: string | null;
   defectAdmission: { defectCount:number; defects:Array<{defectCode:'actor_unavailable'|'external_source_exhausted'|'media_requirements_unmet'|'size_cap_exceeded';waivedRequirementCodes:string[]}> } | null;
+  collectionBasis?: 'standard' | 'defect_admitted' | 'user_custom';
+  customTarget?: CollectionCustomTarget | null;
   health: HealthSummary;
   currentInventoryRevision: number;
   currentDeckFactRevision: number;
   createdAtMs: number;
   terminalAtMs: number | null;
+};
+export type CustomTargetRequirementChange = {
+  requirementCode: 'minimum_raster_unmet' | 'primary_audio_unmet' | 'video_codec_unmet' | 'container_unmet' | 'file_extension_unmet' | 'max_size_exceeded' | 'metadata_field_unmet' | 'metadata_artifact_unmet';
+  targetId: string;
+  requiredValueDigest?: string;
+};
+export type CustomTargetProposal = {
+  change: CustomTargetRequirementChange;
+  changeDigest: string;
+  evidenceRefs: Array<{ resultId: string; resultDigest: string }>;
+};
+export type CustomTargetPreviewRecord = {
+  schemaRef: string;
+  basis: {
+    subjectId: string;
+    libraRunId: string;
+    runState: string;
+    runStateRevision: number;
+    runStateDigest: string;
+    customTargetRevision: number;
+    handoffState: string;
+    contentProfile: string;
+    structureKind: string;
+    shelfId: string;
+  };
+  baseRequirements: {
+    mandatoryMedia?: { videoCodec?: string; minimumRasterClass?: string; acceptedPrimaryAudioClasses?: string[]; container?: string; fileExtension?: string };
+    space?: { maxSizeGiB?: number | null; maxSizeBytes?: number | null };
+    metadata?: { requiredFieldCodes?: string[]; requiredArtifactKinds?: string[] };
+  };
+  proposals: CustomTargetProposal[];
+  actorId: string;
+  createdAtMs: number;
+  outcome: string;
+  previewDigest: string;
+};
+export type PrepareCustomTargetPreviewResult =
+  | { kind: 'preview'; record: CustomTargetPreviewRecord; replayed: boolean }
+  | { kind: 'evidence_pending'; replayed: boolean }
+  | { kind: 'ineligible'; reasonCode: string; replayed: boolean };
+export type ConfirmCustomTargetResult =
+  | { kind: 'confirmed'; record: { intentId: string; subjectId: string; libraRunId: string; revision: number; intentDigest: string }; replayed: boolean }
+  | { kind: 'evidence_pending'; replayed: boolean };
+export type FormationCustomTarget = {
+  active: boolean;
+  targetKind: 'standard' | 'user_custom';
+  revision: number;
+  changes: CustomTargetRequirementChange[];
+  replacingRun: boolean;
+  canCustomize: boolean;
+};
+export type CollectionCustomTarget = {
+  targetRevision: number;
+  changes: CustomTargetRequirementChange[];
+  confirmedAtMs: number;
 };
 export type DefectAdmissionCandidate={candidateRevision:number;libraRunId:string;frozenRunStateRevision:number;frozenRunStateDigest:string;terminalEvidenceDigest:string;defects:Array<{defectCode:'actor_unavailable'|'metadata_fields_unavailable'|'artifacts_unavailable'|'external_source_exhausted'|'media_requirements_unmet'|'size_cap_exceeded';metadataFieldCodes?:string[];artifactKindCodes?:string[];sourceFailureCode:string;waivedRequirementCodes:string[]}>;waivedRequirementCodes:string[];candidateDigest:string;sizeForecast?:{maxSizeBytes:number;predictedBytes:number;overshootBytes:number;measured?:boolean;actualSizeBytes?:number;withinLimit?:boolean;videoBitrateFloorBps?:number;targetVideoBitrateBps?:number;rasterClass?:string}|null};
 export type DefectAdmissionPreview=(DefectAdmissionCandidate&{eligibility:'eligible'})|{eligibility:'ineligible'|'evidence_pending';message:string;ineligibleReasons:string[];missingEvidence:string[]};
@@ -942,6 +1000,9 @@ export const helixAdminApi = {
   readRunOutcome(libraRunId:string){return request<{outcome:LibraRunOutcome|null}>(`/v1/admin/formation/runs/${encodeURIComponent(libraRunId)}/outcome`);},
   reprocessRun(outcome:LibraRunOutcome,idempotencyKey:string){return request<{intentId:string;replayed:boolean}>(`/v1/admin/formation/runs/${encodeURIComponent(outcome.libraRunId)}/actions/reprocess`,{method:'POST',body:JSON.stringify({expectedOutcomeDigest:outcome.outcomeDigest,idempotencyKey})});},
   admitWithDefects(subject:FormationSubject,candidate:DefectAdmissionCandidate,idempotencyKey?:string){if(!subject.currentRun)throw new Error('当前媒体没有可操作的整理任务。');const run=subject.currentRun;return request<{resultKind:string;libraRunId:string;replayed:boolean}>(`/v1/admin/formation/runs/${encodeURIComponent(run.libraRunId)}/actions/admit-with-defects`,{method:'POST',body:JSON.stringify({expectedRunStateRevision:run.stateRevision,expectedRunStateDigest:run.stateDigest,expectedDefectCandidateDigest:candidate.candidateDigest,acknowledged:true,idempotencyKey:idempotencyKey||`admit-with-defects:${run.libraRunId}:${run.stateRevision}:${newOpaqueId()}`})});},
+  prepareCustomTargetPreview(subject:FormationSubject,idempotencyKey?:string){if(!subject.currentRun)throw new Error('当前媒体没有可操作的整理任务。');const run=subject.currentRun;return request<PrepareCustomTargetPreviewResult>(`/v1/admin/formation/runs/${encodeURIComponent(run.libraRunId)}/actions/prepare-custom-target-preview`,{method:'POST',body:JSON.stringify({subjectId:subject.subjectId,idempotencyKey:idempotencyKey||`custom-preview:${run.libraRunId}:${run.stateRevision}:${newOpaqueId()}`})});},
+  getCustomTargetPreview(libraRunId:string,previewId:string){return request<{kind:'preview';record:CustomTargetPreviewRecord}>(`/v1/admin/formation/runs/${encodeURIComponent(libraRunId)}/custom-target-previews/${encodeURIComponent(previewId)}`);},
+  confirmCustomTarget(libraRunId:string,body:{previewDigest:string;selectedChangeDigests:string[];acknowledged:boolean;idempotencyKey:string}){return request<ConfirmCustomTargetResult>(`/v1/admin/formation/runs/${encodeURIComponent(libraRunId)}/actions/confirm-custom-target`,{method:'POST',body:JSON.stringify(body)});},
   previewProductIdentity(subject:FormationSubject,providerId:string) {
     if(!subject.currentRun)throw new Error('当前整理已变化，请刷新。');
     return request<ProductIdentityPreview>(`/v1/admin/formation/runs/${encodeURIComponent(subject.currentRun.libraRunId)}/product-identity-preview?${subject.contentProfile === 'series' ? 'tmdbSeriesId' : 'tmdbMovieId'}=${encodeURIComponent(providerId)}`);

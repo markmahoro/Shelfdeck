@@ -167,7 +167,7 @@
             "requiredInvariant": "完整Verification与有界Record/Result/marker原子；缺失、篡改、Scope漂移拒绝，Event重放不重做观察，无Control/Outbox写入",
             "source": {
               "section": "8.9.7",
-              "line": 15833
+              "line": 15836
             }
           }
         ]
@@ -227,7 +227,7 @@
             "requiredInvariant": "完整Verification与有界Record/Result/marker原子；缺失、篡改、Scope漂移拒绝，Event重放不重做观察，无Control/Outbox写入",
             "source": {
               "section": "8.9.7",
-              "line": 15833
+              "line": 15836
             }
           }
         ]
@@ -287,7 +287,7 @@
             "requiredInvariant": "完整Evidence、有界引用、Result与marker全有或全无；精确Event重放不重新观察；摘要/范围篡改拒绝；无Custody/Control/Outbox变更",
             "source": {
               "section": "8.9.7",
-              "line": 15813
+              "line": 15816
             }
           }
         ]

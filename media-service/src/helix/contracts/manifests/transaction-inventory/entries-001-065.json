@@ -24,11 +24,11 @@
         "transactionId": "helix.transaction.domain-fact-commit",
         "ownerScope": "polymorphic-domain-owner",
         "contractRef": "helix://contracts/transactions/helix.transaction.domain-fact-commit/v1",
-        "contractDigest": "ea5b5c8301833d2454e89e609d6e8619bb7eb555389f95a9fe86ce698d444f82"
+        "contractDigest": "49a15e0a8233878022d07a3899263d3a157556701074b34b7528ef3ea01ca8f2"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "c2ed6d747174c5d4367f1a0d38fb94b6e4dff18daecef5eca796df06cd4b031e"
+        "value": "f16bca53ee7ee4884d3fac7caa345c537067c091ca4b882a69f100b18a98ef39"
       }
     },
     {
@@ -1503,11 +1503,11 @@
         "transactionId": "helix.transaction.jav-correction-admission",
         "ownerScope": "arca",
         "contractRef": "helix://contracts/transactions/helix.transaction.jav-correction-admission/v1",
-        "contractDigest": "8bf836ac2f9ee47dc771d70f82c997544d1476d210fc002a1c89b9f6c2ec1afb"
+        "contractDigest": "d61ca6aff8162b25ae11de74fc32fc4445fb6462c5d76ab1f072c94779b70b1c"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "8ee41ef4127b84e7f4338104fda94761c79ac9e8900333d0718f6fdcd2fcf4b0"
+        "value": "262a53013f01e2b8590b277ec89ecb8971244a6623406efe732d397bab5144a6"
       }
     },
     {
@@ -1561,11 +1561,11 @@
         "transactionId": "helix.transaction.jav-correction-inventory-commit",
         "ownerScope": "arca",
         "contractRef": "helix://contracts/transactions/helix.transaction.jav-correction-inventory-commit/v1",
-        "contractDigest": "7c631069946f0b9f2fa76508ea038743eea7b93c87cbddf2f8541a63d8322f74"
+        "contractDigest": "cfb08f3e7f1b1727a16c3c7b16f632b593a1c68cc9045dedf6b59df082739a15"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "7a76ad0135bc973b53a27539005e6fa806655bf7d66ecc7755280d52309bc754"
+        "value": "26570abecb5d47dfa0073253232e20d53438c4bee6b592f823555b927089bd5a"
       }
     },
     {
@@ -1590,11 +1590,11 @@
         "transactionId": "helix.transaction.people-reference-artifact-reclamation",
         "ownerScope": "people",
         "contractRef": "helix://contracts/transactions/helix.transaction.people-reference-artifact-reclamation/v1",
-        "contractDigest": "2040656ebef4109bf454970641242f37890094e7c4d14a206ebbb9b58017de2c"
+        "contractDigest": "3cc3361e28bb20228c21101530dd125551b65dd114fedbaf3583eea32e2ba163"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "5101d0bb75ae1cc875783e1cc7dd60b0d3fe8c94b809b9d69e79e97032cbd606"
+        "value": "54f8a549a39a87547b7277c53036854c73538149580a3586721bec5cfcc2b235"
       }
     },
     {
@@ -1619,11 +1619,11 @@
         "transactionId": "helix.transaction.jav-correction-workspace-reclaim",
         "ownerScope": "arca",
         "contractRef": "helix://contracts/transactions/helix.transaction.jav-correction-workspace-reclaim/v1",
-        "contractDigest": "b6adc0ed2128d9b3ed530dcfb863d1da13d2801996d29bcacf673d594abefb90"
+        "contractDigest": "eb0c72d3e63b6ae34f26befd3ff6c4697ba40a9424bfb4a4fea871d8c8ca62e3"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "43d2dd0ffbd4b661ea940ccffd4bbebc5890484787e27ebe5f24dc8d71057ec8"
+        "value": "017e100fc902b3b1381b45545cf9c702ef20009c88e7099444c6d870584572db"
       }
     },
     {
@@ -1648,11 +1648,11 @@
         "transactionId": "helix.transaction.jav-correction-cleanup-commit",
         "ownerScope": "arca",
         "contractRef": "helix://contracts/transactions/helix.transaction.jav-correction-cleanup-commit/v1",
-        "contractDigest": "3f192a70064e4fe91170f6128e4092d8cec42511b876cfb8de8aaaeb3b60ae92"
+        "contractDigest": "dd1e4aa60387d9eb5b8041150213e3bfde30697db3624d5c50090129718c7aeb"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "ea70e34e41a981f55f5ef81d03a259ac3576489900c4cbb325c12088b7696322"
+        "value": "175732387d49c86d3b3f81f7831fef6099a4bc5193853c007f7f09b2f04ca366"
       }
     },
     {

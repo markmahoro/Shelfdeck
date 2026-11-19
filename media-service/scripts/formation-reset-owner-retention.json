@@ -1,6 +1,6 @@
 {
   "schemaRef": "formation-reset-owner-retention@1",
-  "schemaDigest": "906ecacce4d6de62e875d1293cec93dd198564c1c53e2f7f7979d75b2eac2d0a",
+  "schemaDigest": "e6446f72482a2bf428dbbc1299be6abcdba132b119a3b111c0c3d2f4c022ab1d",
   "tables": [
     {
       "table": "arca_acceptance_attempts",
@@ -59,6 +59,16 @@
     },
     {
       "table": "arca_canonical_identity_revisions",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_collection_target_heads",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_collection_target_intents",
       "owner": "arca",
       "disposition": "dependent"
     },
@@ -254,6 +264,11 @@
     },
     {
       "table": "arca_offdeck_terminal_receipts",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_offer_withdrawal_receipts",
       "owner": "arca",
       "disposition": "dependent"
     },
@@ -539,6 +554,21 @@
     },
     {
       "table": "libra_acquisition_candidate_evidence",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_custom_target_heads",
+      "owner": "libra",
+      "disposition": "clear"
+    },
+    {
+      "table": "libra_custom_target_intents",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_custom_target_previews",
       "owner": "libra",
       "disposition": "dependent"
     },

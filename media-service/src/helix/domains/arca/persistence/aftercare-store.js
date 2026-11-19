@@ -127,7 +127,7 @@ function createAftercareStore(options) {
   }
   const recordRefresh=createInventoryRecordRefreshStore(options,arca);
   const careWork=createCareWorkStore(options);
-  const read=(body)=>options.unitOfWork.execute([{participantId:'arca_aftercare_read',owner:'arca',repositories:[arca],execute:body}]).arca_aftercare_read;
+  const read=(body,settings)=>options.unitOfWork.execute([{participantId:'arca_aftercare_read',owner:'arca',repositories:[arca],execute:body}],settings).arca_aftercare_read;
   const parse=(value,code)=>{try{return JSON.parse(value);}catch{fail(code,'Stored Aftercare JSON is corrupt.');}};
   const mapAssessment=(row)=>row&&Object.freeze({assessmentId:row.assessment_id,shelfEntryId:row.shelf_entry_id,inventoryRevision:Number(row.inventory_revision),standardRevision:Number(row.standard_revision),placementRevision:Number(row.placement_revision),decisionFactSetDigest:row.decision_fact_set_digest,careBasisDigest:row.care_basis_digest,assessmentKind:row.assessment_kind,result:row.result,incidentKey:row.incident_key||null,seriesPresentationHeadDigest:row.series_presentation_head_digest||null,evidenceDigest:row.evidence_digest,assessedAtMs:Number(row.assessed_at_ms)});
   const mapFinding=(row)=>row&&Object.freeze({findingId:row.finding_id,assessmentId:row.assessment_id,findingKind:row.finding_kind,severity:row.severity,repairability:row.repairability,findingDigest:row.finding_digest,state:row.state,createdAtMs:Number(row.created_at_ms)});
@@ -432,7 +432,8 @@ function createAftercareStore(options) {
     });
   }
   function listEntryPage(cursor,limit=100){const bounded=Math.max(1,Math.min(500,Number(limit)||100));return read((context)=>context.repository(arca.repositoryId).invoke('page_active_entries',{status:'active',rangeStart:'',rangeEnd:'\uffff',cursor,limit:bounded}).map((x)=>Object.freeze({cursor:x.shelf_entry_id,scope:Object.freeze({shelfEntryId:x.shelf_entry_id})})));}
-  return Object.freeze({currentContext,currentNfoContext,recycleProtection,inventoryMaterials,defectStore,
+  return Object.freeze({assertReadFence:(readFence)=>read(()=>{options.unitOfWork.assertReadFence(readFence);},{readFence}),
+    currentContext,currentNfoContext,recycleProtection,inventoryMaterials,defectStore,
     sourceTargetBinding:(shelfEntryId,material)=>read(context=>{const repo=context.repository(arca.repositoryId),
       entry=repo.invoke('find_entry',{shelf_entry_id:shelfEntryId}),shelf=entry&&repo.invoke('find_shelf',{shelf_id:entry.shelf_id});
       if(!shelf)fail('ARCA_SOURCE_TARGET_BINDING_MISSING','Source Shelf is absent.');

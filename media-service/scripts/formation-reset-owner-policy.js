@@ -116,6 +116,7 @@ function buildOwnerRetentionPolicy(manifest, { seriesRetention, metadataRetentio
   children('fx_effect_journal', 'effect_id', ['fx_commit_markers']);
   for (const [parent, id, owner, type] of [
     ['libra_runs', 'libra_run_id', 'libra', 'libra_run'],
+    ['libra_custom_target_intents', 'intent_id', 'libra', 'custom_target'],
     ['libra_product_identity_selection_intents', 'selection_intent_id', 'libra', 'product_identity_selection_intent'],
     ['libra_episode_metadata_mapping_intents', 'intent_id', 'libra', 'episode_metadata_mapping'],
     ['libra_episode_metadata_reviews', 'review_id', 'libra', 'episode_metadata_review'],
@@ -137,6 +138,7 @@ function buildOwnerRetentionPolicy(manifest, { seriesRetention, metadataRetentio
   edge('fx_supporting_works', 'fx_command_receipts', [['work_id', 'target_id'], ['owner_domain', 'owner_domain']], { target_type: 'supporting_work' });
   edge('fx_command_receipts', 'fx_commit_markers', [['command_receipt_id', 'commit_marker']]);
   edge('fx_command_receipts', 'fx_audit_records', [['command_receipt_id', 'audit_id']]);
+  edge('arca_acceptance_decisions', 'fx_commit_markers', [['acceptance_decision_id', 'scope_id']], { owner_domain: 'arca', scope_type: 'acceptance_decision' });
   for (const [parent, id, producer, aggregate] of [
     ['arca_ondeck_runs', 'on_deck_run_id', 'arca', 'on_deck_run'],
     ['arca_acceptance_decisions', 'acceptance_decision_id', 'arca', 'acceptance_decision'],

@@ -371,11 +371,7 @@ function assertLibraSnapshot(repo, decision) {
     catch{fail('P9_PROMOTION_CUSTOM_SNAPSHOT_MISMATCH','Custom Acceptance Spec cannot reconstruct its Handoff snapshot.');}
     if(!suppliedSnapshot||canonicalJson(suppliedSnapshot)!==canonicalJson(expectedSnapshot))
       fail('P9_PROMOTION_CUSTOM_SNAPSHOT_MISMATCH','Handoff snapshot does not match the exact published custom Spec.');
-    // Arca must install a confirmed collection target in the On-deck Commit.
-    // Do not publish a custom Offer until that complete participant is wired.
-    fail('P9_PROMOTION_CUSTOM_ACCEPTANCE_UNAVAILABLE','Custom target Handoff B acceptance is not yet available.');
-  }
-  if(suppliedSnapshot?.customAcceptanceHandoff)
+  }else if(suppliedSnapshot?.customAcceptanceHandoff)
     fail('P9_PROMOTION_CUSTOM_SNAPSHOT_MISMATCH','A standard Spec cannot publish a custom Handoff reference.');
   const runManifest = repo.invoke('find_run_manifest', {
     run_material_manifest_id: decision.runMaterialManifestRef.manifestId,

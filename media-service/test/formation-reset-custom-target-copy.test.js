@@ -10,27 +10,14 @@ const {createRetainedDatabase}=require('../scripts/formation-reset-copy');
 const {buildOwnerRetentionPolicy}=require('../scripts/formation-reset-owner-policy');
 const {readResetOwnerSnapshot}=require('../scripts/formation-reset-owner-snapshot');
 const {verifyRetainedCustomTargets}=require('../scripts/formation-reset-verify');
+const {buildOfferWithdrawal}=require('../src/helix/domains/arca/model/offer-withdrawal');
 const {createOfflineFormationReset}=require('../scripts/formation-reset-offline');
 const {fileDigest}=require('../scripts/formation-reset-generation');
-const declaration=require('../scripts/formation-reset-owner-retention.json');
 const targetSchema={schemaManifest:require('../src/helix/foundation/persistence/generated/clean-schema.manifest.json'),
   schemaDdl:fs.readFileSync(path.join(__dirname,'../src/helix/foundation/persistence/generated/clean-schema.sql'),'utf8')};
 
-// The checked-in declaration intentionally predates the custom-target tables.
-// Simulate the integration thread's proposed classifications in memory only;
-// marking rows dependent must not itself be mistaken for selecting them.
 function reviewedPolicy(owner){
-  const before={schemaDigest:declaration.schemaDigest,tables:declaration.tables};
-  try{
-    declaration.schemaDigest=targetSchema.schemaManifest.ddlDigest;
-    const simulated=new Set(['arca_offer_withdrawal_receipts','libra_custom_target_heads','libra_custom_target_intents','libra_custom_target_previews']);
-    declaration.tables=[...before.tables.filter(row=>!simulated.has(row.table)),
-      {table:'arca_offer_withdrawal_receipts',owner:'arca',disposition:'dependent'},
-      {table:'libra_custom_target_heads',owner:'libra',disposition:'clear'},
-      {table:'libra_custom_target_intents',owner:'libra',disposition:'dependent'},
-      {table:'libra_custom_target_previews',owner:'libra',disposition:'dependent'}];
-    return buildOwnerRetentionPolicy(targetSchema.schemaManifest,owner);
-  }finally{Object.assign(declaration,before);}
+  return buildOwnerRetentionPolicy(targetSchema.schemaManifest,owner);
 }
 
 function fixture(t){
@@ -263,4 +250,60 @@ for(const phase of ['database_copied','owners_normalized'])test('interruption at
   assert.equal(fileDigest(first),firstDigest);assert.equal(fileDigest(f.sourcePath),sourceDigest);
   assert.equal(path.basename(result.candidatePath),'retained-attempt-2.db');
   assert.deepEqual(await resumed.prepare(),result);
+});
+
+function withdrawalFixture(t){
+  const f=fixture(t),pkg=f.packages[1],db=new Database(f.sourcePath);
+  const deliveryFenceBase={eligibility:'ineligible',reasonCode:'target_not_current',libraRunId:'uncommitted-run',
+    runState:'superseded',runStateRevision:1,runStateDigest:D('run-superseded'),acceptanceSpecId:f.unusedSpec.acceptanceSpecId,
+    packageRevisionHead:1,deliveryReceiptAbsent:true};
+  const deliveryFence={...deliveryFenceBase,fenceDigest:D(deliveryFenceBase)};
+  const receipt=buildOfferWithdrawal({offer:{offerId:pkg.offerId,onDeckPackageId:pkg.id,packageRevision:1,packageDigest:pkg.digest,
+    shelfId:'shelf',libraRunId:'uncommitted-run',subjectId:'subject',acceptanceSpecId:f.unusedSpec.acceptanceSpecId,
+    relatedDispositionSetDigest:D('related')},deliveryFence,closedAtMs:100});
+  try{
+    db.pragma('foreign_keys=OFF');
+    db.prepare('INSERT INTO arca_offer_withdrawal_receipts(offer_id,on_deck_package_id,package_revision,package_digest,receipt_id,receipt_schema_ref,receipt_json,receipt_digest,closed_at_ms) VALUES(?,?,?,?,?,?,?,?,?)')
+      .run(pkg.offerId,pkg.id,1,pkg.digest,receipt.receiptId,receipt.schemaRef,canonicalJson(receipt),receipt.receiptDigest,receipt.closedAtMs);
+  }finally{db.close();}
+  return {...f,pkg,receipt};
+}
+
+test('reset clears unretained withdrawn Offers while failing closed on corrupt or exposed withdrawals',t=>{
+  const clean=withdrawalFixture(t),owner=readResetOwnerSnapshot({Database,sourcePath:clean.sourcePath});
+  createRetainedDatabase({Database,sourcePath:clean.sourcePath,targetPath:clean.targetPath,targetSchema,policy:reviewedPolicy(owner)});
+  const copy=new Database(clean.targetPath,{readonly:true});
+  try{
+    assert.equal(copy.prepare('SELECT count(*) n FROM arca_offer_withdrawal_receipts').get().n,0);
+    assert.equal(copy.prepare('SELECT count(*) n FROM libra_product_packages WHERE offer_id=?').get(clean.pkg.offerId).n,0);
+  }finally{copy.close();}
+
+  const corrupt=withdrawalFixture(t),corruptDb=new Database(corrupt.sourcePath),tamperedReceipt={...corrupt.receipt,
+    deliveryFence:{...corrupt.receipt.deliveryFence,reasonCode:'tampered'}};
+  try{
+    corruptDb.prepare('UPDATE arca_offer_withdrawal_receipts SET receipt_json=? WHERE offer_id=?')
+      .run(canonicalJson(tamperedReceipt),corrupt.pkg.offerId);
+  }finally{corruptDb.close();}
+  const corruptOwner=readResetOwnerSnapshot({Database,sourcePath:corrupt.sourcePath});
+  assert.throws(()=>createRetainedDatabase({Database,sourcePath:corrupt.sourcePath,targetPath:corrupt.targetPath,targetSchema,
+    policy:reviewedPolicy(corruptOwner)}),{code:'RESET_WITHDRAWN_OFFER_CORRUPT'});
+
+  const conflicting=withdrawalFixture(t),conflictDb=new Database(conflicting.sourcePath);
+  try{
+    conflictDb.pragma('foreign_keys=OFF');
+    conflictDb.prepare('INSERT INTO arca_acceptance_decisions(acceptance_decision_id,offer_id,on_deck_package_id,package_digest,shelf_id,result) VALUES(?,?,?,?,?,?)')
+      .run('accepted-conflict',conflicting.pkg.offerId,conflicting.pkg.id,conflicting.pkg.digest,'shelf','accepted');
+  }finally{conflictDb.close();}
+  const conflictOwner=readResetOwnerSnapshot({Database,sourcePath:conflicting.sourcePath});
+  assert.throws(()=>createRetainedDatabase({Database,sourcePath:conflicting.sourcePath,targetPath:conflicting.targetPath,targetSchema,
+    policy:reviewedPolicy(conflictOwner)}),{code:'RESET_WITHDRAWN_OFFER_CORRUPT'});
+
+  const exposed=withdrawalFixture(t),exposedDb=new Database(exposed.sourcePath);
+  try{
+    exposedDb.pragma('foreign_keys=OFF');
+    const exposedPolicy={...reviewedPolicy(readResetOwnerSnapshot({Database,sourcePath:exposed.sourcePath})),
+      seeds:[{owner:'libra',table:'libra_product_packages',key:{on_deck_package_id:exposed.pkg.id}}]};
+    assert.throws(()=>createRetainedDatabase({Database,sourcePath:exposed.sourcePath,targetPath:exposed.targetPath,targetSchema,
+      policy:exposedPolicy}),{code:'RESET_WITHDRAWN_OFFER_EXPOSED'});
+  }finally{exposedDb.close();}
 });

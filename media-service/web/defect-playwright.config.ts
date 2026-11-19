@@ -1,6 +1,6 @@
 import {defineConfig,devices} from '@playwright/test';
 export default defineConfig({
-  testDir:'./e2e',testMatch:'defect-admission.spec.ts',timeout:30000,
+  testDir:'./e2e',testMatch:['defect-admission.spec.ts','custom-target.spec.ts'],timeout:30000,
   use:{baseURL:'http://127.0.0.1:18247',trace:'retain-on-failure'},
   webServer:{command:'npm run dev -- --host 127.0.0.1 --port 18247 --strictPort',url:'http://127.0.0.1:18247',reuseExistingServer:false,timeout:120000},
   projects:[

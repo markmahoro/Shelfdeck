@@ -14,7 +14,9 @@ function catalog(db) {
 // explicitly reviewed nullable mapping reference below. This single production
 // cutover qualification is not loaded by business execution or a legacy reader.
 function initializeResetTarget({ Database, targetPath, source, schemaManifest, schemaDdl }) {
-  const allowedNewTables = new Set(['proc_field_reset_barriers','libra_episode_metadata_reviews',
+  const allowedNewTables = new Set(['arca_collection_target_heads','arca_collection_target_intents',
+    'arca_offer_withdrawal_receipts','libra_custom_target_heads','libra_custom_target_intents',
+    'libra_custom_target_previews','proc_field_reset_barriers','libra_episode_metadata_reviews',
     'libra_episode_metadata_mapping_intents','libra_episode_metadata_mapping_heads']);
   const kernel = openSqliteKernel({ Database, databasePath: targetPath, schemaManifest, schemaDdl });
   kernel.close();
@@ -35,7 +37,8 @@ function initializeResetTarget({ Database, targetPath, source, schemaManifest, s
     if ([...byIdentity.values()].some(row => !allowedNewTables.has(row.tbl_name))) fail('RESET_SOURCE_SCHEMA_UNREVIEWED');
     const markers = source.prepare('SELECT * FROM platform_schema_marker').all();
     if (markers.length !== 1 || markers[0].schema_name !== 'shelfdeck' || markers[0].generation !== 'helix-clean-v3' ||
-        ![schemaManifest.ddlDigest, '6a5e8a3de408545fc01cef3d839607621f979a4d886c039fdddd8533b8a6527e'].includes(markers[0].schema_digest) ||
+        ![schemaManifest.ddlDigest, '6a5e8a3de408545fc01cef3d839607621f979a4d886c039fdddd8533b8a6527e',
+          '906ecacce4d6de62e875d1293cec93dd198564c1c53e2f7f7979d75b2eac2d0a'].includes(markers[0].schema_digest) ||
         markers[0].catalog_digest !== canonicalDigest(before)) fail('RESET_SOURCE_SCHEMA_MARKER_INVALID');
     if (source.pragma('foreign_key_check').length || source.pragma('integrity_check', { simple: true }) !== 'ok')
       fail('RESET_SOURCE_DATABASE_INVALID');

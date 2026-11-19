@@ -142,6 +142,10 @@ function createArcaCollectionQuery(options) {
       list_people:{kind:'select-all',tableId:'arca_inventory_person_relations',columns:['shelf_entry_id','inventory_revision','person_id','display_name','role','relation_digest'],keyColumns:['shelf_entry_id','inventory_revision'],safeIntegers:true},
       list_all_people:{kind:'select-all',tableId:'arca_inventory_person_relations',columns:['shelf_entry_id','inventory_revision','person_id','display_name','role','relation_digest'],keyColumns:[],safeIntegers:true},
       find_people:{kind:'select-in',tableId:'arca_inventory_person_relations',keyColumn:'shelf_entry_id',fixedKeyColumns:['inventory_revision'],maxItems:500,columns:['shelf_entry_id','inventory_revision','person_id','display_name','role','relation_digest'],safeIntegers:true},
+      find_target_head:{kind:'select-one',tableId:'arca_collection_target_heads',keyColumns:['shelf_entry_id'],columns:['shelf_entry_id','current_revision','intent_id','intent_digest'],safeIntegers:true},
+      find_target_heads:{kind:'select-in',tableId:'arca_collection_target_heads',keyColumn:'shelf_entry_id',maxItems:500,columns:['shelf_entry_id','current_revision','intent_id','intent_digest'],safeIntegers:true},
+      find_target_intent:{kind:'select-one',tableId:'arca_collection_target_intents',keyColumns:['intent_id'],columns:['intent_id','shelf_entry_id','target_revision','target_kind','intent_json','intent_digest','created_at_ms'],safeIntegers:true},
+      find_target_intents:{kind:'select-in',tableId:'arca_collection_target_intents',keyColumn:'intent_id',maxItems:500,columns:['intent_id','shelf_entry_id','target_revision','target_kind','intent_json','intent_digest','created_at_ms'],safeIntegers:true},
     }});
   const execute=(participant,body)=>options.unitOfWork.execute([{participantId:participant,owner:'arca',repositories:[repository],execute:body}])[participant];
   const continuity=options.readAcceptedSubjectOrigin?createJavPerceptionContinuityReader(options):null;
@@ -170,13 +174,47 @@ function createArcaCollectionQuery(options) {
         year:yearFromDescriptiveFacts(descriptive)};
     });
   }
+  function customTargetChangesFromBasis(basis) {
+    const orig = basis?.originalRequirements, cust = basis?.customRequirements;
+    if (!orig || !cust) return [];
+    const changes = [];
+    if (orig.mandatoryMedia?.minimumRasterClass && orig.mandatoryMedia.minimumRasterClass !== 'none' && cust.mandatoryMedia?.minimumRasterClass === 'none')
+      changes.push(Object.freeze({ requirementCode: 'minimum_raster_unmet', targetId: 'minimumRasterClass' }));
+    if ((orig.mandatoryMedia?.acceptedPrimaryAudioClasses?.length || 0) > 0 && !(cust.mandatoryMedia?.acceptedPrimaryAudioClasses?.length))
+      changes.push(Object.freeze({ requirementCode: 'primary_audio_unmet', targetId: 'acceptedPrimaryAudioClasses' }));
+    if (orig.mandatoryMedia?.videoCodec && orig.mandatoryMedia.videoCodec !== 'any' && cust.mandatoryMedia?.videoCodec === 'any')
+      changes.push(Object.freeze({ requirementCode: 'video_codec_unmet', targetId: 'videoCodec' }));
+    if (orig.mandatoryMedia?.container && orig.mandatoryMedia.container !== 'any' && cust.mandatoryMedia?.container === 'any')
+      changes.push(Object.freeze({ requirementCode: 'container_unmet', targetId: 'container' }));
+    if (orig.mandatoryMedia?.fileExtension && orig.mandatoryMedia.fileExtension !== 'any' && cust.mandatoryMedia?.fileExtension === 'any')
+      changes.push(Object.freeze({ requirementCode: 'file_extension_unmet', targetId: 'fileExtension' }));
+    if (orig.space?.maxSizeBytes != null && cust.space?.maxSizeBytes == null)
+      changes.push(Object.freeze({ requirementCode: 'max_size_exceeded', targetId: 'maxSizeBytes' }));
+    for (const field of orig.metadata?.requiredFieldCodes || []) {
+      if (!(cust.metadata?.requiredFieldCodes || []).includes(field))
+        changes.push(Object.freeze({ requirementCode: 'metadata_field_unmet', targetId: field }));
+    }
+    for (const kind of orig.metadata?.requiredArtifactKinds || []) {
+      if (!(cust.metadata?.requiredArtifactKinds || []).includes(kind))
+        changes.push(Object.freeze({ requirementCode: 'metadata_artifact_unmet', targetId: kind }));
+    }
+    return Object.freeze(changes);
+  }
   function collectionCaches(repo,entries){
+    const entryIds=[...new Set((entries||[]).map((row)=>row.shelf_entry_id))].sort();
+    const targetHeadsList=[];
+    for(let offset=0;offset<entryIds.length;offset+=500)targetHeadsList.push(...repo.invoke('find_target_heads',{values:entryIds.slice(offset,offset+500)}));
+    const intentIds=[...new Set(targetHeadsList.map((row)=>row.intent_id))].sort();
+    const targetIntentsList=[];
+    for(let offset=0;offset<intentIds.length;offset+=500)targetIntentsList.push(...repo.invoke('find_target_intents',{values:intentIds.slice(offset,offset+500)}));
     return Object.freeze({
       identities:new Map(currentRows(repo,'find_identities',entries,true).map((row)=>[row.shelf_entry_id+':'+Number(row.revision),row])),
       shelves:new Map(repo.invoke('list_shelves',{}).map((row)=>[row.shelf_id,row])),
       materials:group(currentRows(repo,'find_materials',entries),(row)=>row.shelf_entry_id+':'+Number(row.inventory_revision)),
       facts:group(currentRows(repo,'find_facts',entries),(row)=>row.shelf_entry_id+':'+Number(row.inventory_revision)),
       people:group(currentRows(repo,'find_people',entries),(row)=>row.shelf_entry_id+':'+Number(row.inventory_revision)),
+      targetHeads:new Map(targetHeadsList.map((row)=>[row.shelf_entry_id,row])),
+      targetIntents:new Map(targetIntentsList.map((row)=>[row.intent_id,row])),
     });
   }
   function map(repo,row,caches=null){if(!row)return null;const identity=caches?caches.identities.get(row.shelf_entry_id+':'+Number(row.canonical_identity_revision)):repo.invoke('find_identity',{shelf_entry_id:row.shelf_entry_id,revision:Number(row.canonical_identity_revision)});
@@ -197,6 +235,16 @@ function createArcaCollectionQuery(options) {
       defectCount:Number(defectManifest.defectCount)||0,
       defects:Object.freeze([...(defectManifest.defects||[])]),
     }):null;
+    const targetHead=caches?caches.targetHeads.get(row.shelf_entry_id):repo.invoke('find_target_head',{shelf_entry_id:row.shelf_entry_id});
+    const targetIntent=targetHead?(caches?caches.targetIntents.get(targetHead.intent_id):repo.invoke('find_target_intent',{intent_id:targetHead.intent_id})):null;
+    let parsedTarget=null;
+    if(targetIntent?.intent_json){try{parsedTarget=JSON.parse(targetIntent.intent_json);}catch{parsedTarget=null;}}
+    const customTarget=targetHead&&targetIntent&&parsedTarget?.targetKind==='user_custom'?Object.freeze({
+      targetRevision:Number(targetHead.current_revision),
+      changes:customTargetChangesFromBasis(parsedTarget.customAcceptanceBasis),
+      confirmedAtMs:Number(targetIntent.created_at_ms),
+    }):null;
+    const collectionBasis=customTarget?'user_custom':defectAdmission?'defect_admitted':'standard';
     return Object.freeze({shelfEntryId:row.shelf_entry_id,shelfId:row.shelf_id,shelfName:shelf?.name||row.shelf_id,structureKind:row.structure_kind,status:row.status,
       canonicalIdentityRevision:Number(row.canonical_identity_revision),canonicalIdentityKey:row.canonical_identity_key,
       provider:identity.provider,providerKey:identity.provider_key,identityKind:identity.identity_kind,identityDigest:identity.identity_digest,
@@ -204,7 +252,7 @@ function createArcaCollectionQuery(options) {
       overview:descriptive.get('overview')||descriptive.get('plot')||null,genres:Object.freeze(genres),people:Object.freeze(people),
       hasPoster:occupancy.hasPoster,hasNfo:occupancy.hasNfo,occupancyBytes:occupancy.occupancyBytes,
       primaryVideoBytes:series?materials.filter(item=>item.role==='primary_payload').reduce((sum,item)=>sum+Number(item.size_bytes),0):occupancy.primaryVideoBytes,primaryContainer:series?null:occupancy.primaryContainer,
-      videoCodec:series?null:spec.codec,videoRaster:series?null:spec.raster,defectAdmission,series,
+      videoCodec:series?null:spec.codec,videoRaster:series?null:spec.raster,defectAdmission,collectionBasis,customTarget,series,
       currentInventoryRevision:revision,currentDeckFactRevision:Number(row.current_deck_fact_revision),
       createdAtMs:Number(row.created_at_ms),terminalAtMs:row.terminal_at_ms===null?null:Number(row.terminal_at_ms)});}
   const emptyHealth=Object.freeze({state:'never_assessed'});

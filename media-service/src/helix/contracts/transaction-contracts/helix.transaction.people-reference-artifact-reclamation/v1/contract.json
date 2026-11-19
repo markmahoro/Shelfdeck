@@ -123,7 +123,7 @@
             "requiredInvariant": "只删除同一正式Work/Effect的精确无引用Artifact；引用/权限变化保留；absence后恢复原Effect并原子结算，未知文件及父目录不删",
             "source": {
               "section": "8.9.7",
-              "line": 14996
+              "line": 14999
             }
           }
         ]
@@ -147,7 +147,7 @@
         "requiredInvariant": "只删除同一正式Work/Effect的精确无引用Artifact；引用/权限变化保留；absence后恢复原Effect并原子结算，未知文件及父目录不删",
         "source": {
           "section": "8.9.7",
-          "line": 14996
+          "line": 14999
         }
       }
     ],

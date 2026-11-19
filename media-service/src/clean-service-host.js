@@ -1136,10 +1136,22 @@ function errorResponse(error, correlationId, context = {}) {
   else if (error.code === 'OVERVIEW_PROJECTION_REBUILDING') status = 503;
   else if (['LIBRA_REPROCESS_INTENT_STALE','LIBRA_REPROCESS_ALREADY_REQUESTED','LIBRA_DEFECT_AUTHORIZATION_STALE',
     'ARCA_DEFECT_AUTHORIZATION_STALE','ARCA_DEFECT_BASIS_STALE','ARCA_DEFECT_PREVIEW_STALE','ARCA_DEFECT_CONTROL_CHANGED',
-    'ARCA_DEFECT_MATERIAL_CHANGED','ARCA_DEFECT_INELIGIBLE','ARCA_DEFECT_COMMAND_KEY_CONFLICT','ARCA_DEFECT_REPAIR_KEY_CONFLICT'].includes(error.code)) status=409;
-  else if (['LIBRA_REPROCESS_SOURCE_MISSING','ARCA_DEFECT_ENTRY_MISSING'].includes(error.code)) status=404;
+    'ARCA_DEFECT_MATERIAL_CHANGED','ARCA_DEFECT_INELIGIBLE','ARCA_DEFECT_COMMAND_KEY_CONFLICT','ARCA_DEFECT_REPAIR_KEY_CONFLICT',
+    'LIBRA_COLLECTION_TARGET_NOT_CURRENT','CUSTOM_TARGET_REQUIREMENT_STALE','P3_UOW_READ_FENCE_CHANGED'].includes(error.code)) status=409;
+  else if (['LIBRA_REPROCESS_SOURCE_MISSING','ARCA_DEFECT_ENTRY_MISSING',
+    'LIBRA_CUSTOM_TARGET_PREVIEW_NOT_FOUND','LIBRA_CUSTOM_TARGET_INTENT_NOT_FOUND'].includes(error.code)) status=404;
   else if (['LIBRA_DEFECT_AUTHORIZATION_INPUT','ARCA_DEFECT_COMMAND_INVALID','ARCA_DEFECT_SCOPE_TOO_LARGE',
     'ARCA_DEFECT_REPAIR_SCOPE_TOO_LARGE'].includes(error.code)) status=400;
+  else if (typeof error.code==='string' && (error.code.startsWith('LIBRA_CUSTOM_TARGET_') || error.code.startsWith('CUSTOM_TARGET_'))) {
+    if ([
+      'LIBRA_CUSTOM_TARGET_COMMAND_INVALID','LIBRA_CUSTOM_TARGET_SHAPE','LIBRA_CUSTOM_TARGET_VALUE',
+      'LIBRA_CUSTOM_TARGET_DIGEST','LIBRA_CUSTOM_TARGET_LIMIT','LIBRA_CUSTOM_TARGET_SELECTION',
+      'LIBRA_CUSTOM_TARGET_CONFIRMATION_REQUIRED','LIBRA_CUSTOM_TARGET_DUPLICATE_CHANGE',
+      'CUSTOM_TARGET_CHANGE_INVALID','CUSTOM_TARGET_CHANGE_LIMIT','CUSTOM_TARGET_NO_CHANGE',
+      'CUSTOM_TARGET_PROTECTED_REQUIREMENT','CUSTOM_TARGET_SCOPE_INVALID','CUSTOM_TARGET_BASE_INVALID',
+    ].includes(error.code)) status=400;
+    else status=409;
+  }
   else if (error.code === 'ADMIN_FIELD_NOT_FOUND') status = 404;
   else if (error.code === 'ADMIN_SHELF_NOT_FOUND') status = 404;
   else if (error.code === 'ADMIN_SHELF_COMMAND_REJECTED' || error.code === 'ADMIN_SHELF_TARGET_MISMATCH') status = 400;
@@ -1272,7 +1284,7 @@ function createRuntime(options) {
   if (!fs.existsSync(path.join(options.adminDistDir, 'index.html'))) {
     findings.push('ADMIN_WEB_BUILD_MISSING');
   }
-  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 164) {
+  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 167) {
     findings.push('ROUTE_INVENTORY_INCOMPLETE');
   }
   if (uiManifest.status !== 'active' || uiManifest.entries.length !== 17) {
@@ -1992,6 +2004,43 @@ async function createCleanServiceHost(options) {
       return result;
     },
   });
+  const libraCustomTargetAdmin = Object.freeze({
+    readPreview(libraRunId, previewId) {
+      const record = procurementExecution.libraCustomTargetAdmin.readPreview('admin', previewId);
+      if (record.basis.libraRunId !== libraRunId) {
+        throw Object.assign(new Error('LIBRA_CUSTOM_TARGET_PREVIEW_NOT_FOUND'), { code: 'LIBRA_CUSTOM_TARGET_PREVIEW_NOT_FOUND' });
+      }
+      return Object.freeze({ kind: 'preview', record });
+    },
+    preparePreview(libraRunId, body) {
+      return procurementExecution.libraCustomTargetAdmin.preparePreview('admin', {
+        subjectId: body?.subjectId,
+        libraRunId,
+        idempotencyKey: body?.idempotencyKey,
+      });
+    },
+    confirm(libraRunId, body) {
+      if (typeof body?.previewDigest === 'string' && body.previewDigest.trim()) {
+        const preview = procurementExecution.libraCustomTargetAdmin.readPreview('admin', body.previewDigest);
+        if (preview.basis.libraRunId !== libraRunId) {
+          throw Object.assign(new Error('LIBRA_CUSTOM_TARGET_PREVIEW_NOT_FOUND'), { code: 'LIBRA_CUSTOM_TARGET_PREVIEW_NOT_FOUND' });
+        }
+      }
+      const result = procurementExecution.libraCustomTargetAdmin.confirm('admin', {
+        previewDigest: body?.previewDigest,
+        selectedChangeDigests: body?.selectedChangeDigests,
+        acknowledged: body?.acknowledged,
+        idempotencyKey: body?.idempotencyKey,
+      });
+      const subjectId = result?.record?.subjectId || formationProjectionSource.findSubjectByRun(libraRunId);
+      if (subjectId) formationProjectionHost.enqueue(subjectId);
+      executionRuntimeHost.wakeBackground({ ownerDomain: 'libra', reconcilerKey: 'ready-libra-runs' });
+      executionRuntimeHost.wakeBackground({ ownerDomain: 'libra', reconcilerKey: 'active-libra-runs' });
+      executionRuntimeHost.wakeBackground({ ownerDomain: 'libra', reconcilerKey: 'frozen-libra-outcomes' });
+      executionRuntimeHost.wake();
+      return result;
+    },
+  });
   const productIdentitySelection = Object.freeze({
     preview(libraRunId, tmdbMovieId) { return procurementExecution.productIdentitySelection.preview(libraRunId, tmdbMovieId); },
     choose(libraRunId, body, actor) {
@@ -2192,6 +2241,7 @@ async function createCleanServiceHost(options) {
     arcaOffdeck,
     routingManualSelection,
     libraRunAdmin,
+    libraCustomTargetAdmin,
     productIdentitySelection,
     usAdultActorChoice,
     episodeMetadataMappingService: procurementExecution.episodeMetadataMapping,

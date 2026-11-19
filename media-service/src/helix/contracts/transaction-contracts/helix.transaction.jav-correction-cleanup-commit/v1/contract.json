@@ -87,7 +87,7 @@
         "requiredInvariant": "cleanup Receipt与completed/门禁释放全有或全无；无文件、Control或历史Commit写入；重放同Receipt，失败保持门禁",
         "source": {
           "section": "8.9.7",
-          "line": 16113
+          "line": 16116
         }
       }
     ],

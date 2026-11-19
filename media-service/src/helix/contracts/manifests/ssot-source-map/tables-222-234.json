@@ -133,7 +133,7 @@
       "constraintsContract": "`PK(authorization_id,revision)`；immutable；revision为正整数",
       "source": {
         "section": "8.9.9",
-        "line": 16110,
+        "line": 16113,
         "lineDigest": "8508fbbc000e32d4ee694d07ecb38e1ed718c02d1012fca2ddfde1962e7622a5"
       }
     },
@@ -144,7 +144,7 @@
       "constraintsContract": "current pointer显式复合FK；CAS revision",
       "source": {
         "section": "8.9.9",
-        "line": 16111,
+        "line": 16114,
         "lineDigest": "bce49ca70aa8369999f80da9113bbbd8fbf4082ab42977bf8732b90ae344fa2e"
       }
     }

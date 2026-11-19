@@ -338,6 +338,18 @@ function createCleanFacades(options) {
       body: options.libraRunAdmin.admitWithDefects(input.params.libraRunId, input.body),
     });
   }
+  if (options.libraCustomTargetAdmin) {
+    facades.LibraFormationFacade.get_formation_runs_librarunid_custom_target_previews_previewid = async (input) => ({
+      body: options.libraCustomTargetAdmin.readPreview(input.params.libraRunId, input.params.previewId),
+    });
+    facades.LibraFormationFacade.post_formation_runs_librarunid_actions_prepare_custom_target_preview = async (input) => ({
+      body: options.libraCustomTargetAdmin.preparePreview(input.params.libraRunId, input.body),
+    });
+    facades.LibraFormationFacade.post_formation_runs_librarunid_actions_confirm_custom_target = async (input) => ({
+      status: 202,
+      body: options.libraCustomTargetAdmin.confirm(input.params.libraRunId, input.body),
+    });
+  }
   if (options.productIdentitySelection) {
     facades.LibraFormationFacade.get_formation_runs_librarunid_product_identity_preview = async (input) => ({
       body: await options.productIdentitySelection.preview(input.params.libraRunId, input.query),

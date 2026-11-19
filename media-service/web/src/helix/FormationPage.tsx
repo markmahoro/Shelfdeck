@@ -5,12 +5,13 @@ import ManualIdentityDialog from './ManualIdentityDialog';
 import JavIdentityDialog from './JavIdentityDialog';
 import {DefectAdmissionControl} from './DefectAdmissionControl';
 import DefectAdmissionDialog from './DefectAdmissionDialog';
+import CustomTargetDialog from './CustomTargetDialog';
 import RunOutcomeDetail from './RunOutcomeDetail';
 import {readWorkbenchPage,type WorkbenchCursor} from './workbench-pagination';
 import { ProcessDialog, ProcessStages, progressDetail } from './ProcessStages';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AdminApiError, helixAdminApi, type DefectAdmissionCandidate, type FormationRunHistory, type FormationSubject, type FormationIntakeTask, type FormationSummary, type PerceptionSyncState, type Shelf } from './api';
+import { AdminApiError, helixAdminApi, type CustomTargetPreviewRecord, type DefectAdmissionCandidate, type FormationRunHistory, type FormationSubject, type FormationIntakeTask, type FormationSummary, type PerceptionSyncState, type Shelf } from './api';
 import { Button, LoadingState, PageHeader, ReadProgress } from './chrome';
 import { Dialog } from '../components/ui';
 import RatingControl from './RatingControl';
@@ -108,6 +109,7 @@ export default function FormationPage() {
   const [identityDialog,setIdentityDialog]=useState<{item:FormationSubject;trigger:HTMLButtonElement}|null>(null);
   const [seriesRetry,setSeriesRetry]=useState<FormationSubject|null>(null);
   const [defectDialog,setDefectDialog]=useState<{item:FormationSubject;candidate:DefectAdmissionCandidate;trigger?:HTMLButtonElement}|null>(null);
+  const [customDialog,setCustomDialog]=useState<{item:FormationSubject;preview:CustomTargetPreviewRecord;trigger?:HTMLButtonElement}|null>(null);
   const [careItems,setCareItems]=useState<CareWorkItem[]>([]),[selectedCare,setSelectedCare]=useState<CareWorkItem|null>(null);
   const [careCounts,setCareCounts]=useState<Record<string,number>>({});
   const [correctionCounts,setCorrectionCounts]=useState<Record<string,number>>({}),[selectedCorrection,setSelectedCorrection]=useState<JavCorrectionWorkItem|null>(null);
@@ -261,10 +263,10 @@ export default function FormationPage() {
     catch(cause){if(generation===detailGeneration.current){if(isUnauthorized(cause))expire();else setDetailError('整理过程读取失败，请关闭后重试。');}}
     finally{if(generation===detailGeneration.current)setDetailLoading(false);}
   };
-  const action=async(item:FormationSubject,kind:'expedite'|'discard'|'admitDefects'|'retry'|'chooseShelf'|'chooseIdentity',value?:boolean|string,trigger?:HTMLButtonElement)=>{
+  const action=async(item:FormationSubject,kind:'expedite'|'discard'|'admitDefects'|'customizeTarget'|'retry'|'chooseShelf'|'chooseIdentity',value?:boolean|string,trigger?:HTMLButtonElement)=>{
     if(kind==='discard'){setDiscardSubmitted(false);setExcludeSourceFiles(false);setDiscardError('');setDiscardNotice('');setDiscardNeedsRefresh(false);setDiscardDialog({item,idempotencyKey:`discard:${item.currentRun?.libraRunId||item.subjectId}:${item.currentRun?.stateRevision||0}:${newOpaqueId()}`});return;}
     if(kind==='retry'&&item.executorIssue?.phase==='series_presentation'){setSeriesRetry(item);return;}
-    let defectDialogOpened=false;setLoading(true);setError('');
+    let defectDialogOpened=false,customDialogOpened=false;setLoading(true);setError('');
     try{
       if(kind==='expedite')await helixAdminApi.setRunExpedited(item,Boolean(value));
       else if(kind==='admitDefects'){
@@ -273,6 +275,15 @@ export default function FormationPage() {
         setLoading(false);
         if(candidate.eligibility!=='eligible'){setError(candidate.message);return;}
         defectDialogOpened=true;setDefectDialog({item,candidate,trigger});
+        return;
+      }
+      else if(kind==='customizeTarget'){
+        setNotice('');
+        const previewResult=await helixAdminApi.prepareCustomTargetPreview(item);
+        setLoading(false);
+        if(previewResult.kind==='evidence_pending'){setNotice('正在补充源媒体与寻源证据，请稍后再试。');return;}
+        if(previewResult.kind==='ineligible'){setError('当前任务没有可放宽的收藏标准项。');return;}
+        customDialogOpened=true;setCustomDialog({item,preview:previewResult.record,trigger});
         return;
       }
       else if(kind==='retry'){
@@ -287,7 +298,7 @@ export default function FormationPage() {
       await load();
     }catch(cause){setError(cause instanceof Error?cause.message:'操作失败。');}finally{
       setLoading(false);
-      if(kind==='admitDefects'&&!defectDialogOpened&&trigger)requestAnimationFrame(()=>{
+      if(((kind==='admitDefects'&&!defectDialogOpened)||(kind==='customizeTarget'&&!customDialogOpened))&&trigger)requestAnimationFrame(()=>{
         if(document.activeElement===document.body&&trigger.isConnected)trigger.focus({preventScroll:true});
       });
     }
@@ -367,6 +378,12 @@ export default function FormationPage() {
         await load(false,currentPage.current,true);
         setNotice('瑕疵已接受，系统正在继续整理；页面已按实际状态更新。');
       }}/>}
+    {customDialog&&<CustomTargetDialog item={customDialog.item} preview={customDialog.preview} returnFocus={customDialog.trigger}
+      returnFocusFallback={()=>noticeRef.current||pageRef.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')||null}
+      onClose={()=>setCustomDialog(null)} onUnauthorized={expire} onComplete={async()=>{
+        await load(false,currentPage.current,true);
+        setNotice('已确认自定义收藏标准，正在按新标准重新整理。');
+      }}/>}
   </section>;
 }
 
@@ -392,9 +409,9 @@ function IntakeTaskRow({item,onChanged}:{item:FormationIntakeTask;onChanged:()=>
   </tr>;
 }
 
-function MediaRow({item,shelves,loading,acquisitionIncomplete,onOpen,onAction,onManualIdentity,onEpisodeMetadata}:{item:FormationSubject;shelves:Shelf[];loading:boolean;acquisitionIncomplete:boolean;onOpen:(item:FormationSubject,button:HTMLButtonElement)=>void;onManualIdentity:(item:FormationSubject,button:HTMLButtonElement)=>void;onEpisodeMetadata:(item:FormationSubject,button:HTMLButtonElement)=>void;onAction:(item:FormationSubject,kind:'expedite'|'discard'|'admitDefects'|'retry'|'chooseShelf'|'chooseIdentity',value?:boolean|string,trigger?:HTMLButtonElement)=>void}) {
+function MediaRow({item,shelves,loading,acquisitionIncomplete,onOpen,onAction,onManualIdentity,onEpisodeMetadata}:{item:FormationSubject;shelves:Shelf[];loading:boolean;acquisitionIncomplete:boolean;onOpen:(item:FormationSubject,button:HTMLButtonElement)=>void;onManualIdentity:(item:FormationSubject,button:HTMLButtonElement)=>void;onEpisodeMetadata:(item:FormationSubject,button:HTMLButtonElement)=>void;onAction:(item:FormationSubject,kind:'expedite'|'discard'|'admitDefects'|'customizeTarget'|'retry'|'chooseShelf'|'chooseIdentity',value?:boolean|string,trigger?:HTMLButtonElement)=>void}) {
   const expedited=item.currentRun?.priorityClass==='expedited',reason=currentProgressLabel(item),progressDetail=currentProgressDetail(item);
   const [shelfId,setShelfId]=useState(''),[identityId,setIdentityId]=useState('');
   const actionControl=item.unresolvedReasonCode==='task_cancellation_pending'?<span role="status">正在取消</span>:item.contentProfile==='western_adult'&&item.currentRun?.state==='active'&&!item.handoffB?<div className="formation-inline-action"><Button type="button" disabled={loading} aria-haspopup="dialog" onClick={event=>onManualIdentity(item,event.currentTarget)}>选择演员</Button><Button type="button" variant="text" disabled={loading} onClick={()=>void onAction(item,'discard')}>取消整理任务</Button></div>:item.unresolvedReasonCode==='routing_policy_unavailable'&&item.routingConfigurationFieldId?<RoutingConfiguration item={item}/>:item.preparationFailure?<Button type="button" disabled={loading} onClick={()=>void onAction(item,'retry')}>重试整理</Button>:item.executorIssue&&(item.executorIssue.canRetry||item.executorIssue.canRecheck)?<Button type="button" disabled={loading} onClick={()=>void onAction(item,'retry')}>重试上架</Button>:item.currentRun?.state==='frozen'&&!item.productIdentityIssue&&(!item.handoffB||item.handoffB.state==='rejected')?<div className="formation-inline-action"><DefectAdmissionControl item={item} disabled={loading} onAdmit={trigger=>void onAction(item,'admitDefects',undefined,trigger)} /><Button type="button" variant="text" disabled={loading} onClick={()=>void onAction(item,'discard')}>取消整理任务</Button></div>:canDiscardRejectedHandoff(item)?<Button type="button" variant="text" disabled={loading} onClick={()=>void onAction(item,'discard')}>取消整理任务</Button>:item.productIdentityIssue?<div className="formation-inline-action">{item.productIdentityIssue.candidates.length>0&&<><select aria-label={`为${item.displayIdentity}选择${item.contentProfile === 'series' ? '剧集身份' : '影片身份'}`} value={identityId} onChange={(event)=>setIdentityId(event.target.value)}><option value="">{item.contentProfile === 'series' ? '选择剧集身份' : '选择影片身份'}</option>{item.productIdentityIssue.candidates.map((candidate)=><option key={candidate.providerKey} value={candidate.providerKey.replace(/^tmdb:(?:movie|series):/,'')}>{candidate.displayTitle}{candidate.releaseYear?` (${candidate.releaseYear})`:''}</option>)}</select><Button type="button" disabled={loading||!identityId} onClick={()=>void onAction(item,'chooseIdentity',identityId)}>确认</Button></>}<Button type="button" variant="text" className="identity-picker-trigger" aria-haspopup="dialog" disabled={loading} onClick={event=>onManualIdentity(item,event.currentTarget)}>{item.contentProfile === 'jav' ? '确认番号' : item.contentProfile === 'series' ? '手动选取剧集身份' : '手动选取影片身份'}</Button><Button type="button" variant="text" disabled={loading} onClick={()=>void onAction(item,'discard')}>取消整理任务</Button></div>:canChooseShelf(item)?<div className="formation-inline-action"><select aria-label={`为${item.displayIdentity}选择收藏架`} value={shelfId} onChange={(event)=>setShelfId(event.target.value)}><option value="">选择收藏架</option>{shelves.map((shelf)=><option key={shelf.shelfId} value={shelf.shelfId}>{shelf.name}</option>)}</select><Button type="button" disabled={loading||!shelfId} onClick={()=>void onAction(item,'chooseShelf',shelfId)}>确认</Button></div>:item.currentRun?.state==='active'&&!item.handoffB?<Button type="button" variant="text" disabled={loading} onClick={()=>void onAction(item,'discard')}>取消整理任务</Button>:<span className="formation-stub-empty">—</span>;
-  return <tr className="formation-stub-media-row" data-classification={item.classification} data-expedited={expedited||undefined}><td><strong>{item.displayIdentity}</strong><SeriesDelivery item={item} /><small>{statusLabel(item)} · {formatTime(item.addedAtMs)}</small></td><td><span className="formation-stub-rating">{ratingText(item,acquisitionIncomplete)}</span>{item.myRatingSource!=='douban'&&<RatingControl targetType="subject" targetId={item.subjectId} label={item.displayIdentity} initialRating={item.myRating} initialSource={item.myRatingSource} initialRevision={item.myRatingRevision} />}</td><td>{shelfName(item,shelves)}</td><td>{item.organizingRequirement}</td><td><strong className="formation-stub-current" data-state={item.classification}>{reason}</strong>{progressDetail&&<small>{progressDetail}</small>}</td><td><Button type="button" variant="text" aria-haspopup="dialog" onClick={(event)=>void onOpen(item,event.currentTarget)}>查看过程</Button></td><td>{item.currentPlan?.configurationTarget ? <SettlementConfiguration item={item} /> : actionControl}{item.contentProfile==='series'&&item.currentRun&&['frozen','suspended'].includes(item.currentRun.state)&&item.currentRun.packageRevisionHead===0&&item.currentRun.currentIdentityRevision&&!item.productIdentityIssue&&item.unresolvedReasonCode!=='task_cancellation_pending'&&<Button type="button" variant="text" disabled={loading} aria-haspopup="dialog" onClick={event=>onEpisodeMetadata(item,event.currentTarget)}>确认季集资料</Button>}{!item.currentRun&&!item.handoffB&&!item.executorIssue&&item.status==='active'&&item.unresolvedReasonCode!=='task_cancellation_pending'&&<Button type="button" variant="text" disabled={loading} onClick={()=>void onAction(item,'discard')}>取消整理任务</Button>}</td><td><button type="button" className="formation-expedite-toggle" aria-label={canExpedite(item)?(expedited?`取消加急 ${item.displayIdentity}`:`加急 ${item.displayIdentity}`):`${item.displayIdentity}无需加急`} aria-pressed={canExpedite(item)?expedited:undefined} disabled={loading||!canExpedite(item)} onClick={()=>void onAction(item,'expedite',!expedited)}>{expedited?'已加急':'加急'}</button></td><td>上架任务</td></tr>;
+  return <tr className="formation-stub-media-row" data-classification={item.classification} data-expedited={expedited||undefined}><td><strong>{item.displayIdentity}</strong><SeriesDelivery item={item} />{item.customTarget?.active&&<small>自定义标准</small>}<small>{statusLabel(item)} · {formatTime(item.addedAtMs)}</small></td><td><span className="formation-stub-rating">{ratingText(item,acquisitionIncomplete)}</span>{item.myRatingSource!=='douban'&&<RatingControl targetType="subject" targetId={item.subjectId} label={item.displayIdentity} initialRating={item.myRating} initialSource={item.myRatingSource} initialRevision={item.myRatingRevision} />}</td><td>{shelfName(item,shelves)}</td><td>{item.organizingRequirement}</td><td><strong className="formation-stub-current" data-state={item.classification}>{reason}</strong>{progressDetail&&<small>{progressDetail}</small>}</td><td><Button type="button" variant="text" aria-haspopup="dialog" onClick={(event)=>void onOpen(item,event.currentTarget)}>查看过程</Button></td><td>{item.currentPlan?.configurationTarget ? <SettlementConfiguration item={item} /> : actionControl}{item.customTarget?.canCustomize&&<Button type="button" variant="text" disabled={loading} aria-haspopup="dialog" onClick={event=>void onAction(item,'customizeTarget',undefined,event.currentTarget)}>调整收藏标准</Button>}{item.contentProfile==='series'&&item.currentRun&&['frozen','suspended'].includes(item.currentRun.state)&&item.currentRun.packageRevisionHead===0&&item.currentRun.currentIdentityRevision&&!item.productIdentityIssue&&item.unresolvedReasonCode!=='task_cancellation_pending'&&<Button type="button" variant="text" disabled={loading} aria-haspopup="dialog" onClick={event=>onEpisodeMetadata(item,event.currentTarget)}>确认季集资料</Button>}{!item.currentRun&&!item.handoffB&&!item.executorIssue&&item.status==='active'&&item.unresolvedReasonCode!=='task_cancellation_pending'&&<Button type="button" variant="text" disabled={loading} onClick={()=>void onAction(item,'discard')}>取消整理任务</Button>}</td><td><button type="button" className="formation-expedite-toggle" aria-label={canExpedite(item)?(expedited?`取消加急 ${item.displayIdentity}`:`加急 ${item.displayIdentity}`):`${item.displayIdentity}无需加急`} aria-pressed={canExpedite(item)?expedited:undefined} disabled={loading||!canExpedite(item)} onClick={()=>void onAction(item,'expedite',!expedited)}>{expedited?'已加急':'加急'}</button></td><td>上架任务</td></tr>;
 }

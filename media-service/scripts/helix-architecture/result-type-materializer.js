@@ -5,9 +5,9 @@ const path = require('path');
 const { buildResultTypeSchemas, schemaDigest, typeId } = require('./result-type-schema-builder');
 
 const HELPER_SOURCES = {
-  FinalProductVerification:{section:'8.6.19',line:15833},
-  FulfillmentVerification:{section:'8.6.19',line:15834},
-  StagedInventoryManifest: { section:'8.6.19',line:15825 },
+  FinalProductVerification:{section:'8.6.19',line:15836},
+  FulfillmentVerification:{section:'8.6.19',line:15837},
+  StagedInventoryManifest: { section:'8.6.19',line:15828 },
   AcceptanceCheck: { section: '8.6.19', line: 11122 },
   EpisodeMetadataRecordSet: { section: '8.6.19', line: 11102 },
   PrimaryInputManifestDraft: { section: '8.6.19', line: 11081 },

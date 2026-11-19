@@ -102,7 +102,7 @@
         "requiredInvariant": "任一步失败无新head/Control/terminal/Receipt/marker；旧视频及原入藏Receipt不变；成功全有，同Event重放不重做文件或创建第二Commit",
         "source": {
           "section": "8.9.7",
-          "line": 16085
+          "line": 16088
         }
       }
     ],

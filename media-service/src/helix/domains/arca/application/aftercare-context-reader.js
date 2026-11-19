@@ -22,7 +22,7 @@ function defectManifest(facts){const row=(facts||[]).find((item)=>item.fact_kind
 function createAftercareContextReader(options){const store=options.aftercareStore||createAftercareStore(options);
   const requirementCache=new Map();
   function targetFence(){if(!options.collectionTargetPort)return null;
-    if(typeof options.unitOfWork?.captureReadFence!=='function'||typeof options.unitOfWork?.assertReadFence!=='function'||
+    if(typeof options.unitOfWork?.captureReadFence!=='function'||typeof store.assertReadFence!=='function'||
         typeof options.collectionTargetPort.readMany!=='function')throw Object.assign(new Error('Collection target reader requires a fenced Owner projection.'),
           {code:'ARCA_COLLECTION_TARGET_READER_UNAVAILABLE'});
     return options.unitOfWork.captureReadFence();}
@@ -32,7 +32,7 @@ function createAftercareContextReader(options){const store=options.aftercareStor
     if(!(values instanceof Map)||values.size!==ids.length||ids.some(id=>!values.has(id)))
       throw Object.assign(new Error('Collection target projection is incomplete.'),{code:'ARCA_COLLECTION_TARGET_READER_UNAVAILABLE'});
     for(const id of ids){const value=values.get(id);if(value!==null)assertCollectionCareTarget(value,id);}
-    options.unitOfWork.assertReadFence(readFence);return values;
+    store.assertReadFence(readFence);return values;
   }
   function originalRequirements(items) {
     const requested=new Map();
@@ -86,7 +86,7 @@ function createAftercareContextReader(options){const store=options.aftercareStor
     const placement=sealed('helix://contracts/domain-types/Placement/v1',shelfEntryId+':placement',raw.shelf.current_placement_revision,{shelfEntryId,placementRevision:raw.shelf.current_placement_revision,targetEndpointId:raw.shelf.target_endpoint_id,placementDigest:raw.placement.policy_digest});
     const result=Object.freeze({shelfEntryId,originalRequirements:originalRequirements([{shelfEntryId,acceptedPackageReference:raw.acceptedPackageReference,authorizedDefectManifest:defectManifest(raw.facts)}]).get(shelfEntryId),defectAuthorization:store.defectStore.current(shelfEntryId),raw:Object.freeze({...raw,perceptionRating,collectionTarget}),basis,knownBindings,inventoryRevision,metadataRefs,standard,placement,authorizedDefectManifest:defectManifest(raw.facts)});
     if(collectionTarget)assertCollectionCareTarget(collectionTarget,shelfEntryId,{shelfId:raw.shelf.shelf_id,inventoryRevision:raw.entry.current_inventory_revision});
-    if(readFence)options.unitOfWork.assertReadFence(readFence);return result;}
+    if(readFence)store.assertReadFence(readFence);return result;}
   function healthProjectionInputs(shelfEntryIds){
     const readFence=targetFence(),items=store.healthProjectionInputs(shelfEntryIds,{includeAssessments:false}),targets=collectionTargets(items.map(item=>item.shelfEntryId),readFence),originals=originalRequirements(items),
       authorizations=store.defectStore.currentMany(shelfEntryIds),
@@ -106,7 +106,7 @@ function createAftercareContextReader(options){const store=options.aftercareStor
       inventoryRevision:context.basis.inventoryRevision,standardRevision:context.basis.standardRevision,
       placementRevision:context.basis.placementRevision,canonicalIdentityRevision:Number(items[index].canonicalIdentity.revision)})));
     const result=contexts.map(context=>Object.freeze({...context,history:Object.freeze({...context.history,...histories.get(context.shelfEntryId)})}));
-    if(readFence)options.unitOfWork.assertReadFence(readFence);return result;
+    if(readFence)store.assertReadFence(readFence);return result;
   }
   return Object.freeze({store,read,
     sourceTargetBinding:(shelfEntryId,material)=>store.sourceTargetBinding(shelfEntryId,material),

@@ -88,7 +88,7 @@
         "requiredInvariant": "Admission and command facts are all present or all absent; stale Control or Entry rolls everything back; replay needs no cache and preserves old collection/Commit/bytes.",
         "source": {
           "section": "8.9.7",
-          "line": 15949
+          "line": 15952
         }
       }
     ],

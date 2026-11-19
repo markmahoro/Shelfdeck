@@ -580,7 +580,8 @@ test('Formation never asks Perception to rate a cancelled Subject',()=>{
     find_decision_heads:['decisionHeads','subject_id'],find_acceptance_specs:['specs','subject_id'],
     find_runs:['runs','subject_id'],find_run_revisions:['runRevisions','libra_run_id'],find_packages:['packages','libra_run_id'],
     find_identity_intents:['identityIntents','libra_run_id'],find_us_completions:['usCompletions','libra_run_id'],
-    find_us_actor_choices:['usChoices','subject_id'],find_cancellations:['cancellations','subject_id']};
+    find_us_actor_choices:['usChoices','subject_id'],find_cancellations:['cancellations','subject_id'],
+    find_custom_target_heads:['customTargetHeads','subject_id'],find_custom_target_intents:['customTargetIntents','intent_id']};
   const repo={invoke(statement,params={}){
     if(statement==='find_subject')return rows.subjects.find((row)=>row.subject_id===params.subject_id)||null;
     const [key,keyColumn]=statementKeys[statement]||[];

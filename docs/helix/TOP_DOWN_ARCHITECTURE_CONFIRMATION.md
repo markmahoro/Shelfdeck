@@ -13874,6 +13874,9 @@ POST /v1/admin/formation/runs/:libraRunId/actions/cancel-expedite
 POST /v1/admin/formation/runs/:libraRunId/actions/discard
 GET  /v1/admin/formation/runs/:libraRunId/defect-admission-candidate
 POST /v1/admin/formation/runs/:libraRunId/actions/admit-with-defects
+GET  /v1/admin/formation/runs/:libraRunId/custom-target-previews/:previewId
+POST /v1/admin/formation/runs/:libraRunId/actions/prepare-custom-target-preview
+POST /v1/admin/formation/runs/:libraRunId/actions/confirm-custom-target
 POST /v1/admin/formation/runs/:libraRunId/actions/choose-product-identity
 POST /v1/admin/formation/runs/:libraRunId/actions/choose-us-adult-actor
 POST /v1/admin/formation/acceptance/:offerId/actions/retry

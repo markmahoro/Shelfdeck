@@ -8,6 +8,7 @@ const { initializeResetTarget } = require('./formation-reset-schema');
 const { digestResetSnapshot } = require('./formation-reset-snapshot-digest');
 const { createSqliteUnitOfWork } = require('../src/helix/foundation/persistence/sqlite-unit-of-work');
 const { createFreshResetCustomTargetRetention } = require('../src/helix/domains/libra/public');
+const { verifyWithdrawnOffersClosed } = require('./formation-reset-verify');
 const IDENTIFIER = /^[a-z][a-z0-9_]*$/;
 function fail(code, details) { throw Object.assign(new Error(code), { code, details }); }
 function quote(value) {
@@ -210,6 +211,7 @@ function retainIntoSnapshot(source, target, policy, schemaTransition, schemaMani
         fail('RESET_COPY_OWNER_REFERENCE_MISSING', { parent: edge.parent, child: edge.child });
     }
   }
+  verifyWithdrawnOffersClosed(source, target);
   const retained = [...tables.values()].map(t => {
     if(t.empty){
       if(target.prepare('SELECT count(*) n FROM '+quote(t.name)).get().n!==0)fail('RESET_COPY_FACTS_CHANGED',{table:t.name});

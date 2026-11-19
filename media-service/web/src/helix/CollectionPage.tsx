@@ -10,6 +10,7 @@ import { processFailureLabel } from './error-labels';
 import RatingControl from './RatingControl';
 import WatchedControl from './WatchedControl';
 import CollectionDefects from './CollectionDefects';
+import { customChangeLabel } from './CustomTargetDialog';
 import JavCorrectionDialog from './JavCorrectionDialog';
 import UsAdultInventoryActorDialog from './UsAdultInventoryActorDialog';
 import { isUnauthorized, useSession } from './session';
@@ -229,7 +230,7 @@ export default function CollectionPage() {
       <ReadProgress active={loading}/>
       {loading && items.length === 0 ? <LoadingState skeleton="posters">正在打开收藏架…</LoadingState> : items.length === 0 && error ? null : items.length === 0 ? <div className="source-empty"><strong>{summary.currentCount === 0 ? '还没有正式上架的收藏' : '没有找到符合条件的收藏'}</strong></div> : <div className="poster-wall">{items.map((item) => <button className="poster-tile" key={item.shelfEntryId} onClick={() => setSelected(item)} aria-label={`查看 ${item.displayIdentity} 详情${item.series ? `，第 ${item.series.seasonNumber} 季` : ''}，收藏健康：${healthLabels[item.health.state]}`}>
         <span className="poster-frame">{item.hasPoster ? <img src={helixAdminApi.collectionPosterUrl(item.shelfEntryId, item.currentInventoryRevision, 'wall')} alt="" loading="lazy" decoding="async" /> : <span className="poster-fallback" aria-hidden="true"><b>{item.displayIdentity.slice(0, 2)}</b><small>ShelfDeck</small></span>}{<span className={`health-seal ${item.health.state}`} title={healthLabels[item.health.state]} aria-hidden="true">{item.health.state === 'attention_required' ? '需处理' : healthLabels[item.health.state]}</span>}</span>
-        <span className="poster-caption"><strong>{item.displayIdentity}</strong><small>{item.series ? `第 ${item.series.seasonNumber} 季 · ${item.series.episodeCount} 集 · ` : ''}{item.year || '年份未知'} · {item.shelfName}</small>{item.defectAdmission&&<small>瑕疵入库 · {item.defectAdmission.defects.some((defect)=>defect.defectCode==='size_cap_exceeded')?'体积超过档位上限':`${item.defectAdmission.defectCount}项`}</small>}</span>
+        <span className="poster-caption"><strong>{item.displayIdentity}</strong><small>{item.series ? `第 ${item.series.seasonNumber} 季 · ${item.series.episodeCount} 集 · ` : ''}{item.year || '年份未知'} · {item.shelfName}</small>{(item.collectionBasis==='user_custom'||Boolean(item.customTarget))&&<small>自定义标准</small>}{item.defectAdmission&&<small>瑕疵入库 · {item.defectAdmission.defects.some((defect)=>defect.defectCode==='size_cap_exceeded')?'体积超过档位上限':`${item.defectAdmission.defectCount}项`}</small>}</span>
       </button>)}</div>}
       {hasResult && <nav className="collection-more" aria-label="收藏分页">
         <Button type="button" disabled={loading || pageIndex === 0} onClick={() => void load(pageCursors.current[pageIndex - 1], pageIndex - 1)}>上一页</Button>
@@ -256,6 +257,8 @@ export default function CollectionPage() {
             <div><dt>海报 / NFO</dt><dd>{selected.hasPoster ? '有海报' : '无海报'} · {selected.hasNfo ? '有 NFO' : '无 NFO'}</dd></div>
             <div><dt>资料来源</dt><dd>{selected.provider === 'tmdb' ? 'TMDB' : selected.provider === 'internal' ? '演员库' : selected.provider}</dd></div>
             <div><dt>状态</dt><dd>已上架</dd></div>
+            <div><dt>收藏依据</dt><dd>{selected.collectionBasis === 'user_custom' ? `自定义标准（已放宽 ${selected.customTarget?.changes.length || 0} 项要求）` : selected.defectAdmission ? '带瑕疵入藏' : '标准达标'}</dd></div>
+            {selected.customTarget&&selected.customTarget.changes.length>0&&<div><dt>已调整标准</dt><dd>{selected.customTarget.changes.map((change)=>customChangeLabel(change)).join('；')}</dd></div>}
           </dl>
           {selected.series && <SeriesFiles series={selected.series} />}
           <div className="collection-rating"><span>我的评分</span><RatingControl targetType="shelf_entry" targetId={selected.shelfEntryId} label={selected.displayIdentity} /></div>

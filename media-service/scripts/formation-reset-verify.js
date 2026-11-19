@@ -11,8 +11,58 @@ const { readResetOwnerSnapshotDatabase } = require('./formation-reset-owner-snap
 const { verifyRetainedControls } = require('./formation-reset-responsibilities');
 const { verifyRetainedPeopleReferences } = require('./formation-reset-people-references');
 const { createFreshResetCustomTargetRetention } = require('../src/helix/domains/libra/public');
+const { decodeOfferWithdrawalRow } = require('../src/helix/domains/arca/persistence/offer-withdrawal-store');
 
 function fail(code, details) { throw Object.assign(new Error(code), { code, details }); }
+
+function verifyWithdrawnOffersClosed(source, target) {
+  if (!source.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='arca_offer_withdrawal_receipts'").get()) {
+    return Object.freeze({ count: 0 });
+  }
+  const hasOutbox = Boolean(target.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='fx_outbox'").get());
+  const hasWorks = Boolean(target.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='fx_supporting_works'").get());
+  const page = source.prepare(
+    'SELECT offer_id,on_deck_package_id,package_revision,package_digest,receipt_id,receipt_schema_ref,receipt_json,receipt_digest,closed_at_ms ' +
+    'FROM arca_offer_withdrawal_receipts WHERE (? IS NULL OR offer_id>?) ORDER BY offer_id LIMIT 128'
+  ).safeIntegers();
+  const srcAcceptedDecision = source.prepare("SELECT 1 FROM arca_acceptance_decisions WHERE (offer_id=? OR on_deck_package_id=?) AND result='accepted' LIMIT 1");
+  const srcAcceptedAttempt = source.prepare("SELECT 1 FROM arca_acceptance_attempts WHERE (offer_id=? OR on_deck_package_id=?) AND state='accepted' LIMIT 1");
+  const srcCustody = source.prepare('SELECT 1 FROM arca_ondeck_custodies WHERE on_deck_package_id=? LIMIT 1');
+  const dstChecks = [
+    target.prepare('SELECT 1 FROM arca_offer_withdrawal_receipts WHERE offer_id=? OR on_deck_package_id=? LIMIT 1'),
+    target.prepare('SELECT 1 FROM libra_product_packages WHERE offer_id=? OR on_deck_package_id=? LIMIT 1'),
+    target.prepare('SELECT 1 FROM arca_acceptance_attempts WHERE offer_id=? OR on_deck_package_id=? LIMIT 1'),
+    target.prepare('SELECT 1 FROM arca_acceptance_decisions WHERE offer_id=? OR on_deck_package_id=? LIMIT 1'),
+    target.prepare('SELECT 1 FROM arca_ondeck_custodies WHERE on_deck_package_id=? LIMIT 1'),
+  ];
+  const dstWork = hasWorks ? target.prepare(
+    "SELECT 1 FROM fx_supporting_works WHERE owner_domain='arca' AND process_type='arca_acceptance' AND process_id=? LIMIT 1"
+  ) : null;
+  const dstOutbox = hasOutbox ? target.prepare(
+    "SELECT 1 FROM fx_outbox WHERE producer_domain='libra' AND ((aggregate_type='on_deck_package' AND aggregate_id=?) OR (message_kind IN ('libra.product-offer.available@1','libra.product-offer.available') AND json_extract(payload_json,'$.offerId')=?)) LIMIT 1"
+  ) : null;
+  let cursor = null, batch, count = 0;
+  while ((batch = page.all(cursor, cursor)).length) {
+    for (const row of batch) {
+      let receipt;
+      try { receipt = decodeOfferWithdrawalRow(row); }
+      catch { fail('RESET_WITHDRAWN_OFFER_CORRUPT', { offerId: row.offer_id }); }
+      const offerId = receipt?.offer?.offerId, pkgId = receipt?.offer?.onDeckPackageId;
+      if (!receipt || srcAcceptedDecision.get(offerId, pkgId) || srcAcceptedAttempt.get(offerId, pkgId) || srcCustody.get(pkgId)) {
+        fail('RESET_WITHDRAWN_OFFER_CORRUPT', { offerId: row.offer_id });
+      }
+      for (let i = 0; i < 4; i++) {
+        if (dstChecks[i].get(offerId, pkgId)) fail('RESET_WITHDRAWN_OFFER_EXPOSED', { offerId });
+      }
+      if (dstChecks[4].get(pkgId) || dstWork?.get(offerId) || dstOutbox?.get(pkgId, offerId)) {
+        fail('RESET_WITHDRAWN_OFFER_EXPOSED', { offerId });
+      }
+      count++;
+    }
+    cursor = batch.at(-1).offer_id;
+  }
+  return Object.freeze({ count });
+}
 function digestRows(rows) {
   const hash = createHash('sha256'); let count = 0;
   hash.update('[');
@@ -128,6 +178,7 @@ function verifyRetainedCollections({ Database, sourcePath, targetPath, schemaMan
     });
     const shared = verifySharedCollections(source, target);
     const customTargets = verifyRetainedCustomTargets(source,target,schemaManifest);
+    const withdrawnOffers = verifyWithdrawnOffersClosed(source, target);
     const packages = source.prepare(`SELECT DISTINCT p.on_deck_package_id,p.offer_id,p.package_revision,p.package_digest
       FROM arca_ondeck_commit_receipts c JOIN arca_ondeck_runs r ON r.on_deck_run_id=c.on_deck_run_id
       JOIN arca_ondeck_custodies k ON k.custody_id=r.custody_id
@@ -172,7 +223,7 @@ function verifyRetainedCollections({ Database, sourcePath, targetPath, schemaMan
         fail('RESET_VERIFY_PACKAGE_CHANGED', { packageId: row.on_deck_package_id });
       reconstructed.push({ packageId: row.on_deck_package_id, digest: canonicalDigest(after) });
     }
-    return { schemaRef: 'formation-reset-collection-verification@1', integrity, controls, protections, shared, peopleReferences, customTargets,
+    return { schemaRef: 'formation-reset-collection-verification@1', integrity, controls, protections, shared, peopleReferences, customTargets, withdrawnOffers,
       reconstructedCommits: ownership.length, ownershipDigest: canonicalDigest(ownership),
       reconstructedPackages: reconstructed.length, packageReadDigest: canonicalDigest(reconstructed) };
   } finally {
@@ -183,4 +234,4 @@ function verifyRetainedCollections({ Database, sourcePath, targetPath, schemaMan
   }
 }
 
-module.exports = Object.freeze({ verifyRetainedCollections, verifyRetainedCustomTargets, digestRows });
+module.exports = Object.freeze({ verifyRetainedCollections, verifyRetainedCustomTargets, verifyWithdrawnOffersClosed, digestRows });

@@ -9,6 +9,9 @@ const {createLibraHandoffResponsibilityReader}=require('./handoff-responsibility
 const {createLibraRunInputControlReader}=require('./run-input-control-reader');
 const {createLibraCustomTargetDispatchGuard}=require('./custom-target-dispatch-guard');
 const {createCustomTargetContinuation}=require('./custom-target-continuation');
+const {createAcquisitionCandidateEvidenceStore}=require('../persistence/acquisition-candidate-evidence-store');
+const {createMovieCustomTargetViewReader}=require('./movie-custom-target-view-reader');
+const {createCustomTargetApplication}=require('./custom-target-application');
 
 // All business decisions remain inside Libra; Arca and Foundation enter only
 // through their public read/cancellation ports. No new scheduling loop is made.
@@ -25,8 +28,18 @@ function createLibraCustomTargetRuntimeSupport(options){
     replacementReadiness=createCustomTargetReplacementReadiness({...options,customTargetStore}),
     inputControlReader=createLibraRunInputControlReader(options),
     guard=createLibraCustomTargetDispatchGuard({targetReader,replacementReadiness,customTargetStore,inputControlReader,
-      readCurrentCustomTargetBaseline});
-  return Object.freeze({guard,customTargetStore,currentRunTargetReader:targetReader,
+      readCurrentCustomTargetBaseline}),
+    acquisitionCandidateEvidenceStore=options.acquisitionCandidateEvidenceStore||
+      (options.contractValidator?createAcquisitionCandidateEvidenceStore(options):null),
+    currentViewReader=options.currentViewReader||
+      (options.movieProductionReader&&options.productProductionPort&&acquisitionCandidateEvidenceStore
+        ? createMovieCustomTargetViewReader({...options,customTargetStore,acquisitionCandidateEvidenceStore,
+            readHandoffResponsibility:(request,view)=>responsibility.read(request,view)})
+        : null),
+    customTargetApplication=currentViewReader
+      ? createCustomTargetApplication({...options,customTargetStore,currentViewReader,readCurrentCustomTargetBaseline})
+      : null;
+  return Object.freeze({guard,customTargetStore,currentRunTargetReader:targetReader,customTargetApplication,
     readHandoffResponsibility:(request,view)=>responsibility.read(request,view),readCurrentCustomTargetBaseline,
     createContinuation(libraRunCreator){return createCustomTargetContinuation({...options,customTargetStore,
       customSpecPublicationStore:publisher,libraRunCreator});}});

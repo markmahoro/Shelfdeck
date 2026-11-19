@@ -77,7 +77,7 @@
         "requiredInvariant": "Registry生命周期/Result/marker全有或全无；物理部分退出沿原Effect继续，错材料保留冲突；原身份/库存/视频不变，cleanup门禁保持",
         "source": {
           "section": "8.9.7",
-          "line": 16108
+          "line": 16111
         }
       }
     ],

@@ -482,6 +482,9 @@ function createProcurementExecutionRuntime(options) {
     onProcessCancelled: (scope) => executorIncidentObserver.reconcileRecoveryReservations(scope) });
   const arcaOfferResponsibility=createArcaOfferResponsibilityProjection(options),
     customTargetRuntime=createLibraCustomTargetRuntimeSupport({...options,now,workResultReader,materialControlProjectionPort,
+      contractValidator,
+      movieProductionReader:libraCapabilityRegistration.movieProductionReader,
+      productProductionPort:libraOptions.productProductionPort,
       acceptanceSpecContextReader:{read:(...args)=>libraProcessServices.acceptanceSpecContextReader.read(...args)},
       readArcaOfferResponsibility:offer=>arcaOfferResponsibility.read(offer),
       readArcaFormationStatus:offerIds=>arcaProcessServices.formationStatusProjection.read(offerIds),
@@ -1433,6 +1436,7 @@ function createProcurementExecutionRuntime(options) {
     usAdultActorChoice:libraProcessServices.usAdultActorChoice,
     episodeMetadataMapping:libraProcessServices.episodeMetadataMapping,
     usAdultActorSelectionQuery:libraProcessServices.usAdultActorSelectionQuery,
+    libraCustomTargetAdmin:customTargetRuntime.customTargetApplication,
     arcaCoordinator:arcaProcessServices.coordinator,arcaContextReader:arcaProcessServices.contextReader,
     arcaFormationStatusProjection:arcaProcessServices.formationStatusProjection,
     arcaAcceptanceRecovery:arcaProcessServices.coordinator,
