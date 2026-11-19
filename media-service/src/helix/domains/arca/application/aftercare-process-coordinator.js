@@ -14,6 +14,12 @@ const { observeKnownOldBindings } = require('../model/known-old-binding');
 const { projectAftercareProcess } = require('./aftercare-process-projection');
 
 const LIMITS=Object.freeze({globalOpenWorks:256,ownerOpenWorks:256,openEvents:256});
+const ACTOR_WORK_KINDS=Object.freeze([
+  'us_adult_actor_source','us_adult_actor_match','us_adult_actor_assets','us_adult_actor_stage',
+  'us_adult_actor_publish','us_adult_actor_verify','us_adult_actor_commit','us_adult_actor_retire',
+  'us_adult_actor_discard','us_adult_actor_close',
+]);
+const ACTOR_FORMAL_WORK_KINDS=Object.freeze(ACTOR_WORK_KINDS.slice(3));
 // Revision 6 includes exact requirement gaps and independent Inventory playback
 // evidence. Earlier assessments cannot prove this stronger health contract.
 const ASSESSMENT_EXECUTION_REVISION=6;
@@ -74,18 +80,34 @@ function createAftercareProcessCoordinator(options){
     }
     return null;
   }
+  function actorCaseWorkIds(shelfEntryId,care,kinds=ACTOR_WORK_KINDS){
+    const workIds=[];
+    for(const workKind of kinds){
+      const works=options.workResultReader.listWorks({ownerDomain:'arca',processType:'arca_shelf_entry',
+        processId:shelfEntryId,workKind});
+      for(const work of works){
+        const definition=options.workResultReader.readDefinition(work.work_id)?.definition;
+        if(definition?.dependencyRefs.some(ref=>ref.ownerDomain==='arca'&&ref.objectType==='aftercare_case'&&
+            ref.objectId===care.aftercareCaseId&&ref.digest===care.careRequirementDigest))workIds.push(work.work_id);
+      }
+    }
+    return workIds;
+  }
   function caseDetail(aftercareCaseId){
     const care=store.getCase(aftercareCaseId);
     if(!care||care.state==='queued')return null;
-    const workIds=[];
-    for(const workKind of ['care_repair_prepare','care_repair_commit','health_assessment','care_case_closure','care_deregistration_settlement']){
-      const works=options.workResultReader.listWorks({ownerDomain:'arca',processType:'arca_shelf_entry',
-        processId:care.shelfEntryId,workKind});
-      for(const work of works){
-        const definition=options.workResultReader.readDefinition(work.work_id)?.definition;
-        if(definition?.dependencyRefs.some(ref=>ref.ownerDomain==='arca'&&
-          (ref.objectType==='aftercare_case'&&ref.objectId===aftercareCaseId&&ref.digest===care.careRequirementDigest||
-           ref.objectType==='assessment_cycle'&&ref.objectId==='case-reassessment:'+aftercareCaseId)))workIds.push(work.work_id);
+    const isActor=Boolean(readActorRefreshRequirement(care.careRequirement)),
+      workIds=isActor?actorCaseWorkIds(care.shelfEntryId,care):[];
+    if(!isActor){
+      for(const workKind of ['care_repair_prepare','care_repair_commit','health_assessment','care_case_closure','care_deregistration_settlement']){
+        const works=options.workResultReader.listWorks({ownerDomain:'arca',processType:'arca_shelf_entry',
+          processId:care.shelfEntryId,workKind});
+        for(const work of works){
+          const definition=options.workResultReader.readDefinition(work.work_id)?.definition;
+          if(definition?.dependencyRefs.some(ref=>ref.ownerDomain==='arca'&&
+            (ref.objectType==='aftercare_case'&&ref.objectId===aftercareCaseId&&ref.digest===care.careRequirementDigest||
+             ref.objectType==='assessment_cycle'&&ref.objectId==='case-reassessment:'+aftercareCaseId)))workIds.push(work.work_id);
+        }
       }
     }
     const works=options.progressProjectionReader.read([care.shelfEntryId],{includePlans:true,workIds})
@@ -126,7 +148,14 @@ function createAftercareProcessCoordinator(options){
     return Object.freeze({kind:terminalState==='invalidated'?'case_invalidated':'case_unresolved',shelfEntryId:c.shelfEntryId,
       aftercareCaseId:care.aftercareCaseId,reasonCode});
   }
-  function stopForModificationFence(c,care){return stopCase(c,care,'invalidated','modification_fenced');}
+  function stopForModificationFence(c,care){
+    if(readActorRefreshRequirement(care.careRequirement)&&care.state==='active'&&
+        (actorCaseWorkIds(c.shelfEntryId,care,ACTOR_FORMAL_WORK_KINDS).length>0||
+         store.history(c.shelfEntryId).commits.some(item=>item.aftercareCaseId===care.aftercareCaseId)))
+      return Object.freeze({kind:'actor_refresh_attention_required',shelfEntryId:c.shelfEntryId,
+        aftercareCaseId:care.aftercareCaseId,reasonCode:'modification_fenced'});
+    return stopCase(c,care,'invalidated','modification_fenced');
+  }
   function basisMatchesCase(c,care,inventoryCommit){const frozen=care.careBasis;if(!inventoryCommit)return care.careBasisDigest===c.basis.digest;return Number(c.basis.inventoryRevision)===Number(inventoryCommit.newInventoryRevision)&&
     frozen.standardRevision===c.basis.standardRevision&&frozen.placementRevision===c.basis.placementRevision&&
     frozen.canonicalIdentityDigest===c.basis.canonicalIdentityDigest&&frozen.sourcePackageId===c.basis.sourcePackageId&&
@@ -288,6 +317,20 @@ function createAftercareProcessCoordinator(options){
     if(!c||!care)return null;
     const goals=Object.freeze(careFindingCodes(care.careRequirement));
     if(care.state==='queued')return Object.freeze({aftercareCaseId:care.aftercareCaseId,stage:'queued',progressPercent:null,progress:null,goals});
+    if(readActorRefreshRequirement(care.careRequirement)){
+      const workIds=actorCaseWorkIds(shelfEntryId,care),
+        works=typeof options.progressProjectionReader?.read==='function'
+          ?options.progressProjectionReader.read([shelfEntryId],{workIds,includePlans:true}):[],
+        inventoryCommit=history.commits.find(item=>item.aftercareCaseId===care.aftercareCaseId),
+        currentAction=projectAftercareProcess(works,now()).currentAction;
+      let stage='preparing';
+      if(works.some(work=>['failed','timed_out','cancelled'].includes(work.state)))stage='waiting_for_recovery';
+      else if(inventoryCommit||works.some(work=>work.workKind==='us_adult_actor_commit'&&work.state==='succeeded'))stage='committing_inventory';
+      else if(works.some(work=>work.events?.some(event=>event.state==='waiting_for_resource')))stage='waiting_for_resource';
+      else if(works.some(work=>['running','executing','waiting_for_external','waiting_for_approval','ready','admitted'].includes(work.state)))stage='preparing_media';
+      return Object.freeze({aftercareCaseId:care.aftercareCaseId,stage,currentAction,
+        progressPercent:null,progress:null,goals});
+    }
     const inventoryCommit=history.commits.find(item=>item.aftercareCaseId===care.aftercareCaseId),
       prepare=inspectCaseWork(c,'care_repair_prepare',care),
       commitExtra=prepare?[{ownerDomain:'arca',objectType:'repair_prepare_work',objectId:prepare.work.workId,revision:1,digest:care.careRequirementDigest}]:[],

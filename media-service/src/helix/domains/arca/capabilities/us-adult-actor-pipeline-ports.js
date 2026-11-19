@@ -8,6 +8,18 @@ const {renderUsAdultInventoryNfo}=require('../model/aftercare-nfo');
 const {physicalIdentityFromInventoryRow,aftercareInventoryCommitId,aftercareInventoryCommitDigest}=require('../model/aftercare-contract');
 const {createMaterialControlParticipant,controlScopeDigest}=require('../../../foundation/persistence/material-control');
 const stable=(prefix,value)=>prefix+D(value).slice(0,40);
+const OBSERVATION_IO_CODES=new Set([
+  'ENOENT','EACCES','EPERM','EIO','EBUSY','EAGAIN','EINVAL','ETIMEDOUT','ESTALE','ENOTCONN','ECONNRESET','EHOSTUNREACH','ENETUNREACH',
+  'SQLITE_BUSY','SQLITE_LOCKED','PHYSICAL_MATERIAL_FINGERPRINT_IO_FAILED','PHYSICAL_MATERIAL_STAT_FENCE_CHANGED','PHYSICAL_MATERIAL_FINGERPRINT_SHORT_READ',
+]);
+const PRECONDITION_FAILURES=Object.freeze({
+  stage:Object.freeze({boundary:'before_stage',schema:'arca.actor-stage-precondition@1',
+    codes:new Set(['ARCA_US_ADULT_STAGE_CONFLICT','ARCA_US_ADULT_FILE_CHANGED','ARCA_US_ADULT_FILE_ESCAPE']),
+    message:'Actor staging stopped before creating any stage files.'}),
+  publish:Object.freeze({boundary:'before_publication',schema:'arca.actor-publication-precondition@1',
+    codes:new Set(['ARCA_US_ADULT_TARGET_CONFLICT','ARCA_US_ADULT_FILE_CHANGED','ARCA_US_ADULT_FILE_ESCAPE']),
+    message:'Actor publication stopped before changing any files.'}),
+});
 function fail(message){throw Object.assign(new Error(message),{code:'ARCA_US_ADULT_PHASE_PROOF_INVALID'});}
 function selectedPhase(action,input){return action==='close'&&input?.action==='unchanged'?'unchanged':action==='retire'&&input?.action==='discard'?'discard':action;}
 function createUsAdultActorPipelinePorts(options){
@@ -132,8 +144,15 @@ function createUsAdultActorPipelinePorts(options){
         const port=query.portFor(snapshot),proof=await port.files.observe(snapshot.plan,snapshot.stages.stage?.record?.result.receipt,phase,{
           shouldContinue:()=>query.assertAuthority(snapshot.intent.shelfEntryId,caseId)});
         return {status:'forward_required',rollbackDeclared:false,evidenceDigest:D(proof)};
-      }catch(error){return {status:'conflict',...(fact?{fenceValid:false,...(!committing?{revisionMatches:false}:{})}:{rollbackDeclared:false}),
-        evidenceDigest:D({schema:'arca.us-adult-phase-recovery-conflict@1',action,eventId:context.event?.event_id||null,code:error.code||'ARCA_US_ADULT_RECOVERY_CONFLICT'})};}
+      }catch(error){
+        if(!fact&&OBSERVATION_IO_CODES.has(error?.code)){
+          return {status:'unobservable',...(action==='assets'?{cleanupDeclared:false}:{rollbackDeclared:false}),
+            evidenceDigest:D({schema:'arca.us-adult-phase-recovery-unobservable@1',action,eventId:context.event?.event_id||null,
+              code:error.code,causeCode:error.details?.causeCode||error.code})};
+        }
+        return {status:'conflict',...(fact?{fenceValid:false,...(!committing?{revisionMatches:false}:{})}:{rollbackDeclared:false}),
+          evidenceDigest:D({schema:'arca.us-adult-phase-recovery-conflict@1',action,eventId:context.event?.event_id||null,code:error.code||'ARCA_US_ADULT_RECOVERY_CONFLICT'})};
+      }
     },
     validateInputs(execution){return current(execution,selectedPhase(action,execution.namedInputs?.usAdultActorExecutionInput));},
     async execute(execution){
@@ -152,13 +171,15 @@ function createUsAdultActorPipelinePorts(options){
       try{receipt=phase==='stage'?await port.files.stage(snapshot.plan,settings):phase==='retire'?
           await port.files.retire(snapshot.plan,manifest,{...settings,inventoryCommitted:true}):await port.files[phase](snapshot.plan,manifest,settings);}
       catch(error){
-        if(phase==='publish'&&!execution.recoveryDecision&&error.details?.effectWriteStarted===false&&error.details.boundary==='before_publication'&&
-            ['ARCA_US_ADULT_TARGET_CONFLICT','ARCA_US_ADULT_FILE_CHANGED','ARCA_US_ADULT_FILE_ESCAPE'].includes(error.code))
-          return {kind:'failed',failureClass:'placement_precondition',code:error.code,message:'Actor publication stopped before changing any files.',
+        const rule=PRECONDITION_FAILURES[phase];
+        if(rule&&!execution.recoveryDecision&&error.details?.effectWriteStarted===false&&
+            error.details.boundary===rule.boundary&&rule.codes.has(error.code))
+          return {kind:'failed',failureClass:'placement_precondition',code:error.code,message:rule.message,
             retryDirective:'never',evidence:{aftercareCaseId:snapshot.care.aftercareCaseId,planDigest:snapshot.plan.planDigest,
-              errorCode:error.code,effectWriteStarted:false,boundary:'before_publication',diagnostics:{
-                schema:'arca.actor-publication-precondition@1',aftercareCaseId:snapshot.care.aftercareCaseId,intentDigest:snapshot.intent.intentDigest,
-                workId:execution.workId,eventId:execution.eventId,planDigest:snapshot.plan.planDigest,errorCode:error.code,effectWriteStarted:false,boundary:'before_publication'}}};
+              errorCode:error.code,effectWriteStarted:false,boundary:rule.boundary,diagnostics:{
+                schema:rule.schema,aftercareCaseId:snapshot.care.aftercareCaseId,intentDigest:snapshot.intent.intentDigest,
+                workId:execution.workId,eventId:execution.eventId,planDigest:snapshot.plan.planDigest,
+                errorCode:error.code,effectWriteStarted:false,boundary:rule.boundary}}};
         throw error;
       }
       const at=now();
