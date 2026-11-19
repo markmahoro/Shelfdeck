@@ -3,8 +3,16 @@ const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypt
 const policy=require('../contracts/buffalo-model-reference').pack;
 const math=require('./buffalo-math');
 function fail(code,message){throw Object.assign(new Error(message),{code});}
-function createBuffaloImageEngine({modelRoot,ort=require('onnxruntime-node'),sharp=require('sharp')}={}){
-  let detector=null,recognizer=null,loading=null,closed=false;
+function defaultHasCudaDevice(){return fs.existsSync('/dev/nvidia0')||fs.existsSync('/dev/nvidiactl');}
+function createBuffaloImageEngine({
+  modelRoot,
+  ort=require('onnxruntime-node'),
+  sharp=require('sharp'),
+  executionProviderMode=process.env.SHELFDECK_BUFFALO_EP||'auto',
+  platform=process.platform,
+  hasCudaDevice=defaultHasCudaDevice,
+}={}){
+  let detector=null,recognizer=null,loading=null,closed=false,activeProvider=null;
   async function load(){
     if(closed)fail('BUFFALO_CLOSED','The buffalo image engine is closed.');
     if(ort.env?.versions?.node!==policy.runtimeVersion)fail('BUFFALO_RUNTIME_INVALID','The ONNX runtime differs from the qualified model contract.');
@@ -16,10 +24,34 @@ function createBuffaloImageEngine({modelRoot,ort=require('onnxruntime-node'),sha
           fail('BUFFALO_MODEL_INVALID','A pinned model failed verification.');
         paths[item.role]=file;
       }
-      const settings={executionProviders:['cpu'],intraOpNumThreads:2,interOpNumThreads:1,logSeverityLevel:3};
-      detector=await ort.InferenceSession.create(paths.detector,settings);
-      try{recognizer=await ort.InferenceSession.create(paths.recognizer,settings);}
-      catch(error){await detector.release();detector=null;throw error;}
+      async function openPair(executionProviders){
+        const settings={executionProviders,intraOpNumThreads:2,interOpNumThreads:1,logSeverityLevel:3};
+        const nextDetector=await ort.InferenceSession.create(paths.detector,settings);
+        try{
+          const nextRecognizer=await ort.InferenceSession.create(paths.recognizer,settings);
+          return {detector:nextDetector,recognizer:nextRecognizer};
+        }catch(error){
+          await nextDetector.release();
+          throw error;
+        }
+      }
+      const mode=String(executionProviderMode||'auto').toLowerCase();
+      const tryCuda=mode==='cuda'||(mode==='auto'&&platform==='linux'&&Boolean(hasCudaDevice()));
+      let pair;
+      if(tryCuda){
+        try{
+          pair=await openPair([{name:'cuda',deviceId:0},'cpu']);
+          activeProvider='cuda';
+        }catch(error){
+          if(mode==='cuda')throw error;
+          pair=await openPair(['cpu']);
+          activeProvider='cpu';
+        }
+      }else{
+        pair=await openPair(['cpu']);
+        activeProvider='cpu';
+      }
+      detector=pair.detector;recognizer=pair.recognizer;
     })();
     return loading;
   }
@@ -78,7 +110,7 @@ function createBuffaloImageEngine({modelRoot,ort=require('onnxruntime-node'),sha
     return {faces,coordinateSpace:{kind:'corrected_canvas',sourceWidth:source.width,sourceHeight:source.height,
       width:canvas.width,height:canvas.height,rotationDegrees,pixelDigest:crypto.createHash('sha256').update(canvas.data).digest('hex')}};
   }
-  return Object.freeze({load,decode,analyzeRaw,analyzeEvidence,async analyze(bytes,options){return analyzeRaw(await decode(bytes),options);},
-    async close(){closed=true;if(loading)await loading.catch(()=>{});if(recognizer)await recognizer.release();if(detector)await detector.release();recognizer=null;detector=null;}});
+  return Object.freeze({load,decode,analyzeRaw,analyzeEvidence,executionProvider:()=>activeProvider,async analyze(bytes,options){return analyzeRaw(await decode(bytes),options);},
+    async close(){closed=true;activeProvider=null;if(loading)await loading.catch(()=>{});if(recognizer)await recognizer.release();if(detector)await detector.release();recognizer=null;detector=null;}});
 }
 module.exports=Object.freeze({createBuffaloImageEngine});

@@ -10,6 +10,16 @@ const WORKS=Object.freeze({
   health_assessment:['reassessment','复核收藏健康','重新检查维护后的实际文件与收藏要求。'],
   care_case_closure:['closure','完成维护','依据复检结果记录本次维护结论。'],
   care_deregistration_settlement:['settlement','结束维护与收尾','处理要求变化或执行终止后的责任收尾。'],
+  us_adult_actor_source:['source','分析影片画面','读取源影片并提取人脸特征。'],
+  us_adult_actor_match:['matching','匹配演员参考','比对演员参考库中的人脸特征。'],
+  us_adult_actor_assets:['assets','生成演员资料','渲染演员海报、说明书与冻结文件计划。'],
+  us_adult_actor_stage:['stage','暂存文件','在目标卷准备并校验完整的暂存文件。'],
+  us_adult_actor_publish:['publish','发布更新文件','保留原文件别名并切换至新演员文件。'],
+  us_adult_actor_verify:['verify','校验正式文件','核对发布后的正式文件与保留原件。'],
+  us_adult_actor_commit:['commit','提交演员更新','原子更新库存记录、出演关系与材料控制。'],
+  us_adult_actor_retire:['retire','清理旧文件','在库存提交后移除已退役的旧路径与暂存文件。'],
+  us_adult_actor_discard:['discard','清理暂存文件','在未发布变更前清理本次暂存文件。'],
+  us_adult_actor_close:['closure','完成演员刷新','记录本次演员刷新维护结论。'],
 });
 const LABELS=Object.freeze({
   [C.textRender]:'准备说明书',[C.binaryAcquire]:'取得海报',[C.artifactMaterialize]:'保存资料',
@@ -19,6 +29,15 @@ const LABELS=Object.freeze({
   [C.assessmentCommit]:'保存健康检查结果',[C.caseCommit]:'记录维护结论',
   [A.slot]:'准备收藏位置',[A.stage]:'暂存处理结果',[A.stagedVerify]:'验证暂存结果',
   [A.placement]:'切换收藏位置',[A.finalVerify]:'验证正式文件',
+  'arca.us_adult.source.prepare@1':'提取影片画面特征',
+  'arca.us_adult.references.match@1':'比对演员参考页',
+  'arca.us_adult.assets.prepare@1':'生成海报与说明书',
+  'arca.us_adult.files.stage@1':'暂存更新文件',
+  'arca.us_adult.files.publish@1':'发布更新文件',
+  'arca.us_adult.files.verify@1':'校验正式文件',
+  'arca.us_adult.inventory.commit@1':'提交库存更新',
+  'arca.us_adult.files.retire@1':'清理旧路径与暂存',
+  'arca.us_adult.case.commit@1':'记录刷新结论',
 });
 function state(value){
   return value==='succeeded'?'completed':value==='cancelled'?'cancelled':['failed','timed_out'].includes(value)?'attention':

@@ -1,33 +1,37 @@
 'use strict';
 
 /**
- * Safe production deploy for the NAS.
+ * Safe production deploy for heavy (192.168.12.215).
  *
  * Build the image on the workstation, upload the tar, then:
- *   node scripts/deploy-nas.js /vol1/1000/docker/shelfdeck/shelfdeck-<tag>.tar --sha256 <hash>
- *   node scripts/deploy-nas.js /vol1/1000/docker/shelfdeck/shelfdeck-<tag>.tar --sha256 <hash> --helix-clean-init --apply
+ *   node scripts/deploy-nas.js /srv/apps/shelfdeck/releases/shelfdeck-<tag>.tar --sha256 <hash>
+ *   node scripts/deploy-nas.js /srv/apps/shelfdeck/releases/shelfdeck-<tag>.tar --sha256 <hash> --preserve-remote-reset-config --expect-stopped --apply
  *
  * Helix-beta first cutover uses --helix-clean-init. Later upgrades omit it so
- * live data and Admin configuration stay in place. The script preserves the
- * media, upgrade, transcode, adult, and QSV mounts. /transcode is also this
- * NAS Production Workspace root.
+ * live data and Admin configuration stay in place. The script verifies the
+ * /srv/apps SSD and /srv/shelfdeck HDD mount UUIDs before touching directories
+ * and configures NVIDIA T2000 hardware transcoding (`runtime: nvidia`).
  */
 
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const { Client } = require(path.join(__dirname, '..', 'tools', 'node_modules', 'ssh2'));
 const { loadNasSshConfig } = require(path.join(__dirname, '..', 'tools', 'nas-ssh-config'));
 
-const COMPOSE_DIR = '/vol1/1000/docker/shelfdeck';
+const APPS_MOUNT = '/srv/apps';
+const APPS_UUID = '2e4fda48-ccbd-40cd-9b6b-1b66c4eb2dda';
+const SHELFDECK_HDD_MOUNT = '/srv/shelfdeck';
+const SHELFDECK_HDD_UUID = '11cf7e64-e7fa-4573-8588-5afb97ce3854';
+
+const COMPOSE_DIR = '/srv/apps/shelfdeck';
 const COMPOSE_FILE = `${COMPOSE_DIR}/docker-compose.yml`;
 const DATA_DIR = `${COMPOSE_DIR}/data`;
 const SECRET_FILE = `${COMPOSE_DIR}/secret.env`;
-const MEDIA_HOST = '/vol02/1000-0-c5b736af';
-const UPGRADE_HOST = '/vol2/1000/shelfdeck_upgrade';
-const TRANSCODE_HOST = '/vol2/1000/shelfdeck_transcode';
-const OPERATOR_BACKUP_HOST = '/vol2/1000/shelfdeck_backups';
-const ADULT_HOST = '/vol02/1000-0-24018892';
+const MEDIA_HOST = '/media';
+const UPGRADE_HOST = '/mnt/shelfdeck_upgrade';
+const TRANSCODE_HOST = '/srv/shelfdeck/transcode';
+const OPERATOR_BACKUP_HOST = '/srv/shelfdeck/operator-backups';
+const ADULT_HOST = '/adult';
 // Host package is install *input* only. Runtime authority is the installed copy
 // under ShelfDeck data (DELETE journal). Do not mount the package as :ro runtime.
 const US_ADULT_CATALOGUE_PACKAGE_HOST = `${COMPOSE_DIR}/us-adult-catalogue`;
@@ -59,11 +63,20 @@ function imageFromTarball(tarball) {
 }
 
 function parseArgs(argv) {
-  const parsed = { tarball: '', apply: false, expectedSha256: '', helixCleanInit: false };
+  const parsed = {
+    tarball: '',
+    apply: false,
+    expectedSha256: '',
+    helixCleanInit: false,
+    preserveRemoteResetConfig: false,
+    expectStopped: false,
+  };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--apply') parsed.apply = true;
     else if (arg === '--verify-only') parsed.verifyOnly = true;
+    else if (arg === '--preserve-remote-reset-config') parsed.preserveRemoteResetConfig = true;
+    else if (arg === '--expect-stopped') parsed.expectStopped = true;
     else if (arg === '--runtime-reset-config') { parsed.runtimeResetConfig = argv[++i]; if (!parsed.runtimeResetConfig) throw new Error('Runtime Reset configuration file is required.'); }
     else if (arg === '--continue-people-reference-recovery') parsed.continuePeopleRecovery = true;
     else if (arg === '--recover-people-references') { parsed.peopleRecoveryFile = argv[++i]; if (!parsed.peopleRecoveryFile) throw new Error('People recovery scope file is required.'); }
@@ -82,6 +95,10 @@ function parseArgs(argv) {
   if (parsed.expectedSha256 && !/^[a-f0-9]{64}$/i.test(parsed.expectedSha256)) {
     throw new Error('Expected SHA-256 must be a 64-character hex string.');
   }
+  if (parsed.preserveRemoteResetConfig && (parsed.helixCleanInit || parsed.freshResetConfig ||
+      parsed.runtimeResetConfig || parsed.continueFreshReset || parsed.peopleRecoveryFile || parsed.continuePeopleRecovery)) {
+    throw new Error('--preserve-remote-reset-config cannot be combined with initialization or explicit Reset config flags.');
+  }
   if (parsed.freshResetConfig && (parsed.helixCleanInit || !parsed.expectedSha256 || !parsed.capacityPlan))
     throw new Error('Fresh Reset deployment requires SHA-256 and capacity plan, and cannot initialize clean data.');
   if (parsed.runtimeResetConfig && (parsed.freshResetConfig || parsed.helixCleanInit || parsed.peopleRecoveryFile ||
@@ -96,9 +113,13 @@ function parseArgs(argv) {
   return parsed;
 }
 
-function healthExpectation({ resetConfiguration, peopleRecoveryScope, runtimeResetConfig }) {
-  return { status: resetConfiguration && !peopleRecoveryScope && !runtimeResetConfig ? 'maintenance' : 'ok', stopped: Boolean(resetConfiguration) };
+function healthExpectation({ resetConfiguration, peopleRecoveryScope, runtimeResetConfig, expectStopped }) {
+  return {
+    status: resetConfiguration && !peopleRecoveryScope && !runtimeResetConfig ? 'maintenance' : 'ok',
+    stopped: Boolean(resetConfiguration || expectStopped),
+  };
 }
+
 function selectVerificationSteps(steps) {
   const allowed = new Set(['Check image tarball', 'Verify image tarball SHA-256', 'Check compose file',
     'Verify health', 'Verify Admin Web', 'Verify media mount', 'Verify US Adult catalogue installed', 'Verify compose still binds required hosts',
@@ -122,7 +143,8 @@ function loadOrCreateSecretRoot({ allowCreate = false } = {}) {
   const fromFile = readEnvFile(LOCAL_SECRET_FILE, 'SHELFDECK_SECRET_ROOT');
   if (Buffer.byteLength(fromFile, 'utf8') >= 32) return fromFile;
   if (!allowCreate) {
-    throw new Error('SHELFDECK_SECRET_ROOT is unavailable locally; refusing to rotate the production secret during an upgrade.');
+    // Preserve remote secret.env on upgrades when local secret root is absent.
+    return null;
   }
   const generated = crypto.randomBytes(32).toString('hex');
   fs.mkdirSync(path.dirname(LOCAL_SECRET_FILE), { recursive: true });
@@ -130,13 +152,15 @@ function loadOrCreateSecretRoot({ allowCreate = false } = {}) {
   return generated;
 }
 
-function composeYaml(targetImage, resetConfiguration, { coldBootstrap = true } = {}) {
+function composeYaml(targetImage, resetConfiguration, { coldBootstrap = true, preserveRemoteResetConfig = false } = {}) {
+  const hasResetMount = Boolean(resetConfiguration || preserveRemoteResetConfig);
   return [
     'services:',
     '  shelfdeck:',
     `    image: ${targetImage}`,
     '    platform: linux/amd64',
     '    container_name: shelfdeck',
+    '    runtime: nvidia',
     '    ports:',
     '      - "18080:18080"',
     '    env_file:',
@@ -146,25 +170,24 @@ function composeYaml(targetImage, resetConfiguration, { coldBootstrap = true } =
     '      - MEDIA_SERVICE_DATA_DIR=/app/data',
     '      - FFMPEG_PATH=/usr/local/bin/ffmpeg',
     '      - FFPROBE_PATH=/usr/local/bin/ffprobe',
-    '      - LIBVA_DRIVER_NAME=iHD',
+    '      - NVIDIA_VISIBLE_DEVICES=all',
+    '      - NVIDIA_DRIVER_CAPABILITIES=compute,video,utility',
     // US Adult face catalogue is product data under /app/data (installed DELETE-journal copy).
     // buffalo_l stays image-baked; vector package is not a Docker layer and not a :ro runtime mount.
     `      - SHELFDECK_US_ADULT_CATALOGUE_ROOT=${US_ADULT_CATALOGUE_INSTALLED_CONTAINER}`,
     `      - SHELFDECK_US_ADULT_CATALOGUE_GENERATION_PATH=${US_ADULT_CATALOGUE_INSTALLED_CONTAINER}/generation.json`,
-    ...(resetConfiguration ? ['      - SHELFDECK_RESET_CONFIG_FILE=/run/shelfdeck-reset/config.json',
-      ...(coldBootstrap ? [`      - SHELFDECK_RESET_BOOTSTRAP_FILE=${resetConfiguration.operationRoot}/deployment-bootstrap.json`] : [])] : []),
+    ...(hasResetMount ? ['      - SHELFDECK_RESET_CONFIG_FILE=/run/shelfdeck-reset/config.json',
+      ...(resetConfiguration && coldBootstrap ? [`      - SHELFDECK_RESET_BOOTSTRAP_FILE=${resetConfiguration.operationRoot}/deployment-bootstrap.json`] : [])] : []),
     '    volumes:',
     `      - ${DATA_DIR}:/app/data`,
     `      - ${OPERATOR_BACKUP_HOST}:/app/data/operator-backups`,
-    ...(resetConfiguration ? [`      - ${OPERATOR_BACKUP_HOST}:/operator-backups`,
+    ...(hasResetMount ? [`      - ${OPERATOR_BACKUP_HOST}:/operator-backups`,
       `      - ${COMPOSE_DIR}/reset-config.json:/run/shelfdeck-reset/config.json:ro`] : []),
     `      - ${TRANSCODE_HOST}:/transcode`,
     `      - ${UPGRADE_HOST}:/upgrade`,
     `      - ${MEDIA_HOST}:/media`,
     `      - ${ADULT_HOST}:/adult_media`,
     `      - ${ADULT_HOST}:/adult`,
-    '    devices:',
-    '      - /dev/dri:/dev/dri',
     '    restart: unless-stopped',
     '    stop_grace_period: 75s',
     '',
@@ -172,11 +195,13 @@ function composeYaml(targetImage, resetConfiguration, { coldBootstrap = true } =
 }
 
 function connect() {
+  const { Client } = require(path.join(__dirname, '..', 'tools', 'node_modules', 'ssh2'));
+  const sshConfig = loadNasSshConfig({ readyTimeout: 20000 });
   const conn = new Client();
   return new Promise((resolve, reject) => {
-    conn.on('ready', () => resolve(conn));
+    conn.on('ready', () => resolve({ conn, host: sshConfig.host }));
     conn.on('error', reject);
-    conn.connect(loadNasSshConfig({ readyTimeout: 20000 }));
+    conn.connect(sshConfig);
   });
 }
 
@@ -228,11 +253,32 @@ async function execStep(conn, label, cmd) {
   return { out, errOut };
 }
 
+function catalogueInstallOrVerifyCommand(targetImage) {
+  const verifyScript = [
+    "const fs=require('fs'),Database=require('better-sqlite3'),{readSourceGeneration}=require('./src/helix/integrations/us-adult-catalogue-install');",
+    "const root='/app/data/us-adult-catalogue';",
+    'const g=readSourceGeneration(root);',
+    "for(const m of g.members){if(fs.statSync(root+'/'+m.name).size!==m.bytes)throw new Error('CATALOGUE_MEMBER_SIZE_MISMATCH:'+m.name);}",
+    "const db=new Database(root+'/performers.db',{readonly:true,fileMustExist:true});",
+    "try{if(String(db.pragma('journal_mode',{simple:true})||'').toLowerCase()!=='delete')throw new Error('CATALOGUE_JOURNAL_NOT_DELETE');db.prepare('SELECT 1 FROM sqlite_master LIMIT 1').get();}finally{db.close();}",
+    "console.log(JSON.stringify({mode:'verified_installed',datasetVersion:g.datasetVersion,members:g.members.length}));",
+  ].join('');
+  return [
+    `if [ -f ${shellQuote(US_ADULT_CATALOGUE_PACKAGE_HOST + '/generation.json')} ] && [ -f ${shellQuote(US_ADULT_CATALOGUE_PACKAGE_HOST + '/performers.db')} ]; then`,
+    `docker run --rm --env-file ${shellQuote(SECRET_FILE)} -v ${shellQuote(`${DATA_DIR}:/app/data`)} -v ${shellQuote(`${US_ADULT_CATALOGUE_PACKAGE_HOST}:/catalogue-package:ro`)} ${shellQuote(targetImage)} node scripts/install-us-adult-catalogue.js --source /catalogue-package --target /app/data/us-adult-catalogue --apply;`,
+    'else',
+    `docker run --rm --network none -v ${shellQuote(`${DATA_DIR}:/app/data:ro`)} ${shellQuote(targetImage)} node -e ${shellQuote(verifyScript)};`,
+    'fi',
+  ].join(' ');
+}
+
 async function main() {
-  const { tarball, apply, expectedSha256, helixCleanInit, freshResetConfig, capacityPlan, continueFreshReset,
-    peopleRecoveryFile, continuePeopleRecovery, verifyOnly, runtimeResetConfig } = parseArgs(process.argv.slice(2));
+  const {
+    tarball, apply, expectedSha256, helixCleanInit, freshResetConfig, capacityPlan, continueFreshReset,
+    peopleRecoveryFile, continuePeopleRecovery, verifyOnly, runtimeResetConfig, preserveRemoteResetConfig, expectStopped,
+  } = parseArgs(process.argv.slice(2));
   if (!tarball) {
-    console.error('Usage: node scripts/deploy-nas.js <tarball-on-nas> [--sha256 <hash>] [--helix-clean-init] [--apply | --verify-only]');
+    console.error('Usage: node scripts/deploy-nas.js <tarball-on-host> [--sha256 <hash>] [--helix-clean-init] [--preserve-remote-reset-config] [--expect-stopped] [--apply | --verify-only]');
     process.exit(2);
   }
   const targetImage = imageFromTarball(tarball);
@@ -241,28 +287,37 @@ async function main() {
   const resetConfiguration = configurationFile ? require('./nas-reset-bootstrap').configurationForNas(JSON.parse(fs.readFileSync(configurationFile, 'utf8'))) : null;
   const peopleRecoveryScope = peopleRecoveryFile ? require('./nas-people-reference-recovery')
     .recoveryScope(JSON.parse(fs.readFileSync(peopleRecoveryFile, 'utf8'))) : null;
-  const yaml = composeYaml(targetImage, resetConfiguration, { coldBootstrap: Boolean(freshResetConfig) && !peopleRecoveryScope });
-  const expectedHealth = healthExpectation({ resetConfiguration, peopleRecoveryScope, runtimeResetConfig });
-  const secretEnv = `SHELFDECK_SECRET_ROOT=${secretRoot}\n`;
+  const yaml = composeYaml(targetImage, resetConfiguration, {
+    coldBootstrap: Boolean(freshResetConfig) && !peopleRecoveryScope,
+    preserveRemoteResetConfig,
+  });
+  const expectedHealth = healthExpectation({ resetConfiguration, peopleRecoveryScope, runtimeResetConfig, expectStopped });
+  const secretEnv = secretRoot !== null ? `SHELFDECK_SECRET_ROOT=${secretRoot}\n` : null;
 
   const steps = [
     ['Check image tarball', `ls -l ${shellQuote(tarball)}`],
     ...(expectedSha256
       ? [['Verify image tarball SHA-256', `[ "$(sha256sum ${shellQuote(tarball)} | awk '{print $1}')" = "${expectedSha256.toLowerCase()}" ]`]]
       : []),
-    ['Assert media, upgrade, transcode, adult, catalogue package, and QSV hosts', [
+    ['Assert heavy mounts, UUIDs, media shares, and NVIDIA runtime', [
+      `[ "$(findmnt -rn -M ${shellQuote(APPS_MOUNT)} -o FSTYPE,UUID)" = "ext4 ${APPS_UUID}" ]`,
+      `[ "$(findmnt -rn -M ${shellQuote(SHELFDECK_HDD_MOUNT)} -o FSTYPE,UUID)" = "ext4 ${SHELFDECK_HDD_UUID}" ]`,
+      `ls -d ${shellQuote(MEDIA_HOST + '/.')} ${shellQuote(ADULT_HOST + '/.')} ${shellQuote(UPGRADE_HOST + '/.')} >/dev/null`,
+      `[ "$(findmnt -rn -T ${shellQuote(MEDIA_HOST)} -o FSTYPE | tail -n 1)" = "cifs" ]`,
+      `[ "$(findmnt -rn -T ${shellQuote(ADULT_HOST)} -o FSTYPE | tail -n 1)" = "cifs" ]`,
+      `[ "$(findmnt -rn -T ${shellQuote(UPGRADE_HOST)} -o FSTYPE | tail -n 1)" = "nfs4" ]`,
+      'docker compose version >/dev/null',
+      `docker info --format '{{json .Runtimes}}' | grep -q '"nvidia"'`,
+      "nvidia-smi -L | grep -q 'GPU 0:'",
+      `mkdir -p ${shellQuote(TRANSCODE_HOST)} ${shellQuote(DATA_DIR)} ${shellQuote(OPERATOR_BACKUP_HOST)}`,
       `test -d ${shellQuote(MEDIA_HOST)}`,
-      `mkdir -p ${shellQuote(UPGRADE_HOST)} ${shellQuote(TRANSCODE_HOST)} ${shellQuote(DATA_DIR)}`,
       `test -d ${shellQuote(UPGRADE_HOST)}`,
       `test -d ${shellQuote(TRANSCODE_HOST)}`,
       `test -d ${shellQuote(ADULT_HOST)}`,
-      `test -d ${shellQuote(US_ADULT_CATALOGUE_PACKAGE_HOST)}`,
-      `test -f ${shellQuote(US_ADULT_CATALOGUE_PACKAGE_HOST + '/generation.json')}`,
-      `test -f ${shellQuote(US_ADULT_CATALOGUE_PACKAGE_HOST + '/performers.db')}`,
-      'test -e /dev/dri/renderD128',
+      `(test -f ${shellQuote(US_ADULT_CATALOGUE_PACKAGE_HOST + '/generation.json')} && test -f ${shellQuote(US_ADULT_CATALOGUE_PACKAGE_HOST + '/performers.db')}) || (test -f ${shellQuote(DATA_DIR + '/us-adult-catalogue/generation.json')} && test -f ${shellQuote(DATA_DIR + '/us-adult-catalogue/performers.db')})`,
     ].join(' && ')],
     ['Prepare dedicated operator backup volume', [
-      'test "$(readlink -f /vol2/1000)" = /vol2/1000',
+      `test "$(readlink -f ${shellQuote(SHELFDECK_HDD_MOUNT)})" = ${shellQuote(SHELFDECK_HDD_MOUNT)}`,
       `test ! -L ${shellQuote(OPERATOR_BACKUP_HOST)}`,
       `if [ ! -e ${shellQuote(OPERATOR_BACKUP_HOST)} ]; then mkdir -m 700 ${shellQuote(OPERATOR_BACKUP_HOST)}; fi`,
       `test "$(readlink -f ${shellQuote(OPERATOR_BACKUP_HOST)})" = ${shellQuote(OPERATOR_BACKUP_HOST)}`,
@@ -272,17 +327,7 @@ async function main() {
     ].join(' && ')],
     ['Check compose file', `docker compose -f ${shellQuote(COMPOSE_FILE)} config >/dev/null`],
     ['Load image', `docker load -i ${shellQuote(tarball)}`],
-    ['Install US Adult catalogue into ShelfDeck data', [
-      'docker run --rm',
-      `--env-file ${shellQuote(SECRET_FILE)}`,
-      `-v ${shellQuote(`${DATA_DIR}:/app/data`)}`,
-      `-v ${shellQuote(`${US_ADULT_CATALOGUE_PACKAGE_HOST}:/catalogue-package:ro`)}`,
-      shellQuote(targetImage),
-      'node scripts/install-us-adult-catalogue.js',
-      '--source /catalogue-package',
-      '--target /app/data/us-adult-catalogue',
-      '--apply',
-    ].join(' ')],
+    ['Install US Adult catalogue into ShelfDeck data', catalogueInstallOrVerifyCommand(targetImage)],
     ...(helixCleanInit
       ? [['Helix clean initialization', [
           'docker run --rm',
@@ -324,7 +369,7 @@ async function main() {
       'exit 1',
     ].join(' ')],
     ['Verify Admin Web', 'curl -fsS http://127.0.0.1:18080/admin | grep -q \'<div id="root"></div>\''],
-    ['Verify media mount', `docker exec shelfdeck sh -lc 'test -d /media && test -d /upgrade && test -d /adult_media && test -d /adult && test "$(stat -c %d:%i /adult)" = "$(stat -c %d:%i /adult_media)" && test -e /dev/dri/renderD128'`],
+    ['Verify media mount', `docker exec shelfdeck sh -lc 'test -d /media && test -d /upgrade && test -d /adult_media && test -d /adult && test "$(stat -c %d:%i /adult)" = "$(stat -c %d:%i /adult_media)" && nvidia-smi -L >/dev/null && /usr/local/bin/ffmpeg -hide_banner -encoders | grep -q hevc_nvenc'`],
     ['Verify US Adult catalogue installed', `docker exec shelfdeck sh -lc 'test -d /app/data/us-adult-catalogue && test -f /app/data/us-adult-catalogue/generation.json && test -f /app/data/us-adult-catalogue/performers.db && printenv SHELFDECK_US_ADULT_CATALOGUE_ROOT | grep -Fx /app/data/us-adult-catalogue && printenv SHELFDECK_US_ADULT_CATALOGUE_GENERATION_PATH | grep -Fx /app/data/us-adult-catalogue/generation.json'`],
     ['Verify compose still binds required hosts', [
       `grep -F ${shellQuote(`${MEDIA_HOST}:/media`)} ${shellQuote(COMPOSE_FILE)}`,
@@ -335,19 +380,20 @@ async function main() {
       `grep -F ${shellQuote('SHELFDECK_US_ADULT_CATALOGUE_ROOT=/app/data/us-adult-catalogue')} ${shellQuote(COMPOSE_FILE)}`,
       `grep -F ${shellQuote('SHELFDECK_US_ADULT_CATALOGUE_GENERATION_PATH=/app/data/us-adult-catalogue/generation.json')} ${shellQuote(COMPOSE_FILE)}`,
       `! grep -E ${shellQuote('us-adult-catalogue:/us-adult-catalogue')} ${shellQuote(COMPOSE_FILE)}`,
-      `grep -F '/dev/dri:/dev/dri' ${shellQuote(COMPOSE_FILE)}`,
+      `grep -Fx ${shellQuote('    runtime: nvidia')} ${shellQuote(COMPOSE_FILE)}`,
     ].join(' && ')],
     ['Verify running image tag', `docker inspect shelfdeck --format "{{.Config.Image}}" | grep -Fx ${shellQuote(targetImage)}`],
     ['Verify code comes from image', 'docker inspect shelfdeck --format "{{json .Mounts}}" | grep -v "shelfdeck-releases"'],
   ];
 
-  console.log(`ShelfDeck NAS deploy (${verifyOnly ? 'VERIFY ONLY' : apply ? 'APPLY' : 'DRY RUN'})`);
+  console.log(`ShelfDeck heavy deploy (${verifyOnly ? 'VERIFY ONLY' : apply ? 'APPLY' : 'DRY RUN'})`);
   console.log(`compose : ${COMPOSE_FILE}`);
   console.log(`tarball : ${tarball}`);
   console.log(`image   : ${targetImage}`);
   if (expectedSha256) console.log(`sha256 : ${expectedSha256.toLowerCase()}`);
   if (helixCleanInit) console.log('cutover: Helix clean initialization (INITIALIZE_HELIX_CLEAN_V1)');
   if (continueFreshReset) console.log('cutover: explicit cold continuation from the original closure and verified deployment backup');
+  if (preserveRemoteResetConfig) console.log('reset   : preserving remote reset-config.json');
   console.log(`data dir: ${DATA_DIR}`);
   console.log(`media   : ${MEDIA_HOST} -> /media`);
   console.log(`upgrade : ${UPGRADE_HOST} -> /upgrade`);
@@ -358,8 +404,8 @@ async function main() {
   console.log(`catalogue package (install input): ${US_ADULT_CATALOGUE_PACKAGE_HOST}`);
   console.log(`catalogue installed: ${DATA_DIR}/us-adult-catalogue -> ${US_ADULT_CATALOGUE_INSTALLED_CONTAINER}`);
   console.log('catalogue env: SHELFDECK_US_ADULT_CATALOGUE_ROOT=/app/data/us-adult-catalogue');
-  console.log('capacity: /vol1 data plan must cover installed catalogue bytes');
-  console.log('qsv     : /dev/dri -> /dev/dri');
+  console.log('capacity: /srv/apps SSD plan must cover data + installed catalogue; /srv/shelfdeck HDD covers /transcode + backups');
+  console.log('gpu     : runtime: nvidia (Quadro T2000 NVENC)');
   console.log('secret  : env_file secret.env (not printed)');
 
   if (!apply && !verifyOnly) {
@@ -375,7 +421,7 @@ async function main() {
     return;
   }
 
-  const conn = await connect();
+  const { conn, host } = await connect();
   try {
     const execute = async command => {
       const result = await run(conn, command);
@@ -386,7 +432,7 @@ async function main() {
     if (resetConfiguration) {
       const plan = JSON.parse(fs.readFileSync(capacityPlan, 'utf8'));
       if (plan.schema !== 'shelfdeck.deployment-capacity@1' || !Array.isArray(plan.volumes) || plan.volumes.length !== 2 ||
-          plan.volumes.map(row => row.path).sort().join(',') !== '/vol1,/vol2' ||
+          plan.volumes.map(row => row.path).sort().join(',') !== '/srv/apps,/srv/shelfdeck' ||
           plan.volumes.some(row => !/^[1-9][0-9]*$/.test(row.requiredAvailableBytes))) throw new Error('Explicit two-volume peak capacity plan is required.');
       // Check before the first production write, including Compose or secrets.
       for (const volume of plan.volumes) {
@@ -395,18 +441,28 @@ async function main() {
       }
     }
     async function publishConfiguration() {
-      console.log('\n>>> Upload secret.env and canonical compose');
-      await uploadText(conn, SECRET_FILE, secretEnv, 0o600);
+      console.log('\n>>> Verify SSD mount and publish canonical compose');
+      const guard = await run(conn, `[ "$(findmnt -rn -M ${shellQuote(APPS_MOUNT)} -o FSTYPE,UUID)" = "ext4 ${APPS_UUID}" ] && mkdir -p ${shellQuote(COMPOSE_DIR)}`);
+      if (guard.code !== 0) throw new Error('SSD /srv/apps mount verification failed before writing compose.');
+      if (secretEnv !== null) {
+        await uploadText(conn, SECRET_FILE, secretEnv, 0o600);
+      }
+      const verifySecret = await run(conn, `test -f ${shellQuote(SECRET_FILE)} && test ! -L ${shellQuote(SECRET_FILE)} && grep -q '^SHELFDECK_SECRET_ROOT=.\\{32,\\}' ${shellQuote(SECRET_FILE)} && chmod 600 ${shellQuote(SECRET_FILE)}`);
+      if (verifySecret.code !== 0) throw new Error('Missing or invalid remote secret.env.');
       await uploadText(conn, COMPOSE_FILE, yaml, 0o644);
-      if (resetConfiguration) await uploadText(conn, `${COMPOSE_DIR}/reset-config.json`, JSON.stringify(resetConfiguration), 0o600);
-      const chmod = await run(conn, `chmod 600 ${shellQuote(SECRET_FILE)}`);
-      if (chmod.code !== 0) throw new Error('Protecting secret.env failed');
+      if (resetConfiguration) {
+        await uploadText(conn, `${COMPOSE_DIR}/reset-config.json`, JSON.stringify(resetConfiguration), 0o600);
+      } else if (preserveRemoteResetConfig) {
+        const verifyResetCfg = await run(conn, `test -f ${shellQuote(`${COMPOSE_DIR}/reset-config.json`)} && test ! -L ${shellQuote(`${COMPOSE_DIR}/reset-config.json`)}`);
+        if (verifyResetCfg.code !== 0) throw new Error('Missing remote reset-config.json required by --preserve-remote-reset-config.');
+      }
     }
     if ((!resetConfiguration || runtimeResetConfig) && !verifyOnly) await publishConfiguration();
 
     for (const [label, cmd] of verifyOnly ? selectVerificationSteps(steps) : steps) {
       if (label === 'Prepare cold Reset management' || label === 'Prepare cold People reference recovery') {
         if (continueFreshReset || continuePeopleRecovery) {
+          if (secretEnv === null) throw new Error('SHELFDECK_SECRET_ROOT is required locally to verify secret continuity.');
           const expectedSecret = crypto.createHash('sha256').update(secretEnv).digest('hex');
           await execute(`[ "$(sha256sum ${shellQuote(SECRET_FILE)} | awk '{print $1}')" = ${shellQuote(expectedSecret)} ]`);
         }
@@ -420,7 +476,7 @@ async function main() {
           async readRuntime() {
             const key = readEnvFile(LOCAL_ADMIN_KEY_FILE, 'SHELFDECK_ADMIN_API_KEY');
             if (!key) throw new Error('Admin API credential is required for the safe Stop proof.');
-            const response = await fetch('http://192.168.12.230:18080/v1/admin/runtime', { headers: { 'X-Api-Key': key }, signal: AbortSignal.timeout(15000) });
+            const response = await fetch(`http://${host}:18080/v1/admin/runtime`, { headers: { 'X-Api-Key': key }, signal: AbortSignal.timeout(15000) });
             if (!response.ok) throw new Error('Runtime safe Stop proof is unavailable.');
             return response.json();
           } });

@@ -198,6 +198,16 @@ function observationDigest(observed) {
 
 const JAV_DIRECTORY_BUDGET = 255 - Buffer.byteLength('.shelfdeck-stage-' + '0'.repeat(16));
 const JAV_MEMBER_BUDGET = 255 - Buffer.byteLength('.restore-' + '0'.repeat(16));
+const MAX_DUPLICATE_ORDINAL = 1024;
+
+function duplicateDirectorySuffix(ordinal) {
+  return ordinal <= 1 ? '' : ' (' + String(ordinal) + ')';
+}
+
+function normalizePathKey(value) {
+  const resolved = path.resolve(value);
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+}
 
 function newJavOnDeck(request) {
   const packageValue = request?.onDeckProductPackage;
@@ -421,16 +431,15 @@ async function cooperativeCopyFile(source, target, flags = 0) {
   await fs.promises.copyFile(source, target, flags);
 }
 
-async function copyPinnedExclusive(source, target) {
+async function copyExclusiveWrittenStat(source, target) {
   const fd = fs.openSync(target, 'wx', 0o600);
   try {
     await pipeline(fs.createReadStream(source, { highWaterMark:1024*1024 }),
       fs.createWriteStream(target, { fd, autoClose:false, highWaterMark:1024*1024 }));
     fs.fsyncSync(fd);
-    return fd;
-  } catch (error) {
+    return fs.fstatSync(fd, { bigint:true });
+  } finally {
     try { fs.closeSync(fd); } catch {}
-    throw error;
   }
 }
 
@@ -447,6 +456,15 @@ function createCleanArcaInventoryPort(options) {
   const computeFingerprint = options.computeFingerprint ||
     computeBoundedMaterialFingerprint;
   const shortStageLeases = new Map();
+  const defaultOccupancyReader = typeof options.unitOfWork?.execute === 'function'
+    ? require('./helix/domains/arca/public').createTargetDirectoryOccupancyQuery({
+        schemaManifest: options.schemaManifest,
+        unitOfWork: options.unitOfWork,
+      }).readOccupiedTargetDirectories
+    : null;
+  const readOccupiedTargetDirectories = typeof options.readOccupiedTargetDirectories === 'function'
+    ? options.readOccupiedTargetDirectories
+    : defaultOccupancyReader;
 
   function releaseShortStage(slotId) {
     const lease = shortStageLeases.get(slotId);
@@ -456,27 +474,36 @@ function createCleanArcaInventoryPort(options) {
     for (const fd of lease.descriptors.values()) { try { fs.closeSync(fd); } catch {} }
   }
 
-  function requireShortStage(slotId, sourceMaterialKey, observed) {
+  function releaseShortStageMember(slotId, sourceMaterialKey) {
+    const descriptors = shortStageLeases.get(slotId)?.descriptors;
+    if (!descriptors) return;
+    const fd = descriptors.get(sourceMaterialKey);
+    if (fd === undefined) return;
+    descriptors.delete(sourceMaterialKey);
+    try { fs.closeSync(fd); } catch {}
+  }
+
+  function requireShortStage(slotId, sourceMaterialKey, observed, details) {
     const fd = shortStageLeases.get(slotId)?.descriptors.get(sourceMaterialKey);
     if (fd === undefined) fail('CLEAN_ARCA_SHORT_STAGE_UNCERTAIN',
-      'The original in-process Stage descriptor is unavailable; files were retained.');
+      'The original in-process Stage descriptor is unavailable; files were retained.', details);
     const held = fs.fstatSync(fd, { bigint:true });
     if (!held.isFile() || held.dev !== observed.stat.dev || held.ino !== observed.stat.ino ||
-        held.size !== observed.stat.size || held.mtimeNs !== observed.stat.mtimeNs || held.ctimeNs !== observed.stat.ctimeNs) {
-      fail('CLEAN_ARCA_SHORT_STAGE_UNCERTAIN', 'The live staged member changed; its files were retained.');
+        held.size !== observed.stat.size || held.mtimeNs !== observed.stat.mtimeNs) {
+      fail('CLEAN_ARCA_SHORT_STAGE_UNCERTAIN', 'The live staged member changed; its files were retained.', details);
     }
     return held;
   }
 
-  function requireShortSlotDirectory(handle) {
+  function requireShortSlotDirectory(handle, details) {
     let observed;
     try { observed=fs.lstatSync(handle.slotDirectory); }
     catch(error) {
-      if(error?.code==='ENOENT') fail('CLEAN_ARCA_SHORT_STAGE_UNCERTAIN', 'The shortened staging slot disappeared.');
+      if(error?.code==='ENOENT') fail('CLEAN_ARCA_SHORT_STAGE_UNCERTAIN', 'The shortened staging slot disappeared.', details);
       throw error;
     }
     if (!observed.isDirectory() || observed.isSymbolicLink())
-      fail('CLEAN_ARCA_SHORT_STAGE_UNCERTAIN', 'The shortened staging slot is not a direct directory.');
+      fail('CLEAN_ARCA_SHORT_STAGE_UNCERTAIN', 'The shortened staging slot is not a direct directory.', details);
   }
 
   async function restorePresentationMember(request, plan, stagedLocation) {
@@ -598,7 +625,7 @@ function createCleanArcaInventoryPort(options) {
         contentFingerprint:bounded.contentFingerprint }) });
   }
 
-  function resolveTargetLocationWithIdentity(request, policyOnly = false, identityOverride = null) {
+  function resolveTargetLocationWithIdentity(request, policyOnly = false, identityOverride = null, duplicateOrdinal = 1) {
     const targetRoot = path.resolve(request?.shelf?.target?.rootLocation || '');
     const shelf = request?.shelf;
     const packageValue = request?.onDeckProductPackage;
@@ -625,12 +652,18 @@ function createCleanArcaInventoryPort(options) {
     }).replace(/\s+\(\s*\)$/, '');
     const segment = identity.usAdultNaming ? exactUsAdultSegment :
       identity.javTitleBudget ? value => safeSegment(value, true) : safeSegment;
-    const folder = segment(identity.edition
-      ? renderedFolder + ' - ' + identity.edition
-      : renderedFolder);
     if(request.inventoryArtifactScopes!==undefined&&!request.aftercareCaseId)
       fail('CLEAN_ARCA_INVENTORY_INPUT','Registered Inventory Artifact scopes require an Aftercare Case.');
     const series=seriesPlacementContext(packageValue,request.inventoryArtifactScopes);
+    const baseFolder = segment(identity.edition
+      ? renderedFolder + ' - ' + identity.edition
+      : renderedFolder);
+    const suffix = series ? '' : duplicateDirectorySuffix(duplicateOrdinal);
+    const folder = !suffix
+      ? baseFolder
+      : identity.usAdultNaming
+        ? exactUsAdultSegment(baseFolder + suffix)
+        : safeSegment(baseFolder + suffix, true);
     const rootBinding=!policyOnly&&series&&options.readSeriesRootBinding?.({shelfId:shelf.shelfId,
       providerKey:(packageValue.resolvedIdentitySnapshot.factValue.resolvedProductIdentity||packageValue.resolvedIdentitySnapshot.factValue)
         .providerIdentities.find(item=>item.namespace==='tmdb_series').providerKey});
@@ -641,11 +674,10 @@ function createCleanArcaInventoryPort(options) {
       fail('CLEAN_ARCA_TARGET_ESCAPE',
         'Final Inventory directory escaped the Shelf Target.');
     }
-    return Object.freeze({ targetRoot, targetDirectory, identity, placement, series });
+    return Object.freeze({ targetRoot, targetDirectory, identity, placement, series, duplicateOrdinal });
   }
 
-  function resolveTargetLocation(request, policyOnly = false) {
-    if (!newJavOnDeck(request)) return resolveTargetLocationWithIdentity(request, policyOnly);
+  function renderNewJavTargetForOrdinal(request, policyOnly, duplicateOrdinal) {
     const packageValue = request.onDeckProductPackage;
     const original = inventoryDisplayIdentity(packageValue, request);
     const fact = packageValue.resolvedIdentitySnapshot.factValue.resolvedProductIdentity ||
@@ -653,7 +685,7 @@ function createCleanArcaInventoryPort(options) {
     let lastNameError = null;
     const render = (title, shortened) => {
       const identity = Object.freeze({ ...original, title, javTitleBudget:true });
-      const resolved = resolveTargetLocationWithIdentity(request, policyOnly, identity);
+      const resolved = resolveTargetLocationWithIdentity(request, policyOnly, identity, duplicateOrdinal);
       if (Buffer.byteLength(path.basename(resolved.targetDirectory), 'utf8') > JAV_DIRECTORY_BUDGET) return null;
       const members = packageValue.productMaterialManifest.members.map(member => {
         const source = sourcePath(member);
@@ -696,6 +728,76 @@ function createCleanArcaInventoryPort(options) {
     }
     const result = render(choice.title, choice.shortened);
     return Object.freeze({ ...result, shortenedJavTitle:choice.shortened });
+  }
+
+  function resolveTargetLocation(request, policyOnly = false) {
+    const isJav = newJavOnDeck(request);
+    const renderOrdinal = (ordinal) => (isJav
+      ? renderNewJavTargetForOrdinal(request, policyOnly, ordinal)
+      : resolveTargetLocationWithIdentity(request, policyOnly, null, ordinal));
+    const base = renderOrdinal(1);
+    if (policyOnly || base.series || request?.correctionId) return base;
+
+    const frozenMemberLocation = request?.finalInventoryMember?.targetLocation ||
+      request?.finalInventoryMembers?.[0]?.targetLocation ||
+      request?.finalInventoryDecision?.members?.[0]?.targetLocation || null;
+    if (frozenMemberLocation) {
+      const frozenDir = path.dirname(path.resolve(frozenMemberLocation));
+      const frozenKey = normalizePathKey(frozenDir);
+      // Test ordinal 1 first so titles naturally ending in " (2)" keep ordinal 1.
+      if (normalizePathKey(base.targetDirectory) === frozenKey) return base;
+      const match = /^.+ \((\d+)\)$/.exec(path.basename(frozenDir));
+      if (match) {
+        const ordinal = Number(match[1]);
+        if (Number.isSafeInteger(ordinal) && ordinal >= 2 && ordinal <= MAX_DUPLICATE_ORDINAL) {
+          const candidate = renderOrdinal(ordinal);
+          if (candidate && normalizePathKey(candidate.targetDirectory) === frozenKey) {
+            return candidate;
+          }
+        }
+      }
+      fail('CLEAN_ARCA_FINAL_DECISION_DRIFT',
+        'Inventory target directory does not match the immutable Final Inventory Decision.');
+    }
+
+    if (!readOccupiedTargetDirectories) return base;
+    const rawOccupied = readOccupiedTargetDirectories({
+      endpointId: request.shelf.target.endpointId,
+      excludeShelfEntryId: request.shelfEntryId || null,
+      excludeOnDeckRunId: request.aftercareCaseId ? null : (request.onDeckRunId || null),
+    });
+    const occupied = new Set();
+    for (const item of rawOccupied || []) {
+      if (typeof item === 'string' && item) occupied.add(normalizePathKey(item));
+    }
+
+    if (typeof request?.preferredTargetDirectory === 'string' && request.preferredTargetDirectory) {
+      const preferredDir = path.resolve(request.preferredTargetDirectory);
+      const preferredKey = normalizePathKey(preferredDir);
+      if (!occupied.has(preferredKey)) {
+        if (normalizePathKey(base.targetDirectory) === preferredKey) return base;
+        const match = /^.+ \((\d+)\)$/.exec(path.basename(preferredDir));
+        if (match) {
+          const ordinal = Number(match[1]);
+          if (Number.isSafeInteger(ordinal) && ordinal >= 2 && ordinal <= MAX_DUPLICATE_ORDINAL) {
+            const candidate = renderOrdinal(ordinal);
+            if (candidate && normalizePathKey(candidate.targetDirectory) === preferredKey) {
+              return candidate;
+            }
+          }
+        }
+      }
+    }
+
+    if (!occupied.has(normalizePathKey(base.targetDirectory))) return base;
+    for (let ordinal = 2; ordinal <= MAX_DUPLICATE_ORDINAL; ordinal += 1) {
+      const candidate = renderOrdinal(ordinal);
+      if (!occupied.has(normalizePathKey(candidate.targetDirectory))) {
+        return candidate;
+      }
+    }
+    fail('CLEAN_ARCA_TARGET_COLLISION',
+      'All duplicate subdirectory ordinals on this Shelf Target are exhausted.');
   }
 
   function buildPlan(request) {
@@ -1276,7 +1378,7 @@ function createCleanArcaInventoryPort(options) {
       fail('CLEAN_ARCA_STAGE_SLOT_INVALID',
         'Target staging slot is not a directory.');
     }
-    if (shortened && pathExistsOrThrow(handle.slotDirectory)) requireShortSlotDirectory(handle);
+    if (shortened && pathExistsOrThrow(handle.slotDirectory)) requireShortSlotDirectory(handle, { preWrite:true });
     fs.mkdirSync(handle.slotDirectory, { recursive: true });
     if (shortened) requireShortSlotDirectory(handle);
     return handle;
@@ -1305,7 +1407,8 @@ function createCleanArcaInventoryPort(options) {
           canonicalDigest({ run:request.onDeckRunId, key:plan.member.materialKey }).slice(0, 16);
         if (pathExistsOrThrow(staged) || pathExistsOrThrow(temporary)) {
           fail('CLEAN_ARCA_SHORT_STAGE_UNCERTAIN',
-            'The shortened target has an unclassified staged member; its files were retained.');
+            'The shortened target has an unclassified staged member; its files were retained.',
+            { preWrite:true });
         }
       }
     }
@@ -1395,8 +1498,9 @@ function createCleanArcaInventoryPort(options) {
             .slice(0, 16);
         if (!built.shortenedJavTitle) await fs.promises.rm(temporary, { force:true });
         try {
-          if (pinned) pinned.set(plan.member.materialKey, await copyPinnedExclusive(plan.source, temporary));
-          else await copyFile(plan.source, temporary, fs.constants.COPYFILE_EXCL);
+          const written = built.shortenedJavTitle
+            ? await copyExclusiveWrittenStat(plan.source, temporary)
+            : (await copyFile(plan.source, temporary, fs.constants.COPYFILE_EXCL), null);
           const observed = await computeFingerprint(temporary);
           if (Number(observed.stat.size) !== plan.sizeBytes ||
               observed.contentFingerprint !== plan.contentFingerprint) {
@@ -1404,9 +1508,8 @@ function createCleanArcaInventoryPort(options) {
               'Staged Inventory bytes failed verification.');
           }
           if (built.shortenedJavTitle) {
-            const held = fs.fstatSync(pinned.get(plan.member.materialKey), { bigint:true });
-            if (!held.isFile() || held.dev !== observed.stat.dev || held.ino !== observed.stat.ino ||
-                held.size !== observed.stat.size || held.mtimeNs !== observed.stat.mtimeNs || held.ctimeNs !== observed.stat.ctimeNs)
+            if (!written.isFile() || written.dev !== observed.stat.dev ||
+                written.ino !== observed.stat.ino || written.size !== observed.stat.size)
               fail('CLEAN_ARCA_SHORT_STAGE_UNCERTAIN', 'The copied member no longer matches its live descriptor.');
             try { await fs.promises.link(temporary, target); }
             catch (error) {
@@ -1415,10 +1518,16 @@ function createCleanArcaInventoryPort(options) {
               throw error;
             }
             const linked = fs.lstatSync(target, { bigint:true }), original = fs.lstatSync(temporary, { bigint:true });
-            if (!linked.isFile() || !original.isFile() || linked.dev !== held.dev || linked.ino !== held.ino ||
-                original.dev !== held.dev || original.ino !== held.ino)
+            if (!linked.isFile() || !original.isFile() || linked.dev !== written.dev || linked.ino !== written.ino ||
+                original.dev !== written.dev || original.ino !== written.ino)
               fail('CLEAN_ARCA_SHORT_STAGE_UNCERTAIN', 'The staged link no longer matches its live descriptor.');
             await fs.promises.unlink(temporary);
+            const pinFd = fs.openSync(target, 'r');
+            pinned.set(plan.member.materialKey, pinFd);
+            const pinnedStat = fs.fstatSync(pinFd, { bigint:true });
+            if (!pinnedStat.isFile() || pinnedStat.dev !== written.dev ||
+                pinnedStat.ino !== written.ino || pinnedStat.size !== written.size)
+              fail('CLEAN_ARCA_SHORT_STAGE_UNCERTAIN', 'The staged link no longer matches its live descriptor.');
           } else await fs.promises.rename(temporary, target);
         } catch (error) {
           if (!built.shortenedJavTitle) await fs.promises.rm(temporary, { force:true }).catch(() => undefined);
@@ -1432,7 +1541,7 @@ function createCleanArcaInventoryPort(options) {
       if (pinned) {
         const held = fs.fstatSync(pinned.get(plan.member.materialKey), { bigint:true });
         if (!held.isFile() || held.dev !== observed.stat.dev || held.ino !== observed.stat.ino ||
-            held.size !== observed.stat.size || held.mtimeNs !== observed.stat.mtimeNs || held.ctimeNs !== observed.stat.ctimeNs)
+            held.size !== observed.stat.size || held.mtimeNs !== observed.stat.mtimeNs)
           fail('CLEAN_ARCA_SHORT_STAGE_UNCERTAIN', 'The staged member changed before its Manifest was created.');
       }
       const identityBase = {
@@ -1494,6 +1603,7 @@ function createCleanArcaInventoryPort(options) {
     };
     const manifest=Object.freeze({ ...base, manifestDigest:canonicalDigest(base) });
     if (pinned) {
+      releaseShortStage(handle.slotId);
       const timer=setTimeout(()=>releaseShortStage(handle.slotId), 60*60*1000);
       timer.unref();
       shortStageLeases.set(handle.slotId,{descriptors:pinned,timer});
@@ -1603,7 +1713,7 @@ function createCleanArcaInventoryPort(options) {
   }
 
   async function switchShortenedJav(request, built, handle, verification) {
-    requireShortSlotDirectory(handle);
+    requireShortSlotDirectory(handle, { preWrite:true });
     const manifest = request.stagedInventoryManifest;
     const { manifestDigest, ...manifestBody } = manifest || {};
     if (!manifest || manifest.manifestKind !== 'staged_inventory' || manifest.ownerDomain !== 'arca' ||
@@ -1614,11 +1724,11 @@ function createCleanArcaInventoryPort(options) {
         !Array.isArray(manifest.stagedMembers) || manifest.memberCount !== built.plans.length ||
         manifest.stagedMembers.length !== built.plans.length ||
         manifest.membersDigest !== canonicalDigest({schema:'arca.staged-inventory-members@1',items:manifest.stagedMembers})) {
-      fail('CLEAN_ARCA_SHORT_PUBLICATION_UNCERTAIN', 'The exact staged Manifest is required for a shortened target.');
+      fail('CLEAN_ARCA_SHORT_PUBLICATION_UNCERTAIN', 'The exact staged Manifest is required for a shortened target.', { preWrite:true });
     }
     const members = new Map(manifest.stagedMembers.map(member => [member.sourceMaterialKey, member]));
     if (members.size !== built.plans.length) {
-      fail('CLEAN_ARCA_SHORT_PUBLICATION_UNCERTAIN', 'The staged Manifest contains duplicate source members.');
+      fail('CLEAN_ARCA_SHORT_PUBLICATION_UNCERTAIN', 'The staged Manifest contains duplicate source members.', { preWrite:true });
     }
     const staged = [];
     for (const plan of built.plans) {
@@ -1627,15 +1737,15 @@ function createCleanArcaInventoryPort(options) {
       if (!member || member.role !== plan.member.role || member.location !== plan.target ||
           member.endpointId !== request.shelf.target.endpointId || !contained(handle.slotDirectory, location) ||
           !fs.lstatSync(location).isFile()) {
-        fail('CLEAN_ARCA_SHORT_PUBLICATION_UNCERTAIN', 'The staged member no longer matches its frozen target.');
+        fail('CLEAN_ARCA_SHORT_PUBLICATION_UNCERTAIN', 'The staged member no longer matches its frozen target.', { preWrite:true });
       }
       const observed = await computeFingerprint(location), identity = member.physicalIdentity;
-      requireShortStage(handle.slotId, plan.member.materialKey, observed);
+      requireShortStage(handle.slotId, plan.member.materialKey, observed, { preWrite:true });
       if (!identity || identity.mountScopeId !== request.shelf.target.mountScopeId ||
           String(observed.stat.ino) !== String(identity.inode) || Number(observed.stat.size) !== identity.sizeBytes ||
           observed.fingerprintAlgorithm !== identity.fingerprintAlgorithm || observed.fingerprintVersion !== identity.fingerprintVersion ||
           observed.contentFingerprint !== identity.contentFingerprint || !fingerprintsMatchPlan(observed, plan)) {
-        fail('CLEAN_ARCA_SHORT_PUBLICATION_UNCERTAIN', 'The staged member changed after verification.');
+        fail('CLEAN_ARCA_SHORT_PUBLICATION_UNCERTAIN', 'The staged member changed after verification.', { preWrite:true });
       }
       staged.push({ plan, location, observed });
     }
@@ -1643,7 +1753,7 @@ function createCleanArcaInventoryPort(options) {
     try { fs.mkdirSync(handle.targetDirectory); }
     catch (error) {
       if (error?.code === 'EEXIST') fail('CLEAN_ARCA_SHORT_PUBLICATION_UNCERTAIN',
-        'The shortened target already exists and its publication is unclassified.');
+        'The shortened target already exists and its publication is unclassified.', { preWrite:true });
       throw error;
     }
     for (const item of staged) {
@@ -1672,6 +1782,7 @@ function createCleanArcaInventoryPort(options) {
           String(source.ino) !== String(item.observed.stat.ino)) {
         fail('CLEAN_ARCA_SHORT_PUBLICATION_UNCERTAIN', 'The staged alias changed before cleanup.');
       }
+      releaseShortStageMember(handle.slotId, item.plan.member.materialKey);
       fs.unlinkSync(item.location);
     }
     requireShortSlotDirectory(handle);

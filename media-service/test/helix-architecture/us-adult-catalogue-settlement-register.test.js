@@ -410,3 +410,108 @@ test('workless settlement failure closes without reading work.workId',async t=>{
   assert.equal(closed.personId,personId);
   assert.equal(closed.workId,undefined);
 });
+
+test('refreshBuffaloCatalogueReference skips already-owned reference image digest to pick next provider image, and falls back to buildFrameImageProof when all provider images exist',async t=>{
+  function stageUpload({bytes,actorId,idempotencyKey,provenance}){
+    const digestHex=crypto.createHash('sha256').update(bytes).digest('hex');
+    const basis={schemaRef:'helix://contracts/domain-types/PeopleSelectedImageHandle/v1',schemaVersion:1,
+      uploadId:D({schema:'people.selected-upload@1',actorId,idempotencyKey,digestHex}),
+      digestHex,sizeBytes:bytes.length,mediaType:'image/png',provenance};
+    return {...basis,handleDigest:D(basis)};
+  }
+  const img1=Buffer.from([137,80,78,71,13,10,26,10,11]);
+  const img2=Buffer.from([137,80,78,71,13,10,26,10,22]);
+  const framePng=Buffer.from([137,80,78,71,13,10,26,10,33]);
+  const sha1=crypto.createHash('sha256').update(img1).digest('hex');
+  const sha2=crypto.createHash('sha256').update(img2).digest('hex');
+  const shaFrame=crypto.createHash('sha256').update(framePng).digest('hex');
+
+  {
+    const {f,catalogue}=await candidate(t);
+    const personId='person-skip-img1',factDigest=D('person-skip-img1');
+    const operationStore=createPeopleImageOperationStore(f.workspaceOptions);
+    const peopleStore={
+      getPerson(){return {personId,currentRevision:1,currentReferenceRevision:1,revision:{canonicalName:'Example Performer',aliases:[]}};},
+      readUsAdultPersonSnapshot(){return legacySnapshot(personId,factDigest);},
+      getPersonReferenceProjection(){return legacySnapshot(personId,factDigest).referenceProjection;},
+      hasReferenceImage(_id,digest){return digest===sha1;},
+    };
+    const refresh=createUsAdultCatalogueBuffaloRefresh({
+      peopleStore,operationStore,peopleImagePort:{stageUpload},
+      workResultReader:{status:()=>({state:'running'})},
+      observeProviderSearch:({name})=>{
+        const body={schema:'people.us-adult-provider-search-observation@1',provider:'theporndb',queries:[{term:name,limit:10,
+          completion:'complete',responseDigest:D('resp-2img'),candidates:[{providerKey:'tpdb-1',canonicalName:name,aliases:[],
+            images:[
+              {imageId:'photo-1',urlDigest:D('url-1'),width:100,height:100},
+              {imageId:'photo-2',urlDigest:D('url-2'),width:100,height:100},
+            ]}]}]};
+        return {...body,observationDigest:D(body)};
+      },
+      readImageBytes:req=>req.kind==='provider'?(req.imageId==='photo-1'?img1:img2):null,
+      buildFrameImageProof(){throw new Error('must pick unused photo-2 before frame fallback');},
+    }).refreshBuffaloCatalogueReference;
+    const result=createUsAdultCatalogueSettlementCoordinator(settlementOptions(f,{
+      people:[{personId,libraryKind:'us_adult',status:'active',personRevision:1,personFactDigest:factDigest,
+        canonicalName:'Example Performer',aliases:[]}],
+      readPersonHead:()=>({personId,personRevision:1,personFactDigest:factDigest,currentReferenceRevision:1}),
+      readUsAdultPersonSnapshot:()=>legacySnapshot(personId,factDigest),
+      ensureCatalogueReferenceFeatures:args=>refresh({...args,head:args.head}),
+    })).reconcile(catalogue);
+    assert.equal(result.kind,'pending');
+    assert.equal(result.reasonCode,'us_adult_catalogue_reference_features_pending');
+    assert.ok(result.workId);
+    const op=operationStore.get(operationStore.listPendingPage({cursor:null,limit:100})[0].scope.operationId);
+    assert.equal(op.payload.selectedImage.digestHex,sha2);
+    assert.equal(op.payload.selectedImage.provenance.source,'stashbox');
+  }
+
+  {
+    const {f,catalogue}=await candidate(t);
+    const personId='person-frame-fallback',factDigest=D('person-frame-fallback');
+    const operationStore=createPeopleImageOperationStore(f.workspaceOptions);
+    const peopleStore={
+      getPerson(){return {personId,currentRevision:1,currentReferenceRevision:1,revision:{canonicalName:'Example Performer',aliases:[]}};},
+      readUsAdultPersonSnapshot(){return legacySnapshot(personId,factDigest);},
+      getPersonReferenceProjection(){return legacySnapshot(personId,factDigest).referenceProjection;},
+      hasReferenceImage(_id,digest){return digest===sha1;},
+    };
+    const refresh=createUsAdultCatalogueBuffaloRefresh({
+      peopleStore,operationStore,peopleImagePort:{stageUpload},
+      workResultReader:{status:()=>({state:'running'})},
+      observeProviderSearch:({name})=>{
+        const body={schema:'people.us-adult-provider-search-observation@1',provider:'theporndb',queries:[{term:name,limit:10,
+          completion:'complete',responseDigest:D('resp-1img'),candidates:[{providerKey:'tpdb-1',canonicalName:name,aliases:[],
+            images:[{imageId:'photo-1',urlDigest:D('url-1'),width:100,height:100}]}]}]};
+        return {...body,observationDigest:D(body)};
+      },
+      readImageBytes:req=>req.kind==='provider'?img1:null,
+      buildFrameImageProof(){
+        const compiled=createUsAdultCatalogueDecisionInput(f.options).compile({libraRunId:'run',mode:'initial'});
+        const observation=catalogue.observation;
+        const group=observation.groups.find(item=>compiled.input.winner.groupIds.includes(item.clusterId));
+        const [ordinal,faceOrdinal]=group.representativeKeys[0].split(':').map(Number);
+        const frame=observation.frameEvidenceRefs[ordinal],face=frame.faces[faceOrdinal];
+        const proofBody={schema:'shared.buffalo-representative-image@1',basisDigest:compiled.input.catalogueBasisDigest,
+          frameEvidenceDigest:frame.frameEvidenceDigest,sourceImageDigest:frame.imageDigest,faceOrdinal,
+          faceEvidenceDigest:face.faceEvidenceDigest,modelRefDigest:observation.modelRefDigest,
+          coordinateSpaceDigest:D('canvas'),renderingPolicyDigest:compiled.input.representativeImagePolicyDigest,
+          rectangle:{left:0,top:0,width:100,height:100},encoding:'png',imageDigest:shaFrame,imageBytes:framePng.length};
+        return {kind:'frame',bytes:framePng,proof:{...proofBody,proofDigest:D(proofBody)}};
+      },
+    }).refreshBuffaloCatalogueReference;
+    const result=createUsAdultCatalogueSettlementCoordinator(settlementOptions(f,{
+      people:[{personId,libraryKind:'us_adult',status:'active',personRevision:1,personFactDigest:factDigest,
+        canonicalName:'Example Performer',aliases:[]}],
+      readPersonHead:()=>({personId,personRevision:1,personFactDigest:factDigest,currentReferenceRevision:1}),
+      readUsAdultPersonSnapshot:()=>legacySnapshot(personId,factDigest),
+      ensureCatalogueReferenceFeatures:args=>refresh({...args,head:args.head}),
+    })).reconcile(catalogue);
+    assert.equal(result.kind,'pending');
+    assert.equal(result.reasonCode,'us_adult_catalogue_reference_features_pending');
+    assert.ok(result.workId);
+    const op=operationStore.get(operationStore.listPendingPage({cursor:null,limit:100})[0].scope.operationId);
+    assert.equal(op.payload.selectedImage.digestHex,shaFrame);
+    assert.equal(op.payload.selectedImage.provenance.source,'catalogue_frame');
+  }
+});

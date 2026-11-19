@@ -58,17 +58,16 @@ function clusterFaces(faces, {threshold, ambiguityMargin, assertActive = () => {
     } else groups.push({members:[face], sum:[...face.vector]});
   }
   return Object.freeze(groups.map(group => {
-    const members = group.members, uniqueImages = new Map();
+    const members = group.members, centroid = unit(group.sum), uniqueImages = new Map();
     for (const member of members) if (!uniqueImages.has(member.imageDigest)) uniqueImages.set(member.imageDigest, member);
     const coverage = [...new Set([...uniqueImages.values()].map(x => x.stratum))].sort((a, b) => a - b);
-    const representatives = [], available = [...uniqueImages.values()].sort((a, b) => b.quality - a.quality || a.timestampMs - b.timestampMs || byteOrder(a.key, b.key));
+    const representatives = [], available = [...uniqueImages.values()];
     while (representatives.length < 3 && available.length) {
-      available.sort((a, b) => {
-        if (!representatives.length) return b.quality - a.quality || byteOrder(a.key, b.key);
-        const novelty = candidate => Number(!representatives.some(x => x.stratum === candidate.stratum)) * 4 +
-          Math.min(...representatives.map(x => distance(candidate.vector, x.vector))) + candidate.quality * 0.01;
-        return novelty(b) - novelty(a) || byteOrder(a.key, b.key);
-      });
+      // Cover distinct strata first, then prefer faces closest to the cluster
+      // centroid and detection quality rather than cluster-boundary outliers.
+      const score = candidate => Number(!representatives.some(x => x.stratum === candidate.stratum)) * 4 +
+        (1 - distance(candidate.vector, centroid)) + candidate.quality * 0.1;
+      available.sort((a, b) => score(b) - score(a) || a.timestampMs - b.timestampMs || byteOrder(a.key, b.key));
       representatives.push(available.shift());
     }
     return Object.freeze({clusterId:hash({schema:'buffalo-video-qualification-cluster@1', members:members.map(x => [x.key, x.imageDigest])}),

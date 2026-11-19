@@ -26,16 +26,16 @@ function proofSchema(){
   return {oneOf:[provider,frame]};
 }
 function originSchema(){return object({schema:{const:ORIGIN},catalogueDecisionInputDigest:digest(),sourceObservationDigest:digest(),assessmentDigest:digest(),
-  identityKey:id(),uid:id(),selectedName:{type:'string',minLength:1,maxLength:200},aliases:{type:'array',maxItems:16,items:{type:'string',minLength:1,maxLength:200}},
+  identityKey:id(),uid:id(),selectedName:{type:'string',minLength:1,maxLength:256},aliases:{type:'array',maxItems:128,items:{type:'string',minLength:1,maxLength:256}},
   nameQueryDigest:digest(),libraryNamesDigest:digest(),nameResolutionDigest:digest(),providerObservationDigest:digest(),providerResolutionDigest:digest(),
   imageSourceProofDigest:digest(),imageSourceProof:proofSchema()});}
 function schema(){
-  const alias=object({aliasDisplay:{type:'string',minLength:1,maxLength:200},aliasNormalized:{type:'string',minLength:1,maxLength:200},provenanceDigest:digest()});
+  const alias=object({aliasDisplay:{type:'string',minLength:1,maxLength:256},aliasNormalized:{type:'string',minLength:1,maxLength:256},provenanceDigest:digest()});
   const identity=object({provider:{const:'theporndb'},namespace:{const:'performer'},providerKey:id(),provenanceDigest:digest()});
   return {$schema:'https://json-schema.org/draft/2020-12/schema',$id:SCHEMA,title:'PeopleCatalogueRegistrationDecision@1',
     'x-helix-ssotRefs':['6.4.7.1','8.6.18','8.6.20'],'x-helix-role':'accepted-business-dto','x-helix-maxCanonicalBytes':256*1024,
     ...object({schemaRef:{const:SCHEMA},schemaVersion:{const:1},decisionId:digest(),operationId:id(),newPersonId:id(),libraryKind:{const:'us_adult'},
-      canonicalName:{type:'string',minLength:1,maxLength:200},aliases:{type:'array',minItems:1,maxItems:17,items:alias},
+      canonicalName:{type:'string',minLength:1,maxLength:256},aliases:{type:'array',minItems:1,maxItems:129,items:alias},
       providerIdentities:{type:'array',maxItems:1,items:identity},initialReference:ref('PeopleReferenceMaintenanceDecision'),
       catalogueOrigin:originSchema(),decisionDigest:digest()})};
 }
@@ -126,7 +126,7 @@ function buildCatalogueRegistration({input,inputDigest,resolution,observation,pr
     nameQueryDigest:resolution.nameQueryDigest,libraryNamesDigest:resolution.libraryNamesDigest,nameResolutionDigest:resolution.resolutionDigest,
     providerObservationDigest:canonicalDigest(providerObservation),providerResolutionDigest:providerResolution.resolutionDigest,
     imageSourceProofDigest:identity.imageSourceProofDigest,imageSourceProof};
-  if(Buffer.byteLength(canonicalJson(catalogueOrigin))>64*1024)fail('The complete People origin exceeds its bound.');
+  if(Buffer.byteLength(canonicalJson(catalogueOrigin))>128*1024)fail('The complete People origin exceeds its bound.');
   const names=[...new Map([input.winner.name,...input.winner.aliases].map(name=>[name.toLowerCase(),name])).values()],
     aliases=names.map(name=>({aliasDisplay:name,aliasNormalized:name.toLowerCase(),provenanceDigest:canonicalDigest({schema:'people.catalogue-alias@1',inputDigest,name})})),
     providerIdentities=providerResolution.kind==='resolved'?[{provider:'theporndb',namespace:'performer',providerKey:providerResolution.candidates[0].providerKey,

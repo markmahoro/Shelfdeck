@@ -161,12 +161,21 @@ function buildInventoryPlacementBasis(context, at, caseId, processKind, actorSel
       digest: context.raw.placement.policy_digest,
     }),
   });
+  const preferredTargetDirectory = processKind === 'aftercare' && !actorSelection && !series &&
+    classifyAcceptedPlacement(context).state === 'accepted' &&
+    typeof context.raw?.initialPlacementDecision?.target_location === 'string' &&
+    context.raw.initialPlacementDecision.target_location
+    ? context.raw.initialPlacementDecision.target_location
+    : null;
   const base = {
     onDeckRunId: caseId,
     custodyId: caseId,
+    shelfEntryId: context.shelfEntryId,
+    ...(preferredTargetDirectory ? { preferredTargetDirectory } : {}),
     ...(processKind==='aftercare'?{aftercareCaseId:caseId}:{correctionId:caseId}),
-    ...(contentProfile==='western_adult'?{shelfEntryId:context.shelfEntryId,
-      ...(actorSelection?{inventoryActorRefreshSelection:actorSelection}:{inventoryUsAdultPresentation:buildUsAdultInventoryPresentation(context,caseId)})}:{}),
+    ...(contentProfile==='western_adult'
+      ? (actorSelection?{inventoryActorRefreshSelection:actorSelection}:{inventoryUsAdultPresentation:buildUsAdultInventoryPresentation(context,caseId)})
+      : {}),
     shelf,
     onDeckProductPackage,
     observedAtMs: at,

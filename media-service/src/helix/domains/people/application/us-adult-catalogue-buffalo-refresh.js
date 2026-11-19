@@ -6,7 +6,7 @@ const {buffaloModelReference}=require('../../../contracts/buffalo-model-referenc
 const {SYSTEM}=require('../model/us-adult-catalogue-registration');
 const {resolveUsAdultProviderName}=require('../model/us-adult-provider-name-resolution');
 const {preparationWork}=require('./people-image-operation-coordinator');
-const {providerImageRequest,catalogueRunToken}=require('./us-adult-catalogue-registration-evidence');
+const {providerImageRequests,catalogueRunToken}=require('./us-adult-catalogue-registration-evidence');
 
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
 const stable=(prefix,value)=>prefix+canonicalDigest(value).slice(0,40);
@@ -50,9 +50,13 @@ function createUsAdultCatalogueBuffaloRefresh(options){
     return {referenceAssetId:asset.referenceAssetId,referenceFaceId:face.referenceFaceId,artifactDigest:asset.artifactDigest,
       embeddingDigest:face.embeddingDigest,modelRef:face.modelRef};
   }
-  function imageBytesFor(input){
+  function imageBytesFor(input,{personId,referenceRevision,priorFailedCode}){
     const direct=options.readImageBytes({kind:'buffalo_refresh',input});
-    if(Buffer.isBuffer(direct)&&direct.length)return {bytes:direct,source:'catalogue_frame'};
+    if(Buffer.isBuffer(direct)&&direct.length){
+      const directDigest=sha(direct);
+      const duplicate=referenceRevision>=1&&options.peopleStore.hasReferenceImage?.(personId,directDigest);
+      if(!duplicate&&!priorFailedCode(directDigest))return {bytes:direct,source:'catalogue_frame'};
+    }
     let providerObservation;
     try{providerObservation=options.observeProviderSearch({name:input.winner.name,aliases:input.winner.aliases||[],input});}
     catch(error){
@@ -77,19 +81,35 @@ function createUsAdultCatalogueBuffaloRefresh(options){
       return pendingResult({pendingCode:code});
     }
     if(!['resolved','not_found'].includes(providerResolution.kind))return failed('PEOPLE_CATALOGUE_PROVIDER_AMBIGUOUS');
-    const selected=providerImageRequest(providerObservation,providerResolution);
-    if(selected){
+    const requests=providerImageRequests(providerObservation,providerResolution);
+    let lastFailureCode=null,skippedCandidate=false;
+    for(const selected of requests){
       const bytes=options.readImageBytes({kind:'provider',...selected,input});
-      if(bytes?.kind==='failed')
-        return failed(bytes.code||'PEOPLE_CATALOGUE_IMAGE_FAILED');
+      if(bytes?.kind==='failed'){lastFailureCode=bytes.code||'PEOPLE_CATALOGUE_IMAGE_FAILED';continue;}
       if(!Buffer.isBuffer(bytes)||!bytes.length)return pendingResult({pendingCode:'PEOPLE_BUFFALO_REFRESH_IMAGE_PENDING'});
+      const digest=sha(bytes);
+      // people_reference_assets has UNIQUE(person_id, artifact_digest); skip already-owned digests.
+      if(referenceRevision>=1&&options.peopleStore.hasReferenceImage?.(personId,digest)){
+        skippedCandidate=true;
+        continue;
+      }
+      const failedBefore=priorFailedCode(digest);
+      if(failedBefore){
+        skippedCandidate=true;
+        lastFailureCode=failedBefore;
+        continue;
+      }
       return {bytes,source:'stashbox'};
     }
-    if(typeof options.buildFrameImageProof!=='function')return failed('PEOPLE_CATALOGUE_FRAME_PROOF_UNWIRED');
+    if(requests.length>0&&!skippedCandidate&&lastFailureCode)return failed(lastFailureCode);
+    if(typeof options.buildFrameImageProof!=='function')
+      return failed(skippedCandidate?(lastFailureCode||'PEOPLE_REFERENCE_IMAGE_EXISTS'):'PEOPLE_CATALOGUE_FRAME_PROOF_UNWIRED');
     const proof=options.buildFrameImageProof({input,providerObservation,providerResolution});
     if(proof?.kind==='failed')return failed(proof.code||'PEOPLE_CATALOGUE_FRAME_PROOF_FAILED');
     if(!proof||proof.kind!=='frame'||!Buffer.isBuffer(proof.bytes)||!proof.bytes.length)
       return pendingResult({pendingCode:'PEOPLE_CATALOGUE_FRAME_PROOF_PENDING'});
+    if(referenceRevision>=1&&options.peopleStore.hasReferenceImage?.(personId,sha(proof.bytes)))
+      return failed('PEOPLE_REFERENCE_IMAGE_EXISTS');
     return {bytes:proof.bytes,source:'catalogue_frame'};
   }
   function refreshBuffaloCatalogueReference({personId,head,input,inputDigest,candidate}){
@@ -105,7 +125,18 @@ function createUsAdultCatalogueBuffaloRefresh(options){
       const readyAsset=buffaloAsset(snapshot);
       if(readyAsset)return Object.freeze({kind:'ready',personSnapshot:snapshot,referenceAssetId:readyAsset});
     }
-    const image=imageBytesFor(input);
+    const replacing=referenceRevision>=1?replacedImage(personId):null;
+    if(referenceRevision>=1&&!replacing)return failed('PEOPLE_BUFFALO_REFRESH_STALE');
+    function idempotencyKeyFor(imageDigest){
+      return canonicalDigest({schema:'people.catalogue-buffalo-refresh@1',personId,
+        expectedPersonRevision:head.personRevision,expectedReferenceRevision:referenceRevision,inputDigest,
+        imageDigest,modelDigest:buffaloRef().digest,operationKind:replacing?'reference_replace':'reference_add'});
+    }
+    function priorFailedCode(imageDigest){
+      const found=options.operationStore.findCommand?.(SYSTEM,idempotencyKeyFor(imageDigest))||null;
+      return found?.state==='failed'?(found.failureCode||'PEOPLE_BUFFALO_REFRESH_FAILED'):null;
+    }
+    const image=imageBytesFor(input,{personId,referenceRevision,priorFailedCode});
     if(image?.kind==='pending'||image?.kind==='failed')return image;
     const digest=sha(image.bytes);
     if(options.peopleStore.hasReferenceImage?.(personId,digest)&&referenceRevision>=1){
@@ -113,12 +144,8 @@ function createUsAdultCatalogueBuffaloRefresh(options){
         personId,expectedPersonRevision:person.currentRevision,expectedReferenceRevision:person.currentReferenceRevision||referenceRevision});
       if(!buffaloAsset(snapshot))return failed('PEOPLE_REFERENCE_IMAGE_EXISTS');
     }
-    const replacing=referenceRevision>=1?replacedImage(personId):null;
-    if(referenceRevision>=1&&!replacing)return failed('PEOPLE_BUFFALO_REFRESH_STALE');
     const mode=modeOf(input,candidate);
-    const idempotencyKey=canonicalDigest({schema:'people.catalogue-buffalo-refresh@1',personId,
-      expectedPersonRevision:head.personRevision,expectedReferenceRevision:referenceRevision,inputDigest,
-      imageDigest:digest,modelDigest:buffaloRef().digest,operationKind:replacing?'reference_replace':'reference_add'});
+    const idempotencyKey=idempotencyKeyFor(digest);
     const existing=options.operationStore.findCommand?.(SYSTEM,idempotencyKey)||null;
     let operationId=existing?.operationId;
     if(!existing){

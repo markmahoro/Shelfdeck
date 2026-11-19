@@ -16,8 +16,8 @@ const sortedUnique=(values,order)=>Array.isArray(values)&&values.every((value,in
 function fail(message){throw Object.assign(new TypeError(message),{code:'US_ADULT_CATALOGUE_DECISION_INPUT_INVALID'});}
 function assertWinner(winner){
   if(!exact(winner,['identityKey','uid','name','aliases','groupIds','coverageStrata','supportingRepresentativeStrata'])||
-    !text(winner.identityKey)||!text(winner.uid)||!text(winner.name,200)||!winner.name.trim()||!Array.isArray(winner.aliases)||
-    winner.aliases.length>16||winner.aliases.some(alias=>!text(alias,200)||!alias.trim())||!sortedUnique(winner.aliases,compare)||
+    !text(winner.identityKey)||!text(winner.uid)||!text(winner.name,256)||!winner.name.trim()||!Array.isArray(winner.aliases)||
+    winner.aliases.length>128||winner.aliases.some(alias=>!text(alias,256)||!alias.trim())||!sortedUnique(winner.aliases,compare)||
     !Array.isArray(winner.groupIds)||winner.groupIds.length<1||winner.groupIds.length>1280||winner.groupIds.some(group=>!text(group))||
     !sortedUnique(winner.groupIds,compare)||!Array.isArray(winner.coverageStrata)||winner.coverageStrata.length<3||winner.coverageStrata.length>20||
     !Array.isArray(winner.supportingRepresentativeStrata)||winner.supportingRepresentativeStrata.length<2||winner.supportingRepresentativeStrata.length>20||

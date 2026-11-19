@@ -1941,3 +1941,199 @@ test('Series native settlement rejects a directory junction escaping final place
     assert.deepEqual(fs.readFileSync(f.source),before);assert.ok(fs.existsSync(path.join(outside,'copy.mkv')));
   }finally{fs.rmSync(f.root,{recursive:true,force:true});}
 });
+
+test('same-Shelf duplicate single On-deck disambiguates subdirectories as (2) and (3) with unsuffixed member files', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-duplicate-subdir-'));
+  try {
+    const sourceRoot = path.join(root, 'source');
+    const targetRoot = path.join(root, 'shelf');
+    const workspaceRoot = path.join(root, '.workspace');
+    fs.mkdirSync(sourceRoot, { recursive:true });
+    fs.mkdirSync(targetRoot, { recursive:true });
+    const members = [
+      ['movie.mkv', 'primary_payload'],
+      ['movie.nfo', 'metadata_sidecar'],
+      ['poster.jpg', 'poster'],
+      ['fanart.jpg', 'fanart'],
+    ].map(([name, role]) => {
+      const location = path.join(sourceRoot, name);
+      fs.writeFileSync(location, role === 'metadata_sidecar'
+        ? '<movie><title>Duplicate Film</title></movie>'
+        : `${role}-bytes`);
+      return member(location, role, 'canary-mount');
+    });
+    const shelf = Object.freeze({
+      shelfId:'shelf-1', status:'active', currentPlacementRevision:1,
+      target:{ endpointId:'canary', rootLocation:targetRoot, mountScopeId:'canary-mount', mountScopeRevision:1 },
+      placement:{ value:{
+        folderTemplate:'{title} ({year})', primaryTemplate:'{stem}{ext}', nfoTemplate:'{stem}.nfo',
+        subtitleTemplate:'{stem}{language}{forced}{sdh}{ext}', posterTemplate:'poster{ext}',
+        fanartTemplate:'fanart{ext}', collisionPolicy:'reject',
+      } },
+    });
+    const packageValue = Object.freeze({
+      onDeckPackageId:'package-dup-1', shelfId:'shelf-1',
+      resolvedIdentitySnapshot:{ factValue:{ contentProfile:'movie', structureKind:'single', identityKind:'tmdb_movie', title:'Duplicate Film', year:2024 } },
+      productStructureSnapshot:{ structureKind:'single' },
+      productMaterialManifest:{ members:Object.freeze(members), manifestDigest:'manifest-dup-1' },
+      offloadContextManifest:{ manifestDigest:'offload-dup-1', members:Object.freeze([]) },
+    });
+    const occupied = new Set([path.join(targetRoot, 'Duplicate Film (2024)')]);
+    const port = createCleanArcaInventoryPort({
+      schemaManifest, unitOfWork:{}, workspaceRoot,
+      readOccupiedTargetDirectories: () => occupied,
+    });
+    const req2 = { onDeckRunId:'on-deck-2', custodyId:'custody-2', shelf, onDeckProductPackage:packageValue, observedAtMs:1, replayCommitted:false };
+    const decision2 = port.prepare(req2);
+    assert.equal(
+      path.dirname(decision2.members[0].targetLocation),
+      path.join(targetRoot, 'Duplicate Film (2024) (2)'),
+    );
+    const names2 = Object.fromEntries(decision2.members.map(item => [item.role, item.finalName]));
+    assert.deepEqual(names2, {
+      primary_payload:'Duplicate Film (2024).mkv',
+      metadata_sidecar:'Duplicate Film (2024).nfo',
+      poster:'poster.jpg',
+      fanart:'fanart.jpg',
+    });
+
+    // Step to (3) when both (base) and (2) are occupied.
+    occupied.add(path.join(targetRoot, 'Duplicate Film (2024) (2)'));
+    const decision3 = port.prepare({ ...req2, onDeckRunId:'on-deck-3', custodyId:'custody-3' });
+    assert.equal(
+      path.dirname(decision3.members[0].targetLocation),
+      path.join(targetRoot, 'Duplicate Film (2024) (3)'),
+    );
+
+    // Clear occupied completely: frozen decision2 must still stay pinned to (2).
+    occupied.clear();
+    const request2 = { ...req2, finalInventoryDecision:decision2 };
+    assert.equal(port.resolveTargetLocation(request2).targetDirectory, path.join(targetRoot, 'Duplicate Film (2024) (2)'));
+    const slot2 = port.prepareSlot(request2);
+    assert.equal(slot2.targetDirectory, path.join(targetRoot, 'Duplicate Film (2024) (2)'));
+    const staged2 = await port.stage({ ...request2, targetCommitSlotHandle:slot2 });
+    const verified2 = await port.verifyStaged({ ...request2, stagedInventoryManifest:staged2 });
+    await port.switchPlacement({ ...request2, stagedInventoryManifest:staged2, stagedInventoryVerification:verified2,
+      targetBindings:{ bindingSetDigest:'binding-2' }, replacedInputSetDigest:'replaced-2' });
+    const final2 = await port.readFinalAsync({ ...request2, verificationContext:'on_deck' });
+    assert.equal(final2.targetDirectory, path.join(targetRoot, 'Duplicate Film (2024) (2)'));
+
+    // Aftercare preferredTargetDirectory preserves (2) even when (base) is unoccupied.
+    assert.equal(
+      port.resolveTargetLocation({
+        ...req2,
+        shelfEntryId:'entry-2',
+        aftercareCaseId:'case-2',
+        preferredTargetDirectory:path.join(targetRoot, 'Duplicate Film (2024) (2)'),
+      }).targetDirectory,
+      path.join(targetRoot, 'Duplicate Film (2024) (2)'),
+    );
+  } finally {
+    fs.rmSync(root, { recursive:true, force:true });
+  }
+});
+
+test('titles naturally ending in (2) stay at ordinal 1 and duplicate to (2) (2)', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-natural-paren-'));
+  try {
+    const sourceRoot = path.join(root, 'source');
+    const targetRoot = path.join(root, 'shelf');
+    fs.mkdirSync(sourceRoot, { recursive:true });
+    fs.mkdirSync(targetRoot, { recursive:true });
+    const video = path.join(sourceRoot, 'movie.mkv');
+    fs.writeFileSync(video, 'media-bytes');
+    const shelf = Object.freeze({
+      shelfId:'shelf-1', status:'active', currentPlacementRevision:1,
+      target:{ endpointId:'canary', rootLocation:targetRoot, mountScopeId:'canary-mount', mountScopeRevision:1 },
+      placement:{ value:{ folderTemplate:'{title} ({year})', primaryTemplate:'{stem}{ext}' } },
+    });
+    const packageValue = Object.freeze({
+      onDeckPackageId:'pkg-seq', shelfId:'shelf-1',
+      resolvedIdentitySnapshot:{ factValue:{ contentProfile:'movie', structureKind:'single', identityKind:'tmdb_movie', title:'Sequel Film (2)' } },
+      productStructureSnapshot:{ structureKind:'single' },
+      productMaterialManifest:{ members:Object.freeze([member(video, 'primary_payload', 'canary-mount')]), manifestDigest:'m-seq' },
+      offloadContextManifest:{ manifestDigest:'o-seq', members:Object.freeze([]) },
+    });
+    const occupied = new Set();
+    const port = createCleanArcaInventoryPort({
+      schemaManifest, unitOfWork:{}, workspaceRoot:path.join(root, '.workspace'),
+      readOccupiedTargetDirectories: () => occupied,
+    });
+    const d1 = port.prepare({ onDeckRunId:'run-1', custodyId:'c-1', shelf, onDeckProductPackage:packageValue, observedAtMs:1 });
+    assert.equal(d1.members[0].targetLocation, path.join(targetRoot, 'Sequel Film (2)', 'Sequel Film (2).mkv'));
+    assert.equal(port.resolveTargetLocation({ shelf, onDeckProductPackage:packageValue, finalInventoryDecision:d1 }).targetDirectory,
+      path.join(targetRoot, 'Sequel Film (2)'));
+
+    occupied.add(path.join(targetRoot, 'Sequel Film (2)'));
+    const d2 = port.prepare({ onDeckRunId:'run-2', custodyId:'c-2', shelf, onDeckProductPackage:packageValue, observedAtMs:1 });
+    assert.equal(d2.members[0].targetLocation, path.join(targetRoot, 'Sequel Film (2) (2)', 'Sequel Film (2).mkv'));
+    assert.equal(port.resolveTargetLocation({ shelf, onDeckProductPackage:packageValue, finalInventoryDecision:d2 }).targetDirectory,
+      path.join(targetRoot, 'Sequel Film (2) (2)'));
+  } finally {
+    fs.rmSync(root, { recursive:true, force:true });
+  }
+});
+
+test('unowned foreign disk targets still reject with CLEAN_ARCA_STAGE_TARGET_OCCUPIED and US Adult duplicates suffix only the directory', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-unowned-vs-us-dup-'));
+  try {
+    const sourceRoot = path.join(root, 'source');
+    const targetRoot = path.join(root, 'shelf');
+    fs.mkdirSync(sourceRoot, { recursive:true });
+    fs.mkdirSync(targetRoot, { recursive:true });
+    const movieSrc = path.join(sourceRoot, 'foreign.mkv');
+    fs.writeFileSync(movieSrc, 'new-media-bytes');
+    const shelf = Object.freeze({
+      shelfId:'shelf-1', status:'active', currentPlacementRevision:1,
+      target:{ endpointId:'canary', rootLocation:targetRoot, mountScopeId:'canary-mount', mountScopeRevision:1 },
+      placement:{ value:{ folderTemplate:'{title} ({year})', primaryTemplate:'{stem}{ext}' } },
+    });
+    const moviePkg = Object.freeze({
+      onDeckPackageId:'pkg-foreign', shelfId:'shelf-1',
+      resolvedIdentitySnapshot:{ factValue:{ contentProfile:'movie', structureKind:'single', identityKind:'tmdb_movie', title:'Foreign Conflict', year:2024 } },
+      productStructureSnapshot:{ structureKind:'single' },
+      productMaterialManifest:{ members:Object.freeze([member(movieSrc, 'primary_payload', 'canary-mount')]), manifestDigest:'m-foreign' },
+      offloadContextManifest:{ manifestDigest:'o-foreign', members:Object.freeze([]) },
+    });
+    const occupied = new Set();
+    const port = createCleanArcaInventoryPort({
+      schemaManifest, unitOfWork:{}, workspaceRoot:path.join(root, '.workspace'),
+      readOccupiedTargetDirectories: () => occupied,
+    });
+    const foreignDir = path.join(targetRoot, 'Foreign Conflict (2024)');
+    fs.mkdirSync(foreignDir, { recursive:true });
+    fs.writeFileSync(path.join(foreignDir, 'Foreign Conflict (2024).mkv'), 'unowned-foreign-bytes');
+    const foreignReq = { onDeckRunId:'run-f', custodyId:'c-f', shelf, onDeckProductPackage:moviePkg, observedAtMs:1 };
+    const foreignDecision = port.prepare(foreignReq);
+    assert.equal(path.dirname(foreignDecision.members[0].targetLocation), foreignDir);
+    const foreignSlot = port.prepareSlot({ ...foreignReq, finalInventoryDecision:foreignDecision });
+    await assert.rejects(
+      port.stage({ ...foreignReq, finalInventoryDecision:foreignDecision, targetCommitSlotHandle:foreignSlot }),
+      { code:'CLEAN_ARCA_STAGE_TARGET_OCCUPIED' },
+    );
+
+    const usPrimary = path.join(sourceRoot, 'us.mkv');
+    fs.writeFileSync(usPrimary, 'us-media');
+    const original = 'Studio.Clip.1080p.mp4';
+    const proof = require('../src/helix/contracts/us-adult-presentation').originalNameProvenance(original);
+    const actor = { role:'actor', personId:'actor-1', displayName:'Actor', source:'user_actor_choice' };
+    const cast = { schemaRef:'helix://contracts/types/MediaCastFact/v1', sourceBasisKind:'us_adult_actor', relationCount:1, relations:[actor], relationsDigest:canonicalDigest(actor) };
+    const usPkg = {
+      onDeckPackageId:'us-dup-pkg', shelfId:'shelf-1',
+      resolvedIdentitySnapshot:{ factValue:{ contentProfile:'western_adult', identityKind:'internal_identity', structureKind:'single',
+        displayIdentity:{ entries:[{ key:'title', value:'Original title' }, { key:'original_file_name', value:original }, { key:'original_file_name_digest', value:proof.provenanceDigest }] } } },
+      mediaCastSnapshot:{ mediaCastFactId:'cast', mediaCastFactRevision:1, factDigest:'cast-digest', factValue:cast, relations:cast.relations, relationsDigest:cast.relationsDigest },
+      productFactManifest:{ items:[{ factKind:'media_cast', productFactId:'cast', factRevision:1, factDigest:'cast-digest', factValue:cast }] },
+      productStructureSnapshot:{ structureKind:'single' },
+      productMaterialManifest:{ manifestDigest:'us-m', members:[member(usPrimary, 'primary_payload', 'canary-mount')] },
+      offloadContextManifest:{ manifestDigest:'us-o', members:[] },
+    };
+    const expectedStem = 'Actor Studio.Clip.1080p';
+    occupied.add(path.join(targetRoot, expectedStem));
+    const usDecision = port.prepare({ onDeckRunId:'us-run-2', custodyId:'us-custody-2', shelf, onDeckProductPackage:usPkg, observedAtMs:1 });
+    assert.equal(path.basename(path.dirname(usDecision.members[0].targetLocation)), expectedStem + ' (2)');
+    assert.equal(usDecision.members[0].finalName, expectedStem + '.mkv');
+  } finally {
+    fs.rmSync(root, { recursive:true, force:true });
+  }
+});

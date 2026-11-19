@@ -12,7 +12,7 @@ Fresh Reset Bootstrap冷态管理的health为`maintenance/normalSupplyAllowed=fa
 
 首次235→239结构切换不先打开新业务Host，也不为保留旧未入藏流程运行加性迁移。仍走标准build/upload/deploy入口；在已完成Runtime安全停机、完整恢复基线及容量清单获准后，使用`deploy-nas.js <tar> --sha256 <digest> --fresh-reset-config <本机配置JSON> --capacity-plan <本机容量JSON>`先dry-run，取得具体发布授权后才加`--apply`。这只部署停止态管理入口，不代表已授权或自动执行Reset。
 
-配置schema为`shelfdeck.reset-configuration@1`，包含明确的`operationRoot`、`backupParent`、`backupSourceOptions`和`storage`；两个作业目录必须互不包含，位于容器`/operator-backups/`下，对应NAS`/vol2/1000/shelfdeck_backups/`中已审查且预先准备的精确目录。标准Compose保留原嵌套备份挂载并增加直接挂载；备份来源必须显式排除旧归档，不能递归备份嵌套备份卷。容量JSON采用`shelfdeck.deployment-capacity@1`，`volumes`精确列出`/vol1`和`/vol2`及十进制字符串`requiredAvailableBytes`；数值来自本次镜像加载、完整备份、数据库新代际、US Adult 离线脸库宿主目录及SQLite工作空间峰值，不抵扣尚未执行的删除。首次生产写入Compose/Secret之前先核对空间，Operator预检及每个后续阶段仍独立复核。
+配置schema为`shelfdeck.reset-configuration@1`，包含明确的`operationRoot`、`backupParent`、`backupSourceOptions`和`storage`；两个作业目录必须互不包含，位于容器`/operator-backups/`下，对应`heavy` HDD `/srv/shelfdeck/operator-backups/`中已审查且预先准备的精确目录。标准Compose保留原嵌套备份挂载并增加直接挂载；备份来源必须显式排除旧归档，不能递归备份嵌套备份卷。容量JSON采用`shelfdeck.deployment-capacity@1`，`volumes`精确列出`/srv/apps`和`/srv/shelfdeck`及十进制字符串`requiredAvailableBytes`；数值来自本次镜像加载、完整备份、数据库新代际、US Adult 离线脸库宿主目录及SQLite工作空间峰值，不抵扣尚未执行的删除。首次生产写入Compose/Secret之前先核对空间，Operator预检及每个后续阶段仍独立复核。
 
 部署控制器核对已完成Stop回执、Runtime revision与quiesced活动计数，检查原容器成功退出、无OOM且已移除，再核对全部容器没有其他业务数据挂载。独立冷态程序验证精确源结构、数据库/WAL摘要、停止记录和Platform凭据事实，输出绑定这些证据的管理授权。管理面沿原Runtime预检/一次确认接口，只能Reset，不能Resume或访问业务；普通部署不因schema失败自动启用该模式。确认之后复用同一持久workflow/代际Fence/幂等请求；完成后重开stopped新Host。失败保持停止，不能为了通过health而启动旧任务或跳过源结构校验。
 
@@ -20,7 +20,7 @@ Fresh Reset Bootstrap冷态管理的health为`maintenance/normalSupplyAllowed=fa
 
 若旧容器已移除、完整冷备已验证，但首次Bootstrap失败且管理容器尚未启动，可在同一标准命令增加`--continue-fresh-reset`，先dry-run再`--apply`。入口只读取原deployment-backup-request/bootstrap-request和验真backup receipt；禁止重造Stop/closure，拒绝旧容器仍存在或任何数据/转码共享挂载。必须保持相同配置、Secret和作业目录，镜像可为已验收修正版；保留原失败资格库，在独立continuation资格路径重新检查。源主库必须与原备份SHA一致，Runtime意图/Stop回执及物理文件集合由镜像再次验证；不覆盖已存在的失败续作、不回退或恢复业务。当前仅覆盖管理容器启动之前的冷态继续，其他阶段仍按各自持久回执处理。
 
-Bootstrap资格必须使用逐字节验真的私有源副本，禁止只读打开原业务SQLite：SQLite只读连接也可能在原目录生成空WAL/SHM。源主库及存在/缺失的WAL物理集合在操作前后严格保持；私有副本和资格库留在vol2作业目录，不把空伴随文件的自动生成当成可忽略漂移。
+Bootstrap资格必须使用逐字节验真的私有源副本，禁止只读打开原业务SQLite：SQLite只读连接也可能在原目录生成空WAL/SHM。源主库及存在/缺失的WAL物理集合在操作前后严格保持；私有副本和资格库留在HDD备份作业目录（`/srv/shelfdeck/operator-backups`），不把空伴随文件的自动生成当成可忽略漂移。
 
 同一规则覆盖Bootstrap管理面后续的每次Reset预检与确认：显式bootstrapId的冷态预检从验真私有副本读取Owner事实、重建与复核保留集，结束前核对原main/WAL集合严格不变；非空WAL拒绝，不按旧数据特征回落。普通已安全Stop但Host仍持有连接的预检继续使用SQLite一致读事务。成功的资格临时文件仅清理本进程精确路径，失败副本保留证据；副本/retained/SQLite工作量均纳入同一预检卷预算。
 
@@ -56,49 +56,52 @@ UAT-304：标准Compose的`stop_grace_period`为75秒。Service收到停止信�
 
 ## Formation Reset 的备份卷（2026-10-23 新标准，生产采用情况见 CURRENT_STATUS）
 
-新版工作台 Reset 保留历史，并完整备份选中 Workspace；转码/待上架成品可能远大于数据库。NAS 标准 Compose 新增 `/vol2/1000/shelfdeck_backups:/app/data/operator-backups`，与 `/transcode` 分离；不能只按数据库大小判断容量。容量预检只遍历大小，正式备份仍完整核对来源前后及副本 SHA256，空间不足不得开始退役。
+新版工作台 Reset 保留历史，并完整备份选中 Workspace；转码/待上架成品可能远大于数据库。`heavy` 标准 Compose 挂载 `/srv/shelfdeck/operator-backups:/app/data/operator-backups`，与 `/transcode` 分离；不能只按数据库大小判断容量。容量预检只遍历大小，正式备份仍完整核对来源前后及副本 SHA256，空间不足不得开始退役。
 
 部署入口只在固定父根验证后创建精确备份目录。若原 `data/operator-backups` 非空或路径是链接，直接拒绝覆盖挂载；保留旧备份并取得明确的迁移范围后另行处理。该卷必须跨升级/回退保留，停机 Reset 恢复会重新验证它；盘点和恢复清单必须包含这个外部备份卷，不能把单独的 data 冷备称为所有备份均已保存。新增配置不等于已修改当前生产，亦不构成 Reset 或迁移授权。
 
-## 当前生产环境
+## 当前生产环境（`heavy` VM104）
 
-Helix-beta 已于 2026-08-28 在飞牛 NAS 上线。下列是 **当前生产配置快照**（不含凭据）。升级必须保留这些绑定，禁止 `--helix-clean-init`，除非 Product Owner 明确要求清库。
+Helix-beta 已于 2026-08-28 在旧飞牛 NAS 上线，现生产宿主迁移至 `heavy`（`192.168.12.215`，Debian 12 + Quadro T2000，旧 `.230` 已退役且禁止双跑）。下列是 **当前 `heavy` 生产配置**（不含凭据）。升级必须保留这些绑定与挂载 UUID 校验，禁止 `--helix-clean-init`，除非 Product Owner 明确要求清库。
 
 | 项 | 固定值 |
 | --- | --- |
-| 生产形态 | 飞牛 fnOS 1.1.19 Docker 单容器 `shelfdeck` |
-| 生产地址 | `http://192.168.12.230:18080` |
-| NAS SSH | `192.168.12.230:22`，用户 `gezhu`；优先私钥，见下方 SSH |
-| NAS compose 目录 | `/vol1/1000/docker/shelfdeck` |
-| NAS compose 文件 | `/vol1/1000/docker/shelfdeck/docker-compose.yml` |
-| NAS 数据目录 | `/vol1/1000/docker/shelfdeck/data` |
+| 生产形态 | Debian 12 Docker (`20.10.24+dfsg1` + Compose v2 CLI plugin) 单容器 `shelfdeck` |
+| 生产地址 | `http://192.168.12.215:18080` |
+| 宿主 SSH | `192.168.12.215:22`，用户 `gezhu`；优先私钥 `shelfdeck-gezhu2403` |
+| compose 目录（SSD） | `/srv/apps/shelfdeck`（`/dev/sdb1` ext4，UUID `2e4fda48-ccbd-40cd-9b6b-1b66c4eb2dda`） |
+| compose 文件（SSD） | `/srv/apps/shelfdeck/docker-compose.yml` |
+| 数据目录（SSD） | `/srv/apps/shelfdeck/data` |
+| 镜像包目录（SSD） | `/srv/apps/shelfdeck/releases` |
 | 镜像名 | `markmahoro/shelfdeck:<tag>`，同时打 `latest`，但生产不从 DockerHub pull |
-| 当前运行镜像 | 以 [Helix CURRENT_STATUS](../helix/CURRENT_STATUS.md) 与 NAS 当次只读 inspect 为准；本文不维护易过期的发布身份 |
+| 当前运行镜像 | 以 [Helix CURRENT_STATUS](../helix/CURRENT_STATUS.md) 与 `heavy` 当次只读 inspect 为准；本文不维护易过期的发布身份 |
 | 容器内 service 端口 | `18080` |
 | 容器内数据目录 | `/app/data` |
-| 普通媒体挂载 | NAS `/vol02/1000-0-c5b736af` -> 容器 `/media` |
-| 洗版/外部落地 | NAS `/vol2/1000/shelfdeck_upgrade` -> 容器 `/upgrade` |
-| Production Workspace / 转码目录 | NAS `/vol2/1000/shelfdeck_transcode` -> 容器 `/transcode`。**`/transcode` 就是本机 Production Workspace 根**，不是额外再挂一个 workspace |
-| 成人库挂载 | NAS `/vol02/1000-0-24018892` -> 容器 `/adult_media`；标准部署另提供同目录 `/adult` 挂载，保留现有路径绑定。实际生效版本以当次部署Evidence为准 |
-| QSV 核显 | 宿主机 `/dev/dri` -> 容器 `/dev/dri`，`LIBVA_DRIVER_NAME=iHD` |
-| US Adult 离线脸库 | **产品内数据**（与内部 SQLite 同类）：部署时把 NAS 包目录 `/vol1/1000/docker/shelfdeck/us-adult-catalogue` **安装**进 `/app/data/us-adult-catalogue`（WAL→DELETE，无热路径 copy）。compose 只设 `SHELFDECK_US_ADULT_CATALOGUE_ROOT=/app/data/us-adult-catalogue`，**不再**把源包挂成容器 `:ro` 运行时库。buffalo_l 仍打进镜像；脸向量包不 bake 进镜像层。容量计划须覆盖 data 卷内已安装脸库字节。Admin「选择安装」UI 后续再做 |
+| 普通媒体挂载 | `/media`（群晖 `.45/Media` CIFS autofs） -> 容器 `/media` |
+| 洗版/外部落地 | `/mnt/shelfdeck_upgrade`（fnOS `.218` NFSv4.2 autofs） -> 容器 `/upgrade` |
+| Production Workspace / 转码目录（HDD） | `/srv/shelfdeck/transcode`（`/dev/sdc1` ext4，UUID `11cf7e64-e7fa-4573-8588-5afb97ce3854`） -> 容器 `/transcode`。**`/transcode` 就是本机 Production Workspace 根**，留在 HDD 以隔离转码临时写入与 SSD 数据库 |
+| 维护与 Reset 备份卷（HDD） | `/srv/shelfdeck/operator-backups` -> 容器 `/app/data/operator-backups`（存在 Reset 挂载时另挂 `/operator-backups`） |
+| 成人库挂载 | `/adult`（群晖 `.45/Adult` CIFS autofs） -> 容器 `/adult_media` 与 `/adult` |
+| NVIDIA GPU | `runtime: nvidia`（`nvidia-container-toolkit`），`NVIDIA_VISIBLE_DEVICES=all`，`NVIDIA_DRIVER_CAPABILITIES=compute,video,utility`（Quadro T2000 NVENC） |
+| 防写穿根盘保护 | 部署前以 `findmnt` 校验 `/srv/apps` 与 `/srv/shelfdeck` UUID 及 `/media` `/adult` `/mnt/shelfdeck_upgrade` 实际挂载类型；宿主机 `docker.service` 配置 `RequiresMountsFor` 与 `AssertPathIsMountPoint` |
+| US Adult 离线脸库 | **产品内数据**（与内部 SQLite 同类）：若宿主包目录 `/srv/apps/shelfdeck/us-adult-catalogue` 存在则部署时安装进 `/app/data/us-adult-catalogue`（WAL→DELETE）；否则验证已安装脸库的 `generation.json`、成员字节与 `journal_mode=delete`。compose 设 `SHELFDECK_US_ADULT_CATALOGUE_ROOT=/app/data/us-adult-catalogue`，不再把源包挂成 `:ro` 运行时库 |
 
-### 当前业务对象（2026-08-28 只读快照）
+### 当前业务对象（2026-11-19 `heavy` 迁移后只读快照）
 
 | 项 | 值 |
 | --- | --- |
 | 文件来源 | `movie-field-52f6c848-af1b-4bdd-8655-d15bfdf30b5a`，名称「电影文件来源」，容器路径 `/media/Film`，status `active` |
 | 收藏架 | `movie-shelf-2ba8e387-4cd7-4702-942a-a246da15d421`，名称「电影」，目标 `/media/Film`，status `active` |
 | 路由策略 | 该来源 `direct`，始终指向上述收藏架 |
-| Production Workspace | `platform_workspace_roots.resolved_root=/transcode`，`config_revision=2`，`state=active`。保存后须重启容器才生效 |
-| TMDB | `tmdb-main` `active`，endpoint `https://api.themoviedb.org/3`，`proxyServer=http://192.168.12.230:7890`，language `zh-CN` |
+| Production Workspace | `platform_workspace_roots.resolved_root=/transcode`，`config_revision=3`（已重绑 `/srv/shelfdeck/transcode`），`state=active`。保存后须重启容器才生效 |
+| TMDB | `tmdb-main` `active`，endpoint `https://api.themoviedb.org/3`，`proxyServer=http://192.168.12.219:7890`，language `zh-CN` |
 | 豆瓣 | `douban-main` `active`，endpoint `https://movie.douban.com` |
-| MoviePilot | `moviepilot-main` `active`，endpoint `http://192.168.12.230:3000` |
-| Clash 代理 | 宿主机容器 `clash`（`metacubex/mihomo`）监听 `*:7890` |
+| MoviePilot | `moviepilot-main` `active`，endpoint `http://192.168.12.217:3000` |
+| Clash / 网络代理 | `network-main`、`tmdb-main` 与 8 个活跃 `jav-*` 源均收敛至独立代理 `http://192.168.12.219:7890`（不再使用已退役 `.230` 本机容器） |
 
-SSOT 允许 Field 与 Shelf Target 同根；本机两者都是 `/media/Film`。Workspace 与转码共用 `/transcode` 是本机明确配置，不是疏忽。凭据只在 NAS `secret.env` 与本机 ignored 文件，不写入本文。
+SSOT 允许 Field 与 Shelf Target 同根；本机两者都是 `/media/Film`。Workspace 与转码共用 `/transcode` 是本机明确配置，不是疏忽。凭据只在 `heavy` `secret.env` 与本机 ignored 文件，不写入本文。
 
-`media-service/docker-compose.example.yml` 只是新环境模板，不是当前 NAS 生产 compose 的来源。不要根据模板推断当前生产挂载；以 NAS 上的 `/vol1/1000/docker/shelfdeck/docker-compose.yml` 和本文件为准。
+`media-service/docker-compose.example.yml` 只是新环境模板，不是当前 `heavy` 生产 compose 的来源。不要根据模板推断当前生产挂载；以 `heavy` 上的 `/srv/apps/shelfdeck/docker-compose.yml` 和本文件为准。
 
 ## 标准发布流程
 
@@ -111,11 +114,12 @@ PROD-047 的获授权旧 Aftercare reclaim 执行残留纠正只能使用
 dry-run、停服、完整 data backup、离线 plan/apply/plan 与 integrity check，再进入标准 deploy；不得手工 SQL，
 也不得把该事故纠正变成常驻 Runtime 兼容。
 
-部署脚本会重写 NAS compose，但必须保留并校验：
+部署脚本会重写宿主 compose，但必须保留并校验：
 
-- `/vol02/1000-0-c5b736af:/media`
-- `/vol2/1000/shelfdeck_upgrade:/upgrade`
-- `/dev/dri:/dev/dri`
+- `/media:/media`
+- `/mnt/shelfdeck_upgrade:/upgrade`
+- `runtime: nvidia`（Quadro T2000）
+- `/srv/apps`（SSD）与 `/srv/shelfdeck`（HDD）真实挂载 UUID
 
 1. 在本机从仓库根目录构建生产镜像 tarball：
 
@@ -153,8 +157,8 @@ node scripts/upload-nas-image.js dist-image\shelfdeck-<tag>.tar
 上传脚本使用项目固定 NAS SSH 配置走 SFTP，不使用交互式 `scp`。SSH 由 `tools/nas-ssh-config.js` 统一读取，**优先私钥、密码仅作回退**：
 
 1. 环境变量 `SHELFDECK_NAS_HOST` / `SHELFDECK_NAS_PORT` / `SHELFDECK_NAS_USER` / `SHELFDECK_NAS_KEY`（可选 `SHELFDECK_NAS_PASSWORD`）。
-2. 本机 ignored 的 `tests/TEST_ENV_CHECKLIST.md` 表项：`飞牛 NAS IP`、`SSH 端口`、`SSH 用户名`、`SSH 私钥`（或 `SSH 密码`）。
-3. 若仍未给出私钥路径，则尝试 `~/.ssh/gezhu_nas_health_it_ed25519` 与 `~/.ssh/id_rsa_shelfdeck`。
+2. 本机 ignored 的 `tests/TEST_ENV_CHECKLIST.md` 表项：`heavy IP` / `飞牛 NAS IP`、`SSH 端口`、`SSH 用户名`、`SSH 私钥`（或 `SSH 密码`）。
+3. 若仍未给出私钥路径，则依次尝试 `~/.ssh/shelfdeck-gezhu2403`、`~/.ssh/gezhu_nas_health_it_ed25519` 与 `~/.ssh/id_rsa_shelfdeck`（默认主机 `192.168.12.215`、默认用户 `gezhu`）。
 
 私钥文件只留在本机，不得提交。`tools/` 需要先 `npm install` 以提供 `ssh2`。脚本会先上传到 `.uploading-*` 临时文件，完成后 rename 为目标 tarball，并在 NAS 上校验 SHA-256。校验不通过不得部署。
 
@@ -171,20 +175,20 @@ readiness副本捕获不得向只读生产来源创建SQLite辅助文件。来�
 上述验证通过后，dry run 检查将要执行的生产步骤：
 
 ```bash
-node scripts/deploy-nas.js /vol1/1000/docker/shelfdeck/shelfdeck-<tag>.tar --sha256 <local-sha256>
+node scripts/deploy-nas.js /srv/apps/shelfdeck/releases/shelfdeck-<tag>.tar --sha256 <local-sha256>
 ```
 
 5. 如果 dry run、SHA-256 校验和脚本内检查通过，继续执行 apply：
 
 ```bash
-node scripts/deploy-nas.js /vol1/1000/docker/shelfdeck/shelfdeck-<tag>.tar --sha256 <local-sha256> --apply
+node scripts/deploy-nas.js /srv/apps/shelfdeck/releases/shelfdeck-<tag>.tar --sha256 <local-sha256> --apply
 ```
 
 首次 Helix clean cutover 使用：
 
 ```powershell
-node scripts/deploy-nas.js /vol1/1000/docker/shelfdeck/shelfdeck-<tag>.tar --sha256 <local-sha256> --helix-clean-init
-node scripts/deploy-nas.js /vol1/1000/docker/shelfdeck/shelfdeck-<tag>.tar --sha256 <local-sha256> --helix-clean-init --apply
+node scripts/deploy-nas.js /srv/apps/shelfdeck/releases/shelfdeck-<tag>.tar --sha256 <local-sha256> --helix-clean-init
+node scripts/deploy-nas.js /srv/apps/shelfdeck/releases/shelfdeck-<tag>.tar --sha256 <local-sha256> --helix-clean-init --apply
 ```
 
 空 data 目录的 Helix-beta 首次初始化不要求旧 `config.json` 快照；已有数据时 clean-init 会在 compose 目录旁写 backup。Admin API key 只写本机 ignored 的 `tests/.env.nas-admin`，不得提交或打印。
@@ -201,7 +205,7 @@ node scripts/formation-reset-nas.js
 ```
 
 只有用户明确授权该次生产Reset后才执行`--apply --confirm FORMATION_RESET_V2`。包装脚本只停止`shelfdeck` Compose service，在
-`/vol1/1000/docker/shelfdeck/backups/formation-reset-*/data`创建并校验完整备份，使用当前精确镜像离线执行Reset，然后恢复服务并检查
+`/srv/shelfdeck/operator-backups/formation-reset-*/data`创建并校验完整备份，使用当前精确镜像离线执行Reset，然后恢复服务并检查
 `GET /v1/health`。Reset不挂载`/media`；失败时禁止继续部署或手工改库，应保留停止状态和备份路径先查明原因。
 
 ## 部署脚本的固定契约
@@ -226,13 +230,13 @@ apply 模式必须保持这些保护：
 
 - 当用户要求“部署、上线、发布到 NAS、升级生产”时，该请求本身就是执行完整标准发布流程的授权；Codex 不需要在 dry run 后再次询问是否可以 `--apply`。
 - dry run 失败、SHA-256 不匹配、health check 失败、挂载校验失败或其他脚本检查失败时，必须停止并报告失败原因，不能强行继续。
-- 生产是 `192.168.12.230:18080`，本地测试是 `127.0.0.1:18080`；不要混用。
-- 本地 `media-service/data/*.json` 和测试数据库可以重置；NAS `/vol1/1000/docker/shelfdeck/data` 不可随意修改。
+- 生产是 `192.168.12.215:18080`，本地测试是 `127.0.0.1:18080`；不要混用。
+- 本地 `media-service/data/*.json` 和测试数据库可以重置；宿主 `/srv/apps/shelfdeck/data` 不可随意修改。
 - `docker compose -f media-service/docker-compose.example.yml up -d` 只用于本地或新环境验证，不是 NAS 生产部署方式。
 - 不使用 DockerHub pull 作为当前生产部署路径；如以后切换 registry 部署，必须先更新本文和部署脚本的安全检查。
 - 不要把源码目录 bind mount 到生产容器；生产代码必须来自构建出的 Docker image。
 - 当前开发期允许部署中断正在运行的转码、刮削、删除、洗版任务；不要改用其他部署方法规避这个固定流程。
-- 涉及生产问题排查时，先读 `tests/TEST_ENV_CHECKLIST.md` 和 `docs/v2/DEBUG_WORKFLOW.md`，但只做只读诊断，除非用户明确授权变更生产状态。
+- 涉及生产问题排查时，先读 `docs/v2/DEBUG_WORKFLOW.md`（若本机存在可选的 `tests/TEST_ENV_CHECKLIST.md` 也可参考），但只做只读诊断，除非用户明确授权变更生产状态。
 - v3.2.5 起，生产安全基线见 `docs/v3/PRODUCTION_SAFETY_BASELINE.md`。排查生产实验态、数据文件大小、最近备份、DB 聚合计数时，优先使用只读脚本：
 
 ```bash
@@ -291,7 +295,7 @@ node scripts/production-readonly-diagnostics.js
 ## 部署后的最小验收
 
 ```bash
-curl -fsS http://192.168.12.230:18080/v1/health
+curl -fsS http://192.168.12.215:18080/v1/health
 ```
 
 如果改动涉及 Admin Web、配置、任务调度、成人库、转码或外部集成，还应按 `docs/v2/TEST_ARCHITECTURE.md` 补跑对应 flow。生产验收命令应优先使用只读接口。

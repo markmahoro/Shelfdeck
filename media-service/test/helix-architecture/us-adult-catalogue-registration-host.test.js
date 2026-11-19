@@ -455,3 +455,116 @@ test('default composition runtime catalogueInputReader compiles without outer co
   const peopleStore2=createPeopleStore(f2.workspaceOptions);
   assert.equal(peopleStore2.getPerson(op2.personId).currentRevision,1);
 });
+
+test('ambiguous provider observation during not_found registration fail-closes with PEOPLE_CATALOGUE_PROVIDER_AMBIGUOUS instead of workless pending',async t=>{
+  const sceneValue=await scene(t);
+  const {admission}=executionFor(sceneValue.f,{
+    observe({name,aliases}){
+      const names=queryNames(name,aliases);
+      const p1={providerKey:'tpdb-1',canonicalName:name,aliases:[],images:[]};
+      const p2={providerKey:'tpdb-2',canonicalName:name,aliases:[],images:[]};
+      const queries=names.map(term=>({term,limit:10,completion:'complete',responseDigest:D('ambig-'+term),
+        candidates:term===normalizeName(name)?[p1,p2]:[]}));
+      const body={schema:'people.us-adult-provider-search-observation@1',provider:'theporndb',queries};
+      return {...body,observationDigest:D(body)};
+    },
+    readImageBytes:()=>png,
+    artifacts:new Map(),
+  });
+  const result=admission.registerCataloguePerson({
+    input:sceneValue.input,inputDigest:sceneValue.inputDigest,resolution:sceneValue.resolution,candidate:sceneValue.catalogue,
+  });
+  const ops=catalogueOps(sceneValue.f.db);
+  assert.equal(ops.length,0);
+  assert.equal(result.kind,'failed');
+  assert.equal(result.reasonCode,'PEOPLE_CATALOGUE_PROVIDER_AMBIGUOUS');
+  assert.equal(result.workId,undefined);
+});
+
+test('bindCatalogueCompletion marks preparing catalogue_registration operation as failed when readCatalogueRegistrationEvidence returns kind === failed instead of stranding state=preparing',async t=>{
+  const sceneValue=await scene(t);
+  const artifacts=new Map();
+  const records=new Map();
+  const reader={
+    status(id){return records.get(id)?.status||sceneValue.f.options.workResultReader.status(id);},
+    read(id){return records.get(id)?.read||sceneValue.f.options.workResultReader.read(id);},
+    readDefinition(id){return records.get(id)?.readDefinition||null;},
+  };
+  const store=createPeopleImageOperationStore(sceneValue.f.workspaceOptions);
+  const port={stageUpload,readArtifact(handle){return artifacts.get(handle.artifactHandleId);}};
+  let providerAmbiguousAfterPrep=false;
+  const execution=createPeopleImageExecutionRegistration({
+    ...sceneValue.f.workspaceOptions,contractValidator:sceneValue.f.validator,workResultReader:reader,
+    peopleImagePort:port,operationStore:store,
+    catalogueInputReader:createUsAdultCatalogueDecisionInput(sceneValue.f.options),
+    workspaceProductPort:sceneValue.f.options.workspaceProductPort,
+    artifactRepository:{get:id=>artifacts.get('record:'+id)||null},
+  });
+  const admission=execution.createCatalogueRegistrationAdmission({
+    observeProviderSearch({name,aliases}){
+      if(!providerAmbiguousAfterPrep)return providerObservation(name,aliases);
+      const names=queryNames(name,aliases);
+      const p1={providerKey:'tpdb-1',canonicalName:name,aliases:[],images:[]};
+      const p2={providerKey:'tpdb-2',canonicalName:name,aliases:[],images:[]};
+      const queries=names.map(term=>({term,limit:10,completion:'complete',responseDigest:D('late-ambig-'+term),
+        candidates:term===normalizeName(name)?[p1,p2]:[]}));
+      const body={schema:'people.us-adult-provider-search-observation@1',provider:'theporndb',queries};
+      return {...body,observationDigest:D(body)};
+    },
+    readImageBytes:()=>png,
+    peopleImagePort:port,operationStore:store,
+    catalogueInputReader:createUsAdultCatalogueDecisionInput(sceneValue.f.options),
+    workspaceProductPort:sceneValue.f.options.workspaceProductPort,
+    artifactRepository:{get:id=>artifacts.get('record:'+id)||null},
+  });
+  const pendingResult=admission.registerCataloguePerson({
+    input:sceneValue.input,inputDigest:sceneValue.inputDigest,resolution:sceneValue.resolution,candidate:sceneValue.catalogue,
+  });
+  assert.equal(pendingResult.kind,'pending');
+  const ops=catalogueOps(sceneValue.f.db);
+  assert.equal(ops.length,1);
+  const operation=store.get(ops[0].operationId);
+  const work=preparationWork(operation);
+  const imageDigest=operation.payload.selectedImage.digestHex;
+  const vector=Array(512).fill(0);vector[0]=1;
+  const featureBytes=Buffer.from(canonicalJson({schema:'shared.face-embedding-set@1',dimension:512,vectors:[vector]}));
+  const artifact=(artifactHandleId,artifactKind,digestHex,mediaType,sizeBytes)=>({
+    schemaRef:'helix://contracts/types/ArtifactHandle/v1',schemaVersion:1,artifactHandleId,artifactKind,ownerDomain:'people',
+    ownerScope:{scopeType:'person',scopeId:operation.personId},storageRef:'people-artifact:'+artifactHandleId,
+    digestAlgorithm:'sha256',digestHex,sizeBytes,mediaType,
+    provenanceRef:{objectType:'people_image_operation',objectId:operation.operationId,revision:1,digest:D('provenance')},
+    referenceRevision:1});
+  const photo=artifact('photo','reference-image',imageDigest,'image/png',png.length);
+  const embeddingDigest=crypto.createHash('sha256').update(featureBytes).digest('hex');
+  const embeddingArtifact=artifact('embedding','reference-embedding',embeddingDigest,'application/vnd.shelfdeck.face-embedding+json',featureBytes.length);
+  const embeddingBody={schemaRef:'helix://contracts/types/FaceEmbeddingSetHandle/v1',schemaVersion:1,artifactHandleId:'embedding',
+    artifactHandle:embeddingArtifact,computationMode:'single_reference_face',libraRunId:null,workspaceId:null,
+    faceModelRefDigest:buffaloModelReference('single_reference_face').digest,sourceArtifactSetDigest:imageDigest,
+    detectedFaceCount:1,vectorCount:1,dimension:512,embeddingDigest};
+  const embedding={...embeddingBody,handleDigest:D(embeddingBody)};
+  const result=(capabilityRef,value,eventId)=>({workId:work.workId,attemptId:'attempt',planId:'plan',eventId,
+    eventAttemptId:'event-attempt-'+eventId,state:'succeeded',outcomeKind:'succeeded',inputSnapshotDigest:D(eventId+'-input'),
+    capabilityRef,resultSchemaRef:'helix://contracts/capabilities/'+capabilityRef.replace('@1','/v1/result'),
+    resultDigest:D(value),result:value});
+  const asRecord=handle=>({artifactHandleId:handle.artifactHandleId,artifactKind:handle.artifactKind,ownerDomain:handle.ownerDomain,
+    ownerScopeType:handle.ownerScope.scopeType,ownerScopeId:handle.ownerScope.scopeId,storageRef:handle.storageRef,
+    digestAlgorithm:handle.digestAlgorithm,digestHex:handle.digestHex,sizeBytes:handle.sizeBytes,mediaType:handle.mediaType,
+    provenanceRef:handle.provenanceRef,referenceRevision:handle.referenceRevision,state:'active',createdAtMs:1});
+  artifacts.set('photo',png);artifacts.set('embedding',featureBytes);
+  artifacts.set('record:photo',asRecord(photo));artifacts.set('record:embedding',asRecord(embeddingArtifact));
+  records.set(work.workId,{
+    status:{state:'succeeded',latestAttempt:{state:'succeeded',attempt_id:'attempt'},owner_domain:'people',
+      process_type:'people_image_preparation',process_id:operation.operationId,basis_digest:operation.payloadDigest},
+    read:[result('people.reference_asset.import@1',photo,'import'),result('shared.face.embedding.compute@1',embedding,'embed')],
+    readDefinition:{definition:work},
+  });
+  providerAmbiguousAfterPrep=true;
+  const services=execution.createProcessServices({
+    onDeckPersonEvidenceProjection:{read(){return null;},listPage(){return [];}},
+    onDeckNfoPersonEvidence:{observeEntry(){return {kind:'skipped'};},listPage(){return [];}},
+  });
+  const finished=services.imageOperations.reconcile(operation.operationId);
+  assert.equal(finished.state,'failed');
+  assert.equal(finished.failureCode,'PEOPLE_CATALOGUE_PROVIDER_AMBIGUOUS');
+  assert.equal(store.listPendingPage({cursor:null,limit:100}).length,0);
+});

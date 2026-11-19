@@ -1,4 +1,5 @@
 'use strict';
+const path = require('node:path');
 const {packageContentProfile}=require('../model/product-content-profile');
 const { readControlProjections } = require('../persistence/read-control-projections');
 const {seriesMetadataFieldMissing}=require('../model/series-metadata');
@@ -548,21 +549,25 @@ function createMovieOnDeckCoordinator(options) {
     const responsibility =
       acceptance.deriveAcceptedResponsibility(assessment);
     const onDeckRunId = responsibility.onDeckRunId;
-    const finalInventoryDecision = options.inventoryPort.prepare({
-      onDeckRunId,
-      custodyId: responsibility.custodyId,
-      shelf,
-      onDeckProductPackage: packageValue,
-      observedAtMs: at,
-      replayCommitted: replayCommittedInventory,
-    });
     let accepted = acceptance.readAccepted({
       acceptanceAttemptId: attemptId,
       offerMessage: offer,
       libraRunId: offer.libraRunId,
       onDeckRunId,
-      finalInventoryDecision,
     });
+    const finalInventoryDecision = accepted
+      ? accepted.finalInventoryDecision
+      : options.inventoryPort.prepare({
+        onDeckRunId,
+        custodyId: responsibility.custodyId,
+        shelf,
+        onDeckProductPackage: packageValue,
+        observedAtMs: at,
+        replayCommitted: replayCommittedInventory,
+      });
+    const acceptedTargetLocation = finalInventoryDecision?.members?.[0]?.targetLocation
+      ? path.dirname(path.resolve(finalInventoryDecision.members[0].targetLocation))
+      : feasibility.targetLocation;
     if (!accepted) {
       const acceptanceFence = options.productDeliveryPort.readPackage({
         queryContract: 'libra.product-delivery@1',
@@ -608,7 +613,7 @@ function createMovieOnDeckCoordinator(options) {
         package: packageValue,
         onDeckRunId,
         finalInventoryDecision,
-        targetLocation: feasibility.targetLocation,
+        targetLocation: acceptedTargetLocation,
         gapDecision,
         acceptanceChecks: gapDecision.acceptanceChecks,
         bindings: [
@@ -662,7 +667,7 @@ function createMovieOnDeckCoordinator(options) {
       shelf,
       package: packageValue,
       finalInventoryDecision,
-      targetLocation: feasibility.targetLocation,
+      targetLocation: acceptedTargetLocation,
     });
     onDeck.setOffloading(onDeckRunId,
       finalInventoryDecision.decisionDigest);

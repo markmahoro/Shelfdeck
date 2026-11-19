@@ -9,12 +9,12 @@ function assertCatalogueImagePayload(payload){
   if(!exact(payload,['schema','operationKind','expectedPersonRevision','expectedReferenceRevision','operationId','personId','actorId',
     'canonicalName','aliases','selectedImage','faceModelRef','catalogueDecisionInputDigest','nameResolutionDigest','imageSourceProofDigest'])||
     payload.schema!==SCHEMA||payload.operationKind!=='catalogue_registration'||payload.actorId!==SYSTEM||payload.expectedPersonRevision!==1||
-    payload.expectedReferenceRevision!==0||typeof payload.canonicalName!=='string'||!payload.canonicalName.trim()||payload.canonicalName.length>200||
-    !Array.isArray(payload.aliases)||payload.aliases.length<1||payload.aliases.length>17||payload.aliases[0]!==payload.canonicalName||
-    payload.aliases.some(value=>typeof value!=='string'||!value.trim()||value.length>200)||
+    payload.expectedReferenceRevision!==0||typeof payload.canonicalName!=='string'||!payload.canonicalName.trim()||payload.canonicalName.length>256||
+    !Array.isArray(payload.aliases)||payload.aliases.length<1||payload.aliases.length>129||payload.aliases[0]!==payload.canonicalName||
+    payload.aliases.some(value=>typeof value!=='string'||!value.trim()||value.length>256)||
     new Set(payload.aliases.map(value=>value.toLowerCase())).size!==payload.aliases.length||
     canonicalDigest(payload.faceModelRef)!==canonicalDigest(buffaloModelReference('single_reference_face'))||
-    Buffer.byteLength(canonicalJson(payload))>16384)fail();
+    Buffer.byteLength(canonicalJson(payload))>65536)fail();
   const identity=operationIdentityFromDigest({inputDigest:payload.catalogueDecisionInputDigest,nameResolutionDigest:payload.nameResolutionDigest,
     imageSourceProofDigest:payload.imageSourceProofDigest}),selected=payload.selectedImage;
   if(payload.operationId!==identity.operationId||payload.personId!==identity.personId||

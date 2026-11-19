@@ -4,6 +4,8 @@ const {canonicalDigest}=require('../contracts/canonical-json');
 const {computeBoundedMaterialFingerprint}=require('./bounded-material-fingerprint');
 const {retainedName}=require('../contracts/us-adult-retained-name');
 const PLAN='helix://contracts/domain-types/UsAdultActorFilePlan/v1';
+const STAT_FIELDS=['dev','ino','size','mtimeNs'];
+const sameStat=(left,right)=>STAT_FIELDS.every(field=>left[field]===right[field]);
 function fail(code,message){throw Object.assign(new Error(message),{code});}
 const key=location=>process.platform==='win32'?path.resolve(location).toLowerCase():path.resolve(location);
 function createUsAdultInventoryFiles(options){
@@ -19,12 +21,22 @@ function createUsAdultInventoryFiles(options){
     }
   }
   async function fullDigest(location,check){
-    const before=fs.lstatSync(location,{bigint:true});
-    if(!before.isFile()||before.isSymbolicLink())fail('ARCA_US_ADULT_FILE_CHANGED','File effect requires a regular non-linked material.');
-    const digest=createHash('sha256');let ordinal=0;
-    for await(const chunk of fs.createReadStream(location,{highWaterMark:256*1024})){digest.update(chunk);if(++ordinal%16===0)check();}
-    const after=fs.lstatSync(location,{bigint:true});check();
-    if(['dev','ino','size','mtimeNs','ctimeNs'].some(field=>before[field]!==after[field]))fail('ARCA_US_ADULT_FILE_CHANGED','Material changed during complete byte verification.');
+    const pathBefore=fs.lstatSync(location,{bigint:true});
+    if(!pathBefore.isFile()||pathBefore.isSymbolicLink())fail('ARCA_US_ADULT_FILE_CHANGED','File effect requires a regular non-linked material.');
+    const digest=createHash('sha256'),handle=await fs.promises.open(location,'r');let after;
+    try{
+      const before=await handle.stat({bigint:true}),buffer=Buffer.allocUnsafe(256*1024);let offset=0,ordinal=0;
+      while(true){
+        const read=await handle.read(buffer,0,buffer.length,offset);if(!read.bytesRead)break;
+        digest.update(buffer.subarray(0,read.bytesRead));offset+=read.bytesRead;if(++ordinal%16===0)check();
+      }
+      after=await handle.stat({bigint:true});check();
+      if(!sameStat(before,after))fail('ARCA_US_ADULT_FILE_CHANGED','Material changed during complete byte verification.');
+    }finally{await handle.close();}
+    const pathAfter=fs.lstatSync(location,{bigint:true});check();
+    // Omit ctimeNs: CIFS hardlink operations mutate ctime under actimeo=1 caching while dev/ino/size/mtimeNs remain invariant.
+    if(!pathAfter.isFile()||pathAfter.isSymbolicLink()||!sameStat(pathBefore,pathAfter)||!sameStat(after,pathAfter))
+      fail('ARCA_US_ADULT_FILE_CHANGED','Material changed during complete byte verification.');
     return digest.digest('hex');
   }
   function scope(plan,settings){
@@ -74,8 +86,39 @@ function createUsAdultInventoryFiles(options){
         const other=await b.read(right,0,read.bytesRead,offset);if(other.bytesRead!==read.bytesRead||!left.subarray(0,read.bytesRead).equals(right.subarray(0,read.bytesRead)))return false;offset+=read.bytesRead;}
     }finally{await a.close();await b.close();}
   }
+  async function copyStageTemporaryExclusive(source,part,check){
+    const inHandle=await fs.promises.open(source,'r');let outHandle=null;
+    try{
+      outHandle=await fs.promises.open(part,'wx',0o600);
+      const buffer=Buffer.allocUnsafe(256*1024);let offset=0,ordinal=0;
+      while(true){
+        check();
+        const read=await inHandle.read(buffer,0,buffer.length,offset);if(!read.bytesRead)break;
+        let written=0;
+        while(written<read.bytesRead){
+          const step=await outHandle.write(buffer,written,read.bytesRead-written,offset+written);
+          written+=step.bytesWritten;
+        }
+        offset+=read.bytesRead;if(++ordinal%16===0)check();
+      }
+      // Flush SMB write-behind buffers before closing and opening the verification handle.
+      await outHandle.sync();
+    }finally{
+      try{if(outHandle)await outHandle.close();}finally{await inHandle.close();}
+    }
+  }
   async function stage(plan,settings){
-    const current=await preflight(plan,settings),members=[];current.check();if(!fs.existsSync(current.stage))fs.mkdirSync(current.stage);
+    const stageDir=typeof plan?.aftercareCaseId==='string'&&typeof plan?.target?.rootLocation==='string'&&path.isAbsolute(plan.target.rootLocation)
+      ?path.join(plan.target.rootLocation,'.shelfdeck-us-'+canonicalDigest(plan.aftercareCaseId).slice(0,32)+'-stage'):null;
+    const cleanBeforeStage=Boolean(stageDir&&!settings?.recoveryDecision&&!fs.existsSync(stageDir));
+    let current;
+    try{current=await preflight(plan,settings);}
+    catch(error){
+      if(cleanBeforeStage&&!fs.existsSync(stageDir)&&['ARCA_US_ADULT_STAGE_CONFLICT','ARCA_US_ADULT_FILE_CHANGED','ARCA_US_ADULT_FILE_ESCAPE'].includes(error.code))
+        error.details={...error.details,effectWriteStarted:false,boundary:'before_stage'};
+      throw error;
+    }
+    const members=[];current.check();if(!fs.existsSync(current.stage))fs.mkdirSync(current.stage);
     for(const item of current.prepared){
       current.check();parents(current.root,item.location);
       if(!fs.existsSync(item.location)){
@@ -89,11 +132,11 @@ function createUsAdultInventoryFiles(options){
               if(!['safe_retry','continue_forward'].includes(settings.recoveryDecision)||!await matchingPrefix(part,item.source,current.check))
                 fail('ARCA_US_ADULT_STAGE_PARTIAL_WRITE','Incomplete stage copy requires classified exact-prefix recovery.');
               const after=fs.lstatSync(part,{bigint:true});current.check();
-              if(['dev','ino','size','mtimeNs','ctimeNs'].some(field=>before[field]!==after[field]))fail('ARCA_US_ADULT_FILE_CHANGED','Partial stage changed before exact-prefix recovery.');
+              if(!sameStat(before,after))fail('ARCA_US_ADULT_FILE_CHANGED','Partial stage changed before exact-prefix recovery.');
               fs.unlinkSync(part);
             }
           }
-          if(!fs.existsSync(part))await fs.promises.copyFile(item.source,part,fs.constants.COPYFILE_EXCL);
+          if(!fs.existsSync(part))await copyStageTemporaryExclusive(item.source,part,current.check);
           if(await fullDigest(part,current.check)!==item.byteDigest)fail('ARCA_US_ADULT_FILE_CHANGED','Stage copy does not preserve complete source bytes.');
           current.check();parents(current.root,item.location);fs.linkSync(part,item.location);fs.unlinkSync(part);
         }

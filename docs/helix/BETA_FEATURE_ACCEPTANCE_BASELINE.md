@@ -257,7 +257,7 @@ Helix-beta 的真实来源验收车辆是 Movie Canary：
 | 不可变基线 | `F:\shelfdeck_test_zone\test_film` |
 | 工作副本 / 同根 Field 与 Shelf Target | `F:\shelfdeck_test_zone\canary-beta-<timestamp>-<short-sha>` |
 | 隔离运行与 Evidence | `F:\shelfdeck_test_zone\runs\BETA-<timestamp>-<short-sha>` |
-| 禁止 | `Z:\Film`、`G:\canary_film`、NAS `192.168.12.230`、生产数据 |
+| 禁止 | `Z:\Film`、`G:\canary_film`、生产环境 `heavy` `192.168.12.215`（及已退役 NAS `192.168.12.230`）、生产数据 |
 
 操作清单与成功检查点仍见：
 

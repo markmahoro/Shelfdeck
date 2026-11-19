@@ -96,6 +96,44 @@ async function journey(t,{operations=null,manual=false,manualFilenameStem=null,n
     assert.equal(detail.executorIssue.errorCode,'CLEAN_ARCA_JAV_SHORT_TARGET_OCCUPIED');
     assert.equal(detail.executorIssue.canRetry,false);assert.equal(detail.executorIssue.canRecheck,true);
     fs.unlinkSync(conflictFile);fs.rmdirSync(path.dirname(conflictFile));
+    if(sourceCase.shortStageUncertain){
+      const onDeckRun=db.prepare('SELECT on_deck_run_id FROM arca_ondeck_runs').get(),
+        decision=JSON.parse(db.prepare('SELECT decision_json FROM arca_final_inventory_decisions WHERE on_deck_run_id=?').get(onDeckRun.on_deck_run_id).decision_json),
+        primaryDecision=decision.members.find(item=>item.role==='primary_payload'),
+        slotBinding=JSON.parse(db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'ondeck-slot-%' ORDER BY committed_at_ms DESC LIMIT 1").get().result_json),
+        temporary=path.resolve(slotBinding.slotDirectory,primaryDecision.finalName)+'.tmp-'+
+          canonicalDigest({run:onDeckRun.on_deck_run_id,key:primaryDecision.sourceMaterialKey}).slice(0,16),
+        tmpBytes=Buffer.from('unclassified partial stage bytes');
+      fs.writeFileSync(temporary,tmpBytes);
+      const tmpInode=fs.statSync(temporary,{bigint:true}).ino;
+      await request('POST','/v1/admin/formation/acceptance/'+detail.executorIssue.offerId+'/actions/retry',{idempotencyKey:'jav-short-stage-uncertain-recheck'});
+      deadline=Date.now()+45000;
+      while(Date.now()<deadline&&!runtimeError&&db.prepare("SELECT count(*) n FROM fx_supporting_works WHERE work_kind='on_deck_execution' AND state='failed'").get().n<2)
+        await new Promise(resolve=>setTimeout(resolve,100));
+      assert.equal(runtimeError,null,diagnostics());
+      assert.equal(db.prepare("SELECT count(*) n FROM fx_supporting_works WHERE work_kind='on_deck_execution' AND state='failed'").get().n>=2,true,diagnostics());
+      assert.equal(db.prepare("SELECT state FROM arca_ondeck_runs WHERE on_deck_run_id=?").get(onDeckRun.on_deck_run_id).state,'blocked',diagnostics());
+      assert.equal(db.prepare("SELECT count(*) n FROM fx_workflow_events WHERE capability_ref='arca.inventory.product.stage@1' AND state='executing'").get().n,0,diagnostics());
+      const stageFailure=db.prepare("SELECT a.event_attempt_id,a.event_id,e.work_id,e.attempt_id AS work_attempt_id FROM fx_event_attempts a JOIN fx_workflow_events e ON e.event_id=a.event_id WHERE e.capability_ref='arca.inventory.product.stage@1' AND a.failure_code='CLEAN_ARCA_SHORT_STAGE_UNCERTAIN' ORDER BY a.started_at_ms DESC LIMIT 1").get();
+      assert.ok(stageFailure,diagnostics());
+      const uncertainDetail=await request('GET','/v1/admin/formation/'+subject.subject_id);
+      assert.equal(uncertainDetail.classification,'attention_required');
+      assert.equal(uncertainDetail.executorIssue.errorCode,'CLEAN_ARCA_SHORT_STAGE_UNCERTAIN');
+      assert.equal(uncertainDetail.executorIssue.canRetry,false);assert.equal(uncertainDetail.executorIssue.canRecheck,false);
+      assert.equal(db.prepare('SELECT state FROM fx_effect_journal WHERE event_attempt_id=?').get(stageFailure.event_attempt_id).state,'failed',diagnostics());
+      assert.equal(db.prepare('SELECT state FROM fx_workflow_events WHERE event_id=?').get(stageFailure.event_id).state,'failed',diagnostics());
+      assert.equal(fs.statSync(temporary,{bigint:true}).ino,tmpInode);assert.deepEqual(fs.readFileSync(temporary),tmpBytes);
+      assert.equal(db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n,0);
+      await host.close();
+      runtimeError=null;
+      host=await createCleanServiceHost({dataDir,adminDistDir,secretRoot,now:clock,integrationFetch:fetchImpl,onExecutionRuntimeError:error=>{runtimeError=error;},onRequestError:error=>{requestError=error;}});
+      const health=await host.inject({method:'GET',url:'/v1/health'});
+      assert.equal(health.statusCode,200,health.body);assert.equal(health.json().status,'ok');assert.equal(health.json().normalSupplyAllowed,true);
+      assert.equal(runtimeError,null,diagnostics());
+      assert.equal(fs.statSync(temporary,{bigint:true}).ino,tmpInode);assert.deepEqual(fs.readFileSync(temporary),tmpBytes);
+      assert.equal(db.prepare("SELECT count(*) n FROM fx_workflow_events WHERE capability_ref='arca.inventory.product.stage@1' AND state='executing'").get().n,0);
+      return;
+    }
     await request('POST','/v1/admin/formation/acceptance/'+detail.executorIssue.offerId+'/actions/retry',{idempotencyKey:'jav-short-conflict-recheck'});
     deadline=Date.now()+65000;
     while(Date.now()<deadline&&!runtimeError&&db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n===0)
@@ -892,6 +930,8 @@ test('new JAV long title completes formal On-deck with its complete code and com
   javCode:'IPX-177',sites:['javdb'],selectedSite:'javdb',title:'題'.repeat(85),longTitle:true}}));
 test('new JAV long-title target conflict retains the existing directory and exposes recheck',{timeout:120000},t=>journey(t,{sourceCase:{
   javCode:'IPX-177',sites:['javdb'],selectedSite:'javdb',title:'題'.repeat(85),longTargetConflict:true}}));
+test('new JAV long-title unclassified stage temporary converges to non-retryable attention without reconcile loop',{timeout:120000},t=>journey(t,{sourceCase:{
+  javCode:'IPX-177',sites:['javdb'],selectedSite:'javdb',title:'題'.repeat(85),longTargetConflict:true,shortStageUncertain:true}}));
 for(const sourceCase of [
   {javCode:'FC2-718323',filenameStem:'FC2-PPV-718323',sites:['fc2_official'],selectedSite:'fc2_official',credit:{name:'Fixture Seller',role:'seller'}},
   {javCode:'HEYDOUGA-4030-2113',filenameStem:'HEY-4030-2113',sites:['heydouga_official'],selectedSite:'heydouga_official'},

@@ -46,10 +46,10 @@ function createUsAdultCatalogueDecisionInput(options){
     if(assessment.status!=='qualified_candidate')return Object.freeze({kind:'unqualified',status:assessment.status,assessmentDigest:assessment.assessmentDigest});
     const selected=assessment.winner,matches=observation.queries.flatMap(query=>query.result.matches)
       .filter(match=>match.identityKey===selected.identity&&match.uid===selected.uid);
-    if(!matches.length||matches.some(match=>match.name!==selected.name)||selected.name.length>200)
+    if(!matches.length||matches.some(match=>match.name!==selected.name)||selected.name.length>256)
       fail('The selected directory identity lost its consistent source name.');
     const aliases=[...new Set(matches.flatMap(match=>match.aliases).map(alias=>alias.trim()).filter(Boolean))].sort(compare);
-    if(aliases.length>16||aliases.some(alias=>alias.length>200))fail('The selected directory aliases exceed the complete People query bound.');
+    if(aliases.length>128||aliases.some(alias=>alias.length>256))fail('The selected directory aliases exceed the complete People query bound.');
     const winner={identityKey:selected.identity,uid:selected.uid,name:selected.name,aliases,groupIds:selected.groupIds,
       coverageStrata:selected.coverageStrata,supportingRepresentativeStrata:selected.supportingRepresentativeStrata},
       input={schema:'libra.us-adult-catalogue-decision-input@1',libraRunId,subjectId:basis.subjectId,

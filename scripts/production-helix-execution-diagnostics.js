@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Read-only diagnostics for Clean Helix execution residual incidents on NAS.
+ * Read-only diagnostics for Clean Helix execution residual incidents on heavy (192.168.12.215).
  *
  * This command never changes SQLite or media files. It reports aggregate
  * execution coherence and performs one bounded 256 KiB read from each source
@@ -304,10 +304,11 @@ try {
 
 function hostStorageCommand() {
   return [
-    "stat -f -c 'filesystem=%T' /vol2/1000/shelfdeck_transcode 2>/dev/null || true",
-    "find /vol2 -maxdepth 4 -type d \\( -iname '*snapshot*' -o -name '@Recycle' -o -name '#recycle' \\) -print 2>/dev/null | head -100",
-    "btrfs subvolume list /vol2 2>/dev/null | head -100 || true",
-    "find /vol2/1000/shelfdeck_transcode -maxdepth 2 -mindepth 1 -printf '%y %p %s\\n' 2>/dev/null | head -100",
+    "findmnt -rn -M /srv/apps -o TARGET,SOURCE,FSTYPE,UUID 2>/dev/null || true",
+    "findmnt -rn -M /srv/shelfdeck -o TARGET,SOURCE,FSTYPE,UUID 2>/dev/null || true",
+    "df -h /srv/apps /srv/shelfdeck 2>/dev/null || true",
+    "stat -f -c 'filesystem=%T' /srv/shelfdeck/transcode 2>/dev/null || true",
+    "find /srv/shelfdeck/transcode -maxdepth 2 -mindepth 1 -printf '%y %p %s\\n' 2>/dev/null | head -100",
   ].join('; ');
 }
 
