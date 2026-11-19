@@ -1,5 +1,5 @@
 'use strict';
-const test=require('node:test'),assert=require('node:assert/strict'),crypto=require('node:crypto');
+const test=require('node:test'),assert=require('node:assert/strict'),crypto=require('node:crypto'),path=require('node:path');
 const {coordination}=require('./fixtures/us-adult-catalogue-coordination');
 const {canonicalDigest:D,canonicalJson}=require('../../src/helix/contracts/canonical-json');
 const {buffaloModelReference}=require('../../src/helix/contracts/buffalo-model-reference');
@@ -270,6 +270,190 @@ test('succeeded catalogue_registration prep writes the Person and settlement rea
     catalogueDecision:settled.decision,referenceAssetId:settled.decision.referenceAssetId,
   });
   assert.equal(currentSelection.actorRelation(selection).source,'face_catalogue');
+});
+
+test('LibraExecutionRegistration exposes usAdultCatalogueDecisionInput with formal contracts',async t=>{
+  const {LibraExecutionRegistration}=require('../../src/helix/domains/libra/public');
+  const sceneValue=await scene(t);
+  const f=sceneValue.f;
+  const libraServices=LibraExecutionRegistration().createProcessServices({
+    ...f.workspaceOptions,
+    now:()=>1000,
+    submit(){return {replayed:false};},
+    contractValidator:f.validator,
+    candidateDeliveryPort:{readSnapshot(){return null;}},
+    movieProductionReader:f.options.movieProductionReader,
+    productProductionPort:{issuePhysicalReadHandle:()=>f.basis.sourceHandle},
+    mediaEffectPort:{executeRemux(){},executeTranscode(){},verifyTranscodeInput(){},verifyPlayback(){}},
+    workResultReader:f.options.workResultReader,
+    workspaceProductPort:f.options.workspaceProductPort,
+    peopleReferenceQuery:{readUsAdultReferencePage(){return {items:[],nextCursor:null};},resolveUsAdultName(){return {kind:'not_found'};},readUsAdultPersonSnapshot(){return null;}},
+    readJavUnknownActorProjection:()=>null,
+    readArcaRoutingTargets:()=>[],
+    readArcaShelfStandard:()=>null,
+    readArcaFormationStatus:()=>({}),
+    cancelProcessWorks(){},
+    resolveRetryPolicyDigest:()=>D('retry'),
+    resolvePerceptionRating:()=>({kind:'pending'}),
+    qualifySeriesLocalSource:()=>null,
+    onLibraPriorityChanged(){},
+    onLibraWaitingExecutionsObserved(){},
+  });
+  assert.equal(typeof libraServices.usAdultCatalogueDecisionInput?.compile,'function');
+  const directCompiled=libraServices.usAdultCatalogueDecisionInput.compile({libraRunId:'run',mode:'initial'});
+  assert.equal(directCompiled.kind,'qualified');
+  assert.equal(directCompiled.inputDigest,sceneValue.inputDigest);
+});
+
+test('default composition runtime catalogueInputReader compiles without outer contractValidator on options',async t=>{
+  const {createProcurementExecutionRuntime}=require('../../src/helix/composition/create-procurement-execution-runtime');
+  const {catalogueObservationWork}=require('../../src/helix/domains/libra/model/us-adult-catalogue-observation-work');
+  const {readCompletedCatalogueBatches}=require('../../src/helix/domains/libra/model/us-adult-catalogue-work-results');
+  const {CAPABILITY,FRAME,EMBED,CLUSTER,resultRef}=require('../../src/helix/contracts/us-adult-catalogue-work-types');
+  const {sourceMediaObservationWork}=require('../../src/helix/domains/libra/planning/media-production-work');
+  const {coordination}=require('./fixtures/us-adult-catalogue-coordination');
+
+  const f2=coordination(t);
+  f2.store.freeze(f2.basis);
+  const sourceWork=sourceMediaObservationWork(f2.args.snapshot);
+  const frameResult=await f2.completeFrames('initial');
+  const obsResult=await f2.completeObservation('initial');
+  const completedBatches=readCompletedCatalogueBatches(f2.options,f2.args.snapshot,f2.basis,'initial');
+  const obsWork=catalogueObservationWork({snapshot:f2.args.snapshot,basis:f2.basis,completedBatches,validator:f2.validator});
+
+  function seedSucceededWork(work,events){
+    const attemptId=events[0]?.attemptId||(work.workId+':attempt:1'),planId=events[0]?.planId||(work.workId+':plan:1');
+    const defJson=canonicalJson(work);
+    f2.db.prepare('INSERT OR IGNORE INTO fx_supporting_works(work_id,owner_domain,process_type,process_id,work_kind,basis_digest,priority_class,definition_schema_ref,definition_json,definition_digest,state,idempotency_key,created_at_ms,updated_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+      .run(work.workId,work.ownerDomain,work.processType,work.processId,work.workKind,work.executionBasisDigest,'normal_foreground','helix://test/work/v1',defJson,D(work),'succeeded',work.idempotencyKey,1,1);
+    f2.db.prepare("UPDATE fx_supporting_works SET state='succeeded' WHERE work_id=?").run(work.workId);
+    f2.db.prepare('INSERT OR IGNORE INTO fx_work_attempts(attempt_id,work_id,ordinal,basis_digest,state,started_at_ms,finished_at_ms) VALUES(?,?,?,?,?,?,?)')
+      .run(attemptId,work.workId,1,work.executionBasisDigest,'succeeded',1,2);
+    f2.db.prepare('INSERT OR IGNORE INTO fx_workflow_plans(plan_id,attempt_id,planner_ref,planner_version,catalog_digest,basis_digest,graph_digest,state,created_at_ms) VALUES(?,?,?,?,?,?,?,?,?)')
+      .run(planId,attemptId,'helix://test/planner/v1',1,D('cat'),work.executionBasisDigest,D('graph'),'planned',1);
+    for(const [idx,ev] of events.entries()){
+      const eventId=ev.eventId||(work.workId+':ev:'+idx),eaId=eventId+':attempt:1',resId=ev.resultId||(eventId+':res');
+      const bindings=ev.inputBindings||{schemaRef:'helix://foundation/types/EventInputBindingSet/v1',schemaVersion:1,bindings:[]};
+      f2.db.prepare('INSERT INTO fx_plan_nodes(plan_id,node_id,capability_ref,contract_version,input_binding_schema_ref,input_bindings_json,parameter_schema_ref,parameters_json,effect_class,fence_schema_ref,fence_basis_json,resource_demand_schema_ref,resource_demand_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)')
+        .run(planId,'node-'+idx,ev.capabilityRef,1,'helix://foundation/types/EventInputBindingSet/v1',canonicalJson(bindings),'helix://test/params/v1','{}','pure_observation','helix://test/fence/v1','{}','helix://test/demand/v1','{}');
+      f2.db.prepare('INSERT INTO fx_workflow_events(event_id,plan_id,node_id,work_id,attempt_id,owner_domain,capability_ref,contract_version,state,priority_class,ready_at_ms,result_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)')
+        .run(eventId,planId,'node-'+idx,work.workId,attemptId,work.ownerDomain,ev.capabilityRef,1,'succeeded','normal_foreground',1,resId);
+      f2.db.prepare('INSERT INTO fx_event_attempts(event_attempt_id,event_id,ordinal,executor_ref,executor_version,input_snapshot_schema_ref,input_snapshot_digest,fence_snapshot_digest,state,outcome_kind,evidence_digest,started_at_ms,finished_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)')
+        .run(eaId,eventId,1,ev.capabilityRef,1,'helix://test/in/v1',D(bindings),D('fence'),'completed','succeeded',D({}),1,2);
+      const schemaRef=resultRef(ev.capabilityRef);
+      f2.db.prepare('INSERT INTO fx_event_result_bindings(result_id,event_id,outcome_kind,result_schema_ref,result_json,result_digest,evidence_schema_ref,evidence_json,evidence_digest,committed_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?)')
+        .run(resId,eventId,'succeeded',schemaRef,canonicalJson(ev.result),D(ev.result),'helix://test/ev/v1','{}',D({}),2);
+    }
+  }
+  seedSucceededWork(sourceWork,[{capabilityRef:'shared.material.media.probe@1',result:f2.args.sourceProbeRecord.result}]);
+  seedSucceededWork(frameResult,f2.records.get(frameResult.workId));
+  seedSucceededWork(obsWork,f2.records.get(obsWork.workId));
+
+  const runtimeWorkspacePort={
+    ...f2.workspace,
+    readArtifactBytes(handle){
+      const hit=f2.artifacts.get(handle.artifactHandleId);
+      if(hit)return {bytes:hit.bytes};
+      return f2.workspace.readArtifactBytes(handle);
+    },
+  };
+  const runtimeArtifacts=new Map();
+  const peoplePort={
+    rootSnapshot(){return {mountScopeId:'local-mount',state:'active',rootKind:'internal-artifact'};},
+    stageUpload,
+    readArtifact(handle){
+      const bytes=runtimeArtifacts.get(handle.artifactHandleId);
+      if(!bytes)throw new Error('missing artifact '+handle.artifactHandleId);
+      return bytes;
+    },
+  };
+  f2.options.movieProductionReader.readFact=()=>f2.identity;
+  const catalogue2=f2.reconcile();
+  assert.equal(catalogue2.kind,'catalogue_candidate');
+  const compiled2=createUsAdultCatalogueDecisionInput(f2.options).compile({libraRunId:'run',mode:'initial'});
+  const resolution2=resolveUsAdultName({name:compiled2.input.winner.name,aliases:compiled2.input.winner.aliases,people:[]});
+  const prep2=executionFor(f2,{
+    observe:({name,aliases})=>providerObservation(name,aliases),
+    readImageBytes:()=>png,
+    artifacts:new Map(),
+  });
+  const pending2=prep2.admission.registerCataloguePerson({
+    input:compiled2.input,inputDigest:compiled2.inputDigest,resolution:resolution2,candidate:catalogue2,
+  });
+  assert.equal(pending2.pendingCode,'PEOPLE_CATALOGUE_IMAGE_PREP_PENDING');
+
+  // Explicitly omit contractValidator and catalogueInputReader to mirror clean-service-host.js.
+  const runtime=createProcurementExecutionRuntime({
+    schemaManifest:f2.workspaceOptions.schemaManifest,
+    unitOfWork:f2.workspaceOptions.unitOfWork,
+    movieProductionReader:f2.options.movieProductionReader,
+    materialFieldStore:{listMaterialFields:()=>[],getMaterialField:()=>null},
+    enumerator:{enumeratePage(){}},
+    pageObserverFactory:()=>({observe(){}}),
+    mediaProbe:{probe(){},bdmvTopologyReader:{inspect(){}}},
+    candidateDeliveryPort:{readSnapshot(){return null;}},
+    productProductionPort:{issuePhysicalReadHandle:()=>f2.basis.sourceHandle,issueShelfAcceptanceReadHandle(){},readRelatedNfo(){},fetchProvider(){}},
+    mediaEffectPort:{executeRemux(){},executeTranscode(){},verifyTranscodeInput(){},verifyPlayback(){}},
+    productDeliveryPort:{deliver(){},readDelivery(){},readPackage(){return null;}},
+    inventoryPort:{assess(){return null;},inspectJavCorrectionPlacement(){return null;}},
+    observeJavSourceForPreview(){},
+    workspaceProductPort:runtimeWorkspacePort,
+    catalogueConfiguration:f2.args,
+    createCatalogueFramePort:()=>f2.port,
+    createCatalogueObservationPort:()=>({async observe(){return obsResult.observation;}}),
+    peopleImagePort:peoplePort,
+    observeUsAdultCatalogueProviderSearch:({name,aliases})=>providerObservation(name,aliases),
+    readCatalogueRegistrationImageBytes:()=>png,
+    buildCatalogueRegistrationFrameProof:({observationHandle})=>{
+      assert.equal(observationHandle.artifactHandleId,obsResult.handle.artifactHandleId);
+      return {frameIndex:0,timestampMs:100,imageBytes:png,mediaType:'image/png',width:100,height:100};
+    },
+    createSeriesRootRelocationIo(){return {};},
+    acquireJavCover(){},
+    aftercareWorkspaceEndpointId:'aftercare-endpoint',
+    aftercareWorkspaceMountScopeId:'aftercare-mount',
+    aftercareWorkspaceMountScopeRevision:1,
+    aftercareWorkspaceRoot:path.join(f2.root,'aftercare-ws'),
+    libraWorkspaceRoot:f2.workspace.rootSnapshot().resolvedRoot,
+  });
+
+  const ops2=catalogueOps(f2.db);
+  assert.equal(ops2.length,1);
+  const store2=createPeopleImageOperationStore(f2.workspaceOptions);
+  const op2=store2.get(ops2[0].operationId);
+  const work2=preparationWork(op2);
+  const imageDigest=op2.payload.selectedImage.digestHex;
+  const vector=Array(512).fill(0);vector[0]=1;
+  const featureBytes=Buffer.from(canonicalJson({schema:'shared.face-embedding-set@1',dimension:512,vectors:[vector]}));
+  runtimeArtifacts.set('photo2',png);
+  runtimeArtifacts.set('embedding2',featureBytes);
+  const makeArtifact=(artifactHandleId,artifactKind,digestHex,mediaType,sizeBytes)=>({
+    schemaRef:'helix://contracts/types/ArtifactHandle/v1',schemaVersion:1,artifactHandleId,artifactKind,ownerDomain:'people',
+    ownerScope:{scopeType:'person',scopeId:op2.personId},storageRef:'people-artifact:'+artifactHandleId,
+    digestAlgorithm:'sha256',digestHex,sizeBytes,mediaType,
+    provenanceRef:{objectType:'people_image_operation',objectId:op2.operationId,revision:1,digest:D('provenance')},
+    referenceRevision:1});
+  const photo=makeArtifact('photo2','reference-image',imageDigest,'image/png',png.length);
+  const embeddingDigest=crypto.createHash('sha256').update(featureBytes).digest('hex');
+  const embeddingArtifact=makeArtifact('embedding2','reference-embedding',embeddingDigest,'application/vnd.shelfdeck.face-embedding+json',featureBytes.length);
+  const embeddingBody={schemaRef:'helix://contracts/types/FaceEmbeddingSetHandle/v1',schemaVersion:1,artifactHandleId:'embedding2',
+    artifactHandle:embeddingArtifact,computationMode:'single_reference_face',libraRunId:null,workspaceId:null,
+    faceModelRefDigest:buffaloModelReference('single_reference_face').digest,sourceArtifactSetDigest:imageDigest,
+    detectedFaceCount:1,vectorCount:1,dimension:512,embeddingDigest};
+  const embedding={...embeddingBody,handleDigest:D(embeddingBody)};
+  f2.db.prepare('INSERT INTO fx_artifact_registry(artifact_handle_id,artifact_kind,owner_domain,owner_scope_type,owner_scope_id,storage_ref,digest_algorithm,digest_hex,size_bytes,media_type,provenance_ref,reference_revision,state,created_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+    .run(photo.artifactHandleId,photo.artifactKind,photo.ownerDomain,photo.ownerScope.scopeType,photo.ownerScope.scopeId,photo.storageRef,photo.digestAlgorithm,photo.digestHex,photo.sizeBytes,photo.mediaType,canonicalJson(photo.provenanceRef),photo.referenceRevision,'active',1);
+  f2.db.prepare('INSERT INTO fx_artifact_registry(artifact_handle_id,artifact_kind,owner_domain,owner_scope_type,owner_scope_id,storage_ref,digest_algorithm,digest_hex,size_bytes,media_type,provenance_ref,reference_revision,state,created_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+    .run(embeddingArtifact.artifactHandleId,embeddingArtifact.artifactKind,embeddingArtifact.ownerDomain,embeddingArtifact.ownerScope.scopeType,embeddingArtifact.ownerScope.scopeId,embeddingArtifact.storageRef,embeddingArtifact.digestAlgorithm,embeddingArtifact.digestHex,embeddingArtifact.sizeBytes,embeddingArtifact.mediaType,canonicalJson(embeddingArtifact.provenanceRef),embeddingArtifact.referenceRevision,'active',1);
+  seedSucceededWork(work2,[
+    {capabilityRef:'people.reference_asset.import@1',result:photo},
+    {capabilityRef:'shared.face.embedding.compute@1',result:embedding},
+  ]);
+
+  const done2=runtime.people.imageOperations.reconcile(op2.operationId);
+  assert.equal(done2.state,'completed');
+  const peopleStore2=createPeopleStore(f2.workspaceOptions);
+  assert.equal(peopleStore2.getPerson(op2.personId).currentRevision,1);
 });
 
 test('ambiguous provider observation during not_found registration fail-closes with PEOPLE_CATALOGUE_PROVIDER_AMBIGUOUS instead of workless pending',async t=>{

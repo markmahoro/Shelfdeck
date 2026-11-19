@@ -185,6 +185,16 @@ test('Clean Host and Libra public wire catalogue stores and ports',()=>{
   assert.match(host,/catalogueConfiguration/);
   assert.match(pub,/createUsAdultCatalogueStore/);
   assert.match(pub,/createUsAdultCatalogueDecisionStore/);
+  assert.match(pub,/createUsAdultCatalogueDecisionInput/);
+  assert.match(pub,/usAdultCatalogueDecisionInput/);
   assert.match(pub,/libra\.us_adult\.catalogue\.observe@1/);
   assert.match(pub,/createUsAdultAnalysisDispatchPlanner/);
+});
+
+test('Composition runtime delegates catalogueInputReader to Libra public services without private Libra requires',()=>{
+  const runtime=fs.readFileSync(path.resolve(__dirname,'../../src/helix/composition/create-procurement-execution-runtime.js'),'utf8');
+  assert.match(runtime,/libraProcessServices\?\.usAdultCatalogueDecisionInput/);
+  assert.doesNotMatch(runtime,/domains\/libra\/model\/us-adult-catalogue-decision-input/);
+  assert.doesNotMatch(runtime,/domains\/libra\/persistence\/us-adult-catalogue-store/);
+  assert.doesNotMatch(runtime,/domains\/libra\/persistence\/us-adult-actor-choice-store/);
 });
