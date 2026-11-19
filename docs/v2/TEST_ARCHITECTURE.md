@@ -3,24 +3,32 @@
 ## 常用命令
 
 ```bash
-cd media-service && npm test
-cd media-service && node --test test/task-model.test.js test/priority-engine.test.js
-cd media-service && npm run build:web
-cd media-desktop && npm test
+# Windows 工作站（纯 JS 契约测试）
+node --test media-service/test/formation-reset-nas.test.js media-service/test/production-deploy-contract.test.js tests/nas-reset-bootstrap.test.js
+
+# worker VM（192.168.12.216，在 /tmp detached worktree 中运行 Linux 原生与全量测试）
+cd /tmp/sd-verify-<slug>/media-service
+npm run test:helix-architecture
+npm run test:helix-runtime
+npm run build:web
+npm run test:us-adult-full-e2e
 bash tests/runner.sh health-check tests/env/ci.env
-bash tests/runner.sh all tests/env/docker-fn.env
+
+# heavy 隔离 GPU/Docker 副本（192.168.12.215，--runtime=nvidia，/tmp 一次性目录）
+docker run --rm --runtime=nvidia -e NVIDIA_VISIBLE_DEVICES=all -e NVIDIA_DRIVER_CAPABILITIES=compute,video,utility markmahoro/shelfdeck:<tag> node --test test/clean-ffmpeg-pipeline.test.js
 ```
 
 ## 环境
 
 | 环境 | 覆盖 | 说明 |
 | --- | --- | --- |
-| local Windows | service Windows + desktop | `http://127.0.0.1:18080` |
-| NAS Docker | service Docker + 外部依赖 | `http://192.168.12.230:18080` |
-| transcode node | remote FFmpeg/GPU worker | 默认 `http://<node>:19000` |
-| CI | 无外部依赖 smoke | GitHub Actions |
+| Windows 工作站 | 代码编辑、`.worktrees/*`、纯 JS 契约测试 | `media-desktop` 已退役；不在此执行 `better-sqlite3`/`sharp` 等 Linux 原生测试 |
+| `worker` VM (`192.168.12.216`) | Linux CPU 单测 / 架构 / Runtime / `verify-shelfdeck` | `/tmp` detached worktree（4 vCPU / 7.7 GiB RAM / 0 Swap，限制 `--test-concurrency=2`；仅预装 `media-service/node_modules`，无 `tools/node_modules`、`web/node_modules`、GPU 与 Docker） |
+| `heavy` 隔离 Docker 副本 (`192.168.12.215`) | Quadro T2000 NVENC + Docker 运行时 + E2E | `--runtime=nvidia` + `/tmp` 一次性目录 + `127.0.0.1:<ephemeral-port>`，严禁碰 `:18080` 或生产挂载 |
+| `heavy` 生产 (`http://192.168.12.215:18080`) | 只读诊断 / 授权发布后复验 | 旧飞牛 `.230` 已退役禁止双跑 |
+| CI | 无外部依赖 Docker smoke | GitHub Actions (`ubuntu-latest`) |
 
-私有凭据在 `tests/TEST_ENV_CHECKLIST.md`，不提交。
+私有凭据在可选的 `tests/TEST_ENV_CHECKLIST.md`（gitignored，不提交；若本机不存在则 `tools/nas-ssh-config.js` 自动使用 `heavy` 默认 SSH 配置）。
 
 ## Helix 验证入口
 

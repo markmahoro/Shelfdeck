@@ -2,7 +2,89 @@
 
 本文件只保留开发时最常用的命令和平台规则。架构事实见 `docs/v2/ARCH_OVERVIEW.md`。
 
-**平台范围（2026-10-29）：** Windows desktop（`media-desktop` / `dist:win`）与 Windows service 打包（`package-win`）**已退役、不再支持**。不要做 Windows 兼容修复或本机 Windows 部署。支持面是 **Linux Docker（NAS 生产）** 与 Linux/本机 Node 开发。CI 仅保留 Docker/Linux jobs。
+**平台范围（2026-10-29）：** Windows desktop（`media-desktop` / `dist:win`）与 Windows service 打包（`package-win`）**已退役、不再支持**。不要做 Windows 兼容修复或本机 Windows 部署。支持面是 **Linux Docker（`heavy` 生产）** 与 Linux/本机 Node 开发。CI 仅保留 Docker/Linux jobs。
+
+## 开发与验证拓扑（迁移后标准工作流）
+
+从 Windows 工作站出发时，直接按下面拓扑分流，不要盲目探测已停止的本机 Docker Desktop / WSL 或已退役的 `.230` 飞牛 NAS：
+
+| 角色 | 主机 / 路径 | 硬件与运行时 | 适用范围 | 硬边界 |
+| --- | --- | --- | --- | --- |
+| **Windows 工作站** | `H:\shefldeck`（隔离开发用 `.worktrees/<slug>`） | Windows Node，无 Linux 原生插件，Docker Desktop/WSL 默认关闭 | 代码编辑、Git 分支/PR、纯 JS 契约测试（如 `production-deploy-contract`、`formation-reset-nas`） | 不跑依赖 Linux `better-sqlite3`/`sharp`/`onnxruntime-node`/`usearch` 或 `/proc/self/fd` 的测试 |
+| **CPU / Linux 验证 VM** | `worker` (`192.168.12.216`) | Linux 4 vCPU / 7.7 GiB RAM / **0 Swap**，Node 22 + `ffmpeg`/`ffprobe`，仅预装 `/home/gezhu/repos/Shelfdeck/media-service/node_modules`（无 `tools/node_modules` 与 `web/node_modules`），**无 GPU、无 Docker** | `media-service` 架构/Runtime/E2E 全量测试、`verify-shelfdeck` HTTP、Linux 文件系统与 fd 句柄校验（SSH 工具契约单测在 Windows 工作站跑） | 禁止改 `/home/gezhu/repos/Shelfdeck` 原目录；并发严格限制 `--test-concurrency=2`；禁止 `pkill node`；结束即删 `/tmp/sd-verify-*` |
+| **GPU / Docker 隔离副本** | `heavy` (`192.168.12.215`) | Debian 12 + NVIDIA Quadro T2000 (`TU117` NVENC)，Docker + `nvidia-container-toolkit` | `hevc_nvenc` / GPU 管线验证、容器化运行时 / Dockerfile / `verify-shelfdeck` Docker 模式 | 必须使用 `/tmp/sd-gpu-verify-*` 临时目录、一次性 `SHELFDECK_SECRET_ROOT`、非 `18080` 的 `127.0.0.1:<port>`；严禁碰 `shelfdeck` 容器、`:18080` 或生产挂载；用完即删 |
+| **生产服务** | `heavy` (`http://192.168.12.215:18080`) | 容器 `shelfdeck`（SSD `/srv/apps/shelfdeck` + HDD `/srv/shelfdeck`） | 仅只读诊断，或用户明确授权的标准发布/Reset | 严禁未授权写数据、启停容器或执行 `--apply`；旧 `.230` 已退役禁止双跑 |
+
+### 1. `worker` (`192.168.12.216`) CPU / Linux 隔离验证标准操作
+
+1. **检查与建立独立 detached worktree**（先看 `free -h` 与运行中的 `node`，避免 7.7 GiB / 0 Swap OOM）：
+
+```powershell
+$env:SHELFDECK_NAS_HOST='192.168.12.216'
+$env:SHELFDECK_NAS_USER='gezhu'
+$env:SHELFDECK_NAS_KEY="$HOME\.ssh\shelfdeck-gezhu2403"
+node tools/ssh-exec.js "free -h; pgrep -a node || true; cd /home/gezhu/repos/Shelfdeck && git fetch --all 2>/dev/null || true; git worktree prune && git worktree add --detach /tmp/sd-verify-<slug> <base-commit> && ln -s /home/gezhu/repos/Shelfdeck/media-service/node_modules /tmp/sd-verify-<slug>/media-service/node_modules"
+```
+
+2. **同步本地改动的少量文件**（通过 `tools/node_modules/ssh2` SFTP 写入 `/tmp/sd-verify-<slug>/<relpath>`，或 `git push worker` 后在 worktree 内 `git checkout FETCH_HEAD`），切勿直接修改 `/home/gezhu/repos/Shelfdeck` 主目录。
+3. **执行验证**（尊重 7.7 GiB / 0 Swap 上限，E2E/全量加 `--test-concurrency=2`）：
+
+```bash
+cd /tmp/sd-verify-<slug>/media-service
+node --test --test-concurrency=2 test/helix-architecture/<target>.test.js
+npm run test:helix-runtime
+```
+
+4. **清理**（无论通过或失败均必须执行，禁止留下残留目录）：
+
+```bash
+cd /home/gezhu/repos/Shelfdeck && git worktree remove --force /tmp/sd-verify-<slug> && git worktree prune
+```
+
+### 2. `heavy` (`192.168.12.215`) GPU / NVENC / Docker 隔离副本验证标准操作
+
+`worker` 无 GPU 且无 Docker；凡涉及 `NVIDIA Quadro T2000`（`hevc_nvenc`）、`--runtime=nvidia` 或完整 Docker 镜像行为的验证，必须在 `heavy` 的临时隔离容器中执行：
+
+1. **准备一次性 `/tmp` 数据与只读测试片段**（使用短合成素材；生产容器共用唯一 `Quadro T2000` `validatedConcurrentSlots=1` 槽位，避免长时间占满硬件编码器）：
+
+```bash
+RUN_ID="gpu-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+VERIFY_DIR="/tmp/sd-gpu-verify-${RUN_ID}"
+SECRET_ROOT="$(openssl rand -hex 32)"
+mkdir -p "${VERIFY_DIR}/run"
+docker run --rm --network none \
+  -e "SHELFDECK_SECRET_ROOT=${SECRET_ROOT}" \
+  -v "${VERIFY_DIR}/run:/run/verify" \
+  markmahoro/shelfdeck:<tag> \
+  node scripts/helix-clean-init.js --data-dir /run/verify/data --apply --confirm INITIALIZE_HELIX_CLEAN_V1
+```
+
+2. **启动一次性 GPU 隔离容器（只绑 `127.0.0.1` 临时端口，严禁复用 `18080` 或挂载生产卷）**：
+
+```bash
+# 纯脚本/单测模式（随用随删）：
+docker run --rm --name "shelfdeck-verify-${RUN_ID}" \
+  --runtime=nvidia --network none \
+  -e NVIDIA_VISIBLE_DEVICES=all \
+  -e NVIDIA_DRIVER_CAPABILITIES=compute,video,utility \
+  -v "${VERIFY_DIR}/run:/run/verify" \
+  markmahoro/shelfdeck:<tag> \
+  node --test test/clean-ffmpeg-pipeline.test.js
+
+# 需要 HTTP / Admin Web 端口时，绑定 127.0.0.1 随机高位端口，结束后立刻 rm -f 并删 ${VERIFY_DIR}：
+docker run -d --name "shelfdeck-verify-${RUN_ID}" \
+  --runtime=nvidia \
+  -e "SHELFDECK_SECRET_ROOT=${SECRET_ROOT}" \
+  -e MEDIA_SERVICE_DATA_DIR=/run/verify/data \
+  -e NVIDIA_VISIBLE_DEVICES=all \
+  -e NVIDIA_DRIVER_CAPABILITIES=compute,video,utility \
+  -v "${VERIFY_DIR}/run:/run/verify" \
+  -p 127.0.0.1:28080:18080 \
+  markmahoro/shelfdeck:<tag>
+```
+
+- **禁止挂载**：`/srv/apps/shelfdeck/data`、`/srv/shelfdeck/transcode`、`/srv/shelfdeck/operator-backups`、`/media`、`/adult`、`/mnt/shelfdeck_upgrade` 均不得以可写方式挂入验证容器；不得操作线上 `shelfdeck` 容器或读取线上 `secret.env`。
+- **清理**：验证结束后立即执行 `docker rm -f "shelfdeck-verify-${RUN_ID}" 2>/dev/null || true; rm -rf "${VERIFY_DIR}"`。
 
 ## 命令
 
@@ -26,57 +108,31 @@ docker compose -f media-service/docker-compose.example.yml up -d
 
 上面的 Docker service 命令只用于本地或新环境验证。当前 NAS 生产部署固定走 `docs/v2/PRODUCTION_DEPLOYMENT.md`、`scripts/build-image.js`（及兼容包装 `build-image.sh`）和 `scripts/deploy-nas.js`；不要把 `media-service/docker-compose.example.yml` 当成生产 compose。
 
-## 本机生产同构测试 Profile
+## 环境术语与硬件差异说明
 
 项目语境约定：
 
 | 术语 | 含义 |
 | --- | --- |
-| 测试环境 | 本机 Linux / 本地 Node（或等价 Linux Docker）；**不是** Windows |
-| 生产环境 | NAS 上的 ShelfDeck Docker |
+| 测试环境 | `worker` (`192.168.12.216`) `/tmp` detached worktree（Linux CPU），或 `heavy` 隔离 Docker 副本；**不是** Windows |
+| 生产环境 | `heavy` (`192.168.12.215:18080`) 上的 ShelfDeck Docker（旧飞牛 `.230` 已退役） |
 
-普通切片默认先在本机测试环境验证，不需要每次部署 NAS 生产。需要生产同构配置或生产数据规模时，先同步 NAS runtime 数据到 ignored 目录：
+普通切片默认先在测试环境验证，不需要每次部署生产。
+
+> **历史 v2/v3 遗留脚本提示：** `scripts/sync-nas-runtime-data.js` 同步的是历史 v2/v3 文件（`config.json`、`library.db*`、`tasks.db*`、`douban-entries-cache.json`）并改写 `Z:\` / `Y:\` 路径，**不适用于**当前 Clean Helix 单库（`shelfdeck.db`）。保留下方命令仅作历史参考：
 
 ```bash
+# 历史 v2/v3 用法（Clean Helix 不使用 config.json / library.db / tasks.db）
 node scripts/sync-nas-runtime-data.js --rewrite-local-paths
 ```
 
-默认输出目录是 `.codex/local-prod-data/`，不会提交。脚本会只读下载：
-
-| 文件 | 用途 |
-| --- | --- |
-| `config.json` | 生产同构配置，包括 Emby / MoviePilot / 自动化配置 |
-| `library.db*` | 生产规模媒体库投影 |
-| `tasks.db*` | 生产规模任务和 task event 投影 |
-| `douban-entries-cache.json` | 本机复现 Douban cache 匹配 |
-
-`--rewrite-local-paths` 会保留 `config.nas-original.json`，并把本机测试路径改成：
-
-| 库类型 | 本机根目录 |
-| --- | --- |
-| 普通 Emby 库 | `Z:\` |
-| adult folder 库 | `Y:\` |
-
-本机运行时可使用：
-
-```bash
-export CONTROL_PLANE_DATA_DIR="$(pwd)/.codex/local-prod-data"
-export MEDIA_SERVICE_DATA_DIR="$CONTROL_PLANE_DATA_DIR"
-cd media-service
-npm test
-```
-
-涉及真实媒体文件探测、普通 Emby metadata repair、adult observation/scrape 的本机复现，应优先使用这个 profile。只有重大版本验收、真实 NAS 行为验证、Admin Web 生产浏览器验收，或用户明确要求时，才部署 NAS 生产。
-
-本机测试环境不是生产环境的完全等价替身，以下内容必须在 NAS 生产环境或 Linux/Docker 等价环境上验证：
-
 | 范围 | 原因 |
 | --- | --- |
-| transcode 设备池 / 硬件加速 | 本机设备池和 NAS 不同，QSV/VAAPI/驱动/设备槽位不能完全复现 |
-| NAS 存储与系统压力 | NAS 的 iowait、swap、overlay、SMB/NFS 挂载和磁盘压力不能由本机证明 |
-| 生产 Admin Web 最终验收 | 用户真实访问面仍是 NAS 上的服务 |
+| transcode 设备池 / 硬件加速 | `worker` VM（`192.168.12.216`）无 GPU 且无 Docker；NVIDIA Quadro T2000（`TU117` NVENC）编码与设备探测必须在 `heavy` 的隔离容器副本中验证 |
+| 生产存储与系统压力 | `heavy` 的 SSD/HDD 分盘、CIFS（`.45`）、NFSv4（`.218`）挂载行为及磁盘压力不能由普通 CPU 单测证明 |
+| 生产 Admin Web 最终验收 | 用户真实访问面仍是 `heavy` (`192.168.12.215:18080`) 上的服务 |
 
-因此本机 profile 用于快速定位业务逻辑、SQL/projection、API、前端状态和大数据规模下的代码路径；涉及设备、容器、NAS I/O 或最终用户视角时，再进入生产环境验证。
+因此 `worker` 隔离环境用于快速定位业务逻辑、SQL/projection、API、前端状态和普通媒体流程；涉及 NVIDIA GPU/NVENC、Docker 镜像、真实存储 I/O 或最终用户视角时，在 `heavy` 隔离副本或授权生产检查中验证。
 
 ## 历史成人库 / Nexora Observation + Metadata Maintenance 开发（非当前 Helix 实施入口）
 

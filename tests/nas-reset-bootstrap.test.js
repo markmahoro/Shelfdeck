@@ -31,7 +31,7 @@ test('standard compose points at installed product catalogue under /app/data, no
   assert.match(yaml, /SHELFDECK_US_ADULT_CATALOGUE_ROOT=\/app\/data\/us-adult-catalogue/);
   assert.match(yaml, /SHELFDECK_US_ADULT_CATALOGUE_GENERATION_PATH=\/app\/data\/us-adult-catalogue\/generation\.json/);
   assert.doesNotMatch(yaml, /us-adult-catalogue:\/us-adult-catalogue/);
-  assert.match(yaml, /\/vol1\/1000\/docker\/shelfdeck\/data:\/app\/data/);
+  assert.match(yaml, /\/srv\/apps\/shelfdeck\/data:\/app\/data/);
 });
 
 test('cold continuation reuses the original closure and verified backup, and never stops or invents a new source generation', async () => {
