@@ -37,6 +37,14 @@ test('maps Douban page transport failure to a retryable integration class', () =
   assert.equal(observationFailureClass({ code: 'P4_EXECUTION_TIMEOUT' }), 'timeout');
   assert.equal(observationFailureClass({ code: 'EXECUTOR_ERROR' }), 'executor');
 });
+
+test('maps pure-observation storage and mount I/O errors to resource-scoped io class', () => {
+  assert.equal(observationFailureClass({ code: 'EIO' }), 'io');
+  assert.equal(observationFailureClass({ code: 'ESTALE' }), 'io');
+  assert.equal(observationFailureClass({ code: 'ENOTCONN' }), 'io');
+  assert.equal(observationFailureClass({ code: 'PHYSICAL_MATERIAL_FINGERPRINT_IO_FAILED', details: { causeCode: 'EIO' } }), 'io');
+  assert.equal(observationFailureClass({ code: 'FIELD_OBSERVATION_ROOT_UNAVAILABLE', details: { cause: 'ESTALE' } }), 'io');
+});
 const EMPTY_INPUT_DIGEST = require('node:crypto').createHash('sha256').update('{}').digest('hex');
 
 function fixture(run, settings = {}) {

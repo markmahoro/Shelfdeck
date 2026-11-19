@@ -14,9 +14,25 @@ class EventRuntimeError extends Error {
 
 function fail(code, message, details) { throw new EventRuntimeError(code, message, details); }
 
+const OBSERVATION_IO_CODES = new Set([
+  'EIO', 'ESTALE', 'ENOTCONN', 'EHOSTDOWN', 'EHOSTUNREACH', 'ENETUNREACH', 'ENODEV',
+  'ETIMEDOUT', 'EBUSY', 'EAGAIN', 'EACCES', 'EPERM', 'ENOENT', 'ENOSPC', 'EROFS',
+  'PHYSICAL_MATERIAL_FINGERPRINT_IO_FAILED', 'PHYSICAL_MATERIAL_STAT_FENCE_CHANGED',
+  'PHYSICAL_MATERIAL_FINGERPRINT_SHORT_READ', 'FIELD_OBSERVATION_ROOT_UNAVAILABLE',
+]);
+
 function observationFailureClass(error) {
   if (error?.code === 'P4_EXECUTION_TIMEOUT') return 'timeout';
   if (error?.code === 'P5_PROVIDER_TRANSPORT_FAILED') return 'integration';
+  for (const candidate of [
+    error?.code,
+    error?.cause?.code,
+    error?.details?.causeCode,
+    error?.details?.cause,
+    error?.details?.networkCode,
+  ]) {
+    if (typeof candidate === 'string' && OBSERVATION_IO_CODES.has(candidate)) return 'io';
+  }
   return 'executor';
 }
 

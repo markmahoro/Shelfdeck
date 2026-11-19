@@ -13,6 +13,8 @@ function definitions(schemaManifest) {
         fixedKeyColumns:['owner_domain','process_type','work_kind'],keyColumn:'work_id',maxItems:500},
       process_page:{kind:'select-page-after',tableId:'fx_supporting_works',columns:['work_id','state'],
         fixedKeyColumns:['owner_domain','process_type','work_kind','process_id'],keyColumn:'work_id',maxItems:500},
+      running_page:{kind:'select-page-after',tableId:'fx_supporting_works',columns:['work_id','state'],
+        fixedKeyColumns:['owner_domain','process_type','work_kind','state'],keyColumn:'work_id',maxItems:1},
     }}),
     workAttempts:createRepositoryDefinition({repositoryId:'incident_observer_work_attempts',owner:'execution-foundation',schemaManifest,statements:{
       list:{kind:'select-all',tableId:'fx_work_attempts',columns:['attempt_id','state'],keyColumns:['work_id']},
@@ -115,7 +117,48 @@ function createExecutorIncidentObserver(options) {
     }
     return Object.freeze({examined:reservations.length,reopened});
   }
+  function allowsTargetScheduling(request) {
+    if (!request || typeof request.ownerDomain !== 'string' || typeof request.processType !== 'string' ||
+        typeof request.workKind !== 'string' || typeof request.workId !== 'string' ||
+        !['work', 'event'].includes(request.targetType)) {
+      throw new TypeError('Executor Incident target scheduling gate requires Work identity and target type.');
+    }
+    const status = options.registry.scopeCircuitStatus({
+      ownerDomain: request.ownerDomain,
+      processType: request.processType,
+      workKind: request.workKind,
+    });
+    if (!status.blocked || !status.circuit || status.circuit.state === 'closed') return true;
+    if (status.circuit.state === 'recovering') {
+      return status.circuit.evidence_digest === canonicalDigest({
+        schema: 'foundation.executor-incident-recovery-work@1',
+        circuitKey: status.circuit.circuit_key,
+        workId: request.workId,
+      });
+    }
+    if (status.circuit.state === 'open') {
+      if (request.targetType === 'event') return true;
+      const running = options.unitOfWork.execute([{
+        participantId: 'incident_open_running_work',
+        owner: 'execution-foundation',
+        repositories: [repositories.works],
+        execute(context) {
+          return context.repository(repositories.works.repositoryId).invoke('running_page', {
+            owner_domain: request.ownerDomain,
+            process_type: request.processType,
+            work_kind: request.workKind,
+            state: 'running',
+            cursor: null,
+            limit: 1,
+          });
+        },
+      }]).incident_open_running_work;
+      return running.length === 0;
+    }
+    return false;
+  }
   return Object.freeze({
+    allowsTargetScheduling,
     reconcileRecoveryReservations,
     observeTerminalWork,
     prepareExecution(request){const scopes=[{ownerDomain:request.ownerDomain,processType:request.processType,workKind:request.workKind},

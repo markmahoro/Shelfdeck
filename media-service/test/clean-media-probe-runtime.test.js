@@ -39,3 +39,12 @@ test('A crashed FFprobe is a technical error, never successful non-media evidenc
     await assert.rejects(createCleanMediaProbe({binary,discTopologyReader:topology}).probe(handle),error=>error.code==='CLEAN_MEDIA_PROBE_EXECUTION'&&error.details.cause==='CLEAN_MEDIA_PROBE_PROCESS_SIGNAL');
   }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
+test('Dockerfile installs distro ffmpeg and wraps /usr/bin/ffprobe with distro x86_64 library path',()=>{
+  const dockerfile=fs.readFileSync(path.resolve(__dirname,'../Dockerfile'),'utf8');
+  assert.match(dockerfile,/apt-get install -y --no-install-recommends[^\n]*fontconfig[^\n]*ffmpeg/);
+  assert.doesNotMatch(dockerfile,/require\(['"]@ffprobe-installer\/ffprobe['"]\)/);
+  assert.match(dockerfile,/\/usr\/lib\/x86_64-linux-gnu:\/lib\/x86_64-linux-gnu/);
+  assert.match(dockerfile,/exec \/usr\/bin\/ffprobe "\$@"/);
+  assert.match(dockerfile,/ENV FFMPEG_PATH=\/usr\/local\/bin\/ffmpeg/);
+  assert.match(dockerfile,/ENV FFPROBE_PATH=\/usr\/local\/bin\/ffprobe/);
+});

@@ -74,10 +74,11 @@ WORKDIR /app
 
 # Sharp's bundled text renderer still needs the system Fontconfig configuration
 # to discover the installed Latin and CJK fonts.
-# Do not reinstall apt ffmpeg: linuxserver/ffmpeg already provides the encoder;
-# the old Ubuntu package pin breaks on current apt (CI).
+# Distro ffmpeg provides /usr/bin/ffprobe for MPEG-TS/MKV probing (unpinned so
+# CI apt stays reliable), while linuxserver/ffmpeg remains at /usr/local/bin/ffmpeg
+# for encoding.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends fontconfig \
+    && apt-get install -y --no-install-recommends fontconfig ffmpeg \
     && fc-cache -f \
     && rm -rf /var/lib/apt/lists/*
 ENV FONTCONFIG_FILE=/etc/fonts/fonts.conf
@@ -99,8 +100,12 @@ RUN echo "/usr/local/lib/onnxruntime-cuda" > /etc/ld.so.conf.d/onnxruntime-cuda.
     && ! (ldd /app/node_modules/onnxruntime-node/bin/napi-v6/linux/x64/libonnxruntime_providers_cuda.so | grep 'not found' | grep -v 'libcuda\.so\.1')
 COPY --from=service-dependencies /app/resources/face-models ./resources/face-models
 COPY --from=service-dependencies /app/resources/buffalo-models ./resources/buffalo-models
-# Use the lockfile-pinned service probe (same as main). Keep configured path.
-RUN node -e "const fs=require('fs'),source=require('@ffprobe-installer/ffprobe').path,target='/usr/local/bin/ffprobe'; fs.unlinkSync(target); fs.copyFileSync(source,target); fs.chmodSync(target,0o755);"
+# linuxserver/ffmpeg builds crash on some MPEG-TS streams and lack modern probe
+# paths, while distro /usr/bin/ffprobe must prefer system shared libraries over
+# /usr/local/lib to avoid symbol-version collisions. Keep /usr/local/bin/ffprobe
+# as the configured FFPROBE_PATH wrapper entrypoint.
+RUN printf '%s\n' '#!/bin/sh' 'export LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"' 'exec /usr/bin/ffprobe "$@"' > /usr/local/bin/ffprobe \
+    && chmod 0755 /usr/local/bin/ffprobe
 # Directory copies avoid Docker "max depth exceeded" from 100+ single-file COPY layers.
 COPY media-service/src/ ./src/
 COPY media-service/scripts/ ./scripts/

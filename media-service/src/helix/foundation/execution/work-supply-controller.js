@@ -1,5 +1,6 @@
 'use strict';
 
+const { canonicalDigest } = require('../../contracts/canonical-json');
 const { digest } = require('../persistence/ddl-compiler');
 const { createRepositoryDefinition } = require('../persistence/owner-repository');
 
@@ -40,7 +41,8 @@ function repositories(schemaManifest) {
       find: { kind: 'select-one', tableId: 'fx_workflow_events', columns: ['event_id', 'work_id', 'owner_domain', 'priority_class', 'state'], keyColumns: ['event_id'] }
     } }),
     circuits: createRepositoryDefinition({ repositoryId: 'work_supply_circuits', owner: 'execution-foundation', schemaManifest, statements: {
-      find: { kind: 'select-one', tableId: 'fx_circuit_states', columns: ['state'], keyColumns: ['circuit_key'] }
+      find: { kind: 'select-one', tableId: 'fx_circuit_states', columns: ['state'], keyColumns: ['circuit_key'] },
+      list_by_state: { kind: 'select-all', tableId: 'fx_circuit_states', columns: ['circuit_key', 'state', 'evidence_digest'], keyColumns: ['state'] }
     } })
   });
 }
@@ -123,10 +125,20 @@ function createWorkSupplyController(options) {
           // They must never prevent an already-admitted Work from starting, because
           // execution is the only operation that can drain that backlog. Work planning
           // is instead bounded by active Attempts and the dispatchable Event frontier.
+          const recoveryPrefix = 'owner/' + work.owner_domain + '/' + work.process_type + '/' + work.work_kind;
+          const recoveringCircuits = context.repository('work_supply_circuits').invoke('list_by_state', { state: 'recovering' });
+          const holdsRecoveryReservation = recoveringCircuits.some((row) =>
+            (row.circuit_key === recoveryPrefix || row.circuit_key.startsWith(recoveryPrefix + '/resource/')) &&
+            row.evidence_digest === canonicalDigest({
+              schema: 'foundation.executor-incident-recovery-work@1',
+              circuitKey: row.circuit_key,
+              workId: work.work_id,
+            })
+          );
           const hard = snapshot.activeAttempt >= limits.activeAttemptHard ||
-            snapshot.dispatchableEvent >= limits.dispatchableEventHard;
-          const soft = snapshot.activeAttempt >= limits.activeAttemptSoft ||
-            snapshot.dispatchableEvent >= limits.dispatchableEventSoft;
+            (!holdsRecoveryReservation && snapshot.dispatchableEvent >= limits.dispatchableEventHard);
+          const soft = !holdsRecoveryReservation &&
+            (snapshot.activeAttempt >= limits.activeAttemptSoft || snapshot.dispatchableEvent >= limits.dispatchableEventSoft);
           const priority = target.priority_class;
           // Backlog limits gate creation of another Work Attempt. Once an Event exists,
           // refusing to dispatch it would prevent the active backlog from ever draining;

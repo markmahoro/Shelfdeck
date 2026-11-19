@@ -104,6 +104,16 @@ function createExecutorIncidentRegistry(options) {
     scopeStatus(request) {
       const scope=scopeIdentity(request);return scopeStatuses([request]).get(scope.circuitKey);
     },
+    scopeCircuitStatus(request) {
+      const status = this.scopeStatus(request);
+      if (!status.blocked || !status.incident) return Object.freeze({ blocked: false, incident: null, circuit: null });
+      const circuit = options.circuitBreaker.read(status.incident.circuit_key) || null;
+      return Object.freeze({
+        blocked: Boolean(circuit && circuit.state !== 'closed'),
+        incident: status.incident,
+        circuit,
+      });
+    },
     scopeStatuses,
     recordFailure(request) {
       const identity = identityOf(request), current = read(identity.incidentKey), at = now();
