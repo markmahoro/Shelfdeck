@@ -22,8 +22,14 @@ test('ordinary NVENC pipeline keeps decode and encode on the GPU', () => {
   const pipeline=compileFfmpegPipeline({deviceClass:'nvidia_nvenc',platform:'win32',video:video()});
   assert.equal(pipeline.executionPath,'gpu_decode_gpu_encode');
   assert.deepEqual(pipeline.inputArgs,['-hwaccel','cuda','-hwaccel_output_format','cuda']);
-  assert.ok(pipeline.videoArgs.includes('hevc_nvenc'));
-  assert.deepEqual(pipeline.videoArgs.slice(-6),['-rc','vbr','-cq','23','-b:v','0']);
+  assert.deepEqual(pipeline.videoArgs,[
+    '-c:v','hevc_nvenc',
+    '-preset','p6','-tune','hq','-spatial-aq','1','-rc-lookahead','20',
+    '-rc','vbr','-cq','23','-b:v','0',
+  ]);
+  for (const forbidden of ['-spatial_aq','-temporal_aq','-temporal-aq']) {
+    assert.ok(!pipeline.videoArgs.includes(forbidden));
+  }
 });
 
 test('software tone map plus NVENC is explicit hybrid execution, not false full-GPU decode', () => {

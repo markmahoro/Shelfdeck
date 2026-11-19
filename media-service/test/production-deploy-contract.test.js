@@ -31,23 +31,40 @@ test('production image build requires a clean, commit-addressed worktree', () =>
   assert.match(buildSource, /dirty worktree/);
 });
 
-test('production dry run mounts the requested adult path and preserves existing bindings', () => {
+test('production dry run mounts the heavy SSD/HDD split, verifies mount UUIDs, and enables NVIDIA runtime', () => {
   const result = spawnSync(process.execPath, [path.join(__dirname, '../../scripts/deploy-nas.js'),
-    '/vol1/1000/docker/shelfdeck/shelfdeck-contract-check.tar'], {
+    '/srv/apps/shelfdeck/releases/shelfdeck-contract-check.tar',
+    '--preserve-remote-reset-config', '--expect-stopped'], {
     encoding: 'utf8', timeout: 10000,
     env: { ...process.env, SHELFDECK_SECRET_ROOT: 'deployment-contract-fixture-secret-root' },
   });
   assert.equal(result.status, 0, result.stderr);
   const compose = result.stdout.slice(result.stdout.indexOf('services:'),
     result.stdout.indexOf('\nCheck image tarball'));
-  const mounts = compose.split('\n').map(line => line.trim());
+  const lines = compose.split('\n').map(line => line.trim());
   for (const binding of [
-    '/vol02/1000-0-24018892:/adult', '/vol02/1000-0-24018892:/adult_media',
-    '/vol02/1000-0-c5b736af:/media', '/vol2/1000/shelfdeck_transcode:/transcode',
-    '/vol2/1000/shelfdeck_upgrade:/upgrade', '/dev/dri:/dev/dri',
-    '/vol2/1000/shelfdeck_backups:/app/data/operator-backups',
-  ]) assert.equal(mounts.filter(line => line === '- ' + binding).length, 1, binding);
+    '/srv/apps/shelfdeck/data:/app/data',
+    '/srv/shelfdeck/operator-backups:/app/data/operator-backups',
+    '/srv/shelfdeck/operator-backups:/operator-backups',
+    '/srv/apps/shelfdeck/reset-config.json:/run/shelfdeck-reset/config.json:ro',
+    '/srv/shelfdeck/transcode:/transcode',
+    '/mnt/shelfdeck_upgrade:/upgrade',
+    '/media:/media',
+    '/adult:/adult_media',
+    '/adult:/adult',
+  ]) assert.equal(lines.filter(line => line === '- ' + binding).length, 1, binding);
+  assert.ok(lines.includes('runtime: nvidia'));
+  assert.ok(lines.includes('- NVIDIA_VISIBLE_DEVICES=all'));
+  assert.ok(lines.includes('- NVIDIA_DRIVER_CAPABILITIES=compute,video,utility'));
+  assert.ok(lines.includes('- SHELFDECK_RESET_CONFIG_FILE=/run/shelfdeck-reset/config.json'));
+  assert.ok(!compose.includes('/dev/dri'));
+  assert.ok(!compose.includes('LIBVA_DRIVER_NAME'));
+  assert.ok(result.stdout.includes('2e4fda48-ccbd-40cd-9b6b-1b66c4eb2dda'));
+  assert.ok(result.stdout.includes('11cf7e64-e7fa-4573-8588-5afb97ce3854'));
+  assert.ok(result.stdout.includes('findmnt -rn -T'));
   assert.ok(result.stdout.includes('stat -c %d:%i /adult_media'));
+  assert.ok(result.stdout.includes('hevc_nvenc'));
+  assert.ok(result.stdout.includes('"normalSupplyAllowed":false'));
   assert.ok(result.stdout.includes('Prepare dedicated operator backup volume'));
   assert.ok(result.stdout.includes('Existing in-data operator backups must be preserved'));
   assert.ok(result.stdout.includes('Dry run only.'));

@@ -18,54 +18,42 @@ test('production image build has a cross-platform Node entry and a thin shell wr
   assert.doesNotMatch(shellSource, /docker build|docker save/);
 });
 
-test('production image includes the bounded PROD-033 residual repair', () => {
+test('production image includes all canonical scripts via directory copy', () => {
   const dockerfile = fs.readFileSync(path.join(root, 'media-service', 'Dockerfile'), 'utf8');
-  assert.match(dockerfile,
-    /COPY media-service\/scripts\/helix-prod033-execution-residual-repair\.js \.\/scripts\/helix-prod033-execution-residual-repair\.js/);
+  assert.match(dockerfile, /COPY media-service\/src\/ \.\/src\//);
+  assert.match(dockerfile, /COPY media-service\/scripts\/ \.\/scripts\//);
+  for (const scriptName of [
+    'helix-prod033-execution-residual-repair.js',
+    'helix-prod034-one-time-correction.js',
+    'helix-prod047-aftercare-reclaim-residual-correction.js',
+    'helix-prod064-aftercare-placement-incident-correction.js',
+    'helix-prod064-aftercare-settlement-residual-correction.js',
+    'helix-formation-reset.js',
+    'helix-workspace-disk-migration.js',
+    'workspace-disk-migration.js',
+    'helix-platform-proxy-migration.js',
+  ]) {
+    assert.ok(
+      fs.existsSync(path.join(root, 'media-service', 'scripts', scriptName)),
+      `missing canonical script ${scriptName}`,
+    );
+  }
+  assert.ok(!fs.existsSync(path.join(root, 'media-service', 'scripts', 'helix-full-libra-reset.js')));
 });
 
-test('production image includes the bounded PROD-034 one-time correction', () => {
-  const dockerfile = fs.readFileSync(path.join(root, 'media-service', 'Dockerfile'), 'utf8');
-  assert.match(dockerfile,
-    /COPY media-service\/scripts\/helix-prod034-one-time-correction\.js \.\/scripts\/helix-prod034-one-time-correction\.js/);
-});
+test('operator incident wrappers bind the canonical deploy entry and safeguards', () => {
+  const prod047 = fs.readFileSync(path.join(root, 'scripts', 'prod047-aftercare-reclaim-correction-nas.js'), 'utf8');
+  assert.match(prod047, /--expected-work-id/);
+  assert.match(prod047, /data\.backup-.*-prod047-aftercare-reclaim/);
+  assert.match(prod047, /docker compose stop shelfdeck/);
+  assert.match(prod047, /helix-prod047-aftercare-reclaim-residual-correction\.js/);
+  assert.match(prod047, /deploy-nas\.js/);
 
-test('production image includes the bounded PROD-047 Aftercare reclaim residual correction', () => {
-  const dockerfile = fs.readFileSync(path.join(root, 'media-service', 'Dockerfile'), 'utf8');
-  assert.match(dockerfile,
-    /COPY media-service\/scripts\/helix-prod047-aftercare-reclaim-residual-correction\.js \.\/scripts\/helix-prod047-aftercare-reclaim-residual-correction\.js/);
-  const operator = fs.readFileSync(path.join(root, 'scripts',
-    'prod047-aftercare-reclaim-correction-nas.js'), 'utf8');
-  assert.match(operator, /--expected-work-id/);
-  assert.match(operator, /data\.backup-.*-prod047-aftercare-reclaim/);
-  assert.match(operator, /docker compose stop shelfdeck/);
-  assert.match(operator, /helix-prod047-aftercare-reclaim-residual-correction\.js/);
-  assert.match(operator, /deploy-nas\.js/);
-});
-
-test('production image includes the guarded PROD-064 Aftercare placement correction', () => {
-  const dockerfile = fs.readFileSync(path.join(root, 'media-service', 'Dockerfile'), 'utf8');
-  assert.match(dockerfile,
-    /COPY media-service\/scripts\/helix-prod064-aftercare-placement-incident-correction\.js \.\/scripts\/helix-prod064-aftercare-placement-incident-correction\.js/);
-  const operator = fs.readFileSync(path.join(root, 'scripts',
-    'prod064-aftercare-placement-correction-nas.js'), 'utf8');
-  assert.match(operator, /INCIDENT_ENTRIES/);
-  assert.match(operator, /docker compose stop shelfdeck/);
-  assert.match(operator, /prod064-preapply/);
-  assert.match(operator, /cp -a \/app\/data-source\/shelfdeck\.db\*/);
-  assert.match(operator, /helix-prod064-aftercare-placement-incident-correction\.js/);
-  assert.match(operator, /deploy-nas\.js/);
-});
-
-test('production image includes the bounded PROD-064 Aftercare settlement residual correction', () => {
-  const dockerfile = fs.readFileSync(path.join(__dirname, '../Dockerfile'), 'utf8');
-  assert.match(dockerfile,
-    /COPY media-service\/scripts\/helix-prod064-aftercare-settlement-residual-correction\.js \.\/scripts\/helix-prod064-aftercare-settlement-residual-correction\.js/);
-});
-
-test('production image includes the unified Formation Reset and excludes the obsolete full Libra reset', () => {
-  const dockerfile = fs.readFileSync(path.join(root, 'media-service', 'Dockerfile'), 'utf8');
-  assert.match(dockerfile,
-    /COPY media-service\/scripts\/helix-formation-reset\.js \.\/scripts\/helix-formation-reset\.js/);
-  assert.doesNotMatch(dockerfile, /helix-full-libra-reset/);
+  const prod064 = fs.readFileSync(path.join(root, 'scripts', 'prod064-aftercare-placement-correction-nas.js'), 'utf8');
+  assert.match(prod064, /INCIDENT_ENTRIES/);
+  assert.match(prod064, /docker compose stop shelfdeck/);
+  assert.match(prod064, /prod064-preapply/);
+  assert.match(prod064, /cp -a \/app\/data-source\/shelfdeck\.db\*/);
+  assert.match(prod064, /helix-prod064-aftercare-placement-incident-correction\.js/);
+  assert.match(prod064, /deploy-nas\.js/);
 });

@@ -17,13 +17,13 @@ git show f096af1b40cf71a4ce26f0441c686f7f36e707bc:docs/helix/CURRENT_STATUS.md
 
 | 字段 | 值 |
 | --- | --- |
-| 记录日期 | 2026-10-31 |
-| 镜像 tag | `markmahoro/shelfdeck:1.1.0` |
-| Source commit | `623e71353c6ec7cd238741816b8829844b19d56f`（PR #49 name-first People bind） |
-| Tar SHA-256 | `038bee328e39b70eabfe8e03bebbfc9a0bfddd0e554d62304084ffc60de80cfd` |
-| NAS ImageId | `sha256:c9c563c14b315897e5892317583b816e0293af0fe3bfcd909220de0c43b3b795` |
-| Runtime | `mode=running`；`normalSupplyAllowed=true`；revision **51** |
-| 备注 | 标准 safe-stop → build/upload/deploy → Formation Reset（17→0）→ Resume；TLII-047 Tia Ling 身份步 done、无 `buffalo_reference_required`；完整入藏 E2E 未宣称 |
+| 记录日期 | 2026-11-19 |
+| 镜像 tag | `markmahoro/shelfdeck:helix-beta-20261119-5be6fa6879` |
+| Source commit | `5be6fa6879b9b0475cc0cb810594a814fe8c31e3`（branch `sd/heavy-migration-cutover-20261119`） |
+| Tar SHA-256 | `d41e768664275ebcbb54ec67fdd7286f1587dbe39bd323e911c795e27f2f9d17` |
+| NAS ImageId | `sha256:123bb0dd0326a9933355e918e3d8b2763588b44f92afb547bc5a85c3683a40bc` |
+| Runtime | `heavy` (`192.168.12.215:18080`) `mode=running`；`normalSupplyAllowed=true`；revision **63** |
+| 备注 | 正式落盘 SSD `/srv/apps/shelfdeck/data` (`/dev/sdb1`, `UUID=2e4fda48-ccbd-40cd-9b6b-1b66c4eb2dda`) + HDD `/srv/shelfdeck/{transcode,operator-backups}` (`/dev/sdc1`, `UUID=11cf7e64-e7fa-4573-8588-5afb97ce3854`)；Aftercare (`rev 4`, 4 个活跃 workspace / 29 文件) 与 Libra `/transcode` (`rev 3`) workspace roots 重绑启动盘序作用域；`network-main`、`tmdb-main` 及 8 个活跃 `jav-*` 源切换至 `http://192.168.12.219:7890`；804 入架条目完好；`heavy` 升级至 NVIDIA Open Driver `620.70.06` (`6.1.0-56-cloud-amd64`) 并对齐 FFmpeg 9 / Turing `TU117` NVENC 参数后，`local-nvidia-nvenc-0` (`ordinary_to_hevc@1` + `pq_bt2020_base_to_sdr_bt709_hevc@1`) 与 `local-software-cpu-0` 均 `ready`；已完成正式 Resume 恢复日常供给；完整入藏 E2E 未宣称 |
 
 此后若 NAS 现网 tag 与上表不一致，以授权部署回写或只读核验结果为准再更新本表；**不要**把开发检查点堆回本文件。
 

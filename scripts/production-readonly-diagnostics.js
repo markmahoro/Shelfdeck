@@ -12,7 +12,7 @@ const path = require('path');
 const { Client } = require(path.join(__dirname, '..', 'tools', 'node_modules', 'ssh2'));
 const { loadNasSshConfig } = require(path.join(__dirname, '..', 'tools', 'nas-ssh-config'));
 
-const COMPOSE_DIR = '/vol1/1000/docker/shelfdeck';
+const COMPOSE_DIR = '/srv/apps/shelfdeck';
 const COMPOSE_FILE = `${COMPOSE_DIR}/docker-compose.yml`;
 const DATA_DIR = `${COMPOSE_DIR}/data`;
 
@@ -249,8 +249,8 @@ async function main() {
 
   const report = {
     target: {
-      host: '192.168.12.230',
-      serviceUrl: 'http://192.168.12.230:18080',
+      host: '192.168.12.215',
+      serviceUrl: 'http://192.168.12.215:18080',
       composeFile: COMPOSE_FILE,
       dataDir: DATA_DIR,
     },

@@ -5,9 +5,10 @@ const os = require('os');
 const path = require('path');
 
 const CHECKLIST = path.join(__dirname, '..', 'tests', 'TEST_ENV_CHECKLIST.md');
-const DEFAULT_HOST = '192.168.12.230';
+const DEFAULT_HOST = '192.168.12.215';
 const DEFAULT_PORT = '22';
-const DEFAULT_KEY_NAMES = ['gezhu_nas_health_it_ed25519', 'id_rsa_shelfdeck'];
+const DEFAULT_USER = 'gezhu';
+const DEFAULT_KEY_NAMES = ['shelfdeck-gezhu2403', 'gezhu_nas_health_it_ed25519', 'id_rsa_shelfdeck'];
 
 function readChecklist() {
   try {
@@ -63,13 +64,15 @@ function defaultKeyPath() {
 function loadNasSshConfig(options = {}) {
   const checklist = readChecklist();
   const host = envValue(['SHELFDECK_NAS_HOST', 'NAS_SSH_HOST'])
+    || tableValue(checklist, 'heavy IP')
     || tableValue(checklist, '飞牛 NAS IP')
     || DEFAULT_HOST;
   const portRaw = envValue(['SHELFDECK_NAS_PORT', 'NAS_SSH_PORT'])
     || tableValue(checklist, 'SSH 端口')
     || DEFAULT_PORT;
   const username = envValue(['SHELFDECK_NAS_USER', 'SHELFDECK_NAS_USERNAME', 'NAS_SSH_USER'])
-    || tableValue(checklist, 'SSH 用户名');
+    || tableValue(checklist, 'SSH 用户名')
+    || DEFAULT_USER;
   const password = envValue(['SHELFDECK_NAS_PASSWORD', 'NAS_SSH_PASSWORD'])
     || tableValue(checklist, 'SSH 密码');
   const keyPath = firstExistingFile([

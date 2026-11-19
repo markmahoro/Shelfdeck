@@ -21,7 +21,7 @@ function backend(deviceClass, platform = process.platform, vaapiDevice = process
   if (deviceClass === 'nvidia_nvenc') return Object.freeze({
     encoder:'hevc_nvenc', hardwareDecode:true,
     inputArgs:Object.freeze(['-hwaccel','cuda','-hwaccel_output_format','cuda']),
-    qualityArgs:Object.freeze(['-preset','p6','-tune','hq','-spatial_aq','1','-temporal_aq','1','-rc-lookahead','20']),
+    qualityArgs:Object.freeze(['-preset','p6','-tune','hq','-spatial-aq','1','-rc-lookahead','20']),
   });
   if (deviceClass === 'intel_qsv') return Object.freeze({
     encoder:'hevc_qsv', hardwareDecode:true,
