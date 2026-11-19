@@ -489,14 +489,9 @@ function createProcurementExecutionRuntime(options) {
     :null);
   const catalogueInputReader=options.catalogueInputReader||(options.workspaceProductPort?{
     compile(request){
-      if(!libraProcessServices?.movieProductionReader)
+      if(!libraProcessServices?.usAdultCatalogueDecisionInput)
         throw Object.assign(new Error('Catalogue input is not ready.'),{code:'PEOPLE_CATALOGUE_INPUT_UNWIRED'});
-      return require('../domains/libra/model/us-adult-catalogue-decision-input').createUsAdultCatalogueDecisionInput({
-        movieProductionReader:libraProcessServices.movieProductionReader,
-        usAdultCatalogueStore:require('../domains/libra/persistence/us-adult-catalogue-store').createUsAdultCatalogueStore(options),
-        usAdultActorChoiceStore:require('../domains/libra/persistence/us-adult-actor-choice-store').createUsAdultActorChoiceStore(options),
-        workResultReader,workspaceProductPort:options.workspaceProductPort,contractValidator,
-      }).compile(request);
+      return libraProcessServices.usAdultCatalogueDecisionInput.compile(request);
     },
   }:null);
   const catalogueRegistrationAdmission=peopleImageExecution.createCatalogueRegistrationAdmission

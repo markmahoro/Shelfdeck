@@ -46,6 +46,7 @@ const {createEpisodeMetadataMappingService} = require('../application/episode-me
 const {createUsAdultMatchCompletionStore} = require('../persistence/us-adult-match-completion-store');
 const {createUsAdultCatalogueStore} = require('../persistence/us-adult-catalogue-store');
 const {createUsAdultCatalogueDecisionStore} = require('../persistence/us-adult-catalogue-decision-store');
+const {createUsAdultCatalogueDecisionInput} = require('../model/us-adult-catalogue-decision-input');
 const {createUsAdultActorChoiceCommand} = require('../capabilities/us-adult-actor-choice-command');
 const {createUsAdultAnalysisDispatchPlanner, createUsAdultAnalysisDispatchProjections} =
   require('../application/us-adult-analysis-dispatch-planner');
@@ -298,6 +299,10 @@ function createExecutionRegistration() {
         usAdultActorChoice=createUsAdultActorChoiceCommand({...options,movieProductionReader,usAdultActorChoiceStore,afterUsAdultActorChoice:libraRunId=>runCoordinator.reconcileActorChoice(libraRunId)});
       const usAdultActorSelectionQuery=createUsAdultActorSelectionQuery({movieProductionReader,usAdultActorChoiceStore,usAdultAnalysisStore,usAdultMatchCompletionStore,
         usAdultCatalogueStore,usAdultCatalogueDecisionStore});
+      const usAdultCatalogueDecisionInput=(options.workResultReader&&typeof options.workspaceProductPort?.readArtifactBytes==='function'&&options.contractValidator)
+        ?createUsAdultCatalogueDecisionInput({movieProductionReader,usAdultCatalogueStore,usAdultActorChoiceStore,
+          workResultReader:options.workResultReader,workspaceProductPort:options.workspaceProductPort,contractValidator:options.contractValidator})
+        :null;
       const peopleHead=personId=>{
         const person=options.peopleStore?.getPerson?.(personId);if(!person)return null;
         return Object.freeze({personId:person.personId,personRevision:person.currentRevision,personFactDigest:person.revision?.factDigest||person.personFactDigest,
@@ -332,7 +337,7 @@ function createExecutionRegistration() {
       return Object.freeze({preparationRecovery,sourceFairness,offerReader,decisionResolver,coordinator,routingContextReader,routingCoordinator,acceptanceSpecContextReader,
         acceptanceSpecCoordinator,libraRunContextReader,libraRunCreator,movieProductionReader,libraRunCoordinator,
         libraRunExecutionProjection,libraRunLifecycleService,libraRunAdminService,productIdentitySelection,pipelineAdmission,intakeStore,usAdultAnalysisStore,
-        usAdultCatalogueStore,usAdultCatalogueDecisionStore,catalogueConfiguration:options.catalogueConfiguration||null,
+        usAdultCatalogueStore,usAdultCatalogueDecisionStore,usAdultCatalogueDecisionInput,catalogueConfiguration:options.catalogueConfiguration||null,
         episodeMetadataMappingStore,episodeMetadataMapping,usAdultActorChoiceStore,usAdultActorChoice,usAdultActorSelectionQuery,usAdultMatchCompletionStore});
     },
     createPlanningRegistration(options) {
