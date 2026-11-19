@@ -1738,7 +1738,10 @@ async function createCleanServiceHost(options) {
       readStashBoxConfiguration:stashBoxCatalogueAdapter.configuration,
       withStashBoxCredential:stashBoxCatalogueAdapter.withCredential,
       cacheRoot:path.join(options.dataDir,'runtime','us-adult-catalogue-provider-cache'),
-      wake(){procurementExecution?.host.wakeBackground({ownerDomain:'libra',reconcilerKey:'active-libra-runs'});},
+      wake(){
+        procurementExecution?.host.wakeBackground({ownerDomain:'libra',reconcilerKey:'active-libra-runs'});
+        procurementExecution?.host.wakeBackground({ownerDomain:'people',reconcilerKey:'image-operations'});
+      },
     })
     :null;
   const catalogueRegistrationFrameProof=catalogueHostConfig
@@ -1754,7 +1757,10 @@ async function createCleanServiceHost(options) {
           contractValidator:procurementExecution?.contractValidator||null,
         };
       },
-      wake(){procurementExecution?.host.wakeBackground({ownerDomain:'libra',reconcilerKey:'active-libra-runs'});},
+      wake(){
+        procurementExecution?.host.wakeBackground({ownerDomain:'libra',reconcilerKey:'active-libra-runs'});
+        procurementExecution?.host.wakeBackground({ownerDomain:'people',reconcilerKey:'image-operations'});
+      },
       now:options.now||Date.now,
     })
     :null;

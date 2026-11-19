@@ -15,6 +15,7 @@ const DEFAULT_WAITING_BOUND_MS=180_000;
 const DEFAULT_REQUEST_TIMEOUT_MS=45_000;
 const DEFAULT_MAX_ATTEMPTS=3;
 const DEFAULT_RETRY_BACKOFF_MS=Object.freeze([2_000,5_000]);
+const PROVIDER_TERM_CONCURRENCY=4;
 
 function imageUrl(value){
   let url;
@@ -54,8 +55,9 @@ function createCatalogueProviderObservationPort(options){
     throw new TypeError('Catalogue provider observation requires ThePornDB transport and credentials.');
   const cache=new Map(),urls=new Map(),bytes=new Map(),inflight=new Map();
   const now=typeof options.now==='function'?options.now:Date.now;
-  const waitingBoundMs=Number.isSafeInteger(options.waitingBoundMs)&&options.waitingBoundMs>0
-    ?options.waitingBoundMs:DEFAULT_WAITING_BOUND_MS;
+  const explicitWaitingBoundMs=Number.isSafeInteger(options.waitingBoundMs)&&options.waitingBoundMs>0
+    ?options.waitingBoundMs:null;
+  const waitingBoundMs=explicitWaitingBoundMs??DEFAULT_WAITING_BOUND_MS;
   const requestTimeoutMs=Number.isSafeInteger(options.requestTimeoutMs)&&options.requestTimeoutMs>0
     ?options.requestTimeoutMs:DEFAULT_REQUEST_TIMEOUT_MS;
   const maxAttempts=Number.isSafeInteger(options.maxAttempts)&&options.maxAttempts>0
@@ -121,8 +123,12 @@ function createCatalogueProviderObservationPort(options){
     }
     throw lastError;
   }
+  function validText(value){
+    if(typeof value!=='string'||!value.trim()||value.length>256||/[\x00-\x1f]/.test(value))return false;
+    try{normalizeName(value);return true;}catch{return false;}
+  }
   function candidate(person){
-    if(typeof person?.id!=='string'||!person.id||typeof person.name!=='string'||!person.name)return null;
+    if(typeof person?.id!=='string'||!person.id||!validText(person?.name))return null;
     const images=[];
     for(const image of person.images||[]){
       const href=imageUrl(image?.url);
@@ -133,7 +139,7 @@ function createCatalogueProviderObservationPort(options){
       images.push({imageId:image.id,urlDigest,width:image.width,height:image.height});
     }
     images.sort((left,right)=>compare(left.imageId,right.imageId));
-    const aliases=[...new Set((person.aliases||[]).filter(alias=>typeof alias==='string'&&alias))].sort(compare);
+    const aliases=[...new Set((person.aliases||[]).filter(validText))].sort(compare).slice(0,256);
     return {providerKey:person.id,canonicalName:person.name,aliases,images:images.slice(0,8)};
   }
   function observationFor(names,rowsByTerm){
@@ -177,21 +183,28 @@ function createCatalogueProviderObservationPort(options){
     if(!configuration||configuration.endpoint!==ENDPOINT)
       throw Object.assign(new Error('ThePornDB is not configured for catalogue registration.'),{code:'PEOPLE_CATALOGUE_PROVIDER_UNCONFIGURED'});
     const rowsByTerm=new Map();
-    for(const {term,display} of terms){
-      // Per-term bounded retry: transient Clash/TPDB dial fails recover without sticky Attention.
-      const rows=await withRetries(()=>fetchTerm(configuration,display));
-      rowsByTerm.set(term,rows);
-    }
+    let cursor=0;
+    const workers=Array.from({length:Math.min(PROVIDER_TERM_CONCURRENCY,terms.length)},async()=>{
+      while(cursor<terms.length){
+        const {term,display}=terms[cursor++];
+        // Per-term bounded retry: transient Clash/TPDB dial fails recover without sticky Attention.
+        const rows=await withRetries(()=>fetchTerm(configuration,display));
+        rowsByTerm.set(term,rows);
+      }
+    });
+    await Promise.all(workers);
     return observationFor(terms.map(item=>item.term),rowsByTerm);
   }
   function observeProviderSearch({name,aliases=[]}){
     const terms=searchTerms(name,aliases||[]);
+    const effectiveWaitingBoundMs=explicitWaitingBoundMs??
+      Math.max(waitingBoundMs,Math.ceil(terms.length/PROVIDER_TERM_CONCURRENCY)*60_000);
     const key=canonicalDigest({schema:'people.catalogue-provider-cache@1',names:terms.map(item=>item.term)});
     const hit=cached(key);
     if(hit)return hit;
     const started=inflight.get(key);
     if(started!=null){
-      if(now()-started>=waitingBoundMs){
+      if(now()-started>=effectiveWaitingBoundMs){
         const failure=providerFailure(Object.assign(new Error('ThePornDB catalogue provider search waited too long.'),
           {code:'PEOPLE_CATALOGUE_PROVIDER_FAILED'}));
         remember(key,failure);

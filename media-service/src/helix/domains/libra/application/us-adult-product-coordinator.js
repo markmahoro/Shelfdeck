@@ -40,7 +40,10 @@ function createUsAdultProductCoordinator(options){
         }else if(settled.kind==='failed'){
           recordFailure({libraRunId:snapshot.run.libraRunId,reasonCode:settled.reasonCode});
           return settled;
-        }else if(settled.kind==='pending')return settled;
+        }else if(settled.kind==='pending'){
+          if(settled.workId)clearFailure(snapshot.run.libraRunId);
+          return settled;
+        }
         else return settled;
       }else if(catalogue.kind==='catalogue_unresolved'){
         // Complete catalogue assessment without a qualified candidate; local backup may still settle.

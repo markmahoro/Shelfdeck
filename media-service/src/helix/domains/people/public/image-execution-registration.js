@@ -72,9 +72,19 @@ function createPeopleImageExecutionRegistration(options) {
   function bindCatalogueCompletion(readEvidence, admissionOptions = {}) {
     if (typeof readEvidence !== 'function' || !catalogueCommandReady(admissionOptions)) return;
     catalogueCompletion.run = (operation) => {
+      const store = operationStoreFor(admissionOptions);
       const initialReference = imageOperations.referenceDecision(operation.operationId);
       const built = readEvidence({ operation, initialReference });
-      if (!built || built.kind === 'waiting' || built.kind === 'failed') return;
+      if (!built || built.kind === 'waiting') return;
+      if (built.kind === 'failed') {
+        const failureCode = typeof built.code === 'string' && /^[A-Z0-9_]{1,128}$/.test(built.code)
+          ? built.code : 'PEOPLE_CATALOGUE_EVIDENCE_FAILED';
+        if (operation.state === 'preparing') {
+          store.finish({ operationId: operation.operationId, expectedPayloadDigest: operation.payloadDigest, failureCode });
+        }
+        options.wakeCatalogueSettlement?.();
+        return;
+      }
       catalogueRegistrationCommand(admissionOptions, admissionOptions.catalogueInputReader || options.catalogueInputReader)
         .register({ ...built, initialReference });
       options.wakeCatalogueSettlement?.();

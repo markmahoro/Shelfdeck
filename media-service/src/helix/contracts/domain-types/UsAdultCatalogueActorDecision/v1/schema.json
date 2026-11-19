@@ -140,16 +140,16 @@
         "name": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 200
+          "maxLength": 256
         },
         "aliases": {
           "type": "array",
-          "maxItems": 16,
+          "maxItems": 128,
           "uniqueItems": true,
           "items": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 200
+            "maxLength": 256
           }
         },
         "groupIds": {

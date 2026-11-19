@@ -24,13 +24,16 @@ function buffaloModel(){return buffaloModelReference('single_reference_face');}
 function isBuffaloModel(faceModelRef){
   return Boolean(faceModelRef)&&canonicalDigest(faceModelRef)===canonicalDigest(buffaloModel());
 }
-function providerImageRequest(providerObservation,providerResolution){
-  if(providerResolution?.kind!=='resolved')return null;
+function providerImageRequests(providerObservation,providerResolution){
+  if(providerResolution?.kind!=='resolved')return [];
   const providerKey=providerResolution.candidates[0].providerKey;
   const person=providerObservation.queries.flatMap(query=>query.candidates).find(item=>item.providerKey===providerKey);
-  const image=[...(person?.images||[])].sort((left,right)=>Buffer.compare(Buffer.from(left.imageId),Buffer.from(right.imageId)))[0];
-  if(!image)return null;
-  return {kind:'provider',providerKey,imageId:image.imageId,urlDigest:image.urlDigest};
+  return [...(person?.images||[])]
+    .sort((left,right)=>Buffer.compare(Buffer.from(left.imageId),Buffer.from(right.imageId)))
+    .map(image=>({kind:'provider',providerKey,imageId:image.imageId,urlDigest:image.urlDigest}));
+}
+function providerImageRequest(providerObservation,providerResolution){
+  return providerImageRequests(providerObservation,providerResolution)[0]||null;
 }
 function openCataloguePrepRunIds(operationStore){
   const runs=new Set();
@@ -119,7 +122,7 @@ function createUsAdultCatalogueRegistrationEvidence(options){
     const providerResolution=resolveUsAdultProviderName({
       name:input.winner.name,aliases:input.winner.aliases||[],observation:providerObservation});
     if(!['resolved','not_found'].includes(providerResolution.kind))
-      pending('PEOPLE_CATALOGUE_PROVIDER_AMBIGUOUS','Provider name result is not unique for catalogue registration.');
+      throw Object.assign(new Error('Provider name result is not unique for catalogue registration.'),{code:'PEOPLE_CATALOGUE_PROVIDER_AMBIGUOUS'});
     const selected=providerImageRequest(providerObservation,providerResolution);
     if(selected)return Object.freeze({...selected,providerResolution});
     if(typeof options.buildFrameImageProof!=='function')
@@ -251,6 +254,9 @@ function createUsAdultCatalogueRegistrationEvidence(options){
     catch(error){
       if(error?.code==='PEOPLE_CATALOGUE_REGISTRATION_PENDING')
         return Object.freeze({kind:'waiting',pendingCode:error.pendingCode,operationId:operation.operationId});
+      if(typeof error?.code==='string'&&(error.code.startsWith('PEOPLE_CATALOGUE_PROVIDER_')||
+        error.code.startsWith('PEOPLE_CATALOGUE_FRAME_PROOF_')))
+        return failed(error.code,operation);
       throw error;
     }
     const imageDigest=operation.payload.selectedImage.digestHex;
@@ -271,5 +277,5 @@ function createUsAdultCatalogueRegistrationEvidence(options){
 }
 
 module.exports=Object.freeze({
-  createUsAdultCatalogueRegistrationEvidence,openCataloguePrepRunIds,providerImageRequest,catalogueRunToken,catalogueRunId,
+  createUsAdultCatalogueRegistrationEvidence,openCataloguePrepRunIds,providerImageRequest,providerImageRequests,catalogueRunToken,catalogueRunId,
 });

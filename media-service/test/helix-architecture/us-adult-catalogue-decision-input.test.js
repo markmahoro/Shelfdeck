@@ -35,3 +35,14 @@ test('stale identity, substituted producer Result and cancelled Owner state cann
   f.db.exec("UPDATE libra_runs SET state='discarded',state_revision=3");
   assert.throws(f.compile,{code:'US_ADULT_CATALOGUE_BASIS_STALE'});
 });
+
+test('qualified winner with > 16 aliases (24 aliases, Rebeka Black shape) compiles valid UsAdultCatalogueDecisionInput',async t=>{
+  const manyAliases=Array.from({length:24},(_,i)=>'Rebeka Alias '+String(i).padStart(2,'0'));
+  const f=coordination(t);f.reconcile();await f.completeFrames('initial');
+  await f.completeObservation('initial',{winnerAliases:manyAliases});
+  f.options.movieProductionReader.readFact=()=>f.identity;
+  const compiled=createUsAdultCatalogueDecisionInput(f.options).compile({libraRunId:'run',mode:'initial'});
+  assert.equal(compiled.kind,'qualified');
+  assert.equal(compiled.input.winner.aliases.length,24);
+  assert.equal(compiled.inputDigest,D(compiled.input));
+});
