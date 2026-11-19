@@ -1,24 +1,48 @@
 'use strict';
 const {canonicalDigest:D,canonicalJson}=require('../../../contracts/canonical-json');
 const {createRepositoryDefinition}=require('../../../foundation/persistence/owner-repository');
-const CODES=Object.freeze(['ARCA_US_ADULT_TARGET_CONFLICT','ARCA_US_ADULT_FILE_CHANGED','ARCA_US_ADULT_FILE_ESCAPE']);
-function fail(){throw Object.assign(new Error('Actor publication failure lacks its exact closed no-write execution proof.'),{code:'ARCA_US_ADULT_FAILURE_CLOSURE_UNPROVEN'});}
+const RULES=Object.freeze({
+  before_stage:Object.freeze({
+    workKind:'us_adult_actor_stage',
+    capabilityRef:'arca.us_adult.files.stage@1',
+    schema:'arca.actor-stage-precondition@1',
+    codes:new Set(['ARCA_US_ADULT_STAGE_CONFLICT','ARCA_US_ADULT_FILE_CHANGED','ARCA_US_ADULT_FILE_ESCAPE']),
+    requiresDiscard:false,
+  }),
+  before_publication:Object.freeze({
+    workKind:'us_adult_actor_publish',
+    capabilityRef:'arca.us_adult.files.publish@1',
+    schema:'arca.actor-publication-precondition@1',
+    codes:new Set(['ARCA_US_ADULT_TARGET_CONFLICT','ARCA_US_ADULT_FILE_CHANGED','ARCA_US_ADULT_FILE_ESCAPE']),
+    requiresDiscard:true,
+  }),
+});
+const LATER_OR_DISCARD_KINDS=Object.freeze([
+  'us_adult_actor_publish',
+  'us_adult_actor_verify',
+  'us_adult_actor_commit',
+  'us_adult_actor_retire',
+  'us_adult_actor_close',
+  'us_adult_actor_discard',
+]);
+function fail(){throw Object.assign(new Error('Actor no-write failure lacks its exact closed execution proof.'),{code:'ARCA_US_ADULT_FAILURE_CLOSURE_UNPROVEN'});}
 function assertProof(binding,{caseId,intentDigest,shelfEntryId}){
-  const {work,failure}=binding||{},evidence=failure?.evidence,proof=evidence?.diagnostics;
-  if(!work||work.ownerDomain!=='arca'||work.processType!=='arca_shelf_entry'||work.processId!==shelfEntryId||
-      work.workKind!=='us_adult_actor_publish'||work.executionBasisDigest!==intentDigest||
+  const {work,failure}=binding||{},evidence=failure?.evidence,proof=evidence?.diagnostics,rule=RULES[proof?.boundary];
+  if(!rule||!work||work.ownerDomain!=='arca'||work.processType!=='arca_shelf_entry'||work.processId!==shelfEntryId||
+      work.workKind!==rule.workKind||work.executionBasisDigest!==intentDigest||
       !work.dependencyRefs.some(ref=>ref.ownerDomain==='arca'&&ref.objectType==='aftercare_case'&&ref.objectId===caseId)||
-      !evidence||D(evidence)!==failure.evidenceDigest||!CODES.includes(failure.code)||
-      proof?.schema!=='arca.actor-publication-precondition@1'||proof.aftercareCaseId!==caseId||proof.intentDigest!==intentDigest||
+      !evidence||D(evidence)!==failure.evidenceDigest||!rule.codes.has(failure.code)||
+      proof?.schema!==rule.schema||proof.aftercareCaseId!==caseId||proof.intentDigest!==intentDigest||
       proof.workId!==work.workId||proof.eventId!==failure.eventId||proof.errorCode!==failure.code||proof.effectWriteStarted!==false||
-      proof.boundary!=='before_publication'||!(/^[a-f0-9]{64}$/).test(proof.planDigest))fail();
+      !(/^[a-f0-9]{64}$/).test(proof.planDigest)||(!rule.requiresDiscard&&(binding.discardWork||binding.discardRecord)))fail();
   return proof;
 }
 function failureParticipant(options,binding,scope){
-  assertProof(binding,scope);
+  const proof=assertProof(binding,scope),rule=RULES[proof.boundary];
   const repository=createRepositoryDefinition({repositoryId:'arca_actor_failed_publication',owner:'execution-foundation',readOnly:true,
     schemaManifest:options.schemaManifest,statements:{
       work:{kind:'select-one',tableId:'fx_supporting_works',keyColumns:['work_id'],columns:['state','definition_json','definition_digest']},
+      process_works:{kind:'select-all',tableId:'fx_supporting_works',keyColumns:['owner_domain','process_type','process_id','work_kind'],columns:['work_id','definition_json']},
       events:{kind:'select-all',tableId:'fx_workflow_events',keyColumns:['work_id'],columns:['event_id','capability_ref','state','result_id']},
       attempts:{kind:'select-all',tableId:'fx_event_attempts',keyColumns:['event_id'],columns:['event_attempt_id','ordinal','state','outcome_kind','failure_class','failure_code','evidence_digest']},
       result:{kind:'select-one',tableId:'fx_event_result_bindings',keyColumns:['event_id'],columns:['result_id','outcome_kind','result_schema_ref','result_json','result_digest']},
@@ -29,11 +53,22 @@ function failureParticipant(options,binding,scope){
       events=repo.invoke('events',{work_id:work.workId});
     if(row?.state!=='failed'||row.definition_digest!==D(work)||row.definition_json!==canonicalJson(work)||events.length!==1)fail();
     const event=events[0],attempts=repo.invoke('attempts',{event_id:event.event_id});
-    if(event.event_id!==failure.eventId||event.state!=='failed'||event.capability_ref!=='arca.us_adult.files.publish@1'||event.result_id!==null||attempts.length!==1)fail();
+    if(event.event_id!==failure.eventId||event.state!=='failed'||event.capability_ref!==rule.capabilityRef||event.result_id!==null||attempts.length!==1)fail();
     const attempt=attempts[0],effects=repo.invoke('effects',{event_attempt_id:attempt.event_attempt_id});
     if(Number(attempt.ordinal)!==1||attempt.state!=='completed'||attempt.outcome_kind!=='failed'||attempt.failure_class!=='placement_precondition'||
         attempt.failure_code!==failure.code||attempt.evidence_digest!==failure.evidenceDigest||effects.length!==1||
         effects[0].effect_class!=='material_commit'||effects[0].state!=='failed')fail();
+    if(!rule.requiresDiscard){
+      for(const workKind of LATER_OR_DISCARD_KINDS){
+        const works=repo.invoke('process_works',{owner_domain:'arca',process_type:'arca_shelf_entry',process_id:scope.shelfEntryId,work_kind:workKind});
+        for(const item of works){
+          let def;try{def=JSON.parse(item.definition_json);}catch{fail();}
+          if(def?.executionBasisDigest===scope.intentDigest||
+              def?.dependencyRefs?.some(ref=>ref.ownerDomain==='arca'&&ref.objectType==='aftercare_case'&&ref.objectId===scope.caseId))fail();
+        }
+      }
+      return {evidenceDigest:failure.evidenceDigest,discardResultDigest:null};
+    }
     const discard=binding.discardWork,record=binding.discardRecord,value=record?.result,
       actual=discard&&repo.invoke('work',{work_id:discard.workId}),discardEvents=discard?repo.invoke('events',{work_id:discard.workId}):[];
     if(discard?.workKind!=='us_adult_actor_discard'||discard.ownerDomain!=='arca'||discard.processType!=='arca_shelf_entry'||

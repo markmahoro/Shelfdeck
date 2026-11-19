@@ -211,13 +211,18 @@ function createAftercareStore(options) {
       if(state==='resolved'&&actorObjective&&!resultBinding)fail('ARCA_US_ADULT_CASE_RESULT_REQUIRED','Actor Case closure requires its atomic Event Result.');
       if(actorObjective&&state==='unresolved'){
         failureScope={caseId,intentDigest:actorObjective.intentDigest,shelfEntryId:caseRow.shelf_entry_id};
-        if(!failureBinding?.discardWork||!failureBinding.discardRecord?.resultDigest)fail('ARCA_US_ADULT_FAILURE_CLOSURE_UNPROVEN','Actor failure requires its completed stage discard.');
         const proof=assertActorFailureProof(failureBinding,failureScope),basis=JSON.parse(caseRow.care_basis_json),
           entry=repo.invoke('find_entry',{shelf_entry_id:caseRow.shelf_entry_id});
+        if(proof.boundary==='before_publication'&&(!failureBinding?.discardWork||!failureBinding.discardRecord?.resultDigest))
+          fail('ARCA_US_ADULT_FAILURE_CLOSURE_UNPROVEN','Actor failure requires its completed stage discard.');
+        const expectedDigest=proof.boundary==='before_stage'
+          ?canonicalDigest({schema:'arca.actor-prestage-terminal@1',workId:failureBinding.work.workId,
+            aftercareCaseId:caseId,intentDigest:actorObjective.intentDigest,failureEvidenceDigest:failureBinding.failure.evidenceDigest})
+          :canonicalDigest({schema:'arca.actor-prepublication-terminal@1',workId:failureBinding.work.workId,
+            aftercareCaseId:caseId,intentDigest:actorObjective.intentDigest,failureEvidenceDigest:failureBinding.failure.evidenceDigest,discardResultDigest:failureBinding.discardRecord.resultDigest});
         if(resultBinding||reasonCode!==proof.errorCode||(['queued','active'].includes(caseRow.state)&&(!entry||entry.status!=='active'||Number(entry.current_inventory_revision)!==basis.inventoryRevision))||
-            evidenceDigest!==canonicalDigest({schema:'arca.actor-prepublication-terminal@1',workId:failureBinding.work.workId,
-              aftercareCaseId:caseId,intentDigest:actorObjective.intentDigest,failureEvidenceDigest:failureBinding.failure.evidenceDigest,discardResultDigest:failureBinding.discardRecord?.resultDigest}))
-          fail('ARCA_US_ADULT_FAILURE_CLOSURE_UNPROVEN','Only a closed no-write publication failure may release this Actor Case.');
+            evidenceDigest!==expectedDigest)
+          fail('ARCA_US_ADULT_FAILURE_CLOSURE_UNPROVEN','Only a closed no-write Actor failure may release this Actor Case.');
       }else if(failureBinding)fail('ARCA_US_ADULT_FAILURE_CLOSURE_UNPROVEN','Failure closure cannot authorize another Case transition.');
       if(resultBinding){
         const binding=resultBinding,result=binding.result,receipt=binding.effectReceipt,{factDigest,...body}=result||{};
@@ -248,7 +253,7 @@ function createAftercareStore(options) {
       }
       return mapCase(repo.invoke('find_case',{aftercare_case_id:caseId}));
     }},...(failureBinding?[{participantId:'arca_actor_failed_publication_proof',owner:'execution-foundation',boundBusinessOwner:'arca',
-      repositories:actorFailureParticipant(options,failureBinding,{caseId,intentDigest:failureBinding.work.executionBasisDigest,shelfEntryId:failureBinding.work.processId}).repositories,
+      repositories:actorFailureParticipant(options,failureBinding,{caseId,intentDigest:failureBinding.work?.executionBasisDigest,shelfEntryId:failureBinding.work?.processId}).repositories,
       execute(context){return actorFailureParticipant(options,failureBinding,failureScope).execute(context);}}]:[]),...(resultBinding?[{participantId:'arca_us_actor_case_terminal_result',owner:'execution-foundation',boundBusinessOwner:'arca',repositories:[foundation],execute(context){
       if(alreadyTerminal)return;
       const repo=context.repository(foundation.repositoryId),binding=resultBinding,resultDigest=canonicalDigest(binding.result),receipt=binding.effectReceipt;
