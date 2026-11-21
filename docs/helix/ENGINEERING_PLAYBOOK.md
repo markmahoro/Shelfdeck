@@ -44,7 +44,7 @@ Policy、Capability、Schema、API或产品旅程；这些内容只由`TOP_DOWN_
 
 ### 3.2 Protected environments
 
-`heavy` (`192.168.12.215:18080`, Debian 12 + Quadro T2000) 是当前生产环境（旧飞牛 NAS `192.168.12.230` 已退役且禁止双跑）。标准发布使用build-image.js、upload-nas-image.js、deploy-nas.js及统一nas-ssh-config.js，验证checksum和dry-run后apply；保留回滚资料。CPU 隔离验证在 `worker` (`192.168.12.216`) 的 `/tmp` detached worktree 中执行（无 GPU、无 Docker）；需要 GPU/NVENC 或 Linux Docker 容器的验证必须在 `heavy` (`192.168.12.215`) 的隔离一次性副本中执行（`/tmp` 目录 + 非 `18080` 回环端口，严禁挂载生产数据/媒体或操作线上 `shelfdeck` 容器）。media-desktop为历史树，不在当前交付范围。真实媒体/生产数据处置必须有精确范围、当前证据和授权，不用旧preflight替代正式流程。
+`heavy` (`192.168.12.215:18080`, Debian 12 + Quadro T2000) 是当前生产环境（旧飞牛 NAS `192.168.12.230` 已退役且禁止双跑）。标准发布使用build-image.js、upload-nas-image.js、deploy-nas.js及统一nas-ssh-config.js，验证checksum和dry-run后apply；保留回滚资料。主力开发、CPU/Linux 隔离验证及非 GPU Docker 镜像构建与容器验证在 `worker-dev`（`worker` `192.168.12.216`，`/home/gezhu/work/Shelfdeck`）执行（无 GPU）；需要 GPU/NVENC（Quadro T2000）或生产同构容器的验证必须在 `heavy` (`192.168.12.215`) 的隔离一次性副本中执行（`/tmp` 目录 + 非 `18080` 回环端口，严禁挂载生产数据/媒体或操作线上 `shelfdeck` 容器）。media-desktop为历史树，不在当前交付范围。真实媒体/生产数据处置必须有精确范围、当前证据和授权，不用旧preflight替代正式流程。
 
 ### 3.3 SSOT change control
 

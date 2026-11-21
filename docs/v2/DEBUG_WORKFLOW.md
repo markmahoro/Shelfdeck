@@ -7,7 +7,7 @@
 排查任何 runtime 问题前，先读：
 
 1. `docs/v2/DEBUG_WORKFLOW.md` - 本文。
-2. `tests/TEST_ENV_CHECKLIST.md`（可选、已 gitignore，含凭据，不得提交或泄露；若本机不存在该文件，**不要扫描局域网 IP**，直接使用 `tools/nas-ssh-config.js` 默认生产连接：`heavy` `192.168.12.215`、用户 `gezhu`、私钥 `~/.ssh/shelfdeck-gezhu2403`）。
+2. `tests/TEST_ENV_CHECKLIST.md`（可选、已 gitignore，含凭据，不得提交或泄露；若本机不存在该文件，**不要扫描局域网 IP**，直接使用 `tools/nas-ssh-config.js` 默认生产连接：`heavy` `192.168.12.215`、用户 `gezhu`、`worker-dev` 优先 `~/.ssh/worker-dev-lan-ed25519` 与 `~/.ssh/shelfdeck-heavy`，向后兼容 `~/.ssh/shelfdeck-gezhu2403`）。
 
 当前生产拓扑速查（旧飞牛 NAS `192.168.12.230` 已退役，禁止当作在线生产排查）：
 
@@ -18,7 +18,7 @@
 | HDD 转码与备份 | `/srv/shelfdeck/transcode`、`/srv/shelfdeck/operator-backups` (`/dev/sdc1`) | 容器内 `/transcode` 与 `/app/data/operator-backups` |
 | 外部存储挂载 | `/media` (`192.168.12.45/Media` CIFS)、`/adult` (`192.168.12.45/Adult` CIFS)、`/mnt/shelfdeck_upgrade` (`192.168.12.218` NFSv4) | 容器内 `/media`、`/adult`（含 `/adult_media`）、`/upgrade` |
 | 外部上游 | HTTP 代理 `http://192.168.12.219:7890`；MoviePilot `http://192.168.12.217:3000` | `network-main`、`tmdb-main` 及活跃 `jav-*` 均走 `.219:7890` |
-| CPU 验证 VM (`worker`) | `192.168.12.216`（用户 `gezhu`） | 仅用于隔离 `/tmp` worktree 跑单测/E2E（无 GPU、无 Docker） |
+| 主力开发机 (`worker-dev` / `worker`) | `192.168.12.216`（用户 `gezhu`） | `/home/gezhu/work/Shelfdeck`；8 vCPU / 12 GiB RAM + 4 GiB swap；Node 22 + Docker（无 GPU） |
 
 ## 2. 诊断层级
 
@@ -73,10 +73,11 @@
 
 ### Layer 4 - SSH / Docker
 
-Use:
+Use (`worker-dev` 上可通过统一工具或只读 `ssh heavy` 别名；保持 `StrictHostKeyChecking=yes`):
 
 ```bash
 node tools/ssh-exec.js "<cmd>"
+ssh -n heavy "<cmd>"
 ```
 
 Common remote checks (`heavy` `192.168.12.215`):
@@ -84,7 +85,8 @@ Common remote checks (`heavy` `192.168.12.215`):
 ```bash
 docker ps
 docker logs shelfdeck 2>&1 | tail -80
-docker exec shelfdeck ls /media/ /adult/
+# 检查 CIFS/NFS 挂载只查 /proc/1/mountinfo 或 findmnt；严禁对 /mnt/shelfdeck_upgrade 等 CIFS/NFS 挂载执行无界 ls/stat/df/du
+findmnt -rn -T /media /adult /mnt/shelfdeck_upgrade
 ```
 
 ## 3. 常见决策树
@@ -141,26 +143,26 @@ Reservation重叠的一代；旧代作为被新Reservation取代的Procurement�
 
 本地或disposable fixture先执行plan：
 
-```powershell
+```bash
 node media-service/scripts/helix-formation-reset.js --data-dir <data-dir> --transcode-dir <transcode-root>
 ```
 
 直接apply要求服务已经停止，并显式提供offline确认和唯一确认词：
 
-```powershell
+```bash
 node media-service/scripts/helix-formation-reset.js --data-dir <data-dir> --transcode-dir <transcode-root> --apply --offline-confirmed --confirm FORMATION_RESET_V2
 ```
 
 生产NAS只允许使用`scripts/formation-reset-nas.js`，且当前Running image必须已经包含
 `media-service/scripts/helix-formation-reset.js`；实际部署状态以`docs/helix/CURRENT_STATUS.md`为准。默认命令是只读plan：
 
-```powershell
+```bash
 node scripts/formation-reset-nas.js
 ```
 
 用户明确授权该次生产Reset后才允许apply：
 
-```powershell
+```bash
 node scripts/formation-reset-nas.js --apply --confirm FORMATION_RESET_V2
 ```
 
