@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Execute a command on the remote NAS via SSH (password auth).
+ * Execute a command on the remote NAS via SSH (SSH key preferred, password fallback via tools/nas-ssh-config.js).
  * Usage: node tools/ssh-exec.js <command>
  */
 

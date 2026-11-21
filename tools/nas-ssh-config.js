@@ -8,7 +8,13 @@ const CHECKLIST = path.join(__dirname, '..', 'tests', 'TEST_ENV_CHECKLIST.md');
 const DEFAULT_HOST = '192.168.12.215';
 const DEFAULT_PORT = '22';
 const DEFAULT_USER = 'gezhu';
-const DEFAULT_KEY_NAMES = ['shelfdeck-gezhu2403', 'gezhu_nas_health_it_ed25519', 'id_rsa_shelfdeck'];
+const DEFAULT_KEY_NAMES = [
+  'worker-dev-lan-ed25519',
+  'shelfdeck-heavy',
+  'shelfdeck-gezhu2403',
+  'gezhu_nas_health_it_ed25519',
+  'id_rsa_shelfdeck',
+];
 
 function readChecklist() {
   try {
@@ -111,5 +117,6 @@ function loadNasSshConfig(options = {}) {
 }
 
 module.exports = {
+  DEFAULT_KEY_NAMES,
   loadNasSshConfig,
 };

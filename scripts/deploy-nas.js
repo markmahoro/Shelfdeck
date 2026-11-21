@@ -3,7 +3,7 @@
 /**
  * Safe production deploy for heavy (192.168.12.215).
  *
- * Build the image on the workstation, upload the tar, then:
+ * Build the image on worker-dev (or a Linux Docker host), upload the tar, then:
  *   node scripts/deploy-nas.js /srv/apps/shelfdeck/releases/shelfdeck-<tag>.tar --sha256 <hash>
  *   node scripts/deploy-nas.js /srv/apps/shelfdeck/releases/shelfdeck-<tag>.tar --sha256 <hash> --preserve-remote-reset-config --expect-stopped --apply
  *

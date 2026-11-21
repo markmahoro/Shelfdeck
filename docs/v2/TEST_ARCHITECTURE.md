@@ -3,16 +3,13 @@
 ## 常用命令
 
 ```bash
-# Windows 工作站（Node 22.23.5 LTS；.worktrees/<slug> 通过 mklink /J 复用 media-service/web/tools node_modules，严禁拉起 Docker Desktop 跑单测）
-node --test media-service/test/formation-reset-nas.test.js media-service/test/production-deploy-contract.test.js tests/nas-reset-bootstrap.test.js
+# worker-dev 主力开发机（/home/gezhu/work/Shelfdeck，Node 22.23.5 LTS；隔离 worktree 通过 ln -s 复用主目录三套 node_modules）
+node --test tests/nas-ssh-config.test.js tests/nas-reset-bootstrap.test.js media-service/test/formation-reset-nas.test.js media-service/test/production-deploy-contract.test.js
 cd media-service && node --test test/<target>.test.js
 cd media-service && npm run build:web
-
-# worker VM（192.168.12.216，在 /tmp detached worktree 中运行全量 helix-architecture / usearch / POSIX / Linux E2E 测试）
-cd /tmp/sd-verify-<slug>/media-service
-npm run test:helix-architecture
-npm run test:helix-runtime
-npm run test:us-adult-full-e2e
+cd media-service && npm run test:helix-architecture
+cd media-service && npm run test:helix-runtime
+cd media-service && npm run test:us-adult-full-e2e
 bash tests/runner.sh health-check tests/env/ci.env
 
 # heavy 隔离 GPU/Docker 副本（192.168.12.215，--runtime=nvidia，/tmp 一次性目录）
@@ -23,9 +20,8 @@ docker run --rm --runtime=nvidia -e NVIDIA_VISIBLE_DEVICES=all -e NVIDIA_DRIVER_
 
 | 环境 | 覆盖 | 说明 |
 | --- | --- | --- |
-| Windows 工作站 | 代码编辑、`.worktrees/*`、纯 JS 契约、定向单测 / SQLite / sharp / `build:web` | Node `22.23.5 LTS`（`--ignore-scripts` + 原生模块 `rebuild` 预装 `better-sqlite3`/`sharp`/`onnxruntime-node`，`.worktrees/*` 用 `mklink /J` 复用 `media-service`、`web` 与 `tools` 依赖）；**严禁拉起本机 Docker Desktop**；`media-desktop` 已退役；全量 `test:helix-architecture`（含 `jav-host-journey.test.js` 等长文件/全宿主矩阵）、`usearch`、`/proc/self/fd`、POSIX/CIFS 行为与 Linux E2E 交由 `worker` 执行 |
-| `worker` VM (`192.168.12.216`) | Linux 专属（全量 `test:helix-architecture` / `usearch` / `/proc/self/fd` / POSIX/CIFS）/ Linux E2E / `verify-shelfdeck` | `/tmp` detached worktree（4 vCPU / 7.7 GiB RAM / 0 Swap，限制 `--test-concurrency=2`；仅预装 `media-service/node_modules`，无 `tools/node_modules`、`web/node_modules`、GPU 与 Docker） |
-| `heavy` 隔离 Docker 副本 (`192.168.12.215`) | Quadro T2000 NVENC + Docker 运行时 + E2E | `--runtime=nvidia` + `/tmp` 一次性目录 + `127.0.0.1:<ephemeral-port>`，严禁碰 `:18080` 或生产挂载 |
+| `worker-dev` (`worker` VM `192.168.12.216`) | 日常开发、全量 `test:helix-architecture` / `usearch` / `/proc/self/fd` / POSIX/CIFS / `build:web` / Linux E2E / `verify-shelfdeck` / 非 GPU Docker | Debian 12，8 vCPU / 12 GiB RAM + 4 GiB swap，Node `22.23.5 LTS`，Docker `20.10.24`（`data-root=/srv/dev/docker`，`docker-compose` v1 `1.29.2`），无 GPU；`/home/gezhu/work/Shelfdeck` 预装 `media-service`、`web`、`tools` 三套 `node_modules`（含 `ffmpeg-static` / `@ffprobe-installer/ffprobe`；Playwright 浏览器按需安装）；并发保持有界（如 `--test-concurrency=4`） |
+| `heavy` 隔离 Docker 副本 (`192.168.12.215`) | Quadro T2000 NVENC + 生产同构 Docker 运行时 + E2E | `--runtime=nvidia` + `/tmp` 一次性目录 + `127.0.0.1:<ephemeral-port>`，严禁碰 `:18080` 或生产挂载 |
 | `heavy` 生产 (`http://192.168.12.215:18080`) | 只读诊断 / 授权发布后复验 | 旧飞牛 `.230` 已退役禁止双跑 |
 | CI | 无外部依赖 Docker smoke | GitHub Actions (`ubuntu-latest`) |
 

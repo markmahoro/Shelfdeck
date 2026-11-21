@@ -50,7 +50,7 @@ Bootstrap资格必须使用逐字节验真的私有源副本，禁止只读打�
 新镜像以持久停止意图启动，管理接口可用且`normalSupplyAllowed=false`。用户明确授权Reset后经正式Runtime API执行，完成仍停止；不能用历史物理删除CLI替代。发生行政退役、停止态终止Receipt或Series迁移后，旧结构回退必须拒绝，不用冷备覆盖新增事实。本轮停止态资格与通常正常供给资格分别记录，不把停止态PASS称为恢复供给成功。
 
 
-本文是 ShelfDeck 当前唯一生产部署入口。当前生产部署方式固定为：本机 build image -> 导出 tar -> `upload-nas-image.js` 上传并校验 -> `deploy-nas.js` dry run -> `deploy-nas.js --apply`。Codex 处理任何“上线、部署、升级 NAS、发布 Docker、生产环境”相关任务时，必须先读本文，再读 `scripts/build-image.js`、`scripts/upload-nas-image.js` 和 `scripts/deploy-nas.js`。
+本文是 ShelfDeck 当前唯一生产部署入口。当前生产部署方式固定为：`worker-dev` 本机 build image -> 导出 tar -> `upload-nas-image.js` 上传并校验 -> `deploy-nas.js` dry run -> `deploy-nas.js --apply`。处理任何“上线、部署、升级 NAS、发布 Docker、生产环境”相关任务时，必须先读本文，再读 `scripts/build-image.js`、`scripts/upload-nas-image.js` 和 `scripts/deploy-nas.js`。
 
 UAT-304：标准Compose的`stop_grace_period`为75秒。Service收到停止信号立即停止供给，最多60秒等待执行checkpoint，再回收自身FFmpeg进程；超预算保留未决执行，按既有Effect合同在重启时恢复，不将技术停机记录成媒体加工失败。
 
@@ -68,7 +68,7 @@ Helix-beta 已于 2026-08-28 在旧飞牛 NAS 上线，现生产宿主迁移至 
 | --- | --- |
 | 生产形态 | Debian 12 Docker (`20.10.24+dfsg1` + Compose v2 CLI plugin) 单容器 `shelfdeck` |
 | 生产地址 | `http://192.168.12.215:18080` |
-| 宿主 SSH | `192.168.12.215:22`，用户 `gezhu`；优先私钥 `shelfdeck-gezhu2403` |
+| 宿主 SSH | `192.168.12.215:22`，用户 `gezhu`；`worker-dev` 优先私钥 `worker-dev-lan-ed25519` / `shelfdeck-heavy`（旧控制端兼容 `shelfdeck-gezhu2403`） |
 | compose 目录（SSD） | `/srv/apps/shelfdeck`（`/dev/sdb1` ext4，UUID `2e4fda48-ccbd-40cd-9b6b-1b66c4eb2dda`） |
 | compose 文件（SSD） | `/srv/apps/shelfdeck/docker-compose.yml` |
 | 数据目录（SSD） | `/srv/apps/shelfdeck/data` |
@@ -121,9 +121,9 @@ dry-run、停服、完整 data backup、离线 plan/apply/plan 与 integrity che
 - `runtime: nvidia`（Quadro T2000）
 - `/srv/apps`（SSD）与 `/srv/shelfdeck`（HDD）真实挂载 UUID
 
-1. 在本机从仓库根目录构建生产镜像 tarball：
+1. 在 `worker-dev`（本地 Docker `data-root=/srv/dev/docker`）从仓库根目录直接构建并导出生产镜像 tarball：
 
-```powershell
+```bash
 node scripts/build-image.js <tag>
 ```
 
@@ -132,9 +132,9 @@ node scripts/build-image.js <tag>
 仅 Service 源码变化时可使用 `build-image.js <tag> --reuse-runtime <exact-image> <source-commit> <image-id>`。
 脚本核对镜像身份、依赖锁文件、Git 差异及完整 canonical COPY；依赖、Web、Dockerfile变化或删除 Service文件均拒绝复用。
 相同目录内未改名的文件 COPY 合并为单层，目录 COPY 保留原目标，避免逐文件层数累积导致 `max depth exceeded`；不改变源文件覆盖范围。
-本机 Docker engine 不可用时，可由本机脚本通过统一 SSH 配置建立仅 loopback 的临时 Docker socket 转发，使用 NAS daemon 构建和本机导出 tar；结束后关闭转发，不向 LAN 暴露 Docker API，不跳过后续上传、checksum、副本门禁与标准 deploy。
+若在无本地 Docker engine 的受限主机构建，可由脚本通过统一 SSH 配置建立仅 loopback 的临时 Docker socket 转发，使用 NAS daemon 构建和本机导出 tar；结束后关闭转发，不向 LAN 暴露 Docker API，不跳过后续上传、checksum、副本门禁与标准 deploy。
 
-`scripts/build-image.sh` 仅为 Linux/Git Bash 兼容包装，内部调用同一个 Node 实现；Windows 不需要 WSL 或 Git Bash。
+`scripts/build-image.sh` 仅为 shell 兼容包装，内部调用同一个 Node 实现 `scripts/build-image.js`。
 
 2. 计算本地 tarball 的 SHA-256，用于上传后校验：
 
@@ -142,23 +142,17 @@ node scripts/build-image.js <tag>
 sha256sum dist-image/shelfdeck-<tag>.tar
 ```
 
-Windows PowerShell 可用：
-
-```powershell
-Get-FileHash dist-image\shelfdeck-<tag>.tar -Algorithm SHA256
-```
-
 3. 将 tarball 上传到 NAS 的 ShelfDeck 目录：
 
-```powershell
-node scripts/upload-nas-image.js dist-image\shelfdeck-<tag>.tar
+```bash
+node scripts/upload-nas-image.js dist-image/shelfdeck-<tag>.tar
 ```
 
 上传脚本使用项目固定 NAS SSH 配置走 SFTP，不使用交互式 `scp`。SSH 由 `tools/nas-ssh-config.js` 统一读取，**优先私钥、密码仅作回退**：
 
 1. 环境变量 `SHELFDECK_NAS_HOST` / `SHELFDECK_NAS_PORT` / `SHELFDECK_NAS_USER` / `SHELFDECK_NAS_KEY`（可选 `SHELFDECK_NAS_PASSWORD`）。
 2. 本机 ignored 的 `tests/TEST_ENV_CHECKLIST.md` 表项：`heavy IP` / `飞牛 NAS IP`、`SSH 端口`、`SSH 用户名`、`SSH 私钥`（或 `SSH 密码`）。
-3. 若仍未给出私钥路径，则依次尝试 `~/.ssh/shelfdeck-gezhu2403`、`~/.ssh/gezhu_nas_health_it_ed25519` 与 `~/.ssh/id_rsa_shelfdeck`（默认主机 `192.168.12.215`、默认用户 `gezhu`）。
+3. 若仍未给出私钥路径，则依次尝试 `~/.ssh/worker-dev-lan-ed25519`、`~/.ssh/shelfdeck-heavy`、`~/.ssh/shelfdeck-gezhu2403`、`~/.ssh/gezhu_nas_health_it_ed25519` 与 `~/.ssh/id_rsa_shelfdeck`（默认主机 `192.168.12.215`、默认用户 `gezhu`）。
 
 私钥文件只留在本机，不得提交。`tools/` 需要先 `npm install` 以提供 `ssh2`。脚本会先上传到 `.uploading-*` 临时文件，完成后 rename 为目标 tarball，并在 NAS 上校验 SHA-256。校验不通过不得部署。
 
@@ -186,7 +180,7 @@ node scripts/deploy-nas.js /srv/apps/shelfdeck/releases/shelfdeck-<tag>.tar --sh
 
 首次 Helix clean cutover 使用：
 
-```powershell
+```bash
 node scripts/deploy-nas.js /srv/apps/shelfdeck/releases/shelfdeck-<tag>.tar --sha256 <local-sha256> --helix-clean-init
 node scripts/deploy-nas.js /srv/apps/shelfdeck/releases/shelfdeck-<tag>.tar --sha256 <local-sha256> --helix-clean-init --apply
 ```
@@ -197,10 +191,9 @@ node scripts/deploy-nas.js /srv/apps/shelfdeck/releases/shelfdeck-<tag>.tar --sh
 
 历史Reset留下的superseded Offer发布可用`--superseded-offer-ids <逗号分隔ID>`精确退役（最多32个）。工具必须证明每个Offer已被后续占用覆盖，保留原终态Delivery/Reservation，不重新采购同一材料；如仍有Intake，须用`--subject-ids`同时明确纳入其未Commit闭包，否则拒绝。单独提供Offer范围不会扩大为全量Subject Reset。执行前须完成副本演练与收藏保护校验，仍适用下述生产授权、备份及离线确认要求。
 
-Formation Reset是当前开发期的唯一offline调试能力，不发布新镜像、不替代标准部署，也不主动重新Intake。默认命令只读取
-当前生产数据库并输出plan：
+Formation Reset是当前开发期的唯一offline调试能力，不发布新镜像、不替代标准部署，也不主动重新Intake。默认命令只读取当前生产数据库并输出plan：
 
-```powershell
+```bash
 node scripts/formation-reset-nas.js
 ```
 
