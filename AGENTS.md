@@ -35,7 +35,7 @@ Do not add generated `media-service/dist/`, root debug dumps, runtime JSON, expo
 
 ## Production Safety
 
-- Deployment coordination follows docs/helix/ENGINEERING_PLAYBOOK.md §3.5; the centralized deployment-owner role was cancelled by the user. Version-specific UI verification follows §12.3, including its UI-only development exception.
+- Deployment coordination follows docs/helix/ENGINEERING_PLAYBOOK.md §3.5; both the centralized deployment-owner role (§3.5) and the centralized UI-owner review role (§12.3) were cancelled by the user. Exact-version UI verification and uniform design rules still follow §11.1 and §12.3.
 - NAS ShelfDeck Docker on `heavy` (`192.168.12.215:18080`, Debian 12 + Quadro T2000) is production; legacy fnOS `.230` is retired and must never be dual-run.
 - Do not delete, park, reset, migrate, or directly edit production data unless the user explicitly asks for that production action.
 - A direct user request to deploy, release, publish, or upgrade NAS production authorizes the standard deploy flow, including `deploy-nas.js --apply` after dry run and checksum validation pass.
@@ -83,7 +83,7 @@ Do not block the turn with a foreground development server. When needed, use a m
 
 ## Change Discipline
 
-- For UI-only development, the implementing task may complete exact-version UI verification and record evidence without duplicate UI-owner review. Development in other layers that also changes UI, including backend-generated display text, still requires the user-appointed UI owner's review of the exact version. Follow docs/helix/ENGINEERING_PLAYBOOK.md §11.1/§12.3 and BETA_FEATURE_ACCEPTANCE_BASELINE.md §7.1; classify by the actual change, not the task label.
+- The centralized UI-owner review requirement was cancelled by the user. For any UI change—whether UI-only or cross-layer changes affecting UI, including backend-generated display text or user-visible projections—the implementing task directly completes exact-version UI verification and records evidence, without requiring separate UI-owner review. Continue following docs/helix/ENGINEERING_PLAYBOOK.md §11.1/§12.3 and BETA_FEATURE_ACCEPTANCE_BASELINE.md §7.1.
 - For Admin Web / UI / UX changes or UAT, including backend-generated display text, read `docs/helix/ENGINEERING_PLAYBOOK.md` §11.1, then `docs/helix/BETA_FEATURE_ACCEPTANCE_BASELINE.md` §7.1.
 - UI must guide through structure, concise state, visible actions, and outcome feedback. Do not patch interaction gaps with explanatory prose. Every user-visible change, including post-UAT fixes, must meet `docs/helix/ENGINEERING_PLAYBOOK.md` §11.1; preserve accessible labels, actionable errors, and required consequence confirmations.
 - Read the code before changing it. Prefer existing patterns and helpers.
